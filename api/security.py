@@ -73,7 +73,9 @@ class LoginLimiter:
         self._lock = threading.Lock()
 
     def _live(self, key: str, now: float) -> deque[float] | None:
-        """Return the key's unexpired failures, dropping the key if none remain. Lock held by caller."""
+        """Return the key's unexpired failures, dropping the key if none remain.
+
+        Lock held by caller."""
         q = self._failures.get(key)
         if q is None:
             return None

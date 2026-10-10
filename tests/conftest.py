@@ -13,7 +13,19 @@ os.environ.setdefault("TA_SECRET_KEY", "test-secret-key-at-least-32-chars-long")
 os.environ.setdefault(
     "TA_DATABASE_URL", "postgresql+psycopg://ta:ta@localhost:5432/ta_test"
 )
-os.environ.setdefault("TA_COOKIE_SECURE", "false")
+
+
+@pytest.fixture
+def insecure_cookies(monkeypatch):
+    """TestClient speaks plain http, so a Secure cookie would never be stored.
+    Scoped to the clients that need it: setting it for the whole suite would leak
+    into tests that assert on the real default (see tests/test_config.py)."""
+    from api.config import get_settings
+
+    monkeypatch.setenv("TA_COOKIE_SECURE", "false")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture(scope="session")
@@ -63,7 +75,7 @@ def db(engine):
 
 
 @pytest.fixture
-def app_client(db):
+def app_client(db, insecure_cookies):
     from api.deps import db_session
     from api.main import create_app
 
@@ -78,7 +90,9 @@ def make_user(db):
     from api.models import User
     from api.security import hash_password
 
-    def _make(email: str = "user@example.com", password: str = "pw-correct", is_admin: bool = False):
+    def _make(
+        email: str = "user@example.com", password: str = "pw-correct", is_admin: bool = False
+    ):
         user = User(email=email, password_hash=hash_password(password), is_admin=is_admin)
         db.add(user)
         db.flush()

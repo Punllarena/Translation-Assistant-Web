@@ -52,7 +52,10 @@ def test_custom_words_are_unique_case_insensitively_per_profile(db):
     p2 = Profile(user_id=user.id, name="p2")
     db.add_all([p1, p2])
     db.flush()
-    db.add_all([CustomWord(profile_id=p1.id, word="Apple"), CustomWord(profile_id=p2.id, word="apple")])
+    db.add_all([
+        CustomWord(profile_id=p1.id, word="Apple"),
+        CustomWord(profile_id=p2.id, word="apple"),
+    ])
     db.flush()
     db.add(CustomWord(profile_id=p1.id, word="apple"))
     with pytest.raises(IntegrityError):

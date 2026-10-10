@@ -137,7 +137,8 @@ def test_same_token_twice_in_sequence_yields_exactly_one_user(app_client, db, ma
     token = _mint(app_client, make_user, "admin8@example.com")
     assert _accept(app_client, token, "first@example.com").status_code == 201
     assert _accept(app_client, token, "second@example.com").status_code == 400
-    assert db.query(User).filter(User.email.in_(["first@example.com", "second@example.com"])).count() == 1
+    both = ["first@example.com", "second@example.com"]
+    assert db.query(User).filter(User.email.in_(both)).count() == 1
     assert db.query(Invite).one().accepted_at is not None
 
 

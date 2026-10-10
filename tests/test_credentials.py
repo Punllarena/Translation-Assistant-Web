@@ -82,7 +82,8 @@ def test_patch_without_secret_leaves_it_intact(app_client, db, make_user, login)
 def test_patch_with_secret_replaces_it(app_client, db, make_user, login):
     user = make_user(email="k@example.com")
     login(app_client, "k@example.com")
-    cid = app_client.post("/credentials", json={"kind": "deepl", "secret": "old-secret"}).json()["id"]
+    created = app_client.post("/credentials", json={"kind": "deepl", "secret": "old-secret"})
+    cid = created.json()["id"]
     r = app_client.patch(f"/credentials/{cid}", json={"secret": "new-secret-value"})
     assert r.status_code == 200
     assert "new-secret-value" not in r.text

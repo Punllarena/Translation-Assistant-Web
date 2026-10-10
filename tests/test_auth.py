@@ -23,8 +23,11 @@ def test_login_rejects_wrong_password(app_client, make_user):
 
 def test_login_rejects_unknown_email_with_identical_response(app_client, make_user):
     make_user(email="known@example.com", password="pw-correct")
-    wrong = app_client.post("/auth/login", json={"email": "known@example.com", "password": "nope"})
-    unknown = app_client.post("/auth/login", json={"email": "ghost@example.com", "password": "nope"})
+    def attempt(email: str):
+        return app_client.post("/auth/login", json={"email": email, "password": "nope"})
+
+    wrong = attempt("known@example.com")
+    unknown = attempt("ghost@example.com")
     assert wrong.status_code == unknown.status_code == 401
     assert wrong.json() == unknown.json()
     assert "ta_session" not in unknown.cookies

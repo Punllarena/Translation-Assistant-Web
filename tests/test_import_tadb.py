@@ -200,7 +200,7 @@ def test_import_loads_the_whole_library(db, make_user, tmp_path):
     assert doc.series_id == series.id
     assert doc.volume_id is not None
     lines = db.query(Line).filter_by(document_id=doc.id).order_by(Line.line_number).all()
-    assert [l.raw_text for l in lines] == ["一行目", "二行目"]
+    assert [row.raw_text for row in lines] == ["一行目", "二行目"]
     assert lines[0].translated_text == "Line one"
     image = db.query(DocumentImage).filter_by(document_id=doc.id).one()
     assert image.is_cover is True and image.exclude_export is True
@@ -528,5 +528,6 @@ def test_bad_timestamp_and_empty_prefix_are_reported(db, make_user, tmp_path):
     assert any("yesterday-ish" in m and "translated_at" in m for m in report.messages)
     assert any("empty prefix" in m for m in report.messages)
     doc = db.query(Document).filter_by(user_id=user.id).one()
-    prefixes = [x.prefix for x in db.query(Line).filter_by(document_id=doc.id).order_by(Line.line_number)]
+    stored = db.query(Line).filter_by(document_id=doc.id).order_by(Line.line_number)
+    prefixes = [x.prefix for x in stored]
     assert prefixes == ["%", "%"]

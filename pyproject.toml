@@ -43,5 +43,13 @@ target-version = "py312"
 include = ["api*", "tools*"]
 
 [tool.ruff.lint]
-# B008 is ignored because Depends() in a default argument is the FastAPI idiom.
+# Without an explicit select, ruff enforces only its default E4,E7,E9,F -- which
+# silently dropped both the B008 ignore below and line-length (E501).
+select = ["E", "F", "I", "B", "UP"]
+# Depends() in a default argument is the FastAPI idiom, so B008 stays off.
 ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Alembic writes these; rewrapping its lines by hand would be undone by the next
+# --autogenerate run, and the plan forbids hand-patching migrations.
+"migrations/versions/*" = ["E501"]

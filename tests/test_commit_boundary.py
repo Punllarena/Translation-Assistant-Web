@@ -45,7 +45,7 @@ class _CommitBoom:
 
 
 @pytest.fixture
-def boom(db):
+def boom(db, insecure_cookies):
     """A client whose request-path commit can be armed to fail."""
     from api.deps import db_session
 

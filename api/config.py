@@ -17,6 +17,9 @@ class Settings(BaseSettings):
 
     secret_key: str = Field(min_length=32)
     database_url: str = "postgresql+psycopg://ta:ta@localhost:5432/ta"
+    # Reserved and inert: nothing reads it yet. Registration is invite-only in phase 1
+    # by construction (only /auth/accept-invite creates accounts); the spec asks for the
+    # flag, and the path it will gate arrives with the signup form in a later phase.
     allow_public_signup: bool = False
     session_ttl_days: int = 30
     cookie_secure: bool = True
