@@ -4,10 +4,10 @@ import heapq
 import secrets
 import threading
 import time
-from collections import defaultdict, deque
+from collections import deque
 
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHashError
+from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from cryptography.fernet import Fernet, InvalidToken
 
 from api.config import get_settings

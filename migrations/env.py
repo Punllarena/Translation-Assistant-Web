@@ -1,9 +1,9 @@
 from alembic import context
 from sqlalchemy import create_engine
 
+import api.models  # noqa: F401  — registers every mapper with Base.metadata
 from api.config import get_settings
 from api.db import Base
-import api.models  # noqa: F401  — registers every mapper with Base.metadata
 
 target_metadata = Base.metadata
 

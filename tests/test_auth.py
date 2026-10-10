@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -50,7 +50,7 @@ def test_expired_session_is_401(app_client, db, make_user):
     user = make_user(email="d@example.com", password="pw-correct")
     app_client.post("/auth/login", json={"email": "d@example.com", "password": "pw-correct"})
     row = db.query(SessionRow).filter_by(user_id=user.id).one()
-    row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     db.flush()
     assert app_client.get("/auth/me").status_code == 401
 
@@ -119,7 +119,9 @@ def test_account_bucket_limits_across_addresses(app_client, make_user, clean_lim
     assert app_client.post("/auth/login", json=other).status_code == 401
 
 
-def test_flooding_email_keys_cannot_evict_address_bucket(app_client, make_user, clean_limiter, monkeypatch):
+def test_flooding_email_keys_cannot_evict_address_bucket(
+    app_client, make_user, clean_limiter, monkeypatch
+):
     from api import security
 
     address_limiter, email_limiter = clean_limiter

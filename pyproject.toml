@@ -41,3 +41,7 @@ target-version = "py312"
 
 [tool.setuptools.packages.find]
 include = ["api*", "tools*"]
+
+[tool.ruff.lint]
+# B008 is ignored because Depends() in a default argument is the FastAPI idiom.
+ignore = ["B008"]

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
@@ -9,7 +9,14 @@ from api.deps import COOKIE_NAME, current_user, db_session
 from api.models import Session as SessionRow
 from api.models import User
 from api.schemas.auth import LoginRequest, UserOut
-from api.security import hash_password, address_limiter, email_limiter, new_token, token_hash, verify_password
+from api.security import (
+    address_limiter,
+    email_limiter,
+    hash_password,
+    new_token,
+    token_hash,
+    verify_password,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -57,7 +64,7 @@ def login(
         SessionRow(
             token_hash=token_hash(token),
             user_id=user.id,
-            expires_at=datetime.now(timezone.utc) + timedelta(days=settings.session_ttl_days),
+            expires_at=datetime.now(UTC) + timedelta(days=settings.session_ttl_days),
         )
     )
     db.flush()

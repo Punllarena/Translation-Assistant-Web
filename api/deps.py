@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -30,7 +30,7 @@ def current_user(request: Request, db: Session = Depends(db_session)) -> User:
     if not token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not authenticated")
     row = db.scalar(select(SessionRow).where(SessionRow.token_hash == token_hash(token)))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if row is None or row.expires_at <= now:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "session invalid or expired")
     row.last_seen_at = now
