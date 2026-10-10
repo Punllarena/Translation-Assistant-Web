@@ -85,3 +85,18 @@ def make_user(db):
         return user
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_limiters():
+    """Login limiters are process-global; clear them around every test."""
+    from api.security import address_limiter, email_limiter
+
+    def clear():
+        for limiter in (address_limiter, email_limiter):
+            with limiter._lock:
+                limiter._failures.clear()
+
+    clear()
+    yield
+    clear()

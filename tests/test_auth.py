@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from api.models import Session as SessionRow
+from api.security import address_limiter, email_limiter
 
 
 def test_login_sets_cookie_and_returns_user(app_client, make_user):
@@ -82,25 +83,9 @@ def test_cookie_secure_flag_tracks_setting(app_client, make_user, monkeypatch, s
     assert ("secure" in r.headers["set-cookie"].lower().split("; ")) is secure
 
 
-@pytest.fixture
-def clean_limiter():
-    from api.security import address_limiter, email_limiter
-
-    def clear():
-        address_limiter.reset("testclient")
-        for k in ("f@example.com", "other@example.com"):
-            email_limiter.reset(k)
-
-    clear()
-    try:
-        yield address_limiter, email_limiter
-    finally:
-        clear()
-
-
-def test_repeated_failures_are_rate_limited(app_client, make_user, clean_limiter):
+def test_repeated_failures_are_rate_limited(app_client, make_user):
     make_user(email="f@example.com", password="pw-correct")
-    cap = clean_limiter[0].max_attempts
+    cap = address_limiter.max_attempts
     bad = {"email": "f@example.com", "password": "bad"}
     codes = [app_client.post("/auth/login", json=bad).status_code for _ in range(cap + 1)]
     assert codes == [401] * cap + [429]
@@ -108,8 +93,7 @@ def test_repeated_failures_are_rate_limited(app_client, make_user, clean_limiter
     assert app_client.post("/auth/login", json=good).status_code == 429
 
 
-def test_account_bucket_limits_across_addresses(app_client, make_user, clean_limiter):
-    _, email_limiter = clean_limiter
+def test_account_bucket_limits_across_addresses(app_client, make_user):
     make_user(email="f@example.com", password="pw-correct")
     for _ in range(email_limiter.max_attempts):
         email_limiter.record_failure("f@example.com")
@@ -120,11 +104,10 @@ def test_account_bucket_limits_across_addresses(app_client, make_user, clean_lim
 
 
 def test_flooding_email_keys_cannot_evict_address_bucket(
-    app_client, make_user, clean_limiter, monkeypatch
+    app_client, make_user, monkeypatch
 ):
     from api import security
 
-    address_limiter, email_limiter = clean_limiter
     make_user(email="f@example.com", password="pw-correct")
     for _ in range(address_limiter.max_attempts):
         address_limiter.record_failure("testclient")

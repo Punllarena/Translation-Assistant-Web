@@ -109,3 +109,88 @@ def test_expired_invite_is_rejected(app_client, db, make_user):
         json={"token": token, "email": "late@example.com", "password": "pw-late-1234"},
     )
     assert r.status_code == 400
+
+
+def _mint(client, make_user, admin_email, **body):
+    make_user(email=admin_email, is_admin=True)
+    _login(client, admin_email)
+    token = client.post("/invites", json=body).json()["token"]
+    client.post("/auth/logout")
+    return token
+
+
+def _accept(client, token, email, password="pw-accept-1234"):
+    return client.post(
+        "/auth/accept-invite", json={"token": token, "email": email, "password": password}
+    )
+
+
+def test_already_claimed_invite_is_rejected_and_creates_no_user(app_client, db, make_user):
+    token = _mint(app_client, make_user, "admin7@example.com")
+    db.query(Invite).one().accepted_at = datetime.now(UTC)
+    db.flush()
+    assert _accept(app_client, token, "claimed@example.com").status_code == 400
+    assert db.query(User).filter_by(email="claimed@example.com").count() == 0
+
+
+def test_same_token_twice_in_sequence_yields_exactly_one_user(app_client, db, make_user):
+    token = _mint(app_client, make_user, "admin8@example.com")
+    assert _accept(app_client, token, "first@example.com").status_code == 201
+    assert _accept(app_client, token, "second@example.com").status_code == 400
+    assert db.query(User).filter(User.email.in_(["first@example.com", "second@example.com"])).count() == 1
+    assert db.query(Invite).one().accepted_at is not None
+
+
+def test_taken_email_is_rejected_and_invite_stays_usable(app_client, db, make_user):
+    token = _mint(app_client, make_user, "admin9@example.com")
+    make_user(email="taken@example.com")
+    assert _accept(app_client, token, "taken@example.com").status_code == 400
+    assert db.query(Invite).one().accepted_at is None
+    assert _accept(app_client, token, "free@example.com").status_code == 201
+
+
+def test_email_unique_race_becomes_generic_400_and_releases_invite(
+    app_client, db, make_user, monkeypatch
+):
+    """Simulate losing the users.email race: the pre-check passes, the insert collides."""
+    token = _mint(app_client, make_user, "admin10@example.com")
+    make_user(email="raced@example.com")
+    real_scalar = db.scalar
+    calls = {"n": 0}
+
+    def scalar_skipping_user_lookup(stmt, *a, **k):
+        if "FROM users" in str(stmt):
+            calls["n"] += 1
+            return None
+        return real_scalar(stmt, *a, **k)
+
+    monkeypatch.setattr(db, "scalar", scalar_skipping_user_lookup)
+    r = _accept(app_client, token, "raced@example.com")
+    monkeypatch.undo()
+    assert calls["n"] == 1
+    assert r.status_code == 400
+    assert db.query(Invite).one().accepted_at is None  # claim rolled back with the savepoint
+
+
+def test_every_rejection_path_returns_the_same_body(app_client, db, make_user):
+    bodies = []
+    # unknown token
+    bodies.append(_accept(app_client, "nonsense", "u1@example.com"))
+    # already used
+    t = _mint(app_client, make_user, "admin11@example.com")
+    _accept(app_client, t, "used@example.com")
+    bodies.append(_accept(app_client, t, "u2@example.com"))
+    # expired
+    t = _mint(app_client, make_user, "admin12@example.com")
+    inv = db.query(Invite).filter(Invite.accepted_at.is_(None)).one()
+    inv.expires_at = datetime.now(UTC) - timedelta(days=1)
+    db.flush()
+    bodies.append(_accept(app_client, t, "u3@example.com"))
+    # bound to another email
+    t = _mint(app_client, make_user, "admin13@example.com", email="bound@example.com")
+    bodies.append(_accept(app_client, t, "u4@example.com"))
+    # taken email
+    t = _mint(app_client, make_user, "admin14@example.com")
+    bodies.append(_accept(app_client, t, "used@example.com"))
+    assert [r.status_code for r in bodies] == [400] * 5
+    assert len({str(r.json()) for r in bodies}) == 1

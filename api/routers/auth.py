@@ -1,7 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.config import get_settings
@@ -109,17 +110,31 @@ def accept_invite(body: AcceptInvite, db: Session = Depends(db_session)) -> User
     now = datetime.now(UTC)
     # Every rejection (including a taken email) shares one message so callers cannot
     # probe which tokens or accounts exist.
+    rejected = HTTPException(status.HTTP_400_BAD_REQUEST, _INVITE_REJECTED)
     if invite is None or invite.accepted_at is not None or invite.expires_at <= now:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, _INVITE_REJECTED)
+        raise rejected
     if invite.email is not None and invite.email.strip().lower() != email:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, _INVITE_REJECTED)
+        raise rejected
     if db.scalar(select(User).where(User.email == email)) is not None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, _INVITE_REJECTED)
+        raise rejected
 
     user = User(email=email, password_hash=hash_password(body.password), is_admin=False)
-    db.add(user)
-    db.flush()
+    try:
+        # Savepoint: a rejected claim or a lost email race rolls back both, so a failed
+        # accept never consumes the invite or leaves a user behind.
+        with db.begin_nested():
+            # Atomic single-use claim: only one concurrent request flips accepted_at from NULL.
+            claimed = db.execute(
+                update(Invite)
+                .where(Invite.id == invite.id, Invite.accepted_at.is_(None))
+                .values(accepted_at=now)
+            )
+            if claimed.rowcount != 1:
+                raise rejected
+            db.add(user)
+            db.flush()  # only this flush may raise IntegrityError (users.email unique)
+    except IntegrityError:
+        raise rejected from None
     db.add(Profile(user_id=user.id, name="default", is_default=True))
-    invite.accepted_at = now
     db.flush()
     return user
