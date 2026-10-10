@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2026-10-10 09:08:30.803322
+Create Date: 2026-10-10 09:11:59.078448
 
 """
 from typing import Sequence, Union
@@ -123,10 +123,10 @@ def upgrade() -> None:
     sa.Column('profile_id', sa.Integer(), nullable=False),
     sa.Column('word', sa.String(length=120), nullable=False),
     sa.ForeignKeyConstraint(['profile_id'], ['profiles.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('profile_id', 'word')
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_custom_words_profile_id'), 'custom_words', ['profile_id'], unique=False)
+    op.create_index('uq_custom_words_profile_lower_word', 'custom_words', ['profile_id', sa.literal_column('lower(word)')], unique=True)
     op.create_table('glossary',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('profile_id', sa.Integer(), nullable=False),
@@ -240,6 +240,7 @@ def downgrade() -> None:
     op.drop_table('series')
     op.drop_index(op.f('ix_glossary_profile_id'), table_name='glossary')
     op.drop_table('glossary')
+    op.drop_index('uq_custom_words_profile_lower_word', table_name='custom_words')
     op.drop_index(op.f('ix_custom_words_profile_id'), table_name='custom_words')
     op.drop_table('custom_words')
     op.drop_index(op.f('ix_work_sessions_user_id'), table_name='work_sessions')

@@ -5,6 +5,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     String,
@@ -110,7 +111,6 @@ class GlossaryEntry(Base):
 
 class CustomWord(Base):
     __tablename__ = "custom_words"
-    __table_args__ = (UniqueConstraint("profile_id", "word"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     profile_id: Mapped[int] = mapped_column(
@@ -119,6 +119,15 @@ class CustomWord(Base):
     word: Mapped[str] = mapped_column(String(120), nullable=False)
 
     profile: Mapped[Profile] = relationship(back_populates="custom_words")
+
+
+# Case-insensitive uniqueness per profile (a table constraint cannot hold an expression).
+Index(
+    "uq_custom_words_profile_lower_word",
+    CustomWord.profile_id,
+    func.lower(CustomWord.word),
+    unique=True,
+)
 
 
 class UserSetting(Base):

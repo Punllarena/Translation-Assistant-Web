@@ -37,3 +37,33 @@ def test_deleting_a_document_cascades_to_lines(db):
     db.flush()
     db.execute(text("DELETE FROM documents WHERE id = :i"), {"i": doc.id})
     assert db.query(Line).filter_by(document_id=doc.id).count() == 0
+
+
+def test_custom_words_are_unique_case_insensitively_per_profile(db):
+    import pytest
+    from sqlalchemy.exc import IntegrityError
+
+    from api.models import CustomWord
+
+    user = User(email="c@example.com", password_hash="x")
+    db.add(user)
+    db.flush()
+    p1 = Profile(user_id=user.id, name="p1")
+    p2 = Profile(user_id=user.id, name="p2")
+    db.add_all([p1, p2])
+    db.flush()
+    db.add_all([CustomWord(profile_id=p1.id, word="Apple"), CustomWord(profile_id=p2.id, word="apple")])
+    db.flush()
+    db.add(CustomWord(profile_id=p1.id, word="apple"))
+    with pytest.raises(IntegrityError):
+        db.flush()
+
+
+def test_models_match_migration_head(db):
+    from alembic.autogenerate import compare_metadata
+    from alembic.migration import MigrationContext
+
+    from api.db import Base
+
+    ctx = MigrationContext.configure(db.connection(), opts={"compare_type": True})
+    assert compare_metadata(ctx, Base.metadata) == []
