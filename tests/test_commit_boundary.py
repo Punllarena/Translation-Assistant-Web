@@ -84,3 +84,37 @@ def test_a_failing_commit_on_a_read_is_also_a_5xx(boom, make_user, login):
     armed["on"] = True
     assert client.get("/profiles").status_code >= 500
     assert failure.calls == 1
+
+
+def test_a_real_request_persists_although_no_handler_commits(
+    engine, monkeypatch, insecure_cookies
+):
+    """End to end against a real session: the route class is what makes writes stick."""
+    from sqlalchemy import delete, select
+    from sqlalchemy.orm import Session, sessionmaker
+
+    from api import deps
+    from api.models import User
+    from api.security import hash_password
+
+    monkeypatch.setattr(
+        deps, "SessionLocal", sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    )
+    with Session(engine) as setup:
+        setup.add(User(email="real@example.com", password_hash=hash_password("pw-correct")))
+        setup.commit()
+    try:
+        with TestClient(create_app()) as client:
+            login = client.post(
+                "/auth/login", json={"email": "real@example.com", "password": "pw-correct"}
+            )
+            assert login.status_code == 200
+            assert client.post("/profiles", json={"name": "persisted"}).status_code == 201
+        # A fresh session: only committed rows are visible.
+        with Session(engine) as check:
+            user = check.scalar(select(User).where(User.email == "real@example.com"))
+            assert [p.name for p in user.profiles] == ["persisted"]
+    finally:
+        with Session(engine) as cleanup:
+            cleanup.execute(delete(User).where(User.email == "real@example.com"))
+            cleanup.commit()
