@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ta
+          POSTGRES_PASSWORD: ta
+          POSTGRES_DB: ta
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ta" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      TA_SECRET_KEY: ci-secret-key-at-least-32-characters-long
+      # Name must end in _test: the test fixtures drop and recreate this database.
+      TA_DATABASE_URL: postgresql+psycopg://ta:ta@localhost:5432/ta_test
+      TA_COOKIE_SECURE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: pytest -q

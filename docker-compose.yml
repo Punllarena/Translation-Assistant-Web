@@ -13,5 +13,16 @@ services:
       timeout: 5s
       retries: 10
 
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TA_SECRET_KEY: ${TA_SECRET_KEY:?set TA_SECRET_KEY in .env}
+      TA_DATABASE_URL: postgresql+psycopg://ta:ta@postgres:5432/ta
+      TA_COOKIE_SECURE: "false"
+    ports: ["8000:8000"]
+
 volumes:
   pgdata:
