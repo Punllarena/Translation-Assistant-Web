@@ -194,3 +194,32 @@ def test_every_rejection_path_returns_the_same_body(app_client, db, make_user):
     bodies.append(_accept(app_client, t, "used@example.com"))
     assert [r.status_code for r in bodies] == [400] * 5
     assert len({str(r.json()) for r in bodies}) == 1
+
+
+def test_claim_rowcount_rejects_when_row_was_claimed_after_the_pre_check(
+    app_client, db, make_user
+):
+    """The race: the handler's Invite object says accepted_at is None, but the database
+    row was already claimed by a concurrent request. Only the UPDATE's rowcount can
+    reject this."""
+    from sqlalchemy import update
+
+    token = _mint(app_client, make_user, "admin15@example.com")
+    invite = db.query(Invite).one()
+    assert invite.accepted_at is None
+    # Core UPDATE without session sync: the identity-mapped object stays stale (None).
+    db.execute(
+        update(Invite)
+        .where(Invite.id == invite.id)
+        .values(accepted_at=datetime.now(UTC))
+        .execution_options(synchronize_session=False)
+    )
+    assert invite.accepted_at is None  # pre-check will pass
+
+    profiles_before = db.query(Profile).count()
+    reference = _accept(app_client, "nonsense", "ref@example.com")
+    r = _accept(app_client, token, "racer@example.com")
+    assert r.status_code == 400
+    assert r.json() == reference.json()
+    assert db.query(User).filter_by(email="racer@example.com").count() == 0
+    assert db.query(Profile).count() == profiles_before
