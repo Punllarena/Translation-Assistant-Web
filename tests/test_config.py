@@ -1,0 +1,27 @@
+import pytest
+from pydantic import ValidationError
+
+from api.config import Settings
+
+
+def test_settings_require_secret_key(monkeypatch):
+    monkeypatch.delenv("TA_SECRET_KEY", raising=False)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_settings_reject_short_secret_key(monkeypatch):
+    monkeypatch.setenv("TA_SECRET_KEY", "too-short")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_settings_read_env_with_prefix(monkeypatch):
+    monkeypatch.setenv("TA_SECRET_KEY", "x" * 32)
+    monkeypatch.setenv("TA_DATABASE_URL", "postgresql+psycopg://u:p@h:5432/d")
+    monkeypatch.setenv("TA_ALLOW_PUBLIC_SIGNUP", "true")
+    s = Settings(_env_file=None)
+    assert s.database_url == "postgresql+psycopg://u:p@h:5432/d"
+    assert s.allow_public_signup is True
+    assert s.cookie_secure is True
+    assert s.session_ttl_days == 30
