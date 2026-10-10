@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from api.config import Settings
+from api.config import PLACEHOLDER_SECRET_KEY, Settings
 
 
 def test_settings_require_secret_key(monkeypatch):
@@ -25,3 +25,9 @@ def test_settings_read_env_with_prefix(monkeypatch):
     assert s.allow_public_signup is True
     assert s.cookie_secure is True
     assert s.session_ttl_days == 30
+
+
+def test_settings_reject_env_example_placeholder(monkeypatch):
+    monkeypatch.setenv("TA_SECRET_KEY", PLACEHOLDER_SECRET_KEY)
+    with pytest.raises(ValidationError, match="placeholder"):
+        Settings(_env_file=None)
