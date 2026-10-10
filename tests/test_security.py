@@ -2,9 +2,8 @@ import hashlib
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import Column, Integer, MetaData, String, Table, create_engine, func, insert, select
+from sqlalchemy import Column, Integer, MetaData, String, Table, func, insert, select
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from api import deps, security
 from api.security import (
@@ -123,26 +122,38 @@ def test_login_limiter_evicts_stalest_keys_over_cap(monkeypatch):
     assert set(limiter._failures) == {"b", "c", "d"}  # "a" was stalest
 
 
-def test_db_session_commits_on_success_and_rolls_back_on_error(monkeypatch):
-    eng = create_engine("sqlite://", poolclass=StaticPool, future=True)
+@pytest.fixture
+def items_table(engine):
     md = MetaData()
-    items = Table("items", md, Column("id", Integer, primary_key=True), Column("name", String))
-    md.create_all(eng)
-    monkeypatch.setattr(deps, "SessionLocal", sessionmaker(bind=eng))
+    table = Table(
+        "security_test_items", md,
+        Column("id", Integer, primary_key=True), Column("name", String),
+    )
+    md.drop_all(engine, checkfirst=True)
+    md.create_all(engine)
+    try:
+        yield table
+    finally:
+        md.drop_all(engine)
+
+
+def test_db_session_commits_on_success_and_rolls_back_on_error(engine, items_table, monkeypatch):
+    monkeypatch.setattr(deps, "SessionLocal", sessionmaker(bind=engine))
 
     def count() -> int:
-        with eng.connect() as conn:
-            return conn.execute(select(func.count()).select_from(items)).scalar_one()
+        # Independent connection: reads only what has been committed.
+        with engine.connect() as conn:
+            return conn.execute(select(func.count()).select_from(items_table)).scalar_one()
 
     gen = deps.db_session()
     session = next(gen)
-    session.execute(insert(items).values(name="kept"))
+    session.execute(insert(items_table).values(name="kept"))
     assert next(gen, None) is None  # normal exit runs the commit
     assert count() == 1
 
     gen = deps.db_session()
     session = next(gen)
-    session.execute(insert(items).values(name="discarded"))
+    session.execute(insert(items_table).values(name="discarded"))
     with pytest.raises(RuntimeError):
         gen.throw(RuntimeError("boom"))
     assert count() == 1  # rollback discarded the second insert
