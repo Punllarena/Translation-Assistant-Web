@@ -3,7 +3,8 @@
 Reads a copy of the desktop database with the standard library and writes
 through the ORM so every constraint applies. Profiles, series and volumes are
 looked up and reused (a forced re-import adds chapters to the existing series);
-documents, lines and images are inserted on every run. Each row is written in
+documents are deduped on (user, series, title) so a forced re-import of a file
+that has been worked in since adds only the new chapters. Each row is written in
 its own SAVEPOINT: a row the schema rejects (duplicate, over-long value, orphan)
 is skipped and reported, never silently dropped, and never aborts the run.
 """
@@ -13,7 +14,7 @@ import hashlib
 import sqlite3
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import func, select
@@ -36,16 +37,108 @@ from api.models import (
 
 FINGERPRINT_KEY = "imported_tadb_fingerprints"
 
+# Every column name any released desktop schema has, transcribed from
+# TranslationAssistant-PySide6-Port/translation_assistant/db.py (the _DDL constant
+# plus the _apply_schema ALTER TABLE chain). A name absent from here is an
+# importer bug, not a tolerable old file: _get refuses to read it.
+SOURCE_COLUMNS: dict[str, frozenset[str]] = {
+    "profiles": frozenset({"id", "name", "parse_chars", "created_at", "is_default"}),
+    "glossary": frozenset({"id", "profile_id", "phrase", "translation", "sort_order"}),
+    "custom_words": frozenset({"id", "profile_id", "word"}),
+    "documents": frozenset({
+        "id", "title", "source_language", "created_at", "updated_at", "last_position",
+        "series_title", "series_order", "chapter_title", "volume_title", "volume_author",
+        "volume_illustrator", "volume_publisher", "volume_identifier", "source_url",
+        "wp_status", "wp_post_url", "wp_date", "wp_chapter_index",
+    }),
+    "lines": frozenset({
+        "id", "document_id", "line_number", "prefix", "raw_text", "translated_text",
+        "translated_at",
+    }),
+    "document_images": frozenset({
+        "id", "document_id", "anchor_position", "is_cover", "src_path", "data",
+        "exclude_export",
+    }),
+    "series_profiles": frozenset({
+        "series_title", "profile_name", "syosetu_url", "series_slug", "series_title_short",
+        "wp_password_enabled", "wp_unlock_after",
+    }),
+}
+
+# The columns the desktop added by ALTER TABLE after the original DDL: a file written
+# by an older build legitimately lacks them and _get's default stands in. Anything
+# else the importer reads must be present, or the file is not a desktop ta.db.
+OPTIONAL_COLUMNS: dict[str, frozenset[str]] = {
+    "documents": frozenset({
+        "series_title", "series_order", "chapter_title", "volume_title", "volume_author",
+        "volume_illustrator", "volume_publisher", "volume_identifier", "source_url",
+        "wp_status", "wp_post_url", "wp_date", "wp_chapter_index",
+    }),
+    "lines": frozenset({"translated_at"}),
+    "document_images": frozenset({"exclude_export"}),
+    "series_profiles": frozenset({
+        "syosetu_url", "series_slug", "series_title_short", "wp_password_enabled",
+        "wp_unlock_after",
+    }),
+}
+
+# What this importer actually reads, per table: checked against the file up front so a
+# missing non-optional column fails loudly before a single row is written.
+READ_COLUMNS: dict[str, frozenset[str]] = {
+    "profiles": frozenset({"id", "name", "parse_chars", "is_default"}),
+    "glossary": frozenset({"id", "profile_id", "phrase", "translation", "sort_order"}),
+    "custom_words": frozenset({"id", "profile_id", "word"}),
+    "documents": frozenset({
+        "id", "title", "source_language", "last_position", "series_title", "series_order",
+        "chapter_title", "volume_title", "volume_author", "volume_illustrator",
+        "volume_publisher", "volume_identifier", "source_url", "wp_status", "wp_post_url",
+        "wp_date", "wp_chapter_index",
+    }),
+    "lines": frozenset({
+        "id", "document_id", "line_number", "prefix", "raw_text", "translated_text",
+        "translated_at",
+    }),
+    "document_images": frozenset({
+        "id", "document_id", "anchor_position", "is_cover", "src_path", "data",
+        "exclude_export",
+    }),
+    "series_profiles": frozenset({
+        "series_title", "profile_name", "syosetu_url", "series_slug", "series_title_short",
+        "wp_password_enabled", "wp_unlock_after",
+    }),
+}
+
+# Desktop documents.<column> -> Volume attribute. The desktop keeps volume metadata
+# denormalised on every chapter row; here it belongs to the volume.
+VOLUME_META: dict[str, str] = {
+    "epub_author": "volume_author",
+    "illustrator": "volume_illustrator",
+    "publisher": "volume_publisher",
+    "identifier": "volume_identifier",
+}
+
+# series_profiles.wp_unlock_after is NOT NULL DEFAULT -1, where -1 means "no series
+# override, use the global setting"; the destination column is nullable, so -1 -> NULL.
+NO_UNLOCK_OVERRIDE = -1
+
 
 @dataclass
 class ImportReport:
     written: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     skipped: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # Rows deliberately not re-inserted because the account already has them. Not a
+    # failure, so these never make the command exit non-zero.
+    already_present: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     messages: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
         parts = [f"{k}: {v} written" for k, v in sorted(self.written.items())]
         parts += [f"{k}: {v} skipped" for k, v in sorted(self.skipped.items()) if v]
+        parts += [
+            f"{k}: {v} already present"
+            for k, v in sorted(self.already_present.items())
+            if v
+        ]
         return "\n".join(parts)
 
 
@@ -61,21 +154,78 @@ def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
     return {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
 
 
-def _get(row: sqlite3.Row, key: str, default=None):
-    """Read a column that may not exist in an older ta.db."""
+def _get(row: sqlite3.Row, table: str, key: str, default=None):
+    """Read a column that may legitimately be absent from an older ta.db.
+
+    A ``key`` no released desktop schema has is a typo or an invented column, i.e. an
+    importer bug that would otherwise yield ``default`` on every row in silence; it
+    raises instead. Real absence (an older file lacking an ALTER-added column) still
+    falls back to ``default`` — see OPTIONAL_COLUMNS.
+    """
+    if key not in SOURCE_COLUMNS[table]:
+        raise RuntimeError(
+            f"importer bug: {table}.{key} is not a column of any known desktop schema "
+            f"(see SOURCE_COLUMNS, transcribed from the desktop db.py)"
+        )
     # sqlite3.Row `in` tests values, not column names, so keys() is required.
     present = key in row.keys()  # noqa: SIM118
     return row[key] if present and row[key] is not None else default
 
 
-def _parse_ts(value: str | None, report: ImportReport, label: str) -> datetime | None:
+def _check_source_schema(conn: sqlite3.Connection) -> None:
+    """Fail before writing anything if the source is not a desktop ta.db."""
+    for table, used in READ_COLUMNS.items():
+        invented = sorted(used - SOURCE_COLUMNS[table])
+        if invented:
+            raise RuntimeError(
+                f"importer bug: READ_COLUMNS[{table!r}] names {invented} which no known "
+                "desktop schema has"
+            )
+        present = _columns(conn, table)
+        if not present:
+            raise RuntimeError(f"source database has no {table} table; not a desktop ta.db")
+        missing = sorted(used - present - OPTIONAL_COLUMNS.get(table, frozenset()))
+        if missing:
+            raise RuntimeError(
+                f"source {table} is missing column(s) {missing}; not a desktop ta.db"
+            )
+
+
+def _parse_ts(
+    value: str | None, report: ImportReport, label: str, field_name: str = "translated_at"
+) -> datetime | None:
+    """Parse a desktop timestamp as UTC.
+
+    The desktop writes these with SQLite's ``datetime('now')`` (UTC) and WordPress
+    dates as ``...Z``, both without an offset in the first case. A naive value
+    inserted into ``timestamptz`` would be reinterpreted in the server's session
+    timezone, shifting every imported stamp, so UTC is attached explicitly.
+    """
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
     except ValueError:
-        _skip(report, "timestamps", label, f"unparseable translated_at {value!r}, left empty")
+        _skip(report, "timestamps", label, f"unparseable {field_name} {value!r}, left empty")
         return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+def _parse_tristate_flag(
+    value: object, report: ImportReport, label: str
+) -> bool | None:
+    """series_profiles.wp_password_enabled is TEXT '1'/'0'/NULL (NULL = no override)."""
+    if value is None or value == "":
+        return None
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    report.messages.append(
+        f"series {label}: wp_password_enabled {value!r} is not 1/0, treated as no override"
+    )
+    return None
 
 
 def _fingerprints(db: Session, user_id: int) -> tuple[UserSetting | None, list[str]]:
@@ -103,9 +253,20 @@ def import_tadb(
         raise RuntimeError(
             f"{sqlite_path} was already imported for this user; pass force=True to import again"
         )
+    # The fingerprint only catches the *same* file. A ta.db the user kept working in
+    # has a new fingerprint, so without this guard a second run would insert the whole
+    # library again (containers are reused, documents are not).
+    existing = db.scalar(select(func.count(Document.id)).where(Document.user_id == user_id)) or 0
+    if existing and not force:
+        raise RuntimeError(
+            f"this account already has {existing} document(s); importing would duplicate "
+            "the library. Pass force=True (--force) to import anyway: documents matching "
+            "an existing series and title are then skipped, so only new chapters are added"
+        )
 
     conn = sqlite3.connect(sqlite_path.resolve().as_uri() + "?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
+    _check_source_schema(conn)
     # One SAVEPOINT around the whole import: a dry run rolls back only this work,
     # never the caller's transaction.
     savepoint = db.begin_nested()
@@ -178,8 +339,8 @@ def _import_profiles(
             profile = Profile(
                 user_id=user_id,
                 name=row["name"],
-                parse_chars=_get(row, "parse_chars", "、 。 ？ ！ 「 」 …… "),
-                is_default=bool(_get(row, "is_default", 0)),
+                parse_chars=_get(row, "profiles", "parse_chars", "、 。 ？ ！ 「 」 …… "),
+                is_default=bool(_get(row, "profiles", "is_default", 0)),
             )
             if not _add(db, profile, "profiles", f"row {row['id']}", report):
                 continue
@@ -195,7 +356,7 @@ def _import_profiles(
             profile_id=profile.id,
             phrase=row["phrase"],
             translation=row["translation"],
-            sort_order=_get(row, "sort_order", 0),
+            sort_order=_get(row, "glossary", "sort_order", 0),
         )
         _add(db, entry, "glossary", f"row {row['id']}", report)
 
@@ -235,7 +396,7 @@ def _import_series(
         series = db.scalar(select(Series).where(Series.user_id == user_id, Series.title == title))
         if series is None:
             m = meta.get(title)
-            pname = (_get(m, "profile_name", "") if m else "") or ""
+            pname = (_get(m, "series_profiles", "profile_name", "") if m else "") or ""
             profile = profiles_by_name.get(pname)
             if pname and profile is None:
                 if pname in legacy_profiles:
@@ -244,13 +405,24 @@ def _import_series(
                 report.messages.append(
                     f"series {title!r}: profile {pname!r} does not exist in the source; no link"
                 )
+            # Column names are the desktop's: series_slug / series_title_short,
+            # not the wp_-prefixed names this schema uses for them.
+            unlock = _get(m, "series_profiles", "wp_unlock_after") if m else None
             series = Series(
                 user_id=user_id,
                 title=title,
                 profile_id=profile.id if profile else None,
-                syosetu_url=_get(m, "syosetu_url", "") if m else "",
-                wp_series_slug=_get(m, "wp_series_slug", "") if m else "",
-                wp_series_title_short=_get(m, "wp_series_title_short", "") if m else "",
+                syosetu_url=_get(m, "series_profiles", "syosetu_url", "") if m else "",
+                wp_series_slug=_get(m, "series_profiles", "series_slug", "") if m else "",
+                wp_series_title_short=(
+                    _get(m, "series_profiles", "series_title_short", "") if m else ""
+                ),
+                wp_password_enabled=_parse_tristate_flag(
+                    _get(m, "series_profiles", "wp_password_enabled") if m else None,
+                    report,
+                    repr(title),
+                ),
+                wp_unlock_after=None if unlock in (None, NO_UNLOCK_OVERRIDE) else unlock,
             )
             if not _add(db, series, "series", repr(title), report):
                 continue
@@ -258,9 +430,30 @@ def _import_series(
     return out
 
 
+def _volume_meta(row: sqlite3.Row) -> dict[str, str]:
+    return {
+        attr: _get(row, "documents", column, "") or "" for attr, column in VOLUME_META.items()
+    }
+
+
+def _merge_volume_meta(volume: Volume, meta: dict[str, str], report: ImportReport) -> None:
+    """First non-empty value wins; a later chapter that disagrees is reported."""
+    for attr, value in meta.items():
+        if not value:
+            continue
+        current = getattr(volume, attr) or ""
+        if not current:
+            setattr(volume, attr, value)
+        elif current != value:
+            report.messages.append(
+                f"volumes {volume.title!r}: {attr} kept as {current!r}; another chapter "
+                f"says {value!r}"
+            )
+
+
 def _volume(
     db: Session, series: Series, title: str, cache: dict[tuple[int, str], Volume | None],
-    report: ImportReport,
+    report: ImportReport, meta: dict[str, str],
 ) -> Volume | None:
     key = (series.id, title)
     if key not in cache:
@@ -269,10 +462,14 @@ def _volume(
         )
         if volume is None:
             order = db.scalar(select(func.count(Volume.id)).where(Volume.series_id == series.id))
-            volume = Volume(series_id=series.id, title=title, volume_order=order or 0)
+            volume = Volume(series_id=series.id, title=title, volume_order=order or 0, **meta)
             if not _add(db, volume, "volumes", repr(title), report):
                 volume = None
+        else:
+            _merge_volume_meta(volume, meta, report)
         cache[key] = volume
+    elif cache[key] is not None:
+        _merge_volume_meta(cache[key], meta, report)
     return cache[key]
 
 
@@ -288,31 +485,52 @@ def _import_documents(
 
     for row in conn.execute("SELECT * FROM documents"):
         label = f"row {row['id']}"
-        series_title = _get(row, "series_title", "")
-        vol_title = _get(row, "volume_title", "")
+        series_title = _get(row, "documents", "series_title", "")
+        vol_title = _get(row, "documents", "volume_title", "")
         series = series_by_title.get(series_title)
         if series_title and series is None:
             _skip(report, "documents", label, f"series {series_title!r} was not imported")
             continue
         volume = None
         if series and vol_title:
-            volume = _volume(db, series, vol_title, volumes, report)
+            volume = _volume(db, series, vol_title, volumes, report, _volume_meta(row))
             if volume is None:
                 _skip(report, "documents", label, f"volume {vol_title!r} was not imported")
                 continue
         elif vol_title:
             report.messages.append(f"documents {label}: volume_title {vol_title!r} has no series")
+        series_id = series.id if series else None
+        existing = db.scalar(
+            select(Document).where(
+                Document.user_id == user_id,
+                Document.series_id == series_id,
+                Document.title == row["title"],
+            )
+        )
+        if existing is not None:
+            # A forced re-import of a ta.db that has been worked in since: keep the
+            # chapter already here (it may have newer translations) and add only new ones.
+            report.already_present["documents"] += 1
+            report.messages.append(
+                f"documents {label}: {row['title']!r} is already in this account, kept as is"
+            )
+            continue
         doc = Document(
             user_id=user_id,
-            series_id=series.id if series else None,
+            series_id=series_id,
             volume_id=volume.id if volume else None,
             title=row["title"],
-            source_language=_get(row, "source_language", "ja"),
-            series_order=_get(row, "series_order", 0),
-            source_url=_get(row, "source_url", ""),
-            last_position=_get(row, "last_position", 0),
-            wp_post_id=_get(row, "wp_post_id"),
-            wp_status=_get(row, "wp_status", ""),
+            chapter_title=_get(row, "documents", "chapter_title", ""),
+            source_language=_get(row, "documents", "source_language", "ja"),
+            series_order=_get(row, "documents", "series_order", 0),
+            source_url=_get(row, "documents", "source_url", ""),
+            last_position=_get(row, "documents", "last_position", 0),
+            wp_status=_get(row, "documents", "wp_status", ""),
+            wp_post_url=_get(row, "documents", "wp_post_url", ""),
+            wp_chapter_index=_get(row, "documents", "wp_chapter_index"),
+            wp_published_at=_parse_ts(
+                _get(row, "documents", "wp_date"), report, f"documents {label}", "wp_date"
+            ),
         )
         if _add(db, doc, "documents", f"row {row['id']}", report):
             id_map[row["id"]] = doc
@@ -322,7 +540,7 @@ def _import_documents(
         if doc is None:
             _orphan(report, "lines", row, f"document_id {row['document_id']}")
             continue
-        prefix = _get(row, "prefix", "%")
+        prefix = _get(row, "lines", "prefix", "%")
         if not prefix:
             report.messages.append(f"lines row {row['id']}: empty prefix replaced with '%'")
             prefix = "%"
@@ -331,8 +549,10 @@ def _import_documents(
             line_number=row["line_number"],
             prefix=prefix,
             raw_text=row["raw_text"],
-            translated_text=_get(row, "translated_text", "") or "",
-            translated_at=_parse_ts(_get(row, "translated_at"), report, f"lines row {row['id']}"),
+            translated_text=_get(row, "lines", "translated_text", "") or "",
+            translated_at=_parse_ts(
+                _get(row, "lines", "translated_at"), report, f"lines row {row['id']}"
+            ),
         )
         _add(db, line, "lines", f"row {row['id']}", report)
 
@@ -343,11 +563,11 @@ def _import_documents(
             continue
         image = DocumentImage(
             document_id=doc.id,
-            anchor_position=_get(row, "anchor_position", 0),
-            is_cover=bool(_get(row, "is_cover", 0)),
+            anchor_position=_get(row, "document_images", "anchor_position", 0),
+            is_cover=bool(_get(row, "document_images", "is_cover", 0)),
             src_path=row["src_path"],
             data=row["data"],
-            exclude_export=bool(_get(row, "exclude_export", 0)),
+            exclude_export=bool(_get(row, "document_images", "exclude_export", 0)),
         )
         _add(db, image, "document_images", f"row {row['id']}", report)
 
@@ -357,7 +577,12 @@ def main() -> None:
     parser.add_argument("--db", required=True, type=Path, help="path to a copy of ta.db")
     parser.add_argument("--user", required=True, help="email of the destination account")
     parser.add_argument("--dry-run", action="store_true", help="report counts, write nothing")
-    parser.add_argument("--force", action="store_true", help="import again even if seen before")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="import even if this file was imported before or the account already has "
+             "documents; chapters already present (same series and title) are skipped",
+    )
     args = parser.parse_args()
 
     with SessionLocal() as db:

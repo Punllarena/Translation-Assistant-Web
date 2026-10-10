@@ -61,9 +61,22 @@ python -m tools.import_tadb --db /path/to/ta.db --user you@example.com --dry-run
 python -m tools.import_tadb --db /path/to/ta.db --user you@example.com
 ```
 
-The destination user must already exist. A second import of the same file for the same user is
-refused unless you pass `--force`. Each row is written in its own savepoint; rows the schema
-rejects are skipped and listed, and the command **exits non-zero if any rows were skipped**.
+The destination user must already exist. The importer refuses to run when the same file was
+already imported for that user, **and** when the account already holds any documents — a `ta.db`
+you kept working in has a different fingerprint, so the document count is what stops a second run
+from duplicating the whole library. `--force` overrides both; documents whose series and title are
+already present are then skipped (reported as "already present"), so only new chapters are added.
+
+Before writing anything the importer checks the source's columns against the desktop schema it was
+written for (`SOURCE_COLUMNS` in `tools/import_tadb.py`, transcribed from the desktop
+`translation_assistant/db.py`): a column no released desktop version has is an error, while the
+columns later desktop builds added by `ALTER TABLE` (`OPTIONAL_COLUMNS`) are tolerated as missing
+in an older file. Each row is written in its own savepoint; rows the schema rejects are skipped and
+listed, and the command **exits non-zero if any rows were skipped**.
+
+Timestamps (`lines.translated_at`, `documents.wp_date`) are read as UTC, which is what the desktop
+writes. Not carried over: `documents.created_at` / `updated_at` — imported rows get the import
+time, so "created" dates restart at migration. That is a known, accepted omission for phase 1.
 
 ## Container
 
