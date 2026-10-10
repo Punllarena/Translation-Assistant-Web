@@ -1,12 +1,15 @@
 # ta-web
 
-Web port of the Translation Assistant desktop app. This repo currently holds **phase 1**
-(the skeleton): FastAPI app, full Postgres schema via Alembic, session auth with invites,
-per-user profiles/settings/shortcuts/encrypted credentials, and the `ta.db` importer.
-Phases 2-6 (the remaining work) are described in the spec.
+Web port of the Translation Assistant desktop app. This repo currently holds **phases 1-2**:
+the skeleton (FastAPI app, full Postgres schema via Alembic, session auth with invites,
+per-user profiles/settings/shortcuts/encrypted credentials, the `ta.db` importer) and the
+library API (series, volumes, documents, picker listing with progress, reorder and renumber,
+merge and split, covers, TXT import, TXT/Markdown export). There is no web UI yet; the SPA
+arrives in phase 3. Phases 3-6 are described in the spec.
 
 - Spec: [`docs/superpowers/specs/2026-10-10-web-app-port-design.md`](docs/superpowers/specs/2026-10-10-web-app-port-design.md)
 - Phase 1 plan: [`docs/superpowers/plans/2026-10-10-phase1-skeleton.md`](docs/superpowers/plans/2026-10-10-phase1-skeleton.md)
+- Phase 2 plan: [`docs/superpowers/plans/2026-10-10-phase2-library.md`](docs/superpowers/plans/2026-10-10-phase2-library.md)
 
 ## Prerequisites
 
@@ -80,6 +83,19 @@ Timestamps (`lines.translated_at`, `documents.wp_date`) are read as UTC, which i
 writes. Not carried over: `documents.created_at` / `updated_at` — imported rows get the import
 time, so "created" dates restart at migration. That is a known, accepted omission for phase 1.
 
+## Backup
+
+There is no in-app backup. Dump the database with `pg_dump` (custom format, restorable
+with `pg_restore`):
+
+```bash
+docker compose exec -T postgres pg_dump -U ta -Fc ta > ta-$(date +%F).dump
+docker compose exec -T postgres pg_restore -U ta -d ta --clean --if-exists < ta-2026-10-10.dump
+```
+
+Back up `TA_SECRET_KEY` alongside it: without the key, the stored credentials in a restored
+dump cannot be decrypted.
+
 ## Container
 
 ```bash
@@ -116,3 +132,16 @@ proxy is the only thing that can reach it, otherwise clients can spoof their add
 - **Writes commit in the request path**, in `CommitOnResponseRoute` (`api/routing.py`), not in the
   session dependency's teardown — a teardown commit runs after the response has been sent, so its
   failure could not be reported. Build every router with `api_router()`; handlers only `flush()`.
+- **An id in a request body that is missing or someone else's is a 422**, with one message for
+  both (`series_id: no such item`, `document_ids: no such item` for merge). The URL names the
+  resource, so a 404 there would misreport which thing was not found; the single message keeps
+  existence undisclosed. Split takes its document from the URL, so its miss is a 404.
+- **Deleting a series or a volume keeps its chapters.** They become unsorted / unassigned
+  (`ON DELETE SET NULL`); deleting chapters is its own action.
+- **Merge and split move line rows rather than rewriting them**, so each line keeps its
+  `translated_at` (the desktop lost these on merge/split). In split, an image anchored after
+  the last line goes to the last segment.
+- **The last opened document** is the `last_document_id` user setting, written by the client via
+  `PUT /settings`; a deleted document simply answers 404.
+- **Uploads are capped and sniffed:** TXT at most 5 MiB, UTF-8 (BOM allowed), no NUL bytes;
+  covers at most 10 MiB, PNG/JPEG/GIF/WebP by magic bytes.

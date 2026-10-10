@@ -9,6 +9,7 @@ from api.routers import (
     profiles,
     series,
     settings,
+    transfer,
     volumes,
 )
 from api.routing import CommitOnResponseRoute
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     app.include_router(invites.router)
     app.include_router(profiles.router)
     app.include_router(series.router)
+    app.include_router(transfer.router)  # before documents: literal POST path
     app.include_router(documents.router)
     app.include_router(volumes.router)
     app.include_router(settings.router)
