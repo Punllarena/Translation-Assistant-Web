@@ -1,5 +1,6 @@
-import pytest
 from datetime import datetime, timedelta, timezone
+
+import pytest
 
 from api.models import Session as SessionRow
 
@@ -83,22 +84,23 @@ def test_cookie_secure_flag_tracks_setting(app_client, make_user, monkeypatch, s
 
 @pytest.fixture
 def clean_limiter():
-    from api.security import login_limiter
+    from api.security import address_limiter, email_limiter
 
     def clear():
-        for k in ("ip:testclient", "email:f@example.com", "email:other@example.com"):
-            login_limiter.reset(k)
+        address_limiter.reset("testclient")
+        for k in ("f@example.com", "other@example.com"):
+            email_limiter.reset(k)
 
     clear()
     try:
-        yield login_limiter
+        yield address_limiter, email_limiter
     finally:
         clear()
 
 
 def test_repeated_failures_are_rate_limited(app_client, make_user, clean_limiter):
     make_user(email="f@example.com", password="pw-correct")
-    cap = clean_limiter.max_attempts
+    cap = clean_limiter[0].max_attempts
     bad = {"email": "f@example.com", "password": "bad"}
     codes = [app_client.post("/auth/login", json=bad).status_code for _ in range(cap + 1)]
     assert codes == [401] * cap + [429]
@@ -107,12 +109,32 @@ def test_repeated_failures_are_rate_limited(app_client, make_user, clean_limiter
 
 
 def test_account_bucket_limits_across_addresses(app_client, make_user, clean_limiter):
+    _, email_limiter = clean_limiter
     make_user(email="f@example.com", password="pw-correct")
-    cap = clean_limiter.max_attempts
-    # Failures from other addresses exhaust only the (case-insensitive) email bucket.
-    for _ in range(cap):
-        clean_limiter.record_failure("email:f@example.com")
+    for _ in range(email_limiter.max_attempts):
+        email_limiter.record_failure("f@example.com")
     good = {"email": " F@Example.com ", "password": "pw-correct"}
     assert app_client.post("/auth/login", json=good).status_code == 429
     other = {"email": "other@example.com", "password": "x"}
     assert app_client.post("/auth/login", json=other).status_code == 401
+
+
+def test_flooding_email_keys_cannot_evict_address_bucket(app_client, make_user, clean_limiter, monkeypatch):
+    from api import security
+
+    address_limiter, email_limiter = clean_limiter
+    make_user(email="f@example.com", password="pw-correct")
+    for _ in range(address_limiter.max_attempts):
+        address_limiter.record_failure("testclient")
+    monkeypatch.setattr(security, "MAX_TRACKED_KEYS", 3)
+    for i in range(10):  # well past the cap, so email entries are evicted
+        email_limiter.record_failure(f"flood{i}@example.com")
+    assert len(email_limiter._failures) == 3
+    good = {"email": "f@example.com", "password": "pw-correct"}
+    assert app_client.post("/auth/login", json=good).status_code == 429
+
+
+def test_login_email_lookup_is_case_and_whitespace_insensitive(app_client, make_user):
+    make_user(email="me@example.com", password="pw-correct")
+    r = app_client.post("/auth/login", json={"email": " Me@Example.com ", "password": "pw-correct"})
+    assert r.status_code == 200

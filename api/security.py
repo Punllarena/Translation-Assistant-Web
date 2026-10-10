@@ -111,4 +111,7 @@ class LoginLimiter:
 
 
 _settings = get_settings()
-login_limiter = LoginLimiter(_settings.login_max_attempts, _settings.login_window_seconds)
+# Separate instances so attacker-chosen emails can only evict email entries, never the
+# address-keyed state that constrains that attacker.
+address_limiter = LoginLimiter(_settings.login_max_attempts, _settings.login_window_seconds)
+email_limiter = LoginLimiter(_settings.login_max_attempts, _settings.login_window_seconds)
