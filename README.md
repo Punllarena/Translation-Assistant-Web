@@ -41,11 +41,11 @@ uvicorn api.main:app --reload     # http://127.0.0.1:8000/docs
 
 ## Tests and lint
 
-The test fixtures **drop and recreate** the database named in `TA_DATABASE_URL`, so the suite
-refuses to run unless that name ends in `_test`. The default `.env` points at `ta`, so override it:
+`tests/conftest.py` defaults `TA_DATABASE_URL` to a `ta_test` database on the local Postgres. The
+suite **drops and recreates** that database on every run, and refuses to run against any name that
+does not end in `_test`. Export `TA_DATABASE_URL` only to point the suite at a different Postgres.
 
 ```bash
-export TA_DATABASE_URL=postgresql+psycopg://ta:ta@localhost:5432/ta_test
 ruff check .
 pytest
 ```
@@ -72,7 +72,7 @@ docker compose up --build        # needs TA_SECRET_KEY in .env or the environmen
 ```
 
 The `api` service runs `alembic upgrade head` and then uvicorn on port 8000. TLS and a reverse
-proxy arrive with the SPA in phase 3; until then the API is served directly. Once a proxy fronts
+proxy arrive with the SPA in phase 3; until then the API is served directly, bound to loopback only (`127.0.0.1:8000`, like Postgres) because cookies are not `Secure` without TLS; opening it up belongs with the TLS work in phase 3. Once a proxy fronts
 it, keep `--proxy-headers` on uvicorn (already in the container command) and make sure the
 proxy is the only thing that can reach it, otherwise clients can spoof their address.
 
