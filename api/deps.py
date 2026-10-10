@@ -7,8 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.db import SessionLocal
+from api.models import Series, User, Volume
 from api.models import Session as SessionRow
-from api.models import User
 from api.routing import SESSION_STATE_ATTR
 from api.security import token_hash
 
@@ -86,3 +86,13 @@ def owned_ref[T: UserOwned](
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, f"{field}: no such item"
         ) from None
+
+
+def scoped_volume(db: Session, volume_id: int, user_id: int) -> Volume:
+    """A volume is owned through its series; 404 for missing and foreign alike."""
+    volume = db.scalar(
+        select(Volume).join(Series).where(Volume.id == volume_id, Series.user_id == user_id)
+    )
+    if volume is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
+    return volume

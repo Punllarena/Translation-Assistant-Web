@@ -57,3 +57,7 @@ class DocumentListItem(DocumentOut):
     image_count: int
     has_cover: bool
     progress: int
+
+
+class DocumentIds(BaseModel):
+    document_ids: list[int] = Field(min_length=1)
