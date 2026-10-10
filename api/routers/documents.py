@@ -6,12 +6,15 @@ from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.deps import current_user, db_session, owned_ref, scoped
 from api.library import next_series_order, write_lines
 from api.models import Document, DocumentImage, Line, Series, User, Volume
+from api.restructure import NotOwned, RestructureError, merge_documents, split_document
 from api.routing import api_router
 from api.schemas.documents import (
     DocumentCreate,
     DocumentListItem,
     DocumentOut,
     DocumentUpdate,
+    MergeRequest,
+    SplitRequest,
 )
 
 router = api_router(prefix="/documents", tags=["documents"])
@@ -147,3 +150,31 @@ def delete_document(
 ) -> None:
     db.delete(scoped(db, Document, document_id, user.id))
     db.flush()
+
+
+@router.post("/merge", response_model=DocumentOut)
+def merge(
+    body: MergeRequest, user: User = Depends(current_user), db: Session = Depends(db_session)
+) -> Document:
+    try:
+        return merge_documents(db, user.id, body.document_ids, body.title)
+    except NotOwned:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "not found") from None
+    except RestructureError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from None
+
+
+@router.post("/{document_id}/split", response_model=list[DocumentOut])
+def split(
+    document_id: int,
+    body: SplitRequest,
+    user: User = Depends(current_user),
+    db: Session = Depends(db_session),
+) -> list[Document]:
+    cuts = [(cut.start, cut.title) for cut in body.cuts]
+    try:
+        return split_document(db, user.id, document_id, cuts)
+    except NotOwned:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "not found") from None
+    except RestructureError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from None

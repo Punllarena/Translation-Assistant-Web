@@ -61,3 +61,17 @@ class DocumentListItem(DocumentOut):
 
 class DocumentIds(BaseModel):
     document_ids: list[int] = Field(min_length=1)
+
+
+class MergeRequest(BaseModel):
+    document_ids: list[int] = Field(min_length=2)
+    title: Title
+
+
+class SplitCut(BaseModel):
+    start: int
+    title: str = ""
+
+
+class SplitRequest(BaseModel):
+    cuts: list[SplitCut] = Field(min_length=1)
