@@ -30,9 +30,10 @@ def current_user(request: Request, db: Session = Depends(db_session)) -> User:
     if not token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not authenticated")
     row = db.scalar(select(SessionRow).where(SessionRow.token_hash == token_hash(token)))
-    if row is None or row.expires_at <= datetime.now(timezone.utc):
+    now = datetime.now(timezone.utc)
+    if row is None or row.expires_at <= now:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "session invalid or expired")
-    row.last_seen_at = datetime.now(timezone.utc)
+    row.last_seen_at = now
     return row.user
 
 
