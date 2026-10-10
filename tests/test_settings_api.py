@@ -140,3 +140,59 @@ def test_delete_absent_shortcut_is_204(app_client, make_user, login):
     make_user(email="s@example.com")
     login(app_client, "s@example.com")
     assert app_client.delete("/shortcuts/next_line").status_code == 204
+
+
+def test_over_long_settings_key_is_422(app_client, make_user, login):
+    make_user(email="s@example.com")
+    login(app_client, "s@example.com")
+    assert app_client.put("/settings", json={"k" * 121: 1}).status_code == 422
+    assert app_client.get("/settings").json() == {}
+
+
+def test_empty_settings_key_is_422(app_client, make_user, login):
+    make_user(email="s@example.com")
+    login(app_client, "s@example.com")
+    assert app_client.put("/settings", json={"": 1}).status_code == 422
+
+
+def test_over_long_action_key_is_422(app_client, make_user, login):
+    make_user(email="s@example.com")
+    login(app_client, "s@example.com")
+    assert app_client.put("/shortcuts", json={"a" * 121: "Down"}).status_code == 422
+    assert app_client.get("/shortcuts").json() == {}
+
+
+def test_empty_action_key_is_422(app_client, make_user, login):
+    make_user(email="s@example.com")
+    login(app_client, "s@example.com")
+    assert app_client.put("/shortcuts", json={"": "Down"}).status_code == 422
+
+
+def test_over_long_binding_is_422(app_client, make_user, login):
+    make_user(email="s@example.com")
+    login(app_client, "s@example.com")
+    assert app_client.put("/shortcuts", json={"next_line": "b" * 121}).status_code == 422
+    assert app_client.get("/shortcuts").json() == {}
+
+
+def test_empty_binding_is_422(app_client, make_user, login):
+    make_user(email="s@example.com")
+    login(app_client, "s@example.com")
+    assert app_client.put("/shortcuts", json={"next_line": ""}).status_code == 422
+
+
+def test_swapping_bindings_within_one_payload_succeeds(app_client, make_user, login):
+    make_user(email="s@example.com")
+    login(app_client, "s@example.com")
+    app_client.put("/shortcuts", json={"next_line": "Down", "prev_line": "Up"})
+    r = app_client.put("/shortcuts", json={"next_line": "Up", "prev_line": "Down"})
+    assert r.status_code == 200
+    assert r.json() == {"next_line": "Up", "prev_line": "Down"}
+
+
+def test_max_length_key_and_binding_are_accepted(app_client, make_user, login):
+    make_user(email="s@example.com")
+    login(app_client, "s@example.com")
+    body = {"a" * 120: "b" * 120}
+    assert app_client.put("/shortcuts", json=body).status_code == 200
+    assert app_client.put("/settings", json={"k" * 120: 1}).status_code == 200
