@@ -66,6 +66,8 @@ already imported for that user, **and** when the account already holds any docum
 you kept working in has a different fingerprint, so the document count is what stops a second run
 from duplicating the whole library. `--force` overrides both; documents whose series and title are
 already present are then skipped (reported as "already present"), so only new chapters are added.
+`--dry-run` is never refused for a non-empty account — it writes nothing, so it reports the
+existing document count and exactly which chapters would be added or skipped.
 
 Before writing anything the importer checks the source's columns against the desktop schema it was
 written for (`SOURCE_COLUMNS` in `tools/import_tadb.py`, transcribed from the desktop
