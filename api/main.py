@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from api.config import get_settings
-from api.routers import auth, credentials, invites, profiles, series, settings
+from api.routers import auth, credentials, documents, invites, profiles, series, settings
 from api.routing import CommitOnResponseRoute
 
 
@@ -18,6 +18,7 @@ def create_app() -> FastAPI:
     app.include_router(invites.router)
     app.include_router(profiles.router)
     app.include_router(series.router)
+    app.include_router(documents.router)
     app.include_router(settings.router)
     app.include_router(credentials.router)
 
