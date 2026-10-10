@@ -1,3 +1,5 @@
+from sqlalchemy.orm import configure_mappers
+
 from api.db import Base
 from api.models import Document, Line, Profile, Series, User
 
@@ -38,3 +40,48 @@ def test_relationship_paths_exist():
     assert Document.lines.property.mapper.class_ is Line
     assert Series.documents.property.mapper.class_ is Document
     assert Profile.user.property.mapper.class_ is User
+
+
+def _fks_by_table_column(table_name):
+    return {fk.parent.name: fk for fk in Base.metadata.tables[table_name].foreign_keys}
+
+
+def test_user_referencing_foreign_keys_cascade_on_delete():
+    tables = (
+        "profiles", "sessions", "invites", "user_settings", "shortcuts",
+        "api_credentials", "series", "documents", "work_sessions",
+    )
+    for table in tables:
+        fks = [
+            fk for fk in Base.metadata.tables[table].foreign_keys
+            if fk.column.table.name == "users"
+        ]
+        assert fks, f"{table} has no foreign key to users"
+        for fk in fks:
+            assert fk.ondelete == "CASCADE", f"{table}.{fk.parent.name} ondelete={fk.ondelete}"
+
+
+def test_set_null_foreign_keys_are_exactly_the_expected_three():
+    set_null = {
+        (table.name, fk.parent.name)
+        for table in Base.metadata.tables.values()
+        for fk in table.foreign_keys
+        if fk.ondelete == "SET NULL"
+    }
+    assert set_null == {
+        ("series", "profile_id"),
+        ("documents", "series_id"),
+        ("documents", "volume_id"),
+    }
+
+
+def test_set_null_targets_are_indexed():
+    for table, column in (("series", "profile_id"), ("documents", "volume_id")):
+        indexed = {
+            tuple(c.name for c in idx.columns) for idx in Base.metadata.tables[table].indexes
+        }
+        assert (column,) in indexed, f"{table}.{column} is not indexed"
+
+
+def test_mappers_configure_cleanly():
+    configure_mappers()

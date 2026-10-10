@@ -26,7 +26,9 @@ class Series(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
-    profile_id: Mapped[int | None] = mapped_column(ForeignKey("profiles.id", ondelete="SET NULL"))
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("profiles.id", ondelete="SET NULL"), index=True
+    )
     syosetu_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     wp_series_slug: Mapped[str] = mapped_column(Text, nullable=False, default="")
     wp_series_title_short: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -70,7 +72,9 @@ class Document(Base):
     series_id: Mapped[int | None] = mapped_column(
         ForeignKey("series.id", ondelete="SET NULL"), index=True
     )
-    volume_id: Mapped[int | None] = mapped_column(ForeignKey("volumes.id", ondelete="SET NULL"))
+    volume_id: Mapped[int | None] = mapped_column(
+        ForeignKey("volumes.id", ondelete="SET NULL"), index=True
+    )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     source_language: Mapped[str] = mapped_column(String(16), nullable=False, default="ja")
     series_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -84,7 +88,7 @@ class Document(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
     series: Mapped[Series | None] = relationship(back_populates="documents")
@@ -100,7 +104,6 @@ class Line(Base):
     __tablename__ = "lines"
     __table_args__ = (
         UniqueConstraint("document_id", "line_number"),
-        Index("ix_lines_document_number", "document_id", "line_number"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
