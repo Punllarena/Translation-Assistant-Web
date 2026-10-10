@@ -127,3 +127,12 @@ def test_another_users_exports_are_404(app_client, me, make_user, make_series, m
     series = make_series(other)
     doc = make_doc(other, ["x"], series=series, order=1)
     assert app_client.get(path.format(doc=doc.id, series=series.id)).status_code == 404
+
+
+def test_import_txt_line_count_is_capped(app_client, db, me, monkeypatch):
+    from api import library
+
+    monkeypatch.setattr(library, "MAX_LINES", 2)
+    r = upload(app_client, f"a\nb\nc\n{SEP}\nA\nB\nC\n".encode())
+    assert (r.status_code, r.json()["detail"]) == (422, "too many lines (max 2)")
+    assert app_client.get("/documents").json() == []

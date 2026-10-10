@@ -104,7 +104,8 @@ docker compose up --build        # needs TA_SECRET_KEY in .env or the environmen
 
 The `api` service runs `alembic upgrade head` and then uvicorn on port 8000. TLS and a reverse
 proxy arrive with the SPA in phase 3; until then the API is served directly, bound to loopback only (`127.0.0.1:8000`, like Postgres)
-because cookies are not `Secure` without TLS; opening it up belongs with the TLS work in phase 3.
+because cookies are not `Secure` without TLS; opening it up belongs with the TLS work in phase 3, together with a reverse-proxy
+request-body size cap (see Uploads below).
 Once a proxy fronts it, keep `--proxy-headers` on uvicorn (already in the container command) and make sure the
 proxy is the only thing that can reach it, otherwise clients can spoof their address.
 
@@ -144,4 +145,9 @@ proxy is the only thing that can reach it, otherwise clients can spoof their add
 - **The last opened document** is the `last_document_id` user setting, written by the client via
   `PUT /settings`; a deleted document simply answers 404.
 - **Uploads are capped and sniffed:** TXT at most 5 MiB, UTF-8 (BOM allowed), no NUL bytes;
-  covers at most 10 MiB, PNG/JPEG/GIF/WebP by magic bytes.
+  covers at most 10 MiB, PNG/JPEG/GIF/WebP by magic bytes. These caps apply only after the
+  request body has been received (multipart file parts are spooled before auth and before
+  `read_capped`), so a reverse-proxy body cap (e.g. Caddy `request_body { max_size 12MB }`) is
+  required before the API is exposed beyond 127.0.0.1 — a phase 3 gate.
+- **Imported and created documents are capped at 50,000 lines** (`MAX_LINES` in
+  `api/library.py`); TXT import and `POST /documents` answer 422 beyond that.

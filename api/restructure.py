@@ -19,7 +19,8 @@ class RestructureError(ValueError):
 
 
 class NotOwned(Exception):
-    """A named document is missing or someone else's (the API answers 404)."""
+    """A named document is missing or someone else's (the route decides the status: 422
+    for body ids, 404 for the URL id)."""
 
 
 def _line_end(db: Session, document_id: int) -> int:

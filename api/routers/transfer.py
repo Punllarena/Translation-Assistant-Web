@@ -20,7 +20,13 @@ from api.core.text import (
     sanitize_filename,
 )
 from api.deps import current_user, db_session, owned_ref, scoped
-from api.library import chapters, line_arrays, next_series_order, write_lines
+from api.library import (
+    chapters,
+    check_line_count,
+    line_arrays,
+    next_series_order,
+    write_lines,
+)
 from api.models import Document, Series, User
 from api.routing import api_router
 from api.schemas.documents import DocumentOut
@@ -71,6 +77,7 @@ def import_txt(
         raw, translated, _ = parse_file_content(text)
     except ValueError as exc:
         raise _unprocessable(str(exc)) from None
+    check_line_count(raw)
     if series_id is not None:
         owned_ref(db, Series, series_id, user.id, "series_id")
     name = (title or "").strip() or PureWindowsPath(file.filename or "").stem or "Untitled"

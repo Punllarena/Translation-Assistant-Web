@@ -107,3 +107,24 @@ def test_delete_removes_document_and_lines(app_client, db, me, make_doc):
 def test_another_users_document_is_404(app_client, me, make_user, make_doc, method, kwargs):
     theirs = make_doc(make_user(email="other@example.com"), ["x"])
     assert getattr(app_client, method)(f"/documents/{theirs.id}", **kwargs).status_code == 404
+
+
+def test_create_line_count_is_capped(app_client, me, monkeypatch):
+    from api import library
+
+    monkeypatch.setattr(library, "MAX_LINES", 2)
+    r = app_client.post("/documents", json={"title": "Big", "raw_text": "a\nb\nc"})
+    assert (r.status_code, r.json()["detail"]) == (422, "too many lines (max 2)")
+    assert app_client.get("/documents").json() == []
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("patch", "/documents/1", {"last_position": 2**31}),
+        ("patch", "/series/1", {"wp_unlock_after": 2**31}),
+        ("post", "/series/1/volumes", {"title": "V", "volume_order": 2**31}),
+    ],
+)
+def test_integer_fields_are_bounded(app_client, me, method, path, body):
+    assert getattr(app_client, method)(path, json=body).status_code == 422

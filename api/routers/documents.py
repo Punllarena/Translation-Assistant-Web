@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.deps import current_user, db_session, owned_ref, scoped
-from api.library import next_series_order, write_lines
+from api.library import check_line_count, next_series_order, write_lines
 from api.models import Document, DocumentImage, Line, Series, User, Volume
 from api.restructure import NotOwned, RestructureError, merge_documents, split_document
 from api.routing import api_router
@@ -108,6 +108,10 @@ def create_document(
     """The desktop "New document" dialog: pasted source text is split into sentence
     lines by the ported build_new_file."""
     check_placement(db, user.id, body.series_id, body.volume_id)
+    parsed = None
+    if body.raw_text.strip():
+        parsed = parse_file_content(build_new_file(body.raw_text))
+        check_line_count(parsed[0])
     doc = Document(
         user_id=user.id,
         series_order=next_series_order(db, body.series_id),
@@ -115,8 +119,8 @@ def create_document(
     )
     db.add(doc)
     db.flush()
-    if body.raw_text.strip():
-        raw, translated, _ = parse_file_content(build_new_file(body.raw_text))
+    if parsed:
+        raw, translated, _ = parsed
         write_lines(db, doc.id, lines_to_db_rows(raw, translated))
     return doc
 

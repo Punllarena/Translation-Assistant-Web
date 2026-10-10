@@ -5,7 +5,7 @@ from api.schemas.common import Patch, Title
 
 class VolumeCreate(BaseModel):
     title: Title
-    volume_order: int | None = Field(default=None, ge=0)  # None: after the last volume
+    volume_order: int | None = Field(default=None, ge=0, le=2**31 - 1)  # None: last
     epub_title: str = ""
     epub_author: str = ""
     epub_language: str = Field(default="en", min_length=2, max_length=16)
@@ -17,7 +17,7 @@ class VolumeCreate(BaseModel):
 
 class VolumeUpdate(Patch):
     title: Title | None = None
-    volume_order: int | None = Field(default=None, ge=0)
+    volume_order: int | None = Field(default=None, ge=0, le=2**31 - 1)
     epub_title: str | None = None
     epub_author: str | None = None
     epub_language: str | None = Field(default=None, min_length=2, max_length=16)

@@ -23,7 +23,7 @@ class SeriesUpdate(Patch):
     wp_series_slug: str | None = None
     wp_series_title_short: str | None = None
     wp_password_enabled: bool | None = None
-    wp_unlock_after: int | None = Field(default=None, ge=0)
+    wp_unlock_after: int | None = Field(default=None, ge=0, le=2**31 - 1)
 
 
 class SeriesOut(BaseModel):

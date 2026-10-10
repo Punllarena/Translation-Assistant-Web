@@ -1,5 +1,6 @@
 """Queries shared by the documents, series, restructure, and transfer code."""
 
+from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,17 @@ def next_series_order(db: Session, series_id: int | None) -> int:
             Document.series_id == series_id
         )
     )
+
+
+MAX_LINES = 50_000  # a 5 MiB file of "a\n" would otherwise become millions of ORM rows
+
+
+def check_line_count(lines: list) -> None:
+    """422 when a document would exceed MAX_LINES; call before building any rows."""
+    if len(lines) > MAX_LINES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, f"too many lines (max {MAX_LINES})"
+        )
 
 
 def write_lines(db: Session, document_id: int, rows: list[dict]) -> None:
