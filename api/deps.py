@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from typing import Protocol
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -11,6 +12,10 @@ from api.models import User
 from api.security import token_hash
 
 COOKIE_NAME = "ta_session"
+
+
+class UserOwned(Protocol):
+    user_id: int
 
 
 def db_session() -> Iterator[Session]:
@@ -43,13 +48,17 @@ def require_admin(user: User = Depends(current_user)) -> User:
     return user
 
 
-def scoped[T](db: Session, model: type[T], obj_id: int, user_id: int) -> T:
+def scoped[T: UserOwned](db: Session, model: type[T], obj_id: int, user_id: int) -> T:
     """Fetch a user-owned row or raise 404.
 
     404, never 403: a wrong owner and a missing row are indistinguishable
-    to the caller, so existence is never disclosed.
+    to the caller, so existence is never disclosed. A model without a
+    ``user_id`` column raises AttributeError (a programming error, loud).
+
+    Single-row access only: list endpoints must filter by ``user_id`` inline
+    (as ``list_profiles`` does).
     """
     obj = db.get(model, obj_id)
-    if obj is None or getattr(obj, "user_id", None) != user_id:
+    if obj is None or obj.user_id != user_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
     return obj

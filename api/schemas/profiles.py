@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DEFAULT_PARSE_CHARS = "、 。 ？ ！ 「 」 …… "
 
@@ -13,6 +13,14 @@ class ProfileUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     parse_chars: str | None = None
     is_default: bool | None = None
+
+    @model_validator(mode="after")
+    def _no_explicit_null(self) -> "ProfileUpdate":
+        # Omitted is fine (exclude_unset skips it); an explicit null is a client error.
+        for field in self.model_fields_set:
+            if getattr(self, field) is None:
+                raise ValueError(f"{field} must not be null")
+        return self
 
 
 class ProfileOut(BaseModel):

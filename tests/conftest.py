@@ -100,3 +100,25 @@ def _reset_login_limiters():
     clear()
     yield
     clear()
+
+
+@pytest.fixture
+def login():
+    """Return login(client, email, password) -> response."""
+
+    def _login(client, email, password="pw-correct"):
+        return client.post("/auth/login", json={"email": email, "password": password})
+
+    return _login
+
+
+@pytest.fixture
+def other_users_profile_id(app_client, make_user, login):
+    """An owner's profile id, with the client logged in as a different user."""
+    make_user(email="owner@example.com")
+    make_user(email="intruder@example.com")
+    login(app_client, "owner@example.com")
+    pid = app_client.post("/profiles", json={"name": "owned"}).json()["id"]
+    app_client.post("/auth/logout")
+    login(app_client, "intruder@example.com")
+    return pid

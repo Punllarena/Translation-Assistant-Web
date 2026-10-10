@@ -10,7 +10,13 @@ from api.schemas.profiles import ProfileCreate, ProfileOut, ProfileUpdate
 router = APIRouter(prefix="/profiles", tags=["profiles"])
 
 
-def _name_conflict() -> HTTPException:
+UNIQUE_VIOLATION = "23505"
+
+
+def _name_conflict(exc: IntegrityError) -> HTTPException:
+    """409 for a unique violation; any other integrity error is re-raised (500)."""
+    if getattr(exc.orig, "sqlstate", None) != UNIQUE_VIOLATION:
+        raise exc
     return HTTPException(status.HTTP_409_CONFLICT, "a profile with that name exists")
 
 
@@ -46,7 +52,7 @@ def create_profile(
         with db.begin_nested():
             db.add(profile)
     except IntegrityError as exc:
-        raise _name_conflict() from exc
+        raise _name_conflict(exc) from exc
     return profile
 
 
@@ -63,7 +69,7 @@ def update_profile(
             for field, value in body.model_dump(exclude_unset=True).items():
                 setattr(profile, field, value)
     except IntegrityError as exc:
-        raise _name_conflict() from exc
+        raise _name_conflict(exc) from exc
     return profile
 
 
