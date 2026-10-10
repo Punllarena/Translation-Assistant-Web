@@ -286,13 +286,20 @@ def test_merge_endpoint(app_client, db, me, make_series, make_doc):
     assert col(db, a.id) == ["a0", "b0"]
 
 
-def test_merge_endpoint_404s_on_a_foreign_id(app_client, db, me, make_user, make_doc):
+def test_merge_endpoint_422s_identically_on_foreign_and_missing_ids(
+    app_client, db, me, make_user, make_doc
+):
     mine = make_doc(me, ["a0"])
     theirs = make_doc(make_user(email="other@example.com"), ["z"])
-    r = app_client.post(
+    foreign = app_client.post(
         "/documents/merge", json={"document_ids": [mine.id, theirs.id], "title": "AB"}
     )
-    assert r.status_code == 404
+    missing = app_client.post(
+        "/documents/merge", json={"document_ids": [mine.id, 999999999], "title": "AB"}
+    )
+    assert (foreign.status_code, missing.status_code) == (422, 422)
+    assert foreign.json() == missing.json()
+    assert foreign.json()["detail"] == "document_ids: no such item"
     assert col(db, theirs.id) == ["z"]
 
 

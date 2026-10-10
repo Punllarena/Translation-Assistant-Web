@@ -159,7 +159,10 @@ def merge(
     try:
         return merge_documents(db, user.id, body.document_ids, body.title)
     except NotOwned:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "not found") from None
+        # The ids are in the body, so missing and foreign look the same (422).
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "document_ids: no such item"
+        ) from None
     except RestructureError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from None
 
