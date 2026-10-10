@@ -72,8 +72,9 @@ docker compose up --build        # needs TA_SECRET_KEY in .env or the environmen
 ```
 
 The `api` service runs `alembic upgrade head` and then uvicorn on port 8000. TLS and a reverse
-proxy arrive with the SPA in phase 3; until then the API is served directly, bound to loopback only (`127.0.0.1:8000`, like Postgres) because cookies are not `Secure` without TLS; opening it up belongs with the TLS work in phase 3. Once a proxy fronts
-it, keep `--proxy-headers` on uvicorn (already in the container command) and make sure the
+proxy arrive with the SPA in phase 3; until then the API is served directly, bound to loopback only (`127.0.0.1:8000`, like Postgres)
+because cookies are not `Secure` without TLS; opening it up belongs with the TLS work in phase 3.
+Once a proxy fronts it, keep `--proxy-headers` on uvicorn (already in the container command) and make sure the
 proxy is the only thing that can reach it, otherwise clients can spoof their address.
 
 ## Design decisions
