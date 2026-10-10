@@ -28,18 +28,27 @@ def _conflict(exc: IntegrityError) -> HTTPException:
     return HTTPException(status.HTTP_409_CONFLICT, "that credential already exists")
 
 
-def _stored_secret(row: ApiCredential) -> str | None:
-    """Decrypt a row for its hint. An undecryptable blob (e.g. after a TA_SECRET_KEY
-    change) is logged and reported as no secret, so the list still renders and the
-    user can re-enter it. The warning keeps the failure visible in the logs."""
+def _decrypt_row(row: ApiCredential) -> tuple[str | None, bool]:
+    """Return (plaintext, unreadable). An undecryptable blob (e.g. after a TA_SECRET_KEY
+    change) is reported rather than raised, so list endpoints keep rendering. Callers
+    log unreadable rows once per request via _log_unreadable."""
     try:
-        return decrypt_secret(row.secret_enc)
+        return decrypt_secret(row.secret_enc), False
     except ValueError:
-        log.warning("credential %s could not be decrypted; check TA_SECRET_KEY", row.id)
-        return None
+        return None, True
 
 
-def _out(row: ApiCredential, secret: str | None) -> CredentialOut:
+def _log_unreadable(ids: list[int]) -> None:
+    # Ids only: no secret or ciphertext material reaches the log.
+    if ids:
+        log.warning(
+            "%d credential(s) could not be decrypted (ids %s); check TA_SECRET_KEY",
+            len(ids),
+            ids,
+        )
+
+
+def _out(row: ApiCredential, secret: str | None, unreadable: bool) -> CredentialOut:
     return CredentialOut(
         id=row.id,
         kind=row.kind,
@@ -47,11 +56,16 @@ def _out(row: ApiCredential, secret: str | None) -> CredentialOut:
         endpoint_url=row.endpoint_url,
         has_secret=bool(secret),
         secret_hint=_hint(secret or ""),
+        secret_unreadable=unreadable,
     )
 
 
 def load_secret(db: Session, user_id: int, kind: str, name: str = "") -> str | None:
-    """Server-side only. Nothing reachable over HTTP returns this value."""
+    """Server-side only. Nothing reachable over HTTP returns this value.
+
+    Returns None when no credential matches. Raises ValueError when the stored blob
+    cannot be decrypted (e.g. TA_SECRET_KEY was changed); callers must handle it.
+    """
     row = db.scalar(
         select(ApiCredential).where(
             ApiCredential.user_id == user_id,
@@ -70,8 +84,16 @@ def list_credentials(
         select(ApiCredential)
         .where(ApiCredential.user_id == user.id)
         .order_by(ApiCredential.kind, ApiCredential.name)
-    )
-    return [_out(row, _stored_secret(row)) for row in rows]
+    ).all()
+    out: list[CredentialOut] = []
+    unreadable_ids: list[int] = []
+    for row in rows:
+        secret, unreadable = _decrypt_row(row)
+        if unreadable:
+            unreadable_ids.append(row.id)
+        out.append(_out(row, secret, unreadable))
+    _log_unreadable(unreadable_ids)  # one warning per request, however many rows
+    return out
 
 
 @router.post("", response_model=CredentialOut, status_code=status.HTTP_201_CREATED)
@@ -93,7 +115,7 @@ def create_credential(
             db.add(row)
     except IntegrityError as exc:
         raise _conflict(exc) from exc
-    return _out(row, body.secret)
+    return _out(row, body.secret, unreadable=False)
 
 
 @router.patch("/{credential_id}", response_model=CredentialOut)
@@ -114,7 +136,12 @@ def update_credential(
                 setattr(row, field, value)
     except IntegrityError as exc:
         raise _conflict(exc) from exc
-    return _out(row, secret if secret is not None else _stored_secret(row))
+    if secret is not None:
+        return _out(row, secret, unreadable=False)
+    current, unreadable = _decrypt_row(row)
+    if unreadable:
+        _log_unreadable([row.id])
+    return _out(row, current, unreadable)
 
 
 @router.delete("/{credential_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,5 +1,7 @@
 import logging
 
+import pytest
+
 from api.models import ApiCredential
 from api.routers.credentials import load_secret
 
@@ -119,8 +121,8 @@ def test_secret_is_encrypted_at_rest(app_client, db, make_user, login):
     assert b"plaintext-xyz" not in blob
 
 
-def test_another_users_credential_is_404(app_client, make_user, login):
-    make_user(email="k@example.com")
+def test_another_users_credential_is_404(app_client, db, make_user, login):
+    owner = make_user(email="k@example.com")
     make_user(email="other@example.com")
     login(app_client, "k@example.com")
     cid = app_client.post("/credentials", json={"kind": "deepl", "secret": "a" * 10}).json()["id"]
@@ -129,6 +131,7 @@ def test_another_users_credential_is_404(app_client, make_user, login):
     assert app_client.patch(f"/credentials/{cid}", json={"name": "x"}).status_code == 404
     assert app_client.patch(f"/credentials/{cid}", json={"secret": "z" * 10}).status_code == 404
     assert app_client.delete(f"/credentials/{cid}").status_code == 404
+    assert load_secret(db, owner.id, "deepl") == "a" * 10
 
 
 def test_delete_own_credential(app_client, db, make_user, login):
@@ -139,19 +142,56 @@ def test_delete_own_credential(app_client, db, make_user, login):
     assert load_secret(db, user.id, "deepl") is None
 
 
-def test_undecryptable_blob_lists_as_no_secret_and_logs(
+def test_undecryptable_blob_is_flagged_unreadable_and_logged_once(
     app_client, db, make_user, login, caplog
 ):
     user = make_user(email="k@example.com")
     login(app_client, "k@example.com")
     db.add(ApiCredential(user_id=user.id, kind="deepl", name="", secret_enc=b"not-a-fernet"))
+    db.add(ApiCredential(user_id=user.id, kind="wordpress", name="", secret_enc=b"also-bad"))
     db.flush()
     with caplog.at_level(logging.WARNING, logger="api.routers.credentials"):
         r = app_client.get("/credentials")
     assert r.status_code == 200
-    assert r.json()[0]["has_secret"] is False
-    assert r.json()[0]["secret_hint"] == ""
-    assert any("could not be decrypted" in rec.getMessage() for rec in caplog.records)
+    for row in r.json():
+        assert row["has_secret"] is False
+        assert row["secret_hint"] == ""
+        assert row["secret_unreadable"] is True
+    warnings = [rec for rec in caplog.records if "could not be decrypted" in rec.getMessage()]
+    assert len(warnings) == 1
+    assert "2 credential(s)" in warnings[0].getMessage()
+    assert "not-a-fernet" not in warnings[0].getMessage()
+
+
+def test_readable_credential_is_not_flagged_unreadable(app_client, make_user, login):
+    make_user(email="k@example.com")
+    login(app_client, "k@example.com")
+    body = app_client.post("/credentials", json={"kind": "deepl", "secret": "a" * 10}).json()
+    assert body["secret_unreadable"] is False
+    assert body["has_secret"] is True
+
+
+def test_load_secret_raises_on_undecryptable_blob(db, make_user):
+    user = make_user(email="k@example.com")
+    db.add(ApiCredential(user_id=user.id, kind="deepl", name="", secret_enc=b"not-a-fernet"))
+    db.flush()
+    with pytest.raises(ValueError):
+        load_secret(db, user.id, "deepl")
+
+
+def test_secret_over_4096_characters_is_422_on_post_and_patch(app_client, make_user, login):
+    make_user(email="k@example.com")
+    login(app_client, "k@example.com")
+    too_long = "x" * 4097
+    r = app_client.post("/credentials", json={"kind": "deepl", "secret": too_long})
+    assert r.status_code == 422
+    cid = app_client.post("/credentials", json={"kind": "deepl", "secret": "a" * 10}).json()["id"]
+    assert app_client.patch(f"/credentials/{cid}", json={"secret": too_long}).status_code == 422
+    # The limit is inclusive: exactly 4096 is accepted.
+    ok = app_client.post(
+        "/credentials", json={"kind": "libretranslate", "secret": "x" * 4096}
+    )
+    assert ok.status_code == 201
 
 
 def test_load_secret_returns_none_when_absent(app_client, db, make_user):
