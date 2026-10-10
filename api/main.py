@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from api.config import get_settings
-from api.routers import auth, invites, profiles, settings
+from api.routers import auth, credentials, invites, profiles, settings
 
 
 def create_app() -> FastAPI:
@@ -16,6 +16,7 @@ def create_app() -> FastAPI:
     app.include_router(invites.router)
     app.include_router(profiles.router)
     app.include_router(settings.router)
+    app.include_router(credentials.router)
 
     return app
 
