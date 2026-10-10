@@ -83,3 +83,59 @@ def test_delete_keeps_chapters_unsorted(app_client, db, me, make_series, make_do
 def test_another_users_series_is_404(app_client, me, make_user, make_series, method, kwargs):
     theirs = make_series(make_user(email="other@example.com"), "Theirs")
     assert getattr(app_client, method)(f"/series/{theirs.id}", **kwargs).status_code == 404
+
+
+def test_reorder_sets_the_given_order(app_client, me, make_series, make_doc):
+    s = make_series(me)
+    a, b, c = (make_doc(me, series=s, order=i, title=t) for i, t in [(1, "A"), (2, "B"), (3, "C")])
+    r = app_client.put(f"/series/{s.id}/order", json={"document_ids": [c.id, a.id, b.id]})
+    assert [(d["title"], d["series_order"]) for d in r.json()] == [("C", 1), ("A", 2), ("B", 3)]
+
+
+@pytest.mark.parametrize("case", ["missing_one", "duplicate", "foreign"])
+def test_reorder_needs_exactly_the_series_chapters(
+    app_client, db, me, make_user, make_series, make_doc, case
+):
+    s = make_series(me)
+    a, b = make_doc(me, series=s, order=1), make_doc(me, series=s, order=2)
+    stranger = make_doc(make_user(email="other@example.com"), ["x"])
+    ids = {
+        "missing_one": [b.id],
+        "duplicate": [a.id, a.id, b.id],
+        "foreign": [b.id, a.id, stranger.id],
+    }[case]
+    assert app_client.put(f"/series/{s.id}/order", json={"document_ids": ids}).status_code == 422
+    db.expire_all()
+    assert (db.get(Document, a.id).series_order, db.get(Document, b.id).series_order) == (1, 2)
+
+
+def test_renumber_sorts_titles_naturally(app_client, me, make_series, make_doc):
+    s = make_series(me)
+    for order, title in enumerate(["Ch 10", "Ch 2", "Ch 1"], start=1):
+        make_doc(me, series=s, order=order, title=title)
+    r = app_client.post(f"/series/{s.id}/renumber")
+    assert [(d["chapter_title"], d["series_order"]) for d in r.json()] == [
+        ("Ch 1", 1), ("Ch 2", 2), ("Ch 10", 3),
+    ]
+
+
+def test_renumber_falls_back_to_title(app_client, db, me, make_series, make_doc):
+    s = make_series(me)
+    make_doc(me, series=s, order=1, title="B")
+    untitled = make_doc(me, series=s, order=2, title="A")
+    untitled.chapter_title = ""
+    db.flush()
+    r = app_client.post(f"/series/{s.id}/renumber")
+    assert [d["title"] for d in r.json()] == ["A", "B"]
+
+
+@pytest.mark.parametrize(
+    ("method", "suffix", "kwargs"),
+    [("put", "/order", {"json": {"document_ids": [1]}}), ("post", "/renumber", {})],
+)
+def test_another_users_series_order_is_404(
+    app_client, me, make_user, make_series, method, suffix, kwargs
+):
+    theirs = make_series(make_user(email="other@example.com"), "Theirs")
+    r = getattr(app_client, method)(f"/series/{theirs.id}{suffix}", **kwargs)
+    assert r.status_code == 404

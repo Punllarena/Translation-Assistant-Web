@@ -1,12 +1,15 @@
-from fastapi import Depends, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from api.core.text import natural_key
 from api.deps import current_user, db_session, owned_ref, scoped
 from api.errors import conflict
-from api.models import Profile, Series, User
+from api.library import chapters, renumber
+from api.models import Document, Profile, Series, User
 from api.routing import api_router
+from api.schemas.documents import DocumentIds, DocumentOut
 from api.schemas.series import SeriesCreate, SeriesOut, SeriesUpdate
 
 router = api_router(prefix="/series", tags=["series"])
@@ -73,3 +76,40 @@ def delete_series(
     ON DELETE SET NULL clears volume_id as the series' volumes are deleted."""
     db.delete(scoped(db, Series, series_id, user.id))
     db.flush()
+
+
+@router.put("/{series_id}/order", response_model=list[DocumentOut])
+def reorder_chapters(
+    series_id: int,
+    body: DocumentIds,
+    user: User = Depends(current_user),
+    db: Session = Depends(db_session),
+) -> list[Document]:
+    """Drag-and-drop reorder: the body lists every chapter of the series once, in the
+    new order. A stale list (a chapter added meanwhile) is refused, not half-applied."""
+    series = scoped(db, Series, series_id, user.id)
+    by_id = {doc.id: doc for doc in chapters(db, series.id)}
+    if sorted(body.document_ids) != sorted(by_id):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "document_ids must list every chapter of the series exactly once",
+        )
+    ordered = [by_id[doc_id] for doc_id in body.document_ids]
+    renumber(ordered)
+    db.flush()
+    return ordered
+
+
+@router.post("/{series_id}/renumber", response_model=list[DocumentOut])
+def renumber_by_title(
+    series_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
+) -> list[Document]:
+    """series_order 1..N by natural sort ("Ch 2" before "Ch 10") of the title the
+    desktop displays: chapter_title, else title."""
+    series = scoped(db, Series, series_id, user.id)
+    ordered = sorted(
+        chapters(db, series.id), key=lambda d: natural_key(d.chapter_title or d.title)
+    )
+    renumber(ordered)
+    db.flush()
+    return ordered

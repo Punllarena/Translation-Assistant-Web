@@ -49,3 +49,20 @@ def line_arrays(db: Session, document_id: int) -> tuple[list[str], list[str]]:
          "translated_text": translated}
         for i, (prefix, raw, translated) in enumerate(rows)
     ])
+
+
+def chapters(db: Session, series_id: int) -> list[Document]:
+    """A series' chapters in reading order (ties broken by id, as the desktop does)."""
+    return list(
+        db.scalars(
+            select(Document)
+            .where(Document.series_id == series_id)
+            .order_by(Document.series_order, Document.id)
+        )
+    )
+
+
+def renumber(docs: list[Document]) -> None:
+    """Give ``docs`` series_order 1..N in list order (the caller flushes)."""
+    for order, doc in enumerate(docs, start=1):
+        doc.series_order = order
