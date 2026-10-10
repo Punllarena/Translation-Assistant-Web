@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.deps import current_user, db_session, scoped
 from api.models import Profile, User
+from api.routing import api_router
 from api.schemas.profiles import ProfileCreate, ProfileOut, ProfileUpdate
 
-router = APIRouter(prefix="/profiles", tags=["profiles"])
+router = api_router(prefix="/profiles", tags=["profiles"])
 
 
 UNIQUE_VIOLATION = "23505"

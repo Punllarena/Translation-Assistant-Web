@@ -1,15 +1,16 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, status
+from fastapi import Depends, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.deps import db_session, require_admin
 from api.models import Invite, User
+from api.routing import api_router
 from api.schemas.invites import InviteCreate, InviteCreated, InviteOut
 from api.security import new_token, token_hash
 
-router = APIRouter(prefix="/invites", tags=["invites"])
+router = api_router(prefix="/invites", tags=["invites"])
 
 
 @router.post("", response_model=InviteCreated, status_code=status.HTTP_201_CREATED)

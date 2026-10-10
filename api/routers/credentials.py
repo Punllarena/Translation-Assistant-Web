@@ -1,16 +1,17 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.deps import current_user, db_session, scoped
 from api.models import ApiCredential, User
+from api.routing import api_router
 from api.schemas.credentials import CredentialCreate, CredentialOut, CredentialUpdate
 from api.security import decrypt_secret, encrypt_secret
 
-router = APIRouter(prefix="/credentials", tags=["credentials"])
+router = api_router(prefix="/credentials", tags=["credentials"])
 log = logging.getLogger(__name__)
 
 HINT_MIN_LENGTH = 8

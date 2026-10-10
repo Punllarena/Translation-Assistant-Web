@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from api.deps import current_user, db_session
 from api.models import Shortcut, User, UserSetting
+from api.routing import api_router
 from api.schemas.settings import SettingsMap, ShortcutsMap
 
-router = APIRouter(tags=["settings"])
+router = api_router(tags=["settings"])
 
 
 def _load_settings(db: Session, user_id: int) -> SettingsMap:

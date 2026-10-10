@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from api.db import SessionLocal
 from api.models import Session as SessionRow
 from api.models import User
+from api.routing import SESSION_STATE_ATTR
 from api.security import token_hash
 
 COOKIE_NAME = "ta_session"
@@ -18,15 +19,16 @@ class UserOwned(Protocol):
     user_id: int
 
 
-def db_session() -> Iterator[Session]:
+def db_session(request: Request) -> Iterator[Session]:
+    """The request's session. It is committed by CommitOnResponseRoute, not here:
+    this teardown runs after the response has been sent, where a failed commit
+    could no longer be reported to the client (see api/routing.py)."""
     session = SessionLocal()
+    setattr(request.state, SESSION_STATE_ATTR, session)
     try:
         yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
     finally:
+        session.rollback()  # no-op once committed; discards anything uncommitted
         session.close()
 
 

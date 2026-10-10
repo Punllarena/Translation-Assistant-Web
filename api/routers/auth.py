@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -9,6 +9,7 @@ from api.config import get_settings
 from api.deps import COOKIE_NAME, current_user, db_session
 from api.models import Invite, Profile, User
 from api.models import Session as SessionRow
+from api.routing import api_router
 from api.schemas.auth import LoginRequest, UserOut
 from api.schemas.invites import AcceptInvite
 from api.security import (
@@ -20,7 +21,7 @@ from api.security import (
     verify_password,
 )
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = api_router(prefix="/auth", tags=["auth"])
 
 
 # Verified against when no account matches, so unknown-email and wrong-password

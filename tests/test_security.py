@@ -142,23 +142,38 @@ def items_table(engine):
         md.drop_all(engine)
 
 
-def test_db_session_commits_on_success_and_rolls_back_on_error(engine, items_table, monkeypatch):
+def test_db_session_parks_the_session_and_discards_uncommitted_work(
+    engine, items_table, monkeypatch
+):
+    """The commit moved to CommitOnResponseRoute (see api/routing.py); this teardown
+    runs after the response is sent, so it only rolls back and closes."""
+    from api.routing import SESSION_STATE_ATTR
+
     monkeypatch.setattr(deps, "SessionLocal", sessionmaker(bind=engine))
+    request = SimpleNamespace(state=SimpleNamespace())
 
     def count() -> int:
         # Independent connection: reads only what has been committed.
         with engine.connect() as conn:
             return conn.execute(select(func.count()).select_from(items_table)).scalar_one()
 
-    gen = deps.db_session()
+    gen = deps.db_session(request)
+    session = next(gen)
+    assert getattr(request.state, SESSION_STATE_ATTR) is session  # what the route commits
+    session.execute(insert(items_table).values(name="never committed"))
+    assert next(gen, None) is None  # normal exit: no commit any more
+    assert count() == 0
+
+    gen = deps.db_session(request)
     session = next(gen)
     session.execute(insert(items_table).values(name="kept"))
-    assert next(gen, None) is None  # normal exit runs the commit
+    session.commit()  # stands in for the route class
+    assert next(gen, None) is None  # teardown's rollback is a no-op after the commit
     assert count() == 1
 
-    gen = deps.db_session()
+    gen = deps.db_session(request)
     session = next(gen)
     session.execute(insert(items_table).values(name="discarded"))
     with pytest.raises(RuntimeError):
         gen.throw(RuntimeError("boom"))
-    assert count() == 1  # rollback discarded the second insert
+    assert count() == 1  # rollback discarded the third insert
