@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2026-10-10 12:53:30.585186
+Create Date: 2026-10-10 13:15:56.474987
 
 """
 from collections.abc import Sequence
@@ -165,9 +165,9 @@ def upgrade() -> None:
     sa.Column('epub_author', sa.Text(), nullable=False),
     sa.Column('epub_language', sa.String(length=16), nullable=False),
     sa.Column('epub_description', sa.Text(), nullable=False),
-    sa.Column('illustrator', sa.Text(), nullable=False),
-    sa.Column('publisher', sa.Text(), nullable=False),
-    sa.Column('identifier', sa.Text(), nullable=False),
+    sa.Column('epub_illustrator', sa.Text(), nullable=False),
+    sa.Column('epub_publisher', sa.Text(), nullable=False),
+    sa.Column('epub_identifier', sa.Text(), nullable=False),
     sa.ForeignKeyConstraint(['series_id'], ['series.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('series_id', 'title')

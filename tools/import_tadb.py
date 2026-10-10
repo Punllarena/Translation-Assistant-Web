@@ -112,9 +112,9 @@ READ_COLUMNS: dict[str, frozenset[str]] = {
 # denormalised on every chapter row; here it belongs to the volume.
 VOLUME_META: dict[str, str] = {
     "epub_author": "volume_author",
-    "illustrator": "volume_illustrator",
-    "publisher": "volume_publisher",
-    "identifier": "volume_identifier",
+    "epub_illustrator": "volume_illustrator",
+    "epub_publisher": "volume_publisher",
+    "epub_identifier": "volume_identifier",
 }
 
 # series_profiles.wp_unlock_after is NOT NULL DEFAULT -1, where -1 means "no series
@@ -257,11 +257,19 @@ def import_tadb(
     # has a new fingerprint, so without this guard a second run would insert the whole
     # library again (containers are reused, documents are not).
     existing = db.scalar(select(func.count(Document.id)).where(Document.user_id == user_id)) or 0
-    if existing and not force:
+    if existing and not (force or dry_run):
         raise RuntimeError(
             f"this account already has {existing} document(s); importing would duplicate "
             "the library. Pass force=True (--force) to import anyway: documents matching "
             "an existing series and title are then skipped, so only new chapters are added"
+        )
+    if existing and dry_run:
+        # A dry run writes nothing, so it previews instead of refusing: that is the whole
+        # point of the flag before committing to a second import.
+        report.messages.append(
+            f"this account already has {existing} document(s); a real import needs "
+            "force=True (--force), and the chapters listed below as already present "
+            "would be skipped"
         )
 
     conn = sqlite3.connect(sqlite_path.resolve().as_uri() + "?mode=ro", uri=True)
@@ -576,7 +584,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Import a desktop ta.db into ta-web")
     parser.add_argument("--db", required=True, type=Path, help="path to a copy of ta.db")
     parser.add_argument("--user", required=True, help="email of the destination account")
-    parser.add_argument("--dry-run", action="store_true", help="report counts, write nothing")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report counts, write nothing; allowed even when the account already has "
+             "documents, so a second import can be inspected first",
+    )
     parser.add_argument(
         "--force",
         action="store_true",

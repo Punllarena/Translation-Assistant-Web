@@ -230,9 +230,9 @@ def test_wordpress_and_volume_metadata_land_in_the_schema(db, make_user, tmp_pat
     assert series.wp_unlock_after == 3
     volume = db.query(Volume).filter_by(series_id=series.id).one()
     assert volume.epub_author == "Author A"
-    assert volume.illustrator == "Illustrator A"
-    assert volume.publisher == "Publisher A"
-    assert volume.identifier == "urn:isbn:1"
+    assert volume.epub_illustrator == "Illustrator A"
+    assert volume.epub_publisher == "Publisher A"
+    assert volume.epub_identifier == "urn:isbn:1"
 
 
 def test_unlock_after_sentinel_becomes_null(db, make_user, tmp_path):
@@ -414,8 +414,11 @@ def test_force_reuses_existing_containers_and_adds_chapters(db, make_user, tmp_p
 def test_case_variant_custom_words_and_overlong_values_are_skipped(db, make_user, tmp_path):
     path = _desktop_db(tmp_path)
     conn = sqlite3.connect(path)
-    # SQLite's COLLATE NOCASE folds ASCII only, so a real ta.db can hold this pair
-    # while the destination's lower() index (Postgres, full Unicode) rejects it.
+    # Deliberately non-ASCII: SQLite's COLLATE NOCASE folds ASCII only, while the
+    # destination's lower() index (Postgres) folds Unicode, so our constraint is the
+    # stricter one. 'Kitsune'/'kitsune' could never reach us — the desktop's own
+    # UNIQUE(profile_id, word) COLLATE NOCASE rejects it at the source — but 'Öko'/'öko'
+    # can, and then one of them must be skipped on import. Do not "simplify" to ASCII.
     conn.execute("INSERT INTO custom_words (profile_id, word) VALUES (1, 'Öko')")
     conn.execute("INSERT INTO custom_words (profile_id, word) VALUES (1, 'öko')")
     conn.execute("INSERT INTO custom_words (profile_id, word) VALUES (1, ?)", ("x" * 500,))
@@ -531,3 +534,17 @@ def test_bad_timestamp_and_empty_prefix_are_reported(db, make_user, tmp_path):
     stored = db.query(Line).filter_by(document_id=doc.id).order_by(Line.line_number)
     prefixes = [x.prefix for x in stored]
     assert prefixes == ["%", "%"]
+
+
+def test_dry_run_into_a_non_empty_account_previews_instead_of_refusing(db, make_user, tmp_path):
+    """A dry run writes nothing, so the refusal would only block the preview."""
+    user = make_user()
+    import_tadb(db, _desktop_db(tmp_path), user.id)
+    changed = _desktop_db(tmp_path / "later")
+    _add_chapter(changed, "Chapter 2")
+    report = import_tadb(db, changed, user.id, dry_run=True)
+    assert report.written["documents"] == 1  # Chapter 2 would be added
+    assert report.already_present["documents"] == 1  # Chapter 1 would be skipped
+    assert any("already has 1 document" in m for m in report.messages)
+    assert any("Chapter 1" in m and "already in this account" in m for m in report.messages)
+    assert db.query(Document).filter_by(user_id=user.id).count() == 1  # nothing written

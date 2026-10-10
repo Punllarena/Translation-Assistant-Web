@@ -60,9 +60,9 @@ class Volume(Base):
     epub_description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     # Desktop ta.db keeps volume metadata denormalised on every document row
     # (volume_illustrator/publisher/identifier); here it lives once per volume.
-    illustrator: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    publisher: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    identifier: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    epub_illustrator: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    epub_publisher: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    epub_identifier: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     series: Mapped[Series] = relationship(back_populates="volumes")
 
@@ -88,6 +88,9 @@ class Document(Base):
     series_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     source_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     last_position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Ours, not the desktop's: phase 6 fills it from the WordPress REST response when
+    # this app publishes a chapter, so it can update that post later. An imported
+    # chapter has a wp_post_url and a NULL wp_post_id — that is not a mapping gap.
     wp_post_id: Mapped[int | None] = mapped_column(Integer)
     # wp_post_url and wp_chapter_index come straight from the desktop schema and are
     # what the phase 6 re-publish safeguard reads to know a chapter is already live.
