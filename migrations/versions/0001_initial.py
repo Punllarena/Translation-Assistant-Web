@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2026-10-10 09:11:59.078448
+Create Date: 2026-10-10 12:53:30.585186
 
 """
 from collections.abc import Sequence
@@ -165,6 +165,9 @@ def upgrade() -> None:
     sa.Column('epub_author', sa.Text(), nullable=False),
     sa.Column('epub_language', sa.String(length=16), nullable=False),
     sa.Column('epub_description', sa.Text(), nullable=False),
+    sa.Column('illustrator', sa.Text(), nullable=False),
+    sa.Column('publisher', sa.Text(), nullable=False),
+    sa.Column('identifier', sa.Text(), nullable=False),
     sa.ForeignKeyConstraint(['series_id'], ['series.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('series_id', 'title')
@@ -176,11 +179,14 @@ def upgrade() -> None:
     sa.Column('series_id', sa.Integer(), nullable=True),
     sa.Column('volume_id', sa.Integer(), nullable=True),
     sa.Column('title', sa.Text(), nullable=False),
+    sa.Column('chapter_title', sa.Text(), nullable=False),
     sa.Column('source_language', sa.String(length=16), nullable=False),
     sa.Column('series_order', sa.Integer(), nullable=False),
     sa.Column('source_url', sa.Text(), nullable=False),
     sa.Column('last_position', sa.Integer(), nullable=False),
     sa.Column('wp_post_id', sa.Integer(), nullable=True),
+    sa.Column('wp_post_url', sa.Text(), nullable=False),
+    sa.Column('wp_chapter_index', sa.Integer(), nullable=True),
     sa.Column('wp_status', sa.String(length=32), nullable=False),
     sa.Column('wp_published_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('wp_scheduled_for', sa.DateTime(timezone=True), nullable=True),

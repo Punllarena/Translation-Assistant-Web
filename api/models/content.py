@@ -58,6 +58,11 @@ class Volume(Base):
     epub_author: Mapped[str] = mapped_column(Text, nullable=False, default="")
     epub_language: Mapped[str] = mapped_column(String(16), nullable=False, default="en")
     epub_description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Desktop ta.db keeps volume metadata denormalised on every document row
+    # (volume_illustrator/publisher/identifier); here it lives once per volume.
+    illustrator: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    publisher: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    identifier: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     series: Mapped[Series] = relationship(back_populates="volumes")
 
@@ -76,11 +81,18 @@ class Document(Base):
         ForeignKey("volumes.id", ondelete="SET NULL"), index=True
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
+    # The per-chapter display title the desktop app renumbers on split/merge
+    # (documents.chapter_title); `title` is the document's own name.
+    chapter_title: Mapped[str] = mapped_column(Text, nullable=False, default="")
     source_language: Mapped[str] = mapped_column(String(16), nullable=False, default="ja")
     series_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     source_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     last_position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     wp_post_id: Mapped[int | None] = mapped_column(Integer)
+    # wp_post_url and wp_chapter_index come straight from the desktop schema and are
+    # what the phase 6 re-publish safeguard reads to know a chapter is already live.
+    wp_post_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    wp_chapter_index: Mapped[int | None] = mapped_column(Integer)
     wp_status: Mapped[str] = mapped_column(String(32), nullable=False, default="")
     wp_published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     wp_scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -8,7 +8,7 @@ def test_every_spec_table_is_mapped():
     expected = {
         "users", "sessions", "invites", "profiles", "user_settings", "shortcuts",
         "api_credentials", "series", "volumes", "documents", "lines",
-        "document_images", "mt_cache", "work_sessions",
+        "document_images", "mt_cache", "work_sessions", "glossary", "custom_words",
     }
     assert expected <= set(Base.metadata.tables)
 
@@ -85,3 +85,13 @@ def test_set_null_targets_are_indexed():
 
 def test_mappers_configure_cleanly():
     configure_mappers()
+
+
+def test_desktop_only_fields_have_a_destination_column():
+    """Fields the desktop ta.db carries that phases 2 and 6 need (see the importer)."""
+    documents = Base.metadata.tables["documents"].columns
+    for name in ("chapter_title", "wp_post_url", "wp_chapter_index"):
+        assert name in documents
+    volumes = Base.metadata.tables["volumes"].columns
+    for name in ("epub_author", "illustrator", "publisher", "identifier"):
+        assert name in volumes
