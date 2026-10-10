@@ -6,9 +6,10 @@ from sqlalchemy.orm import Session
 
 from api.config import get_settings
 from api.deps import COOKIE_NAME, current_user, db_session
+from api.models import Invite, Profile, User
 from api.models import Session as SessionRow
-from api.models import User
 from api.schemas.auth import LoginRequest, UserOut
+from api.schemas.invites import AcceptInvite
 from api.security import (
     address_limiter,
     email_limiter,
@@ -95,4 +96,30 @@ def logout(request: Request, response: Response, db: Session = Depends(db_sessio
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(current_user)) -> User:
+    return user
+
+
+_INVITE_REJECTED = "invite is invalid or already used"
+
+
+@router.post("/accept-invite", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+def accept_invite(body: AcceptInvite, db: Session = Depends(db_session)) -> User:
+    email = body.email.strip().lower()
+    invite = db.scalar(select(Invite).where(Invite.token_hash == token_hash(body.token)))
+    now = datetime.now(UTC)
+    # Every rejection (including a taken email) shares one message so callers cannot
+    # probe which tokens or accounts exist.
+    if invite is None or invite.accepted_at is not None or invite.expires_at <= now:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, _INVITE_REJECTED)
+    if invite.email is not None and invite.email.strip().lower() != email:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, _INVITE_REJECTED)
+    if db.scalar(select(User).where(User.email == email)) is not None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, _INVITE_REJECTED)
+
+    user = User(email=email, password_hash=hash_password(body.password), is_admin=False)
+    db.add(user)
+    db.flush()
+    db.add(Profile(user_id=user.id, name="default", is_default=True))
+    invite.accepted_at = now
+    db.flush()
     return user

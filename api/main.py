@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from api.config import get_settings
-from api.routers import auth
+from api.routers import auth, invites
 
 
 def create_app() -> FastAPI:
@@ -13,6 +13,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(auth.router)
+    app.include_router(invites.router)
 
     return app
 
