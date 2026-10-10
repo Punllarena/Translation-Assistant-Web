@@ -48,19 +48,9 @@ def test_cross_user_delete_leaves_row_intact(app_client, db, other_users_profile
 
 
 def test_scoped_rejects_model_without_user_id(db):
+    """The check precedes the lookup, so even a non-existent id is loud."""
     from api.deps import scoped
     from api.models import MtCache
 
-    # Row existence is irrelevant: a missing row would 404, so insert one.
-    row = MtCache(**{c.name: _dummy(c) for c in MtCache.__table__.columns if not c.nullable
-                     and c.server_default is None and not c.primary_key})
-    db.add(row)
-    db.flush()
-    with pytest.raises(AttributeError):
-        scoped(db, MtCache, row.id, 1)
-
-
-def _dummy(column):
-    from sqlalchemy import Integer
-
-    return 1 if isinstance(column.type, Integer) else "x"
+    with pytest.raises(AttributeError, match="user_id"):
+        scoped(db, MtCache, 999999, 1)

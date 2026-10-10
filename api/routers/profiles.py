@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.deps import current_user, db_session, scoped
+from api.errors import conflict
 from api.models import Profile, User
 from api.routing import api_router
 from api.schemas.profiles import ProfileCreate, ProfileOut, ProfileUpdate
@@ -11,14 +12,7 @@ from api.schemas.profiles import ProfileCreate, ProfileOut, ProfileUpdate
 router = api_router(prefix="/profiles", tags=["profiles"])
 
 
-UNIQUE_VIOLATION = "23505"
-
-
-def _name_conflict(exc: IntegrityError) -> HTTPException:
-    """409 for a unique violation; any other integrity error is re-raised (500)."""
-    if getattr(exc.orig, "sqlstate", None) != UNIQUE_VIOLATION:
-        raise exc
-    return HTTPException(status.HTTP_409_CONFLICT, "a profile with that name exists")
+NAME_TAKEN = "a profile with that name exists"
 
 
 @router.get("", response_model=list[ProfileOut])
@@ -53,7 +47,7 @@ def create_profile(
         with db.begin_nested():
             db.add(profile)
     except IntegrityError as exc:
-        raise _name_conflict(exc) from exc
+        raise conflict(exc, NAME_TAKEN) from exc
     return profile
 
 
@@ -70,7 +64,7 @@ def update_profile(
             for field, value in body.model_dump(exclude_unset=True).items():
                 setattr(profile, field, value)
     except IntegrityError as exc:
-        raise _name_conflict(exc) from exc
+        raise conflict(exc, NAME_TAKEN) from exc
     return profile
 
 

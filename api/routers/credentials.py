@@ -1,11 +1,12 @@
 import logging
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.deps import current_user, db_session, scoped
+from api.errors import conflict
 from api.models import ApiCredential, User
 from api.routing import api_router
 from api.schemas.credentials import CredentialCreate, CredentialOut, CredentialUpdate
@@ -15,18 +16,11 @@ router = api_router(prefix="/credentials", tags=["credentials"])
 log = logging.getLogger(__name__)
 
 HINT_MIN_LENGTH = 8
-UNIQUE_VIOLATION = "23505"
+ALREADY_EXISTS = "that credential already exists"
 
 
 def _hint(secret: str) -> str:
     return f"…{secret[-4:]}" if len(secret) >= HINT_MIN_LENGTH else ""
-
-
-def _conflict(exc: IntegrityError) -> HTTPException:
-    """409 for a unique violation; any other integrity error is re-raised (500)."""
-    if getattr(exc.orig, "sqlstate", None) != UNIQUE_VIOLATION:
-        raise exc
-    return HTTPException(status.HTTP_409_CONFLICT, "that credential already exists")
 
 
 def _decrypt_row(row: ApiCredential) -> tuple[str | None, bool]:
@@ -115,7 +109,7 @@ def create_credential(
         with db.begin_nested():
             db.add(row)
     except IntegrityError as exc:
-        raise _conflict(exc) from exc
+        raise conflict(exc, ALREADY_EXISTS) from exc
     return _out(row, body.secret, unreadable=False)
 
 
@@ -136,7 +130,7 @@ def update_credential(
             for field, value in data.items():
                 setattr(row, field, value)
     except IntegrityError as exc:
-        raise _conflict(exc) from exc
+        raise conflict(exc, ALREADY_EXISTS) from exc
     if secret is not None:
         return _out(row, secret, unreadable=False)
     current, unreadable = _decrypt_row(row)

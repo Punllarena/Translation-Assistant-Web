@@ -1,13 +1,21 @@
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.deps import current_user, db_session
+from api.errors import conflict
 from api.models import Shortcut, User, UserSetting
 from api.routing import api_router
 from api.schemas.settings import SettingsMap, ShortcutsMap
 
 router = api_router(tags=["settings"])
+
+# A concurrent first write of the same key loses the race on the unique constraint.
+# Savepoint + 409 (as in profiles and credentials), so the loser neither 500s nor
+# discards the rest of the request's work.
+CONCURRENT_SETTING = "that setting was written concurrently; retry"
+CONCURRENT_SHORTCUT = "that shortcut was written concurrently; retry"
 
 
 def _load_settings(db: Session, user_id: int) -> SettingsMap:
@@ -34,12 +42,15 @@ def put_settings(
     existing = {
         r.key: r for r in db.scalars(select(UserSetting).where(UserSetting.user_id == user.id))
     }
-    for key, value in body.items():
-        if key in existing:
-            existing[key].value_json = value
-        else:
-            db.add(UserSetting(user_id=user.id, key=key, value_json=value))
-    db.flush()
+    try:
+        with db.begin_nested():
+            for key, value in body.items():
+                if key in existing:
+                    existing[key].value_json = value
+                else:
+                    db.add(UserSetting(user_id=user.id, key=key, value_json=value))
+    except IntegrityError as exc:
+        raise conflict(exc, CONCURRENT_SETTING) from exc
     return _load_settings(db, user.id)
 
 
@@ -75,12 +86,15 @@ def put_shortcuts(
                 f"{binding} is already bound to {owner_of[binding]}",
             )
         owner_of[binding] = action
-    for action, binding in body.items():
-        if action in rows:
-            rows[action].binding = binding
-        else:
-            db.add(Shortcut(user_id=user.id, action_key=action, binding=binding))
-    db.flush()
+    try:
+        with db.begin_nested():
+            for action, binding in body.items():
+                if action in rows:
+                    rows[action].binding = binding
+                else:
+                    db.add(Shortcut(user_id=user.id, action_key=action, binding=binding))
+    except IntegrityError as exc:
+        raise conflict(exc, CONCURRENT_SHORTCUT) from exc
     return _load_shortcuts(db, user.id)
 
 

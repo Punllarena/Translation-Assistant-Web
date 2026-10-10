@@ -55,11 +55,17 @@ def scoped[T: UserOwned](db: Session, model: type[T], obj_id: int, user_id: int)
 
     404, never 403: a wrong owner and a missing row are indistinguishable
     to the caller, so existence is never disclosed. A model without a
-    ``user_id`` column raises AttributeError (a programming error, loud).
+    ``user_id`` column raises AttributeError (a programming error, loud) —
+    checked before the lookup, or the common case of a non-existent id would
+    answer 404 and hide the mistake.
 
     Single-row access only: list endpoints must filter by ``user_id`` inline
     (as ``list_profiles`` does).
     """
+    if not hasattr(model, "user_id"):
+        raise AttributeError(
+            f"{model.__name__} has no user_id column; scoped() is for user-owned rows"
+        )
     obj = db.get(model, obj_id)
     if obj is None or obj.user_id != user_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
