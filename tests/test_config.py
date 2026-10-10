@@ -20,6 +20,7 @@ def test_settings_read_env_with_prefix(monkeypatch):
     monkeypatch.setenv("TA_SECRET_KEY", "x" * 32)
     monkeypatch.setenv("TA_DATABASE_URL", "postgresql+psycopg://u:p@h:5432/d")
     monkeypatch.setenv("TA_ALLOW_PUBLIC_SIGNUP", "true")
+    monkeypatch.delenv("TA_COOKIE_SECURE", raising=False)  # conftest sets it for the suite
     s = Settings(_env_file=None)
     assert s.database_url == "postgresql+psycopg://u:p@h:5432/d"
     assert s.allow_public_signup is True
