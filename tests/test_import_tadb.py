@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -37,24 +38,32 @@ def _legacy_db(tmp_path: Path, *, with_optional_columns: bool = True) -> Path:
             ddl.replace(", translated_at TEXT", "")
             .replace(", volume_title TEXT DEFAULT ''", "")
             .replace(", exclude_export INTEGER DEFAULT 0", "")
-            .replace(", source_url TEXT DEFAULT ''", "")
+            .replace("source_url TEXT DEFAULT '', ", "")
         )
+        assert "source_url" not in ddl and "exclude_export" not in ddl
+        assert "translated_at" not in ddl and "volume_title" not in ddl
     conn.executescript(ddl)
     conn.execute("INSERT INTO profiles (name, parse_chars, is_default) VALUES ('wn', '。！', 1)")
     conn.execute("INSERT INTO series_profiles (series_title, profile_name, syosetu_url) "
                  "VALUES ('My Series', 'wn', 'https://ncode.syosetu.com/n0000a/')")
-    cols = "title, series_title, series_order"
-    vals = "('Chapter 1', 'My Series', 0)"
+    cols = "title, series_title, series_order, wp_post_id, wp_status, last_position"
+    vals = "('Chapter 1', 'My Series', 7, 42, 'publish', 3)"
     if with_optional_columns:
-        cols += ", volume_title"
-        vals = "('Chapter 1', 'My Series', 0, 'Volume 1')"
+        cols += ", volume_title, source_url"
+        vals = "('Chapter 1', 'My Series', 7, 42, 'publish', 3, 'Volume 1', 'https://src/1')"
     conn.execute(f"INSERT INTO documents ({cols}) VALUES {vals}")
     line_cols = "document_id, line_number, prefix, raw_text, translated_text"
-    conn.execute(f"INSERT INTO lines ({line_cols}) VALUES (1, 0, '%', '一行目', 'Line one')")
-    conn.execute(f"INSERT INTO lines ({line_cols}) VALUES (1, 1, '$', '二行目', '')")
+    stamp = ", translated_at" if with_optional_columns else ""
+    sval = ", '2024-05-06T07:08:09'" if with_optional_columns else ""
     conn.execute(
-        "INSERT INTO document_images (document_id, anchor_position, is_cover, src_path, data) "
-        "VALUES (1, 0, 1, 'cover.jpg', X'FFD8FF')"
+        f"INSERT INTO lines ({line_cols}{stamp}) VALUES (1, 0, '%', '一行目', 'Line one'{sval})"
+    )
+    conn.execute(f"INSERT INTO lines ({line_cols}) VALUES (1, 1, '$', '二行目', '')")
+    excl = ", exclude_export" if with_optional_columns else ""
+    eval_ = ", 1" if with_optional_columns else ""
+    conn.execute(
+        f"INSERT INTO document_images (document_id, anchor_position, is_cover, src_path, data"
+        f"{excl}) VALUES (1, 5, 1, 'cover.jpg', X'FFD8FF'{eval_})"
     )
     conn.commit()
     conn.close()
@@ -78,7 +87,15 @@ def test_import_loads_the_whole_library(db, make_user, tmp_path):
     lines = db.query(Line).filter_by(document_id=doc.id).order_by(Line.line_number).all()
     assert [l.raw_text for l in lines] == ["一行目", "二行目"]
     assert lines[0].translated_text == "Line one"
-    assert db.query(DocumentImage).filter_by(document_id=doc.id).one().is_cover is True
+    image = db.query(DocumentImage).filter_by(document_id=doc.id).one()
+    assert image.is_cover is True and image.exclude_export is True
+    assert image.anchor_position == 5 and image.src_path == "cover.jpg"
+    assert bytes(image.data) == b"\xff\xd8\xff"
+    assert doc.series_order == 7 and doc.wp_post_id == 42 and doc.wp_status == "publish"
+    assert doc.last_position == 3 and doc.source_url == "https://src/1"
+    assert lines[0].prefix == "%" and lines[1].prefix == "$"
+    assert lines[0].translated_at == datetime(2024, 5, 6, 7, 8, 9, tzinfo=lines[0].translated_at.tzinfo)
+    assert lines[1].translated_at is None
     assert [p.name for p in db.query(Profile).filter_by(user_id=user.id)] == ["wn"]
 
 
@@ -87,6 +104,9 @@ def test_dry_run_writes_nothing(db, make_user, tmp_path):
     report = import_tadb(db, _legacy_db(tmp_path), user.id, dry_run=True)
     assert report.written["documents"] == 1
     assert db.query(Document).filter_by(user_id=user.id).count() == 0
+    assert db.query(Series).filter_by(user_id=user.id).count() == 0
+    assert db.query(Profile).filter_by(user_id=user.id).count() == 0
+    assert db.query(UserSetting).filter_by(user_id=user.id).count() == 0
 
 
 def test_second_run_on_the_same_file_is_refused(db, make_user, tmp_path):
@@ -121,7 +141,10 @@ def test_older_database_without_optional_columns_imports(db, make_user, tmp_path
     doc = db.query(Document).filter_by(user_id=user.id).one()
     assert doc.volume_id is None
     assert doc.source_url == ""
+    assert doc.series_order == 7
     assert db.query(Line).filter_by(document_id=doc.id).first().translated_at is None
+    image = db.query(DocumentImage).filter_by(document_id=doc.id).one()
+    assert image.exclude_export is False and image.anchor_position == 5
 
 
 def test_rows_failing_validation_are_reported_not_dropped_silently(db, make_user, tmp_path):
@@ -177,3 +200,103 @@ def test_case_variant_custom_words_and_overlong_values_are_skipped(db, make_user
     assert report.skipped["lines"] == 1
     assert report.written["lines"] == 2
     assert len(report.messages) == 3
+
+
+def _tweak(path: Path, *statements: str) -> None:
+    conn = sqlite3.connect(path)
+    for stmt in statements:
+        conn.execute(stmt)
+    conn.commit()
+    conn.close()
+
+
+def test_series_without_documents_is_imported(db, make_user, tmp_path):
+    path = _legacy_db(tmp_path)
+    _tweak(path, "INSERT INTO series_profiles (series_title, profile_name, syosetu_url) "
+                 "VALUES ('Empty', 'wn', 'https://ncode.syosetu.com/n1/')")
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    assert report.written["series"] == 2
+    empty = db.query(Series).filter_by(user_id=user.id, title="Empty").one()
+    assert empty.syosetu_url == "https://ncode.syosetu.com/n1/" and empty.profile_id is not None
+
+
+def test_document_of_a_skipped_series_is_skipped_not_detached(
+    db, make_user, tmp_path, monkeypatch
+):
+    import tools.import_tadb as mod
+
+    real_add = mod._add
+
+    def reject_series(db_, obj, table, label, report):
+        if isinstance(obj, Series):
+            mod._skip(report, table, label, "rejected by test")
+            return False
+        return real_add(db_, obj, table, label, report)
+
+    monkeypatch.setattr(mod, "_add", reject_series)
+    user = make_user()
+    report = import_tadb(db, _legacy_db(tmp_path), user.id)
+    assert report.skipped["series"] == 1
+    assert report.skipped["documents"] == 1 and report.written["documents"] == 0
+    assert db.query(Document).filter_by(user_id=user.id).count() == 0
+    assert any("documents" in m and "not imported" in m for m in report.messages)
+
+
+def test_document_without_a_series_title_still_imports_standalone(db, make_user, tmp_path):
+    path = _legacy_db(tmp_path)
+    _tweak(path, "UPDATE documents SET series_title = '', volume_title = ''")
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    assert report.written["documents"] == 1 and not report.skipped.get("documents")
+    assert db.query(Document).filter_by(user_id=user.id).one().series_id is None
+
+
+def test_skipped_profile_skips_its_series_and_chapters(db, make_user, tmp_path):
+    path = _legacy_db(tmp_path)
+    long_name = "p" * 200
+    _tweak(path, f"UPDATE profiles SET name = '{long_name}'",
+           f"UPDATE series_profiles SET profile_name = '{long_name}'")
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    assert report.skipped["profiles"] == 1
+    assert report.skipped["series"] == 1
+    assert report.skipped["documents"] == 1
+    assert any("profile" in m and "not imported" in m for m in report.messages)
+
+
+def test_transient_database_errors_abort_instead_of_being_skipped(
+    db, make_user, tmp_path, monkeypatch
+):
+    from sqlalchemy.exc import OperationalError
+
+    user = make_user()
+    path = _legacy_db(tmp_path)
+    real_add = db.add
+
+    def flaky(obj, *a, **kw):
+        if isinstance(obj, Line):
+            raise OperationalError("stmt", {}, Exception("statement timeout"))
+        return real_add(obj, *a, **kw)
+
+    monkeypatch.setattr(db, "add", flaky)
+    with pytest.raises(OperationalError):
+        import_tadb(db, path, user.id)
+    monkeypatch.setattr(db, "add", real_add)
+    assert db.query(Document).filter_by(user_id=user.id).count() == 0
+    assert db.query(UserSetting).filter_by(user_id=user.id).count() == 0
+    import_tadb(db, path, user.id)  # not refused: nothing was recorded
+
+
+def test_bad_timestamp_and_empty_prefix_are_reported(db, make_user, tmp_path):
+    path = _legacy_db(tmp_path)
+    _tweak(path, "UPDATE lines SET translated_at = 'yesterday-ish' WHERE id = 1",
+           "UPDATE lines SET prefix = '' WHERE id = 2")
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    assert report.skipped["timestamps"] == 1
+    assert any("yesterday-ish" in m for m in report.messages)
+    assert any("empty prefix" in m for m in report.messages)
+    doc = db.query(Document).filter_by(user_id=user.id).one()
+    prefixes = [x.prefix for x in db.query(Line).filter_by(document_id=doc.id).order_by(Line.line_number)]
+    assert prefixes == ["%", "%"]

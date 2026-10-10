@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import func, select
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import Session
 
 from api.db import SessionLocal
@@ -68,12 +68,13 @@ def _get(row: sqlite3.Row, key: str, default=None):
     return row[key] if present and row[key] is not None else default
 
 
-def _parse_ts(value: str | None) -> datetime | None:
+def _parse_ts(value: str | None, report: ImportReport, label: str) -> datetime | None:
     if not value:
         return None
     try:
         return datetime.fromisoformat(value)
     except ValueError:
+        _skip(report, "timestamps", label, f"unparseable translated_at {value!r}, left empty")
         return None
 
 
@@ -103,7 +104,7 @@ def import_tadb(
             f"{sqlite_path} was already imported for this user; pass force=True to import again"
         )
 
-    conn = sqlite3.connect(f"file:{sqlite_path}?mode=ro", uri=True)
+    conn = sqlite3.connect(sqlite_path.resolve().as_uri() + "?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     # One SAVEPOINT around the whole import: a dry run rolls back only this work,
     # never the caller's transaction.
@@ -139,15 +140,21 @@ def _import_all(
     _import_documents(conn, db, user_id, report, series_by_title)
 
 
+def _skip(report: ImportReport, table: str, label: str, reason: str) -> None:
+    report.skipped[table] += 1
+    report.messages.append(f"{table} {label}: {reason}")
+
+
 def _add(db: Session, obj: object, table: str, label: str, report: ImportReport) -> bool:
     """Insert one row in a SAVEPOINT; on a schema rejection skip and report it."""
     try:
         with db.begin_nested():
             db.add(obj)
-    except DBAPIError as exc:
-        report.skipped[table] += 1
+    except (IntegrityError, DataError) as exc:
+        # Only schema rejections are skippable; timeouts, deadlocks and dropped
+        # connections (OperationalError etc.) propagate and abort the import.
         reason = str(exc.orig).splitlines()[0] if exc.orig else type(exc).__name__
-        report.messages.append(f"{table} {label}: {reason}")
+        _skip(report, table, label, reason)
         return False
     report.written[table] += 1
     return True
@@ -212,19 +219,31 @@ def _import_series(
     meta: dict[str, sqlite3.Row] = {
         r["series_title"]: r for r in conn.execute("SELECT * FROM series_profiles")
     }
+    # Series come from documents AND series_profiles: a series with no chapters
+    # yet still carries the user's profile link, source URL and WordPress slug.
     titles = [
         r[0]
         for r in conn.execute(
-            "SELECT DISTINCT series_title FROM documents "
+            "SELECT series_title FROM documents WHERE series_title IS NOT NULL "
+            "AND series_title != '' UNION SELECT series_title FROM series_profiles "
             "WHERE series_title IS NOT NULL AND series_title != ''"
         )
     ]
+    legacy_profiles = {r[0] for r in conn.execute("SELECT name FROM profiles")}
     out: dict[str, Series] = {}
     for title in titles:
         series = db.scalar(select(Series).where(Series.user_id == user_id, Series.title == title))
         if series is None:
             m = meta.get(title)
-            profile = profiles_by_name.get(_get(m, "profile_name", "") if m else "")
+            pname = (_get(m, "profile_name", "") if m else "") or ""
+            profile = profiles_by_name.get(pname)
+            if pname and profile is None:
+                if pname in legacy_profiles:
+                    _skip(report, "series", repr(title), f"its profile {pname!r} was not imported")
+                    continue
+                report.messages.append(
+                    f"series {title!r}: profile {pname!r} does not exist in the source; no link"
+                )
             series = Series(
                 user_id=user_id,
                 title=title,
@@ -245,7 +264,9 @@ def _volume(
 ) -> Volume | None:
     key = (series.id, title)
     if key not in cache:
-        volume = db.scalar(select(Volume).where(Volume.series_id == series.id, Volume.title == title))
+        volume = db.scalar(
+            select(Volume).where(Volume.series_id == series.id, Volume.title == title)
+        )
         if volume is None:
             order = db.scalar(select(func.count(Volume.id)).where(Volume.series_id == series.id))
             volume = Volume(series_id=series.id, title=title, volume_order=order or 0)
@@ -266,9 +287,21 @@ def _import_documents(
     id_map: dict[int, Document] = {}
 
     for row in conn.execute("SELECT * FROM documents"):
-        series = series_by_title.get(_get(row, "series_title", "") or "")
+        label = f"row {row['id']}"
+        series_title = _get(row, "series_title", "")
         vol_title = _get(row, "volume_title", "")
-        volume = _volume(db, series, vol_title, volumes, report) if series and vol_title else None
+        series = series_by_title.get(series_title)
+        if series_title and series is None:
+            _skip(report, "documents", label, f"series {series_title!r} was not imported")
+            continue
+        volume = None
+        if series and vol_title:
+            volume = _volume(db, series, vol_title, volumes, report)
+            if volume is None:
+                _skip(report, "documents", label, f"volume {vol_title!r} was not imported")
+                continue
+        elif vol_title:
+            report.messages.append(f"documents {label}: volume_title {vol_title!r} has no series")
         doc = Document(
             user_id=user_id,
             series_id=series.id if series else None,
@@ -289,13 +322,17 @@ def _import_documents(
         if doc is None:
             _orphan(report, "lines", row, f"document_id {row['document_id']}")
             continue
+        prefix = _get(row, "prefix", "%")
+        if not prefix:
+            report.messages.append(f"lines row {row['id']}: empty prefix replaced with '%'")
+            prefix = "%"
         line = Line(
             document_id=doc.id,
             line_number=row["line_number"],
-            prefix=_get(row, "prefix", "%") or "%",
+            prefix=prefix,
             raw_text=row["raw_text"],
             translated_text=_get(row, "translated_text", "") or "",
-            translated_at=_parse_ts(_get(row, "translated_at")),
+            translated_at=_parse_ts(_get(row, "translated_at"), report, f"lines row {row['id']}"),
         )
         _add(db, line, "lines", f"row {row['id']}", report)
 
@@ -331,12 +368,14 @@ def main() -> None:
             db, args.db, user.id, dry_run=args.dry_run, force=args.force
         )
         if args.dry_run:
-            print("DRY RUN — nothing written")
+            print("DRY RUN - nothing written")
         else:
             db.commit()
         print(report.summary())
         for message in report.messages:
             print(f"  ! {message}")
+        if any(report.skipped.values()):
+            raise SystemExit("incomplete: some rows were skipped (see messages above)")
 
 
 if __name__ == "__main__":
