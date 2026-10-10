@@ -71,3 +71,17 @@ def app_client(db):
     app.dependency_overrides[db_session] = lambda: db
     with TestClient(app) as client:
         yield client
+
+
+@pytest.fixture
+def make_user(db):
+    from api.models import User
+    from api.security import hash_password
+
+    def _make(email: str = "user@example.com", password: str = "pw-correct", is_admin: bool = False):
+        user = User(email=email, password_hash=hash_password(password), is_admin=is_admin)
+        db.add(user)
+        db.flush()
+        return user
+
+    return _make
