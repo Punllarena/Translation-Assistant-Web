@@ -136,3 +136,59 @@ def other_users_profile_id(app_client, make_user, login):
     app_client.post("/auth/logout")
     login(app_client, "intruder@example.com")
     return pid
+
+
+@pytest.fixture
+def me(app_client, make_user, login):
+    """A signed-in user: the client carries their session."""
+    user = make_user(email="me@example.com")
+    login(app_client, "me@example.com")
+    return user
+
+
+@pytest.fixture
+def make_series(db):
+    from api.models import Series
+
+    def _make(user, title="S"):
+        series = Series(user_id=user.id, title=title)
+        db.add(series)
+        db.flush()
+        return series
+
+    return _make
+
+
+@pytest.fixture
+def make_doc(db):
+    """make_doc(user, raws, ...) -> Document whose lines are `raws`, all '%'-prefixed.
+
+    With translated=True each line's translation is 'tr:<raw>'; otherwise empty.
+    chapter_title is set to `title`, as the desktop does for chapters."""
+    from api.models import Document, Line
+
+    def _make(user, raws=(), *, series=None, order=0, title="Ch", volume=None, translated=True):
+        doc = Document(
+            user_id=user.id,
+            title=title,
+            chapter_title=title,
+            series_id=series.id if series else None,
+            volume_id=volume.id if volume else None,
+            series_order=order,
+        )
+        db.add(doc)
+        db.flush()
+        db.add_all(
+            Line(
+                document_id=doc.id,
+                line_number=i,
+                prefix="%",
+                raw_text=raw,
+                translated_text=f"tr:{raw}" if translated else "",
+            )
+            for i, raw in enumerate(raws)
+        )
+        db.flush()
+        return doc
+
+    return _make

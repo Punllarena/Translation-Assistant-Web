@@ -70,3 +70,19 @@ def scoped[T: UserOwned](db: Session, model: type[T], obj_id: int, user_id: int)
     if obj is None or obj.user_id != user_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
     return obj
+
+
+def owned_ref[T: UserOwned](
+    db: Session, model: type[T], obj_id: int, user_id: int, field: str
+) -> T:
+    """``scoped()`` for an id named in a request *body* (series_id, profile_id, ...).
+
+    The URL names the resource, so a bad reference in the body is a 422, not a 404,
+    and "missing" and "someone else's" get one message, so existence stays undisclosed.
+    """
+    try:
+        return scoped(db, model, obj_id, user_id)
+    except HTTPException:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, f"{field}: no such item"
+        ) from None
