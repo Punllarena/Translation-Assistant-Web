@@ -33,6 +33,15 @@ function stash(id: number, edits: Edit[]) {
   }
 }
 
+/** Clears the stash only if it is still exactly what `written` put there. */
+function clearStashIf(id: number, written: Edit[]) {
+  try {
+    if (sessionStorage.getItem(stashKey(id)) === JSON.stringify(written)) sessionStorage.removeItem(stashKey(id));
+  } catch {
+    // storage unavailable
+  }
+}
+
 function takeStash(id: number): Edit[] {
   try {
     const raw = sessionStorage.getItem(stashKey(id));
@@ -80,14 +89,20 @@ export function useEditor(id: number, lines: Line[], startAt: number) {
         e.returnValue = "";
       }
     };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onHide();
+    };
     window.addEventListener("pagehide", onHide);
+    document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => {
       window.removeEventListener("pagehide", onHide);
+      document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("beforeunload", onBeforeUnload);
-      stash(id, store.unsaved());
+      const written = store.unsaved();
+      stash(id, written);
       void store.flush().then(() => {
-        if (!store.unsaved().length) stash(id, []);
+        if (!store.unsaved().length) clearStashIf(id, written);
       });
     };
   }, [id, store, setText]);

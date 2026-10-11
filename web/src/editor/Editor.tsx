@@ -35,7 +35,7 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
   }
   const n = current.line_number;
   const editor = (
-    <CodeEditor key={n} initial={ed.texts[n] ?? ""} label="Translation"
+    <CodeEditor key={n} value={ed.texts[n] ?? ""} label="Translation"
       onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} />
   );
   return (

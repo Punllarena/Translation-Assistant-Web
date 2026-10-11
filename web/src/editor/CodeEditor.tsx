@@ -36,7 +36,7 @@ export function insertAtCursor(view: EditorView | null, text: string, caretOffse
 }
 
 interface Props {
-  initial: string;
+  value: string;
   label: string;
   onChange(text: string): void;
   onBlur?(): void;
@@ -45,15 +45,16 @@ interface Props {
 }
 
 /** A CodeMirror view, created once per mount (key it to replace the document). */
-export default function CodeEditor({ initial, label, onChange, onBlur, onReady, onContextMenu }: Props) {
+export default function CodeEditor({ value, label, onChange, onBlur, onReady, onContextMenu }: Props) {
   const host = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
   const latest = useRef({ onChange, onBlur, onContextMenu });
   latest.current = { onChange, onBlur, onContextMenu };
   useEffect(() => {
     const view = new EditorView({
       parent: host.current!,
       state: EditorState.create({
-        doc: initial,
+        doc: value,
         extensions: [
           history(),
           keymap.of([{ key: "Shift-Enter", run: insertNewline }, ...historyKeymap, ...defaultKeymap]),
@@ -70,14 +71,23 @@ export default function CodeEditor({ initial, label, onChange, onBlur, onReady, 
         ],
       }),
     });
+    viewRef.current = view;
     view.focus();
     onReady(view);
     return () => {
+      viewRef.current = null;
       onReady(null);
       view.destroy();
     };
     // Created once per mount by design; the parent keys this component per line.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // External changes (a restored unsaved edit, a later programmatic edit) replace the document.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || view.state.doc.toString() === value) return;
+    const head = Math.min(view.state.selection.main.head, value.length);
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value }, selection: { anchor: head } });
+  }, [value]);
   return <div ref={host} className="code-editor" />;
 }
