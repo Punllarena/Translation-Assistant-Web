@@ -3,7 +3,9 @@ import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, call } from "../api/client";
 import Chapters from "./Chapters";
+import FindReplace from "./FindReplace";
 import { invalidateLibrary, useDocuments, useSeriesList } from "./queries";
+import PhraseSuggestions from "./PhraseSuggestions";
 import Volumes from "./Volumes";
 
 export default function SeriesPage() {
@@ -69,6 +71,9 @@ export default function SeriesPage() {
       </form>
       <Chapters seriesId={seriesId} docs={chapters} />
       <Volumes seriesId={seriesId} docs={chapters} />
+      <FindReplace seriesId={seriesId} />
+      <PhraseSuggestions seriesId={seriesId}
+        defaultProfileId={series.profile_id ?? profiles.data?.find((p) => p.is_default)?.id ?? null} />
     </main>
   );
 }
