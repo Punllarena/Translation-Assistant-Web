@@ -134,7 +134,9 @@ def replace_source(
     doc = scoped(db, Document, document_id, user.id)
     if not body.text.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "source text is empty")
-    raw = body.text.splitlines()
+    # The client joins its lines with "\n", so split on that alone: str.splitlines would
+    # also break on \v, \x1c-\x1e, \x85, U+2028 and U+2029, and drop a trailing blank line.
+    raw = body.text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     check_line_count(raw)
     rows = lines_to_db_rows(raw, [])
     existing = {

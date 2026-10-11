@@ -72,3 +72,27 @@ def test_line_cap(app_client, me, make_doc, monkeypatch):
 def test_another_users_document_is_404(app_client, me, make_user, make_doc):
     theirs = make_doc(make_user(email="other@example.com"), ["x"])
     assert put(app_client, theirs, "y").status_code == 404
+
+
+def test_trailing_blank_line_round_trips_without_409(app_client, db, me, make_doc):
+    doc = make_doc(me, ["一。", ""])
+    assert put(app_client, doc, "壱。\n").status_code == 200
+    assert rows(db, doc) == [("%", "壱。", "tr:一。"), ("%", "", "tr:")]
+
+
+def test_space_and_unicode_separators_do_not_split(app_client, db, me, make_doc):
+    doc = make_doc(me, ["一。"])
+    assert put(app_client, doc, "a b c\x85d\ve").status_code == 200
+    assert rows(db, doc) == [("%", "a b c\x85d\ve", "tr:一。")]
+
+
+def test_crlf_is_a_single_line_break(app_client, db, me, make_doc):
+    doc = make_doc(me, ["一。", "二。"])
+    assert put(app_client, doc, "壱。\r\n弐。").status_code == 200
+    assert rows(db, doc) == [("%", "壱。", "tr:一。"), ("%", "弐。", "tr:二。")]
+
+
+def test_nul_in_source_is_422_and_changes_nothing(app_client, db, me, make_doc):
+    doc = make_doc(me, ["一。"])
+    assert put(app_client, doc, "a\x00b", force=True).status_code == 422
+    assert rows(db, doc) == [("%", "一。", "tr:一。")]

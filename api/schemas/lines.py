@@ -1,10 +1,22 @@
-from pydantic import BaseModel, Field, field_validator
+from typing import Annotated
+
+from pydantic import AfterValidator, BaseModel, Field
 
 from api.schemas.documents import MAX_RAW_CHARS, DocumentOut
 from api.schemas.profiles import ProfileOut
 
 # A pasted translation for one paragraph; generous, but bounded.
 MAX_TRANSLATION_CHARS = 100_000
+
+
+def _reject_nul(v: str) -> str:
+    if "\x00" in v:
+        raise ValueError("NUL control character is not allowed")
+    return v
+
+
+# Postgres text columns cannot hold NUL, so any user text bound for one goes through this.
+NoNulStr = Annotated[str, AfterValidator(_reject_nul)]
 
 
 class LineOut(BaseModel):
@@ -25,14 +37,7 @@ class DocumentLines(BaseModel):
 
 class LineEdit(BaseModel):
     line_number: int = Field(ge=0, le=2**31 - 1)
-    translated_text: str = Field(max_length=MAX_TRANSLATION_CHARS)
-
-    @field_validator("translated_text")
-    @classmethod
-    def _no_nul(cls, v: str) -> str:
-        if "\x00" in v:
-            raise ValueError("NUL control character is not allowed")
-        return v
+    translated_text: NoNulStr = Field(max_length=MAX_TRANSLATION_CHARS)
 
 
 class LineBatch(BaseModel):
@@ -41,5 +46,5 @@ class LineBatch(BaseModel):
 
 
 class SourceUpdate(BaseModel):
-    text: str = Field(max_length=MAX_RAW_CHARS)
+    text: NoNulStr = Field(max_length=MAX_RAW_CHARS)
     force: bool = False  # confirm a change in the number of lines
