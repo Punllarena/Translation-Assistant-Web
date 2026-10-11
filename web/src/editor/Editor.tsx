@@ -13,7 +13,9 @@ import ImageCard from "./ImageCard";
 import { PUNCTUATIONS } from "./keymap";
 import { advanceParse, retreatParse } from "./parse";
 import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, prevContent, progress } from "./rows";
+import PhraseDialog from "./PhraseDialog";
 import StatusBar from "./StatusBar";
+import TmPanel from "./TmPanel";
 import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
 import { useBindings, useEditorKeys } from "./useEditorKeys";
@@ -37,6 +39,7 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
     queryFn: () => call(api.GET("/documents/{document_id}/images", { params: { path: { document_id: id } } })),
   });
   const rows = useMemo(() => buildRows(lines, images.data ?? []), [lines, images.data]);
+  const tmVisible = settings.data?.tm_visible !== false;
   const imagesCollapsed = Boolean(settings.data?.images_collapsed);
   const stats = useMemo(() => progress(lines, ed.texts), [lines, ed.texts]);
   const onReady = useCallback((v: EditorView | null) => { view.current = v; }, []);
@@ -56,6 +59,7 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   const spell = useSpell(profileId, lines.map((l) => ed.texts[l.line_number] ?? ""));
   const profiles = useQuery({ queryKey: ["profiles"], queryFn: () => call(api.GET("/profiles")) });
   const [menu, setMenu] = useState<{ x: number; y: number; word: Misspelling } | null>(null);
+  const [phrase, setPhrase] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const gone = ed.missing.length
     ? `Lines ${ed.missing.map((n) => n + 1).join(", ")} no longer exist (the source was edited elsewhere); reload the chapter`
@@ -96,7 +100,7 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   }, [spell.misspelled, spell.known, activeText, hit, ed.active]);
   const run = (action: string) => {
     const at = ed.active;
-    if (!lines[at]) return;
+    if (!lines[at] || phrase !== null) return;
     switch (action) {
       case "save_next":
         void ed.store.flush();
@@ -143,6 +147,10 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
         }
         break;
       }
+      case "add_phrase":
+        if (!profileId) setNotice("No profile to add phrases to");
+        else setPhrase(window.getSelection()?.toString().trim() ?? "");
+        break;
       case "find":
         find.show();
         break;
@@ -176,6 +184,11 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
           <Link to={`/documents/${id}/source`}>Edit source</Link>
           <Link to={`/documents/${id}/split`}>Split</Link>
           {!spell.available && <span className="muted">Spellcheck unavailable</span>}
+          {data.document.series_id != null && <Link to={`/series/${data.document.series_id}`}>Series tools</Link>}
+          <button onClick={() => {
+            queryClient.setQueryData(["settings"], { ...settings.data, tm_visible: !tmVisible });
+            void call(api.PUT("/settings", { body: { tm_visible: !tmVisible } })).catch(() => {});
+          }}>{tmVisible ? "Hide TM" : "Show TM"}</button>
           {images.data?.length ? (
             <button onClick={() => {
               queryClient.setQueryData(["settings"], { ...settings.data, images_collapsed: !imagesCollapsed });
@@ -188,12 +201,20 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
           onNeedle={find.setNeedle} onStep={find.step}
           onClose={() => { find.close(); view.current?.focus(); }} />
       )}
+      <div className="editor-layout">
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
           onActivate={activate} editor={editor} highlight={hit}
           misspelled={spell.misspelled}
           renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
       </div>
+      {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={(t) => ed.setText(n, t)} />}
+      </div>
+      {phrase !== null && <PhraseDialog initial={phrase} onClose={() => { setPhrase(null); view.current?.focus(); }} onSave={async (p, t) => {
+        await call(api.POST("/profiles/{profile_id}/glossary", { params: { path: { profile_id: profileId! } }, body: { phrase: p, translation: t } }));
+        await queryClient.invalidateQueries({ queryKey: ["document", id, "lines"] });
+        setNotice(`Added \u201c${p}\u201d to the glossary`);
+      }} />}
       {menu && <SpellMenu {...menu} onClose={closeMenu} onAdd={() => { void addWord(menu.word.word); closeMenu(); }}
         onPick={(s) => {
           const v = view.current;

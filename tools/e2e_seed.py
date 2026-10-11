@@ -42,6 +42,13 @@ def main() -> None:
             {"line_number": i, "prefix": "%", "raw_text": raw, "translated_text": ""}
             for i, raw in enumerate(LINES)
         ])
+        # shares its first source line with "E2E chapter", for the translation-memory check
+        memory = Document(user_id=user.id, title="Memory source")
+        db.add(memory)
+        db.flush()
+        write_lines(db, memory.id, [
+            {"line_number": 0, "prefix": "%", "raw_text": LINES[0], "translated_text": "Remembered translation."},
+        ])
         db.commit()
 
 

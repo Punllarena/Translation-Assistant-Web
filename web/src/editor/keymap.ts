@@ -26,6 +26,7 @@ export const ACTIONS: Action[] = [
   { key: "go_to_line", label: "Go to line", binding: "Ctrl+G" },
   { key: "find", label: "Find", binding: "Ctrl+F" },
   { key: "add_word", label: "Add the selected word to the dictionary", binding: "Ctrl+J" },
+  { key: "add_phrase", label: "Add a glossary phrase", binding: "Ctrl+L" },
   { key: "font_larger", label: "Larger text", binding: "Ctrl+=" },
   { key: "font_smaller", label: "Smaller text", binding: "Ctrl+-" },
   ...PUNCTUATIONS.map((p, i) => ({
