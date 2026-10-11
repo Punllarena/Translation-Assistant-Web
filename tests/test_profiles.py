@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 
@@ -45,7 +47,9 @@ def test_duplicate_409_keeps_earlier_writes_of_the_request(app_client, db, make_
     login(app_client, "d2@example.com")
     app_client.post("/profiles", json={"name": "wn"})
     row = db.scalar(select(SessionRow))
-    before = row.last_seen_at
+    before = datetime.now(UTC) - timedelta(minutes=5)  # stale, so the request refreshes it
+    row.last_seen_at = before
+    db.flush()
     assert app_client.post("/profiles", json={"name": "wn"}).status_code == 409
     db.refresh(row)
     assert row.last_seen_at > before
