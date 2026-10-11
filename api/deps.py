@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 from fastapi import Depends, HTTPException, Request, status
@@ -13,6 +13,7 @@ from api.routing import SESSION_STATE_ATTR
 from api.security import token_hash
 
 COOKIE_NAME = "ta_session"
+LAST_SEEN_INTERVAL = timedelta(seconds=60)  # not a row write on every request
 
 
 class UserOwned(Protocol):
@@ -40,7 +41,8 @@ def current_user(request: Request, db: Session = Depends(db_session)) -> User:
     now = datetime.now(UTC)
     if row is None or row.expires_at <= now:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "session invalid or expired")
-    row.last_seen_at = now
+    if row.last_seen_at is None or now - row.last_seen_at > LAST_SEEN_INTERVAL:
+        row.last_seen_at = now
     return row.user
 
 

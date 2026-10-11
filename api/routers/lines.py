@@ -143,7 +143,7 @@ def replace_source(
         line.line_number: line
         for line in db.scalars(select(Line).where(Line.document_id == doc.id))
     }
-    if len(rows) != len(existing) and not body.force:
+    if existing and len(rows) != len(existing) and not body.force:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             f"line count changes from {len(existing)} to {len(rows)}; translations stay "

@@ -118,3 +118,37 @@ def test_a_real_request_persists_although_no_handler_commits(
         with Session(engine) as cleanup:
             cleanup.execute(delete(User).where(User.email == "real@example.com"))
             cleanup.commit()
+
+
+def test_commit_runs_off_the_event_loop(db, insecure_cookies, make_user, login):
+    """A synchronous session.commit() in the route would block the loop that has to run
+    a concurrent request's commit (row-lock deadlock)."""
+    import asyncio
+
+    from api.deps import db_session
+
+    on_loop: list[bool] = []
+
+    class Spy:
+        def commit(self) -> None:
+            try:
+                asyncio.get_running_loop()
+                on_loop.append(True)
+            except RuntimeError:
+                on_loop.append(False)
+            db.commit()
+
+    spy = Spy()
+
+    def override(request: Request):
+        setattr(request.state, SESSION_STATE_ATTR, spy)
+        yield db
+
+    app = create_app()
+    app.dependency_overrides[db_session] = override
+    make_user(email="loop@example.com")
+    with TestClient(app) as client:
+        login(client, "loop@example.com")
+        on_loop.clear()
+        assert client.post("/profiles", json={"name": "off-loop"}).status_code == 201
+    assert on_loop == [False]

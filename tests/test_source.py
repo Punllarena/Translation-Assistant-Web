@@ -96,3 +96,9 @@ def test_nul_in_source_is_422_and_changes_nothing(app_client, db, me, make_doc):
     doc = make_doc(me, ["一。"])
     assert put(app_client, doc, "a\x00b", force=True).status_code == 422
     assert rows(db, doc) == [("%", "一。", "tr:一。")]
+
+
+def test_empty_chapter_takes_its_first_source_without_force(app_client, db, me, make_doc):
+    doc = make_doc(me, [])
+    assert put(app_client, doc, "壱。\n弐。").status_code == 200
+    assert rows(db, doc) == [("%", "壱。", ""), ("%", "弐。", "")]
