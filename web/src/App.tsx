@@ -6,6 +6,7 @@ import EditorPage from "./editor/EditorPage";
 import SourcePage from "./editor/SourcePage";
 import Picker from "./library/Picker";
 import SeriesPage from "./library/SeriesPage";
+import ProfilesPage from "./settings/ProfilesPage";
 import ShortcutsPage from "./settings/ShortcutsPage";
 import Shell from "./Shell";
 
@@ -17,6 +18,7 @@ export const router = createBrowserRouter(
       <Route element={<RequireAuth><Shell /></RequireAuth>}>
         <Route index element={<Picker />} />
         <Route path="series/:id" element={<SeriesPage />} />
+        <Route path="settings/profiles" element={<ProfilesPage />} />
         <Route path="settings/shortcuts" element={<ShortcutsPage />} />
         <Route path="documents/:id" element={<EditorPage />} />
         <Route path="documents/:id/source" element={<SourcePage mode="edit" />} />
