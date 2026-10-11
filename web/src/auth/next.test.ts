@@ -5,7 +5,7 @@ describe("safeNext", () => {
   it("keeps an in-app path with its query", () => {
     expect(safeNext("/series/3?tab=volumes")).toBe("/series/3?tab=volumes");
   });
-  it.each([null, "", "https://evil.example", "//evil.example", "/\\evil.example", "series"])(
+  it.each([null, "", "https://evil.example", "//evil.example", "/\\evil.example", "series", "/login", "/login?next=/x", "/invite?token=t"])(
     "falls back to / for %s",
     (next) => expect(safeNext(next)).toBe("/"),
   );

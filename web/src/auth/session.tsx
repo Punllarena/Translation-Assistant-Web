@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type QueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 import { api, ApiError, call, type Schemas } from "../api/client";
@@ -16,6 +16,11 @@ export function useMe() {
     },
     staleTime: Infinity,
   });
+}
+
+/** Drop every cached query except ["me"], whose observer (RequireAuth) must stay attached. */
+export function forgetUserData(queryClient: QueryClient) {
+  queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "me" });
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {

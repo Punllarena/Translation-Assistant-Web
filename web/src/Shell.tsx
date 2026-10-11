@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Outlet } from "react-router";
 import { api, call } from "./api/client";
-import { useMe } from "./auth/session";
+import { forgetUserData, useMe } from "./auth/session";
 
 export default function Shell() {
   const me = useMe();
@@ -9,7 +9,7 @@ export default function Shell() {
   const logout = useMutation({
     mutationFn: () => call(api.POST("/auth/logout")),
     onSuccess: () => {
-      queryClient.clear();
+      forgetUserData(queryClient);
       queryClient.setQueryData(["me"], null);
     },
   });

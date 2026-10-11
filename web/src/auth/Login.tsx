@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { api, call } from "../api/client";
 import { safeNext } from "./next";
-import { useMe } from "./session";
+import { forgetUserData, useMe } from "./session";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -16,6 +16,7 @@ export default function Login() {
   const login = useMutation({
     mutationFn: () => call(api.POST("/auth/login", { body: { email, password } })),
     onSuccess: (user) => {
+      forgetUserData(queryClient);
       queryClient.setQueryData(["me"], user);
       navigate(next, { replace: true });
     },
