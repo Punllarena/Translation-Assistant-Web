@@ -119,6 +119,9 @@ class Line(Base):
     __tablename__ = "lines"
     __table_args__ = (
         UniqueConstraint("document_id", "line_number"),
+        # Translation memory looks lines up by exact source text. A hash index has no
+        # btree's ~2.7 KB row limit, and equality is the only lookup it serves.
+        Index("ix_lines_raw_text_hash", "raw_text", postgresql_using="hash"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

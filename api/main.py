@@ -9,6 +9,7 @@ from api.routers import (
     images,
     invites,
     lines,
+    memory,
     profiles,
     series,
     settings,
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(volumes.router)
     app.include_router(lines.router)
+    app.include_router(memory.router)
     app.include_router(spell.router)
     app.include_router(images.router)
     app.include_router(settings.router)
