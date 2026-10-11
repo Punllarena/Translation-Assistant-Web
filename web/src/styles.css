@@ -44,3 +44,7 @@ form.stack { display: grid; gap: 0.5rem; max-width: 24rem; }
   border-radius: 6px; box-shadow: 0 4px 16px rgb(0 0 0 / 0.2); }
 .spell-menu button { text-align: left; background: none; border: 0; padding: 0.3rem 0.5rem; font: inherit; }
 .spell-menu button:focus, .spell-menu button:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+.image-card { margin: 0.6em 0; }
+.image-card img { display: block; max-width: min(100%, 400px); margin: 0.4em auto; }
+.badge { padding: 0 0.4em; border-radius: 4px; font-size: 0.75em;
+  background: color-mix(in srgb, #16a34a 25%, transparent); }

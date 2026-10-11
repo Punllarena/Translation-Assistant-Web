@@ -9,6 +9,7 @@ import type { Misspelling } from "./LineCard";
 import CardList from "./CardList";
 import CodeEditor, { insertAtCursor, setMarks } from "./CodeEditor";
 import FindBar from "./FindBar";
+import ImageCard from "./ImageCard";
 import { firstFrom, findHits, wrapStep } from "./find";
 import { PUNCTUATIONS } from "./keymap";
 import { advanceParse, retreatParse } from "./parse";
@@ -31,7 +32,12 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   const view = useRef<EditorView | null>(null);
   const settings = useQuery({ queryKey: ["settings"], queryFn: () => call(api.GET("/settings")) });
   const fontPx = Number(settings.data?.editor_font_px ?? 18);
-  const rows = useMemo(() => buildRows(lines, []), [lines]);
+  const images = useQuery({
+    queryKey: ["document", id, "images"],
+    queryFn: () => call(api.GET("/documents/{document_id}/images", { params: { path: { document_id: id } } })),
+  });
+  const rows = useMemo(() => buildRows(lines, images.data ?? []), [lines, images.data]);
+  const imagesCollapsed = Boolean(settings.data?.images_collapsed);
   const stats = useMemo(() => progress(lines, ed.texts), [lines, ed.texts]);
   const onReady = useCallback((v: EditorView | null) => { view.current = v; }, []);
   const current = lines[ed.active];
@@ -181,6 +187,12 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
             {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           {!spell.available && <span className="muted">Spellcheck unavailable</span>}
+          {images.data?.length ? (
+            <button onClick={() => {
+              queryClient.setQueryData(["settings"], { ...settings.data, images_collapsed: !imagesCollapsed });
+              void call(api.PUT("/settings", { body: { images_collapsed: !imagesCollapsed } })).catch(() => {});
+            }}>{imagesCollapsed ? "Show images" : "Collapse images"}</button>
+          ) : null}
         </>} />
       {find.open > 0 && (
         <FindBar key={find.open} needle={find.needle} position={at} total={hits.length}
@@ -190,7 +202,8 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
           onActivate={activate} editor={editor} highlight={hit}
-          misspelled={spell.misspelled} />
+          misspelled={spell.misspelled}
+          renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
       </div>
       {menu && <SpellMenu {...menu} onClose={closeMenu} onAdd={() => { void addWord(menu.word.word); closeMenu(); }}
         onPick={(s) => {
