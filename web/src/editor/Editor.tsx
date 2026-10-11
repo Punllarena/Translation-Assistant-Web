@@ -10,12 +10,12 @@ import CardList from "./CardList";
 import CodeEditor, { insertAtCursor, setMarks } from "./CodeEditor";
 import FindBar from "./FindBar";
 import ImageCard from "./ImageCard";
-import { firstFrom, findHits, wrapStep } from "./find";
 import { PUNCTUATIONS } from "./keymap";
 import { advanceParse, retreatParse } from "./parse";
 import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, prevContent, progress } from "./rows";
 import StatusBar from "./StatusBar";
 import { useEditor } from "./useEditor";
+import { useFind } from "./useFind";
 import { useBindings, useEditorKeys } from "./useEditorKeys";
 
 type Data = Schemas["DocumentLines"];
@@ -47,29 +47,11 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
     queryClient.setQueryData(["settings"], { ...settings.data, editor_font_px: size });
     void call(api.PUT("/settings", { body: { editor_font_px: size } })).catch(() => {});
   };
-  const [find, setFind] = useState<{ open: number; needle: string; at: number }>({ open: 0, needle: "", at: -1 });
-  const hits = useMemo(
-    () => findHits(rows.flatMap((r) => r.kind === "line"
-      ? [{ index: r.index, source: r.line.display_text, translation: ed.texts[r.line.line_number] ?? "" }]
-      : []), find.needle),
-    [rows, ed.texts, find.needle],
-  );
-  const at = find.at < hits.length ? find.at : -1;
-  const hit = find.open && at >= 0 ? hits[at] : null;
   const edRef = useRef(ed);
   edRef.current = ed;
-  const stepped = useRef(false); // the next editor mount comes from a find step: leave focus in the bar
-  const activate = useCallback((i: number | null) => { stepped.current = false; edRef.current.activate(i); }, []);
-  const step = (dir: 1 | -1) => {
-    const next = at < 0 && dir === 1 ? firstFrom(hits, ed.active) : wrapStep(at, hits.length, dir);
-    setFind((f) => ({ ...f, at: next }));
-    if (hits[next]) {
-      if (hits[next].index === ed.active) return;
-      stepped.current = true;
-      ed.activate(hits[next].index);
-    }
-  };
-  useEffect(() => { stepped.current = false; }, [ed.active]);
+  const find = useFind(rows, ed.texts, ed.active, ed.activate);
+  const { hit } = find;
+  const activate = useCallback((i: number | null) => { find.stepped.current = false; edRef.current.activate(i); }, [find.stepped]);
   const profileId = data.profile?.id ?? null;
   const spell = useSpell(profileId, lines.map((l) => ed.texts[l.line_number] ?? ""));
   const profiles = useQuery({ queryKey: ["profiles"], queryFn: () => call(api.GET("/profiles")) });
@@ -102,8 +84,10 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   const activeText = current ? (ed.texts[current.line_number] ?? "") : "";
   useEffect(() => {
     const v = view.current;
-    if (!v || (!spell.known(activeText) && !(hit && hit.index === ed.active))) return;
-    const marks = spell.misspelled(activeText).map((m) => ({ from: m.start, to: m.end, cls: "misspelled" }));
+    if (!v) return;
+    const marks = spell.known(activeText)
+      ? spell.misspelled(activeText).map((m) => ({ from: m.start, to: m.end, cls: "misspelled" }))
+      : [];
     if (hit && hit.index === ed.active && hit.field === "translation") marks.push({ from: hit.from, to: hit.to, cls: "find-current" });
     v.dispatch({ effects: setMarks.of(marks) });
   }, [spell.misspelled, spell.known, activeText, hit, ed.active]);
@@ -157,7 +141,7 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
         break;
       }
       case "find":
-        setFind((f) => ({ ...f, open: f.open + 1 }));
+        find.show();
         break;
       default:
         if (action.startsWith("punct_")) insertAtCursor(view.current, PUNCTUATIONS[Number(action.slice(6))], 1);
@@ -173,7 +157,7 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   const n = current.line_number;
   const editor = (
     <CodeEditor key={n} value={ed.texts[n] ?? ""} label="Translation"
-      onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} autoFocus={!stepped.current} onContextMenu={onContextMenu} />
+      onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} autoFocus={!find.stepped.current} onContextMenu={onContextMenu} />
   );
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
@@ -197,9 +181,9 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
           ) : null}
         </>} />
       {find.open > 0 && (
-        <FindBar key={find.open} needle={find.needle} position={at} total={hits.length}
-          onNeedle={(needle) => setFind((f) => ({ ...f, needle, at: -1 }))} onStep={step}
-          onClose={() => { stepped.current = false; setFind((f) => ({ ...f, open: 0, at: -1 })); view.current?.focus(); }} />
+        <FindBar key={find.open} needle={find.needle} position={find.at} total={find.total}
+          onNeedle={find.setNeedle} onStep={find.step}
+          onClose={() => { find.close(); view.current?.focus(); }} />
       )}
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}

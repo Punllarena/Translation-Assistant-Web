@@ -28,9 +28,8 @@ export default function StatusBar({ title, line, total, percent, words, phrase, 
       <span>{percent}%</span>
       <span>{words.toLocaleString()} words</span>
       {phrase && <span>{phrase}</span>}
-      <span role="status" className={save.state === "error" ? "error" : save.state === "saved" ? "muted" : undefined}>
-        {save.state === "error" ? `${SAVE_TEXT.error}: ${save.error}` : SAVE_TEXT[save.state]}
-      </span>
+      <span className={save.state === "saved" ? "save-state muted" : "save-state"}>{SAVE_TEXT[save.state]}</span>
+      {save.state === "error" && <span role="alert" className="error">{save.error}</span>}
       {save.state === "error" && <button onClick={onRetry}>Retry</button>}
       {notice && <span className="muted">{notice}</span>}
       {extra}

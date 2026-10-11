@@ -24,6 +24,8 @@ export function useEditorKeys(bindings: Record<string, string>, run: (action: st
       if (!action) return;
       e.preventDefault();
       e.stopPropagation();
+      // A held Enter would skip lines unseen (ruling 8); other actions may repeat.
+      if (e.repeat && action === "save_next") return;
       latest.current.run(action);
     };
     window.addEventListener("keydown", onKey, true);

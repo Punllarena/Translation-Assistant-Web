@@ -22,7 +22,7 @@ test("translate two lines and the save indicator settles", async ({ page }) => {
   await page.keyboard.type("This is the first line.");
   await page.keyboard.press("Enter");
   await page.keyboard.type("This is the second line.");
-  await expect(page.getByRole("status")).toHaveText("Saved", { timeout: 5_000 });
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 5_000 });
   await page.reload();
   await expect(page.getByText("This is the first line.")).toBeVisible();
   await expect(page.getByText("This is the second line.")).toBeVisible();
@@ -45,7 +45,7 @@ test("a session that expires mid-edit signs out, then restores and saves the tex
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(/\/documents\//);
   await expect(page.getByText("Typed while expired.")).toBeVisible();
-  await expect(page.getByRole("status")).toHaveText("Saved", { timeout: 5_000 });
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 5_000 });
   await page.reload();
   await expect(page.getByText("Typed while expired.")).toBeVisible();
 });
