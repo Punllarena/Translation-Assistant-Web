@@ -38,7 +38,12 @@ export const ACTIONS: Action[] = [
 /** Combinations browsers do not let a page handle. */
 export const RESERVED = new Set([
   "Ctrl+N", "Ctrl+Shift+N", "Ctrl+T", "Ctrl+Shift+T", "Ctrl+W", "Ctrl+Shift+W",
-  "Ctrl+Tab", "Ctrl+Shift+Tab",
+  "Ctrl+Tab", "Ctrl+Shift+Tab", "Ctrl+PageUp", "Ctrl+PageDown",
+]);
+
+/** Keys the text box needs for ordinary editing and caret movement. */
+const EDITING_KEYS = new Set([
+  "Tab", "Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End",
 ]);
 
 const MODIFIERS = new Set(["Control", "Shift", "Alt", "Meta", "AltGraph", "CapsLock"]);
@@ -51,9 +56,11 @@ const COMPOSING_KEYS = new Set(["Process", "Dead", "Unidentified"]);
 export function bindingOf(
   e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey"> & {
     isComposing?: boolean;
+    keyCode?: number;
   },
 ): string | null {
-  if (e.isComposing || COMPOSING_KEYS.has(e.key) || MODIFIERS.has(e.key)) return null;
+  // Safari fires the IME-commit Enter after compositionend, with isComposing false but keyCode 229.
+  if (e.isComposing || e.keyCode === 229 || COMPOSING_KEYS.has(e.key) || MODIFIERS.has(e.key)) return null;
   const key = e.key === " " ? "Space" : e.key.length === 1 ? e.key.toUpperCase() : e.key;
   return [e.ctrlKey || e.metaKey ? "Ctrl" : "", e.altKey ? "Alt" : "", e.shiftKey ? "Shift" : "", key]
     .filter(Boolean)
@@ -81,6 +88,9 @@ export function bindingProblem(
   const mods = parts.slice(0, -1);
   if ((key.length === 1 || key === "Space") && !mods.includes("Ctrl") && !mods.includes("Alt")) {
     return `${key} needs Ctrl or Alt, or it could not be typed`;
+  }
+  if (!mods.includes("Ctrl") && !mods.includes("Alt") && EDITING_KEYS.has(key)) {
+    return `${key} would break typing in the editor`;
   }
   const owner = actionOf(bindings, binding);
   if (owner && owner !== action) {

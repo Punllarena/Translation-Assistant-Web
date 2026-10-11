@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cutsFromText, insertMarker, SPLIT_MARKER } from "./cuts";
+import { cutsFromText, firstTextDifference, insertMarker, SPLIT_MARKER } from "./cuts";
 
 const M = SPLIT_MARKER;
 
@@ -22,5 +22,21 @@ describe("split cuts", () => {
   it("inserts before the caret's own line when the caret is exactly at a line start", () => {
     expect(insertMarker("ab\ncd", 3).text).toBe(`ab\n${M} \ncd`);
     expect(insertMarker("\nab", 1).text).toBe(`\n${M} \nab`);
+  });
+});
+
+describe("firstTextDifference", () => {
+  it("is null when only markers were added", () => {
+    expect(firstTextDifference("a\nb\nc", `a\n${M} T\nb\nc`)).toBeNull();
+  });
+  it("names the first edited line, 1-based, ignoring markers in the count", () => {
+    expect(firstTextDifference("a\nb\nc", `a\n${M}\nbX\nc`)).toBe(2);
+  });
+  it("catches an inserted blank line, which would shift every later cut", () => {
+    expect(firstTextDifference("a\nb\nc", `a\n\nb\nc`)).toBe(2);
+  });
+  it("catches a removed or appended line", () => {
+    expect(firstTextDifference("a\nb", "a")).toBe(2);
+    expect(firstTextDifference("a", "a\nb")).toBe(2);
   });
 });

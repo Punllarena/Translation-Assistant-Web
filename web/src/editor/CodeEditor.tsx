@@ -1,5 +1,5 @@
 import { defaultKeymap, history, historyKeymap, insertNewline } from "@codemirror/commands";
-import { EditorState, StateEffect, StateField } from "@codemirror/state";
+import { EditorState, StateEffect, StateField, Transaction } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, keymap } from "@codemirror/view";
 import { useEffect, useRef } from "react";
 import type { Span } from "./paint";
@@ -88,7 +88,10 @@ export default function CodeEditor({ value, label, onChange, onBlur, onReady, on
     const view = viewRef.current;
     if (!view || view.state.doc.toString() === value) return;
     const head = Math.min(view.state.selection.main.head, value.length);
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value }, selection: { anchor: head } });
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: value }, selection: { anchor: head },
+      annotations: Transaction.addToHistory.of(false), // a restore is not something Ctrl+Z undoes
+    });
   }, [value]);
   return <div ref={host} className="code-editor" />;
 }

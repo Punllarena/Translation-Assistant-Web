@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, call } from "../api/client";
+import { signedOutOn401 } from "../auth/session";
 import type { Line } from "./rows";
 import { createSaveStore, type Edit } from "./saveStore";
 
@@ -53,9 +55,19 @@ function takeStash(id: number): Edit[] {
 }
 
 export function useEditor(id: number, lines: Line[], startAt: number) {
+  const queryClient = useQueryClient();
   const store = useMemo(
-    () => createSaveStore({ save: (edits, keepalive) => saveLines(id, edits, keepalive) }),
-    [id],
+    () =>
+      createSaveStore({
+        // A 401 means the session expired: sign out so RequireAuth redirects to /login and
+        // the stash is restored after sign-in. The store keeps showing the error until then.
+        save: (edits, keepalive) =>
+          saveLines(id, edits, keepalive).catch((e) => {
+            signedOutOn401(queryClient, e);
+            throw e;
+          }),
+      }),
+    [id, queryClient],
   );
   const save = useSyncExternalStore(store.subscribe, store.getState);
   const [active, setActive] = useState(startAt);

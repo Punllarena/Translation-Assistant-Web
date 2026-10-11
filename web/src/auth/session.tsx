@@ -18,6 +18,12 @@ export function useMe() {
   });
 }
 
+/** An expired session surfaces as a 401 on whatever request comes next. Marking the user
+ *  signed out makes RequireAuth redirect to /login?next=<this page>. */
+export function signedOutOn401(queryClient: QueryClient, error: unknown) {
+  if (error instanceof ApiError && error.status === 401) queryClient.setQueryData(["me"], null);
+}
+
 /** Drop every cached query except ["me"], whose observer (RequireAuth) must stay attached. */
 export function forgetUserData(queryClient: QueryClient) {
   queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "me" });

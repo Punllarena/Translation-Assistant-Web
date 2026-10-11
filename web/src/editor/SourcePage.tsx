@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { api, ApiError, call, type Schemas } from "../api/client";
 import { invalidateLibrary } from "../library/queries";
 import CodeEditor, { setMarks } from "./CodeEditor";
-import { cutsFromText, insertMarker, SPLIT_MARKER } from "./cuts";
+import { cutsFromText, firstTextDifference, insertMarker, SPLIT_MARKER } from "./cuts";
 import FindBar from "./FindBar";
 import { findIn, wrapStep } from "./find";
 import { bindingOf } from "./keymap";
@@ -110,7 +110,7 @@ function SourceBody({ id, mode, data }: { id: number; mode: "edit" | "split"; da
       <p className="muted">
         {mode === "edit"
           ? "One line per paragraph; a line starting with $ continues the previous one. Translations stay with their line position."
-          : `Put the cursor on the first line of each new chapter and press "Insert split here"; type its title after ${SPLIT_MARKER}.`}
+          : `Put the cursor on the first line of each new chapter and press "Insert split here"; type its title after ${SPLIT_MARKER}. Text edits here are ignored — use Edit Source to change wording.`}
       </p>
       {find.open > 0 && (
         <FindBar key={find.open} needle={find.needle} position={at} total={hits.length}
@@ -134,6 +134,11 @@ function SourceBody({ id, mode, data }: { id: number; mode: "edit" | "split"; da
               v.focus();
             }}>Insert split here</button>
             <button disabled={!text.includes(SPLIT_MARKER) || split.isPending} onClick={() => {
+              const differs = firstTextDifference(original, text);
+              if (differs !== null) {
+                setProblem(`Split doesn't save text edits — undo them or use Edit Source (line ${differs} differs)`);
+                return;
+              }
               const cuts = cutsFromText(text);
               setProblem(cuts.length ? null : "Place at least one split marker between two lines.");
               if (cuts.length) split.mutate(cuts);

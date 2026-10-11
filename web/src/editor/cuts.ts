@@ -27,3 +27,15 @@ export function insertMarker(text: string, caret: number) {
   const marker = `${SPLIT_MARKER} `;
   return { text: `${text.slice(0, start)}${marker}\n${text.slice(start)}`, caret: start + marker.length };
 }
+
+/** 1-based number of the first non-marker line of `edited` that differs from `original`
+ *  (counting non-marker lines only), or null when they match. A changed line count
+ *  reports the first line past the shorter side. */
+export function firstTextDifference(original: string, edited: string): number | null {
+  const was = original.split("\n");
+  const now = edited.split("\n").filter((l) => !l.trim().startsWith(SPLIT_MARKER));
+  for (let i = 0; i < Math.max(was.length, now.length); i++) {
+    if (was[i] !== now[i]) return i + 1;
+  }
+  return null;
+}
