@@ -14,6 +14,7 @@ from sqlalchemy.engine import make_url
 from tools.seed_admin import create_admin
 
 EMAIL, PASSWORD = "e2e@example.com", "e2e-password-123"
+TM_LINE = "記憶語です。"
 LINES = ["一行目です。", "二行目です。", "三行目です。"]
 
 
@@ -42,13 +43,15 @@ def main() -> None:
             {"line_number": i, "prefix": "%", "raw_text": raw, "translated_text": ""}
             for i, raw in enumerate(LINES)
         ])
-        # shares its first source line with "E2E chapter", for the translation-memory check
-        memory = Document(user_id=user.id, title="Memory source")
-        db.add(memory)
-        db.flush()
-        write_lines(db, memory.id, [
-            {"line_number": 0, "prefix": "%", "raw_text": LINES[0], "translated_text": "Remembered translation."},
-        ])
+        # tm.spec's own chapter pair: they share TM_LINE, and 記憶語 occurs nowhere else, so the
+        # profile-wide glossary entry that spec adds cannot change any other spec's text
+        for title, translated in (("Memory source", "Remembered translation."), ("TM target", "")):
+            other = Document(user_id=user.id, title=title)
+            db.add(other)
+            db.flush()
+            write_lines(db, other.id, [
+                {"line_number": 0, "prefix": "%", "raw_text": TM_LINE, "translated_text": translated},
+            ])
         db.commit()
 
 

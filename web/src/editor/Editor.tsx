@@ -208,7 +208,7 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
           misspelled={spell.misspelled}
           renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
       </div>
-      {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={(t) => ed.setText(n, t)} />}
+      {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={(t) => { ed.setText(n, t); view.current?.focus(); }} />}
       </div>
       {phrase !== null && <PhraseDialog initial={phrase} onClose={() => { setPhrase(null); view.current?.focus(); }} onSave={async (p, t) => {
         await call(api.POST("/profiles/{profile_id}/glossary", { params: { path: { profile_id: profileId! } }, body: { phrase: p, translation: t } }));

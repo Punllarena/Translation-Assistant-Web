@@ -7,11 +7,7 @@ async function openChapter(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
   await page.goto("/");
-  await page.getByRole("link", { name: "Open E2E chapter" }).click();
-  // the chapter reopens where earlier specs left it; the shared source line is line 1
-  page.once("dialog", (d) => void d.accept("1"));
-  await page.getByRole("textbox", { name: "Translation" }).press("Control+g");
-  await expect(page.getByText("Line 1/3")).toBeVisible();
+  await page.getByRole("link", { name: "Open TM target" }).click();
 }
 
 test("translation memory offers another chapter's translation and a click fills it", async ({ page }) => {
@@ -20,6 +16,7 @@ test("translation memory offers another chapter's translation and a click fills 
   await expect(panel).toContainText("Memory source");
   await panel.getByRole("button", { name: "Remembered translation." }).click();
   await expect(page.getByRole("textbox", { name: "Translation" })).toHaveText("Remembered translation.");
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Hide TM" }).click();
   await expect(panel).toHaveCount(0);
   await page.getByRole("button", { name: "Show TM" }).click();
@@ -33,11 +30,11 @@ test("Ctrl+L adds a glossary phrase and the source updates in place", async ({ p
   await page.keyboard.type("keep this");
   await page.keyboard.press("Control+l");
   const dialog = page.getByRole("dialog", { name: "Add a glossary phrase" });
-  await dialog.getByLabel("Source phrase").fill("一行目");
-  await dialog.getByLabel("Translation").fill("first row");
+  await dialog.getByLabel("Source phrase").fill("記憶語");
+  await dialog.getByLabel("Translation").fill("memory word");
   await dialog.getByRole("button", { name: "Add" }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByText("Added “一行目” to the glossary")).toBeVisible();
-  await expect(page.getByText("first_row")).toBeVisible();
+  await expect(page.getByText("Added “記憶語” to the glossary")).toBeVisible();
+  await expect(page.getByText("memory_word")).toBeVisible();
   await expect(box).toContainText("keep this");
 });
