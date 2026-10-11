@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, call } from "../api/client";
 import type { Doc, SeriesRow } from "./group";
 import { invalidateLibrary } from "./queries";
@@ -15,6 +15,7 @@ interface Props {
 export default function DocumentRow({ doc, series, selected, onSelect }: Props) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const settled = useRef(false);
   const update = useMutation({
     mutationFn: (body: { title?: string; series_id?: number | null }) =>
       call(api.PATCH("/documents/{document_id}", { params: { path: { document_id: doc.id } }, body })),
@@ -31,13 +32,19 @@ export default function DocumentRow({ doc, series, selected, onSelect }: Props) 
         <input type="checkbox" aria-label={`Select ${doc.title}`} checked={selected}
           onChange={(e) => onSelect(e.target.checked)} />
       </td>
-      <td onDoubleClick={() => setEditing(true)}>
+      <td onDoubleClick={() => { settled.current = false; setEditing(true); }}>
         {editing ? (
           <input autoFocus defaultValue={doc.title} aria-label="Title"
-            onBlur={(e) => rename(e.target.value)}
+            onBlur={(e) => { if (!settled.current) rename(e.target.value); }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") rename(e.currentTarget.value);
-              if (e.key === "Escape") setEditing(false);
+              if (e.key === "Enter") {
+                settled.current = true;
+                rename(e.currentTarget.value);
+              }
+              if (e.key === "Escape") {
+                settled.current = true;
+                setEditing(false);
+              }
             }} />
         ) : (
           doc.title

@@ -40,3 +40,8 @@ export function groupDocuments(docs: Doc[], series: SeriesRow[], filter: string)
     )
     .filter((g) => g.docs.length);
 }
+
+/** The selected ids that are actually on screen in `groups`. */
+export function visibleSelection(selected: Set<number>, groups: Group[]): number[] {
+  return groups.flatMap((g) => g.docs.map((d) => d.id)).filter((id) => selected.has(id));
+}

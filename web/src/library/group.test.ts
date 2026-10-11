@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupDocuments, type Doc, type SeriesRow } from "./group";
+import { groupDocuments, visibleSelection, type Doc, type SeriesRow } from "./group";
 
 const series = (id: number, title: string) => ({ id, title }) as SeriesRow;
 const doc = (id: number, title: string, series_id: number | null, series_order = 0, updated_at = "2026-01-01T00:00:00Z") =>
@@ -40,5 +40,12 @@ describe("groupDocuments", () => {
 
   it("matches Japanese titles", () => {
     expect(groupDocuments([doc(9, "第一話", null)], [], "一話")[0].docs[0].id).toBe(9);
+  });
+});
+
+describe("visibleSelection", () => {
+  it("drops selected ids hidden by the filter", () => {
+    const groups = groupDocuments(D, S, "loose");
+    expect(visibleSelection(new Set([1, 3, 4]), groups)).toEqual([4, 3]);
   });
 });

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
 import DocumentRow from "./DocumentRow";
-import { groupDocuments } from "./group";
+import { groupDocuments, visibleSelection } from "./group";
 import NewDocument from "./NewDocument";
 import { invalidateLibrary, useDocuments, useSeriesList } from "./queries";
 
@@ -25,8 +25,8 @@ export default function Picker() {
     onSettled: done,
   });
   const merge = useMutation({
-    mutationFn: (title: string) =>
-      call(api.POST("/documents/merge", { body: { document_ids: [...selected], title } })),
+    mutationFn: ({ ids, title }: { ids: number[]; title: string }) =>
+      call(api.POST("/documents/merge", { body: { document_ids: ids, title } })),
     onSuccess: done,
   });
   const newSeries = useMutation({
@@ -38,6 +38,8 @@ export default function Picker() {
     return <main><p className="error">{(docs.error ?? series.error)?.message}</p></main>;
   }
   const groups = groupDocuments(docs.data, series.data, filter);
+  const visible = visibleSelection(selected, groups);
+  const busy = merge.isPending || remove.isPending;
   const toggle = (id: number, on: boolean) => {
     const next = new Set(selected);
     if (on) next.add(id);
@@ -55,15 +57,15 @@ export default function Picker() {
           const title = window.prompt("Series title");
           if (title?.trim()) newSeries.mutate(title);
         }}>New series</button>
-        <button disabled={selected.size < 2} onClick={() => {
+        <button disabled={visible.length < 2 || busy} onClick={() => {
           const title = window.prompt("Title of the merged chapter");
-          if (title?.trim()) merge.mutate(title);
-        }}>Merge {selected.size || ""}</button>
-        <button disabled={!selected.size} onClick={() => {
-          if (window.confirm(`Delete ${selected.size} document(s)? This cannot be undone.`)) {
-            remove.mutate([...selected]);
+          if (title?.trim()) merge.mutate({ ids: visible, title });
+        }}>Merge {visible.length || ""}</button>
+        <button disabled={!visible.length || busy} onClick={() => {
+          if (window.confirm(`Delete ${visible.length} document(s)? This cannot be undone.`)) {
+            remove.mutate(visible);
           }
-        }}>Delete {selected.size || ""}</button>
+        }}>Delete {visible.length || ""}</button>
       </div>
       {error && <p className="error" role="alert">{error.message}</p>}
       {creating && <NewDocument series={series.data} onDone={() => setCreating(false)} />}
@@ -77,7 +79,7 @@ export default function Picker() {
               <tbody>
                 {g.docs.map((d) => (
                   <DocumentRow key={d.id} doc={d} series={series.data}
-                    selected={selected.has(d.id)} onSelect={(on) => toggle(d.id, on)} />
+                    selected={visible.includes(d.id)} onSelect={(on) => toggle(d.id, on)} />
                 ))}
               </tbody>
             </table>
