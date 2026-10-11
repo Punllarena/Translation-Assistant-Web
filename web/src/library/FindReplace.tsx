@@ -19,7 +19,7 @@ export default function FindReplace({ seriesId }: { seriesId: number }) {
       call(api.GET("/series/{series_id}/find", {
         params: { path: { series_id: seriesId }, query: { q: p.q, replace: p.replace, case_sensitive: p.caseSensitive } },
       })),
-    onSuccess: (data) => setChecked(new Set(data.matches.map((_, i) => i))),
+    onSuccess: (data) => setChecked(new Set(data.matches.flatMap((m, i) => (m.too_long ? [] : [i])))),
   });
   const replace = useMutation({
     mutationFn: (body: { find: string; replace: string; case_sensitive: boolean; targets: { document_id: number; line_number: number; before: string }[] }) =>
@@ -81,8 +81,8 @@ export default function FindReplace({ seriesId }: { seriesId: number }) {
               <table>
                 <thead>
                   <tr>
-                    <th><input type="checkbox" aria-label="Select all" checked={k === matches.length}
-                      onChange={(e) => setChecked(e.target.checked ? new Set(matches.map((_, i) => i)) : new Set())} /></th>
+                    <th><input type="checkbox" aria-label="Select all" checked={k > 0 && k === matches.filter((m) => !m.too_long).length}
+                      onChange={(e) => setChecked(e.target.checked ? new Set(matches.flatMap((m, i) => (m.too_long ? [] : [i]))) : new Set())} /></th>
                     <th>Chapter</th><th>Line</th><th>Before</th><th>After</th>
                   </tr>
                 </thead>
@@ -90,11 +90,11 @@ export default function FindReplace({ seriesId }: { seriesId: number }) {
                   {matches.map((m, i) => (
                     <tr key={`${m.document_id}:${m.line_number}`}>
                       <td><input type="checkbox" aria-label={`Select ${m.title} line ${m.line_number + 1}`}
-                        checked={checked.has(i)} onChange={() => toggle(i)} /></td>
+                        checked={checked.has(i)} disabled={m.too_long} onChange={() => toggle(i)} /></td>
                       <td><Link to={`/documents/${m.document_id}`}>{m.title}</Link></td>
                       <td>{m.line_number + 1}</td>
                       <td>{m.before}</td>
-                      <td>{m.after}</td>
+                      <td>{m.too_long ? <span className="muted">Result too long to replace</span> : m.after}</td>
                     </tr>
                   ))}
                 </tbody>

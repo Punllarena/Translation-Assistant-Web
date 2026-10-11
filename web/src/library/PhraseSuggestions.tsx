@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api, call } from "../api/client";
 
 /** Frequent terms in a series that the chosen profile's glossary lacks; add one with its translation. */
@@ -11,6 +11,12 @@ export default function PhraseSuggestions({ seriesId, defaultProfileId }: { seri
   const [terms, setTerms] = useState<{ term: string; count: number }[] | null>(null);
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [unavailable, setUnavailable] = useState("");
+  // Exclusions were computed for one profile's glossary; drop them when the profile changes.
+  useEffect(() => {
+    setTerms(null);
+    setUnavailable("");
+    setTranslations({});
+  }, [profileId]);
   const analyze = useMutation({
     mutationFn: (min_freq: number) =>
       call(api.POST("/series/{series_id}/phrase-suggestions", {

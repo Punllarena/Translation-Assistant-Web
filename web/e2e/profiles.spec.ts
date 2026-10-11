@@ -28,4 +28,15 @@ test("glossary: add, reorder, save, import with BOM and duplicate", async ({ pag
   });
   await expect(page.getByRole("status")).toContainText("Imported:");
   await expect(page.getByLabel("Phrase 3")).toHaveValue("gamma");
+
+  // Unsaved edits survive a declined navigation.
+  await page.getByRole("button", { name: "Add row" }).click();
+  await page.getByLabel("Phrase 4").fill("unsaved");
+  const dialogs: string[] = [];
+  page.once("dialog", (d) => { dialogs.push(d.message()); void d.dismiss(); });
+  await page.getByRole("link", { name: "Shortcuts" }).click();
+  await expect.poll(() => dialogs.length).toBe(1);
+  expect(dialogs[0]).toContain("Discard unsaved glossary edits?");
+  await expect(page).toHaveURL(/\/settings\/profiles/);
+  await expect(page.getByLabel("Phrase 4")).toHaveValue("unsaved");
 });

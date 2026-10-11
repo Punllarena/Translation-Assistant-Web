@@ -1059,6 +1059,11 @@ export interface components {
             line_number: number;
             /** Title */
             title: string;
+            /**
+             * Too Long
+             * @default false
+             */
+            too_long: boolean;
         };
         /** FindResult */
         FindResult: {

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api, call } from "../api/client";
 
 /** Translation memory (desktop _update_tm_panel): earlier translations of this exact
@@ -10,13 +10,15 @@ export default function TmPanel({ documentId, lineNumber, onUse }: {
     queryKey: ["tm", documentId, lineNumber],
     queryFn: () => call(api.GET("/tm/matches", { params: { query: { document_id: documentId, line_number: lineNumber } } })),
     staleTime: 60_000,
+    placeholderData: keepPreviousData, // no flicker between lines
   });
-  if (!tm.data?.length) return null;
+  const matches = tm.data ?? [];
   return (
     <aside className="tm-panel" aria-label="Translation memory">
       <h2>Translation memory</h2>
+      {matches.length === 0 && <p className="muted">{tm.isPending ? "Searching\u2026" : "No matches"}</p>}
       <ul>
-        {tm.data.map((m, i) => (
+        {matches.map((m, i) => (
           <li key={i}>
             <button onClick={() => onUse(m.translated_text)}>{m.translated_text}</button>
             <span className="muted">{m.document_title}, {m.updated_at.slice(0, 10)}</span>

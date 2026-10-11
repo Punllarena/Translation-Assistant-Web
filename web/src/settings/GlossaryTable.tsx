@@ -1,15 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, ApiError, call, errorMessage } from "../api/client";
 import { moveRow, toEntries, type Row } from "./glossary";
 
 /** Editable glossary for one profile (desktop dlg_glossary). Keyed by the parent on profile + data version. */
-type Props = { pid: number; loaded: Row[]; onLoaded: (rows: Row[]) => void; note: string | null; setNote: (n: string | null) => void };
+type Props = { pid: number; loaded: Row[]; onLoaded: (rows: Row[]) => void; onDirty: (d: boolean) => void; note: string | null; setNote: (n: string | null) => void };
 
-function Editor({ pid, loaded, onLoaded, note, setNote }: Props) {
+function Editor({ pid, loaded, onLoaded, onDirty, note, setNote }: Props) {
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<Row[]>(loaded);
   const dirty = JSON.stringify(rows) !== JSON.stringify(loaded);
+  useEffect(() => {
+    onDirty(dirty);
+    return () => onDirty(false);
+  }, [dirty, onDirty]);
   const written = () => queryClient.invalidateQueries({ queryKey: ["document"] });
   const save = useMutation({
     mutationFn: () =>
@@ -79,7 +83,7 @@ function Editor({ pid, loaded, onLoaded, note, setNote }: Props) {
   );
 }
 
-export default function GlossaryTable({ pid }: { pid: number }) {
+export default function GlossaryTable({ pid, onDirty }: { pid: number; onDirty: (d: boolean) => void }) {
   const queryClient = useQueryClient();
   const [note, setNote] = useState<string | null>(null); // outlives Editor remounts on data change
   const glossary = useQuery({
@@ -94,6 +98,7 @@ export default function GlossaryTable({ pid }: { pid: number }) {
       key={`${pid}:${glossary.dataUpdatedAt}`}
       pid={pid}
       loaded={loaded}
+      onDirty={onDirty}
       note={note}
       setNote={setNote}
       onLoaded={(rows) => queryClient.setQueryData(["glossary", pid], rows.map((r, i) => ({ ...r, id: i, sort_order: i })))}
