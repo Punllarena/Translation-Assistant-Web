@@ -15,4 +15,12 @@ describe("split cuts", () => {
     expect(text).toBe(`ab\n${M} \ncd`);
     expect(text.slice(0, caret)).toBe(`ab\n${M} `);
   });
+  it("puts the marker on line 1 at caret 0, with or without a leading newline", () => {
+    expect(insertMarker("ab", 0).text).toBe(`${M} \nab`);
+    expect(insertMarker("\nab", 0).text).toBe(`${M} \n\nab`);
+  });
+  it("inserts before the caret's own line when the caret is exactly at a line start", () => {
+    expect(insertMarker("ab\ncd", 3).text).toBe(`ab\n${M} \ncd`);
+    expect(insertMarker("\nab", 1).text).toBe(`\n${M} \nab`);
+  });
 });

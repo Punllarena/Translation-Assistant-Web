@@ -22,7 +22,8 @@ export function cutsFromText(text: string): { start: number; title: string }[] {
 /** A marker line at the start of the caret's line; the caret lands after it, ready for
  *  the title. */
 export function insertMarker(text: string, caret: number) {
-  const start = text.lastIndexOf("\n", caret - 1) + 1;
+  // lastIndexOf(.., -1) is treated as 0 and would match a leading newline, so guard caret 0
+  const start = caret <= 0 ? 0 : text.lastIndexOf("\n", caret - 1) + 1;
   const marker = `${SPLIT_MARKER} `;
   return { text: `${text.slice(0, start)}${marker}\n${text.slice(start)}`, caret: start + marker.length };
 }

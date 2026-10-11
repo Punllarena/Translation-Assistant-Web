@@ -3,6 +3,7 @@ import AcceptInvite from "./auth/AcceptInvite";
 import Login from "./auth/Login";
 import { RequireAuth } from "./auth/session";
 import EditorPage from "./editor/EditorPage";
+import SourcePage from "./editor/SourcePage";
 import Picker from "./library/Picker";
 import SeriesPage from "./library/SeriesPage";
 import ShortcutsPage from "./settings/ShortcutsPage";
@@ -18,6 +19,8 @@ export default function App() {
         <Route path="series/:id" element={<SeriesPage />} />
         <Route path="settings/shortcuts" element={<ShortcutsPage />} />
         <Route path="documents/:id" element={<EditorPage />} />
+        <Route path="documents/:id/source" element={<SourcePage mode="edit" />} />
+        <Route path="documents/:id/split" element={<SourcePage mode="split" />} />
       </Route>
     </Routes>
   );

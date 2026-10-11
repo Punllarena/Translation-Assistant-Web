@@ -168,7 +168,7 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   // `current?.` (it is undefined for a chapter with no lines).
 
   if (!rows.some((r) => r.kind === "line")) {
-    return <main><p>This chapter has no source text yet. <Link to="/">Back to the library</Link></p></main>;
+    return <main><p>This chapter has no source text yet. <Link to={`/documents/${id}/source`}>Edit source</Link></p></main>;
   }
   const n = current.line_number;
   const editor = (
@@ -186,6 +186,8 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
             {!profileId && <option value="">No profile</option>}
             {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
+          <Link to={`/documents/${id}/source`}>Edit source</Link>
+          <Link to={`/documents/${id}/split`}>Split</Link>
           {!spell.available && <span className="muted">Spellcheck unavailable</span>}
           {images.data?.length ? (
             <button onClick={() => {
