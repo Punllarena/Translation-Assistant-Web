@@ -81,18 +81,22 @@ def find_in_series(
         narrow = text.contains(q, autoescape=True)
     else:
         narrow = text.icontains(q, autoescape=True)
+    # One row past the cap tells us whether results were cut off; the LIMIT keeps a
+    # one-letter needle from loading the whole series.
     rows = db.execute(
         select(Line.document_id, Document.title, Line.line_number, text)
         .join(Document, Document.id == Line.document_id)
         .where(Document.series_id == series.id, narrow)
         .order_by(Document.series_order, Document.id, Line.line_number)
-    )
+        .limit(MAX_MATCHES + 1)
+    ).all()
+    truncated = len(rows) > MAX_MATCHES
     matches: list[FindMatch] = []
     for doc_id, title, number, before in rows:
         if not pattern.search(before):
             continue
         if len(matches) == MAX_MATCHES:
-            return FindResult(matches=matches, truncated=True)
+            break
         matches.append(
             FindMatch(
                 document_id=doc_id,
@@ -102,7 +106,7 @@ def find_in_series(
                 after=replace_all(pattern, before, replace),
             )
         )
-    return FindResult(matches=matches, truncated=False)
+    return FindResult(matches=matches, truncated=truncated)
 
 
 @router.post("/series/{series_id}/replace", response_model=ReplaceResult)
@@ -126,6 +130,7 @@ def replace_in_series(
                 Document.series_id == series.id,
                 tuple_(Line.document_id, Line.line_number).in_(list(wanted)),
             )
+            .order_by(Line.id)  # one lock order across concurrent replaces: no deadlock
             .with_for_update(of=Line)
         )
         for line in lines:

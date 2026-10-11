@@ -90,7 +90,7 @@ def test_replace_to_empty_clears_translated_at(app_client, db, series):
     db.flush()
     m = find(app_client, series, "Taro").json()["matches"][0]
     target = {k: m[k] for k in ("document_id", "line_number", "before")}
-    replace(app_client, series, [target], repl="")
+    assert replace(app_client, series, [target], repl="").json() == {"replaced": 1, "skipped": 0}
     db.expire_all()
     line = db.scalar(select(Line).where(Line.translated_text == ""))
     assert line is not None and line.translated_at is None
@@ -107,3 +107,25 @@ def test_another_users_series_is_404(app_client, me, make_user, make_series):
     theirs = make_series(make_user(email="other@example.com"))
     assert find(app_client, theirs, "a").status_code == 404
     assert replace(app_client, theirs, []).status_code == 404
+
+
+def test_find_truncates_at_the_cap(app_client, db, series, monkeypatch):
+    from api.routers import memory
+
+    monkeypatch.setattr(memory, "MAX_MATCHES", 1)
+    _set(db, {("Ch1", 0): "Taro sat", ("Ch2", 0): "Taro ran"})
+    body = find(app_client, series, "Taro").json()
+    assert body["truncated"] is True
+    assert [(m["title"], m["line_number"]) for m in body["matches"]] == [("Ch1", 0)]
+
+
+def test_replace_with_dollar_sign_is_literal_over_http(app_client, db, series):
+    _set(db, {("Ch1", 0): "a.b axb"})
+    m = find(app_client, series, "a.b").json()["matches"][0]
+    target = {k: m[k] for k in ("document_id", "line_number", "before")}
+    assert replace(app_client, series, [target], find="a.b", repl="$1").json() == {
+        "replaced": 1,
+        "skipped": 0,
+    }
+    db.expire_all()
+    assert "$1 axb" in [line.translated_text for line in db.scalars(select(Line))]
