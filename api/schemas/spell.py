@@ -1,15 +1,22 @@
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # The client batches the visible cards; 200 covers a tall screen with room to spare.
 MAX_TEXTS = 200
 MAX_TEXT_CHARS = 100_000
+MAX_TOTAL_CHARS = 200_000  # across all texts: bounds regex + enchant work per request
 
 
 class SpellRequest(BaseModel):
     texts: list[Annotated[str, Field(max_length=MAX_TEXT_CHARS)]] = Field(max_length=MAX_TEXTS)
     profile_id: int | None = None
+
+    @model_validator(mode="after")
+    def _total_size(self):
+        if sum(len(t) for t in self.texts) > MAX_TOTAL_CHARS:
+            raise ValueError(f"texts total more than {MAX_TOTAL_CHARS} characters")
+        return self
 
 
 class Misspelling(BaseModel):

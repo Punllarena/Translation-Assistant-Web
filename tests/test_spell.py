@@ -105,3 +105,19 @@ def test_real_enchant_when_installed():
     if d is None:
         pytest.skip("enchant or an English dictionary is not installed")
     assert spell.misspellings("the cat sta", set(), d) == [(8, 11, "sta")]
+
+
+def test_total_characters_are_capped(app_client, me, fake):
+    text = "x" * 90_000  # each under MAX_TEXT_CHARS, together over MAX_TOTAL_CHARS
+    assert check(app_client, text, text, text).status_code == 422
+
+
+def test_misspellings_from_many_threads():
+    from concurrent.futures import ThreadPoolExecutor
+
+    d = spell.dictionary() or FakeDict()
+    text = "the cat sta"
+    with ThreadPoolExecutor(8) as ex:
+        results = list(ex.map(lambda _: spell.misspellings(text, set(), d), range(400)))
+    assert all(r == results[0] for r in results)
+    assert results[0] == [(8, 11, "sta")]

@@ -3,10 +3,14 @@
 the caller passes the profile's custom words."""
 
 import re
+import threading
 from functools import cache
 
 _WORD_RE = re.compile(r"\b[A-Za-z']{2,}\b")
 MAX_SUGGESTIONS = 5
+# ponytail: one global lock serialises enchant; per-thread dictionaries if spellcheck
+# throughput ever matters
+_LOCK = threading.Lock()
 
 
 @cache
@@ -41,7 +45,8 @@ def misspellings(text: str, custom: set[str], d) -> list[tuple[int, int, str]]:
         if word in custom:
             continue
         try:
-            ok = bool(d.check(word))
+            with _LOCK:
+                ok = bool(d.check(word))
         except Exception:
             ok = True  # the desktop treats a dictionary error as "spelled correctly"
         if not ok:
@@ -51,6 +56,7 @@ def misspellings(text: str, custom: set[str], d) -> list[tuple[int, int, str]]:
 
 def suggest(d, word: str) -> list[str]:
     try:
-        return list(d.suggest(word))[:MAX_SUGGESTIONS]
+        with _LOCK:
+            return list(d.suggest(word))[:MAX_SUGGESTIONS]
     except Exception:
         return []
