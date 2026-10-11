@@ -38,7 +38,10 @@ export default function Chapters({ seriesId, docs }: { seriesId: number; docs: D
       form.append("file", file);
       const response = await fetch(`/api/documents/${id}/cover`, { method: "PUT", body: form });
       if (!response.ok) {
-        throw new ApiError(response.status, errorMessage(await response.json().catch(() => null)));
+        throw new ApiError(
+          response.status,
+          response.status === 413 ? "File too large" : errorMessage(await response.json().catch(() => null)),
+        );
       }
     },
     onSettled: settle,

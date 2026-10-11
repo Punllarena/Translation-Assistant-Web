@@ -56,7 +56,7 @@ def get_image(
         headers={
             "Cache-Control": "private, max-age=31536000, immutable",
             "X-Content-Type-Options": "nosniff",
-            "Vary": "Cookie",  # the URL is user-agnostic; keep one user's image from another's cache
+            "Vary": "Cookie",  # user-agnostic URL: never share across users
         },
     )
 

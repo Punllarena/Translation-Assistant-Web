@@ -16,5 +16,7 @@ RUN pip install --no-cache-dir .
 EXPOSE 8000
 # --proxy-headers --forwarded-allow-ips='*': the login limiter keys on the real client
 # address from Caddy's X-Forwarded-For. Safe only because compose does not publish
-# this port; Caddy is the only client.
+# this port; Caddy is the only client. Also safe only because Caddy sets X-Forwarded-For
+# itself (no trusted_proxies); adding a trusted upstream proxy later (e.g. Cloudflare)
+# would make the leftmost entry spoofable.
 CMD ["sh", "-c", "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]

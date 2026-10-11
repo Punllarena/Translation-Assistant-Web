@@ -24,7 +24,10 @@ export default function NewDocument({ series, onDone }: { series: SeriesRow[]; o
       if (series_id !== null) form.append("series_id", String(series_id));
       const response = await fetch("/api/documents/import/txt", { method: "POST", body: form });
       if (!response.ok) {
-        throw new ApiError(response.status, errorMessage(await response.json().catch(() => null)));
+        throw new ApiError(
+          response.status,
+          response.status === 413 ? "File too large" : errorMessage(await response.json().catch(() => null)),
+        );
       }
       return response.json();
     },

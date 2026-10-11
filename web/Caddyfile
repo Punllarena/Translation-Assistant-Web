@@ -11,8 +11,17 @@
 		reverse_proxy api:8000
 	}
 
+	handle /assets/* {
+		root * /srv
+		file_server
+	}
+
 	handle {
 		root * /srv
+		# index.html is served for /, /index.html and every client route (the try_files
+		# fallback); the header matcher runs before the rewrite, so apply it to the whole
+		# handle. Hashed files live under /assets and are handled above.
+		header Cache-Control no-cache
 		try_files {path} /index.html
 		file_server
 	}
