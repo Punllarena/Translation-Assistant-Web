@@ -57,6 +57,9 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   const profiles = useQuery({ queryKey: ["profiles"], queryFn: () => call(api.GET("/profiles")) });
   const [menu, setMenu] = useState<{ x: number; y: number; word: Misspelling } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const gone = ed.missing.length
+    ? `Lines ${ed.missing.map((n) => n + 1).join(", ")} no longer exist (the source was edited elsewhere); reload the chapter`
+    : null;
   const addWord = async (word: string) => {
     if (!profileId) return setNotice("No profile to add words to");
     word = word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
@@ -164,7 +167,7 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
       <StatusBar title={data.document.title} line={n + 1} total={lines.length}
         percent={stats.percent} words={stats.words}
         phrase={ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null}
-        save={ed.save} onRetry={() => void ed.store.flush()} notice={notice}
+        save={ed.save} onRetry={() => void ed.store.flush()} notice={notice ?? gone}
         extra={<>
           <select aria-label="Profile" value={profileId ?? ""} onChange={(e) => onProfile(e.target.value ? Number(e.target.value) : null)}>
             {!profileId && <option value="">No profile</option>}

@@ -7,7 +7,7 @@ import { createSaveStore, type Edit } from "./saveStore";
 
 const stashKey = (id: number) => `ta-unsaved-${id}`;
 
-async function saveLines(id: number, edits: Edit[], keepalive: boolean) {
+async function saveLines(id: number, edits: Edit[], keepalive: boolean): Promise<number[]> {
   if (keepalive) {
     // openapi-fetch cannot set keepalive, which lets the request outlive the page.
     await fetch(`/api/documents/${id}/lines`, {
@@ -16,12 +16,13 @@ async function saveLines(id: number, edits: Edit[], keepalive: boolean) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lines: edits }),
     });
-    return;
+    return [];
   }
-  await call(api.PATCH("/documents/{document_id}/lines", {
+  const res = await call(api.PATCH("/documents/{document_id}/lines", {
     params: { path: { document_id: id } },
     body: { lines: edits },
   }));
+  return res.missing;
 }
 
 /** Unsaved edits survive the tab closing, a crash, or a sign-in redirect in this tab:
@@ -56,16 +57,22 @@ function takeStash(id: number): Edit[] {
 
 export function useEditor(id: number, lines: Line[], startAt: number) {
   const queryClient = useQueryClient();
+  const [missing, setMissing] = useState<number[]>([]);
   const store = useMemo(
     () =>
       createSaveStore({
         // A 401 means the session expired: sign out so RequireAuth redirects to /login and
         // the stash is restored after sign-in. The store keeps showing the error until then.
         save: (edits, keepalive) =>
-          saveLines(id, edits, keepalive).catch((e) => {
-            signedOutOn401(queryClient, e);
-            throw e;
-          }),
+          saveLines(id, edits, keepalive).then(
+            (m) => {
+              if (m.length) setMissing(m);
+            },
+            (e) => {
+              signedOutOn401(queryClient, e);
+              throw e;
+            },
+          ),
       }),
     [id, queryClient],
   );
@@ -141,5 +148,5 @@ export function useEditor(id: number, lines: Line[], startAt: number) {
     setParse(-1);
   }, []);
 
-  return { store, save, active, activate, parse, setParse, texts, setText };
+  return { store, save, active, activate, parse, setParse, texts, setText, missing };
 }
