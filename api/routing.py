@@ -15,6 +15,7 @@ from collections.abc import Callable, Coroutine
 from typing import Any
 
 from fastapi import APIRouter, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.routing import APIRoute
 
 # Where db_session parks the session for this request, so the route can commit it.
@@ -32,7 +33,10 @@ class CommitOnResponseRoute(APIRoute):
             session = getattr(request.state, SESSION_STATE_ATTR, None)
             if session is not None:
                 # Raises into the request: FastAPI answers 5xx, teardown rolls back.
-                session.commit()
+                # In the threadpool: commit flushes (and may wait on row locks held by a
+                # concurrent request's pending commit), which must never block the loop
+                # that has to run that other commit.
+                await run_in_threadpool(session.commit)
             return response
 
         return commit_then_respond
