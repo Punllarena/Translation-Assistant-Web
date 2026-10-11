@@ -125,6 +125,11 @@ npm run e2e   # Playwright; needs the venv active and Postgres up (database ta_e
 The first e2e run needs Chromium: `cd web && npx playwright install chromium`. The e2e run uses
 ports 8001 (API) and 5174 (SPA).
 
+## Optional: MeCab
+
+`pip install 'ta-web[mecab]'` installs fugashi and unidic-lite. Without it, phrase
+suggestions report that MeCab is missing.
+
 ## Design decisions
 
 - **Caddy serves the SPA and fronts the API under `/api`.** The API's paths and the SPA's

@@ -32,7 +32,7 @@ def main() -> None:
 
     from api.db import SessionLocal
     from api.library import write_lines
-    from api.models import Document
+    from api.models import Document, Series
 
     with SessionLocal() as db:
         user = create_admin(db, EMAIL, PASSWORD)
@@ -50,7 +50,22 @@ def main() -> None:
             db.add(other)
             db.flush()
             write_lines(db, other.id, [
-                {"line_number": 0, "prefix": "%", "raw_text": TM_LINE, "translated_text": translated},
+                {"line_number": 0, "prefix": "%", "raw_text": TM_LINE,
+                 "translated_text": translated},
+            ])
+        # series spec: 太郎 occurs only here, so its glossary entry cannot change other specs' text
+        series = Series(user_id=user.id, title="E2E series")
+        db.add(series)
+        db.flush()
+        for order, (title, raw, translated) in enumerate((
+            ("Series one", "太郎が来た。", "Tarou came."),
+            ("Series two", "太郎が笑った。", "Tarou laughed."),
+        )):
+            ch = Document(user_id=user.id, title=title, series_id=series.id, series_order=order)
+            db.add(ch)
+            db.flush()
+            write_lines(db, ch.id, [
+                {"line_number": 0, "prefix": "%", "raw_text": raw, "translated_text": translated},
             ])
         db.commit()
 

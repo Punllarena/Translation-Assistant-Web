@@ -21,7 +21,9 @@ Phase 3a: editor API (lines, spell, images), Caddy, and the SPA under `web/` (lo
 series manager).
 
 Phase 3b: editor screen: cards, CodeMirror input, saving, keymap, find, spell, images,
-Edit Source/Split; Playwright smoke flows. Phases 4–6 are next.
+Edit Source/Split; Playwright smoke flows.
+
+Phase 4: glossary API and Profiles page, translation memory panel, series find and replace (reviewed batch), phrase suggestions (MeCab via the optional `mecab` extra). Phases 5–6 are next.
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
@@ -31,6 +33,7 @@ Edit Source/Split; Playwright smoke flows. Phases 4–6 are next.
 ```bash
 docker compose up -d postgres          # Postgres on 127.0.0.1:5432
 pip install -e ".[dev]"                # in .venv
+pip install -e ".[dev,mecab]"          # full dev install (adds fugashi + unidic-lite)
 alembic upgrade head
 uvicorn api.main:app --reload          # http://127.0.0.1:8000/docs
 python -m tools.seed_admin --email you@example.com
