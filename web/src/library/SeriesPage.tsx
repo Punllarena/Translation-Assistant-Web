@@ -25,7 +25,9 @@ export default function SeriesPage() {
       navigate("/");
     },
   });
-  if (all.isPending || docs.isPending || profiles.isPending) return <main><p className="muted">Loading…</p></main>;
+  if (all.isPending || docs.isPending) return <main><p className="muted">Loading…</p></main>;
+  const loadError = all.error ?? docs.error;
+  if (loadError) return <main><p className="error" role="alert">{loadError.message}</p></main>;
   const series = all.data?.find((s) => s.id === seriesId);
   if (!series) return <main><p>No such series. <Link to="/">Back to the library</Link></p></main>;
   const chapters = (docs.data ?? [])
@@ -54,8 +56,9 @@ export default function SeriesPage() {
             {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </label>
+        {profiles.isError && <p className="error" role="alert">{profiles.error.message}</p>}
         <div className="toolbar">
-          <button disabled={save.isPending}>Save</button>
+          <button disabled={save.isPending || !profiles.isSuccess}>Save</button>
           <a href={`/api/series/${seriesId}/export/markdown?variant=plain`} download>Markdown ZIP</a>
           <a href={`/api/series/${seriesId}/export/markdown?variant=ruby`} download>Ruby Markdown ZIP</a>
           <button type="button" disabled={remove.isPending} onClick={() => {

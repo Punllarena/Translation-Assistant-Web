@@ -61,8 +61,17 @@ export default function Chapters({ seriesId, docs }: { seriesId: number; docs: D
       <table>
         <tbody>
           {shown.map((d, i) => (
-            <tr key={d.id} draggable onDragStart={() => setDragging(i)}
-              onDragOver={(e) => e.preventDefault()} onDrop={() => drop(i)}>
+            <tr key={d.id} draggable onDragStart={(e) => {
+                e.dataTransfer.setData("text/plain", String(d.id));
+                e.dataTransfer.effectAllowed = "move";
+                setDragging(i);
+              }}
+              onDragEnd={() => setDragging(null)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragging !== null) drop(i);
+              }}>
               <td aria-hidden>⠿</td>
               <td>{d.title}</td>
               <td>{d.progress}%</td>
