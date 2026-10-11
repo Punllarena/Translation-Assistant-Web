@@ -127,8 +127,8 @@ ports 8001 (API) and 5174 (SPA).
 
 ## Optional: MeCab
 
-`pip install 'ta-web[mecab]'` installs fugashi and unidic-lite. Without it, phrase
-suggestions report that MeCab is missing.
+`pip install -e '.[mecab]'` installs fugashi and unidic-lite. Without it, phrase
+suggestions report that MeCab is unavailable. The Docker image already installs `.[mecab]`.
 
 ## Design decisions
 

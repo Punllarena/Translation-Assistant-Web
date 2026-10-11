@@ -123,3 +123,19 @@ def test_another_users_series_or_profile_is_404(
     assert suggest(app_client, theirs).status_code == 404
     r = suggest(app_client, series_with_text, profile_id=their_profile.id)
     assert (r.status_code, r.json()["detail"]) == (422, "profile_id: no such item")
+
+
+def test_missing_mecab_message_is_static_and_leaks_nothing(
+    app_client, series_with_text, monkeypatch
+):
+    def broken():
+        raise RuntimeError("no dictionary at /srv/secret/path")
+
+    monkeypatch.setattr(nouns, "_tagger", broken)
+    msg = suggest(app_client, series_with_text).json()["message"]
+    assert msg == nouns.SETUP and "/srv" not in msg and ".[mecab]" in msg
+
+
+def test_suggest_profile_id_is_bounded(app_client, series_with_text):
+    assert suggest(app_client, series_with_text, profile_id=2**31).status_code == 422
+    assert suggest(app_client, series_with_text, profile_id=0).status_code == 422

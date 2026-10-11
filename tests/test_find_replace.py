@@ -129,3 +129,21 @@ def test_replace_with_dollar_sign_is_literal_over_http(app_client, db, series):
     }
     db.expire_all()
     assert "$1 axb" in [line.translated_text for line in db.scalars(select(Line))]
+
+
+def test_find_flags_results_over_the_line_limit(app_client, db, series):
+    _set(db, {("Ch1", 0): "a" * 2000, ("Ch2", 0): "a b"})
+    ms = find(app_client, series, "a", replace="x" * 1000).json()["matches"]
+    by_title = {m["title"]: m for m in ms}
+    assert by_title["Ch1"]["too_long"] is True and by_title["Ch1"]["after"] == ""
+    assert by_title["Ch2"]["too_long"] is False and len(by_title["Ch2"]["after"]) == 1002
+
+
+def test_replace_skips_targets_whose_result_is_over_the_limit(app_client, db, series):
+    _set(db, {("Ch1", 0): "a" * 2000})
+    line = db.scalars(select(Line).where(Line.translated_text == "a" * 2000)).one()
+    target = {"document_id": line.document_id, "line_number": 0, "before": "a" * 2000}
+    r = replace(app_client, series, [target], find="a", repl="x" * 1000)
+    assert r.json() == {"replaced": 0, "skipped": 1}
+    db.expire_all()
+    assert line.translated_text == "a" * 2000

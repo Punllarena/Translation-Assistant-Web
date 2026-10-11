@@ -9,7 +9,7 @@ from api.core.text import needle_pattern, replace_all
 from api.deps import current_user, db_session, owned_ref, scoped
 from api.models import Document, GlossaryEntry, Line, Profile, Series, User
 from api.routing import api_router
-from api.schemas.lines import NoNulStr
+from api.schemas.lines import MAX_TRANSLATION_CHARS, NoNulStr
 from api.schemas.memory import (
     MAX_NEEDLE_CHARS,
     FindMatch,
@@ -66,6 +66,12 @@ def tm_matches(
     ]
 
 
+def _too_long(pattern, before: str, replacement: str) -> bool:
+    """Cheap upper bound on the replaced length, checked before the result is built."""
+    grow = max(0, len(replacement) - 1)  # a match is at least one character
+    return len(before) + len(pattern.findall(before)) * grow > MAX_TRANSLATION_CHARS
+
+
 @router.get("/series/{series_id}/find", response_model=FindResult)
 def find_in_series(
     series_id: int,
@@ -101,13 +107,15 @@ def find_in_series(
             continue
         if len(matches) == MAX_MATCHES:
             break
+        too_long = _too_long(pattern, before, replace)
         matches.append(
             FindMatch(
                 document_id=doc_id,
                 title=title,
                 line_number=number,
                 before=before,
-                after=replace_all(pattern, before, replace),
+                after="" if too_long else replace_all(pattern, before, replace),
+                too_long=too_long,
             )
         )
     return FindResult(matches=matches, truncated=truncated)
@@ -140,6 +148,8 @@ def replace_in_series(
         for line in lines:
             before = wanted[(line.document_id, line.line_number)]
             if line.translated_text != before or not pattern.search(before):
+                continue
+            if _too_long(pattern, before, body.replace):
                 continue
             line.translated_text = replace_all(pattern, before, body.replace)
             if not line.translated_text:

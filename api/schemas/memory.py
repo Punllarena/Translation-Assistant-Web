@@ -20,7 +20,8 @@ class FindMatch(BaseModel):
     title: str
     line_number: int
     before: str
-    after: str
+    after: str  # "" when too_long
+    too_long: bool = False  # the replaced line would exceed the per-line limit
 
 
 class FindResult(BaseModel):
@@ -47,7 +48,8 @@ class ReplaceResult(BaseModel):
 
 
 class SuggestRequest(BaseModel):
-    profile_id: int | None = None  # its glossary's phrases are left out
+    # its glossary's phrases are left out
+    profile_id: int | None = Field(default=None, ge=1, le=2**31 - 1)
     min_freq: int = Field(default=2, ge=1, le=999)
 
 

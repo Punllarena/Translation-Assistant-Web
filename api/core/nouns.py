@@ -2,9 +2,14 @@
 and the MeCab tagger it runs on."""
 
 import functools
+import logging
 import threading
 
-SETUP = "MeCab is not installed on the server. Install it with: pip install 'ta-web[mecab]'"
+SETUP = (
+    "MeCab or its dictionary is unavailable on the server. "
+    "Install it with: pip install -e '.[mecab]'"
+)
+log = logging.getLogger(__name__)
 
 # ponytail: one global lock (a MeCab tagger is not thread-safe); a tagger per thread if
 # suggestion requests start queueing behind each other.
@@ -29,7 +34,8 @@ def tagger():
     try:
         return _tagger()
     except (ImportError, RuntimeError) as exc:
-        raise Unavailable(f"{SETUP} ({exc})") from exc
+        log.warning("MeCab unavailable: %s", exc)
+        raise Unavailable(SETUP) from exc
 
 
 def frequent_nouns(raw_lines: list[str], known: set[str], min_freq: int) -> list[tuple[str, int]]:
