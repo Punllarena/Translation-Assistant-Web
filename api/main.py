@@ -10,6 +10,7 @@ from api.routers import (
     profiles,
     series,
     settings,
+    spell,
     transfer,
     volumes,
 )
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(volumes.router)
     app.include_router(lines.router)
+    app.include_router(spell.router)
     app.include_router(settings.router)
     app.include_router(credentials.router)
 

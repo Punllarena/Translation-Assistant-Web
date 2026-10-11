@@ -1,5 +1,10 @@
 FROM python:3.12-slim
 
+# Spellcheck: enchant with the hunspell en_US dictionary (spec §5).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libenchant-2-2 hunspell-en-us \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 # Source must be present before install: setuptools discovers api*/tools* at install time.
 COPY pyproject.toml alembic.ini ./
