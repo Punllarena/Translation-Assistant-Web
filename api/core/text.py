@@ -304,3 +304,14 @@ def load_glossary(text: str) -> list[tuple[str, str]]:
         parts = line.split(",", 1)
         result.append((parts[0], parts[1] if len(parts) > 1 else ""))
     return result
+
+
+def needle_pattern(needle: str, case_sensitive: bool) -> re.Pattern[str]:
+    """Find and replace in a series (desktop FindReplaceDialog): literal text, optionally
+    ignoring case."""
+    return re.compile(re.escape(needle), 0 if case_sensitive else re.IGNORECASE)
+
+
+def replace_all(pattern: re.Pattern[str], text: str, replacement: str) -> str:
+    """Every match replaced by `replacement` taken literally (no \\1 or $1 expansion)."""
+    return pattern.sub(lambda _m: replacement, text)
