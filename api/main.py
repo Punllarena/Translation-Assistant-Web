@@ -5,6 +5,7 @@ from api.routers import (
     auth,
     credentials,
     documents,
+    images,
     invites,
     lines,
     profiles,
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(volumes.router)
     app.include_router(lines.router)
     app.include_router(spell.router)
+    app.include_router(images.router)
     app.include_router(settings.router)
     app.include_router(credentials.router)
 
