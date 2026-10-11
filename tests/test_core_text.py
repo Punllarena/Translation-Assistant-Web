@@ -11,6 +11,8 @@ from api.core.text import (
     lines_to_db_rows,
     natural_key,
     parse_file_content,
+    replace_and_parse,
+    split_parse_chars,
 )
 
 # ---------------------------------------------------------------------------
@@ -389,3 +391,93 @@ def test_natural_key_mixed_and_plain():
     titles = ["Chapter 12 - End", "Chapter 2 - Start", "Prologue"]
     assert sorted(titles, key=natural_key) == [
         "Chapter 2 - Start", "Chapter 12 - End", "Prologue"]
+
+
+# ---------------------------------------------------------------------------
+# replace_and_parse (desktop tests/test_core.py, commit f1a96ce)
+# ---------------------------------------------------------------------------
+
+class TestReplaceAndParse:
+    def test_no_glossary_no_parse_chars(self):
+        text, sents, replaced = replace_and_parse("hello", [], [])
+        assert text == "hello"
+        assert sents == ["hello"]
+        assert replaced is False
+
+    def test_strips_dollar_percent(self):
+        text, _, _ = replace_and_parse("%hello $world", [], [])
+        assert text == "hello world"
+
+    def test_glossary_substitution(self):
+        text, _, replaced = replace_and_parse(
+            "勇者は剣を持つ", [("勇者", "Hero")], []
+        )
+        assert "Hero" in text
+        assert replaced is True
+
+    def test_no_match_returns_false(self):
+        _, _, replaced = replace_and_parse("abc", [("xyz", "XYZ")], [])
+        assert replaced is False
+
+    def test_multiple_glossary_entries(self):
+        text, _, replaced = replace_and_parse(
+            "AとB", [("A", "Alpha"), ("B", "Beta")], []
+        )
+        assert "Alpha" in text
+        assert "Beta" in text
+        assert replaced is True
+
+    def test_parse_chars_split(self):
+        _, sents, _ = replace_and_parse(
+            "A。B。C", [], ["。"]
+        )
+        assert sents == ["A", "B", "C"]
+
+    def test_parse_chars_multiple(self):
+        _, sents, _ = replace_and_parse(
+            "A。B？C！D", [], ["。", "？", "！"]
+        )
+        assert sents == ["A", "B", "C", "D"]
+
+    def test_empty_input(self):
+        text, sents, replaced = replace_and_parse("", [], [])
+        assert text == ""
+        assert sents == []
+        assert replaced is False
+
+    def test_parse_chars_empty_tokens_removed(self):
+        _, sents, _ = replace_and_parse("A。。B", [], ["。"])
+        # Empty string between two 。 should be excluded
+        assert "" not in sents
+
+    def test_glossary_applied_before_parse(self):
+        """Glossary substitution fires before sentence splitting."""
+        text, sents, replaced = replace_and_parse(
+            "Aは勇者です", [("勇者", "Hero")], ["は", "です"]
+        )
+        assert "Hero" in text
+        # "Hero" should end up in the sentences list
+        assert any("Hero" in s for s in sents)
+
+
+def test_replace_and_parse_strips_markers_and_applies_glossary():
+    display, sentences, replaced = replace_and_parse(
+        "%太郎は、走った。", [("太郎", "Taro")], ["、", "。"]
+    )
+    assert (display, sentences, replaced) == ("Taroは、走った。", ["Taroは", "走った"], True)
+
+
+def test_replace_and_parse_without_a_match_is_not_replaced():
+    assert replace_and_parse("$走った", [("太郎", "Taro")], []) == ("走った", ["走った"], False)
+
+
+def test_replace_and_parse_blank_line():
+    assert replace_and_parse("", [], ["。"]) == ("", [], False)
+
+
+def test_replace_and_parse_ignores_empty_phrase():
+    assert replace_and_parse("abc", [("", "x")], [])[2] is False
+
+
+def test_split_parse_chars_matches_the_desktop_setting_split():
+    assert split_parse_chars("、 。 ？ ！ 「 」 …… ") == ["、", "。", "？", "！", "「", "」", "……"]

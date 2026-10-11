@@ -1,5 +1,5 @@
 """Qt-free text logic ported verbatim from the desktop ``translation_assistant/core.py``
-(commit f1a96ce). Only the functions phase 2 uses are here; later phases append theirs.
+(commit f1a96ce). Only the functions phases 2-3 use are here; later phases append theirs.
 No database imports: callers convert rows at the edge (see api/library.py)."""
 
 import re
@@ -249,3 +249,43 @@ def natural_key(s: str) -> list:
 def sanitize_filename(name: str) -> str:
     """From the desktop ``ui/main_widget._sanitize_filename``: safe as one path component."""
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).strip(". ")
+
+
+def replace_and_parse(
+    text: str,
+    glossary: list[tuple[str, str]],
+    parse_chars: list[str],
+) -> tuple[str, list[str], bool]:
+    """
+    Strip markers, apply glossary substitutions, and split into sentences.
+
+    Returns (display_text, sentences, replaced) where:
+    - display_text : the line with $ / % stripped and glossary applied
+    - sentences    : sub-phrases split on the configured parse characters
+    - replaced     : True if at least one glossary substitution was made
+                     (the Ctrl+Left nav uses this to know whether a pre-
+                     replacement state exists to revert to)
+    """
+    buf = text.replace("$", "").replace("%", "")
+
+    replaced = False
+    for phrase, translation in glossary:
+        if phrase and phrase in buf:
+            buf = buf.replace(phrase, translation)
+            replaced = True
+
+    # Split by each parse character; drop empty results (VB: RemoveEmptyEntries)
+    sentences: list[str] = []
+    if parse_chars:
+        pattern = "|".join(re.escape(c) for c in parse_chars if c)
+        if pattern:
+            sentences = [s for s in re.split(pattern, buf) if s]
+    if not sentences and buf:
+        sentences = [buf]
+
+    return buf, sentences, replaced
+
+
+def split_parse_chars(setting: str) -> list[str]:
+    """A profile's parse_chars setting as a list (desktop main_widget._update_parse_chars)."""
+    return [c for c in setting.split(" ") if c]
