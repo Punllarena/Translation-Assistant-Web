@@ -35,7 +35,7 @@ export default function DocumentRow({ doc, series, selected, onSelect }: Props) 
       </td>
       <td onDoubleClick={() => { settled.current = false; setEditing(true); }}>
         {editing ? (
-          <input autoFocus defaultValue={doc.title} aria-label="Title"
+          <input autoFocus defaultValue={doc.title} aria-label={`New title for ${doc.title}`}
             onBlur={(e) => { if (!settled.current) rename(e.target.value); }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {

@@ -32,14 +32,26 @@ function VolumeEditor({ volume, docs, onChanged }: { volume: Volume; docs: Doc[]
       onChanged();
     },
   });
+  const unassign = useMutation({
+    mutationFn: (documentId: number) =>
+      call(api.PATCH("/documents/{document_id}", { params: { path: { document_id: documentId } }, body: { volume_id: null } })),
+    onSuccess: onChanged,
+  });
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     save.mutate(Object.fromEntries(new FormData(e.currentTarget)) as Schemas["VolumeUpdate"]);
   };
-  const error = save.error ?? remove.error ?? add.error;
+  const error = save.error ?? remove.error ?? add.error ?? unassign.error;
   return (
     <details>
       <summary>{volume.title} <span className="muted">({docs.filter((d) => d.volume_id === volume.id).length} chapters)</span></summary>
+      <ul>
+        {docs.filter((d) => d.volume_id === volume.id).map((d) => (
+          <li key={d.id}>{d.title}{" "}
+            <button onClick={() => unassign.mutate(d.id)} disabled={unassign.isPending} aria-label={`Remove ${d.title} from ${volume.title}`}>Remove</button>
+          </li>
+        ))}
+      </ul>
       <form className="stack" onSubmit={submit}>
         <label>Title <input name="title" defaultValue={volume.title} required /></label>
         {EPUB_FIELDS.map(([name, label]) => (

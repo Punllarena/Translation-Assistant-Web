@@ -76,6 +76,16 @@ export default function Picker() {
           </h2>
           {g.docs.length ? (
             <table>
+              <thead>
+                <tr>
+                  <th><span className="visually-hidden">Select</span></th>
+                  <th>Title</th>
+                  <th>Progress</th>
+                  <th>Edited</th>
+                  <th>Series</th>
+                  <th>Export</th>
+                </tr>
+              </thead>
               <tbody>
                 {g.docs.map((d) => (
                   <DocumentRow key={d.id} doc={d} series={series.data}

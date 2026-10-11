@@ -59,8 +59,8 @@ export default function SeriesPage() {
         {profiles.isError && <p className="error" role="alert">{profiles.error.message}</p>}
         <div className="toolbar">
           <button disabled={save.isPending || !profiles.isSuccess}>Save</button>
-          <a href={`/api/series/${seriesId}/export/markdown?variant=plain`} download>Markdown ZIP</a>
-          <a href={`/api/series/${seriesId}/export/markdown?variant=ruby`} download>Ruby Markdown ZIP</a>
+          <a href={`/api/series/${seriesId}/export/markdown?variant=plain`} download>Markdown ZIP (complete chapters only)</a>
+          <a href={`/api/series/${seriesId}/export/markdown?variant=ruby`} download>Ruby Markdown ZIP (complete chapters only)</a>
           <button type="button" disabled={remove.isPending} onClick={() => {
             if (window.confirm(`Delete series "${series.title}"? Its chapters are kept, unsorted.`)) remove.mutate();
           }}>Delete series</button>
