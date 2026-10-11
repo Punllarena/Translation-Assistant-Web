@@ -15,10 +15,17 @@ export default function Login() {
   const me = useMe();
   const login = useMutation({
     mutationFn: () => call(api.POST("/auth/login", { body: { email, password } })),
-    onSuccess: (user) => {
+    onSuccess: async (user) => {
       forgetUserData(queryClient);
       queryClient.setQueryData(["me"], user);
-      navigate(next, { replace: true });
+      let target = next;
+      if (next === "/") {
+        // Restore the last opened chapter (spec §6); a deleted one just answers 404 there.
+        const settings = await call(api.GET("/settings")).catch(() => null);
+        const last = Number(settings?.last_document_id);
+        if (Number.isInteger(last) && last > 0) target = `/documents/${last}`;
+      }
+      navigate(target, { replace: true });
     },
   });
   if (me.data) return <Navigate to={next} replace />;

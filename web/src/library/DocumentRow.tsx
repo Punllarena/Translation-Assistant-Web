@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { Link } from "react-router";
 import { api, call } from "../api/client";
 import type { Doc, SeriesRow } from "./group";
 import { invalidateLibrary } from "./queries";
@@ -47,7 +48,10 @@ export default function DocumentRow({ doc, series, selected, onSelect }: Props) 
               }
             }} />
         ) : (
-          doc.title
+          <>
+            {doc.title}{" "}
+            <Link to={`/documents/${doc.id}`} aria-label={`Open ${doc.title}`}>Open</Link>
+          </>
         )}
         {update.isError && <span className="error"> {update.error.message}</span>}
       </td>

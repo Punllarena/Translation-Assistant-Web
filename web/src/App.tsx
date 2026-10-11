@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router";
 import AcceptInvite from "./auth/AcceptInvite";
 import Login from "./auth/Login";
 import { RequireAuth } from "./auth/session";
+import EditorPage from "./editor/EditorPage";
 import Picker from "./library/Picker";
 import SeriesPage from "./library/SeriesPage";
 import Shell from "./Shell";
@@ -14,6 +15,7 @@ export default function App() {
       <Route element={<RequireAuth><Shell /></RequireAuth>}>
         <Route index element={<Picker />} />
         <Route path="series/:id" element={<SeriesPage />} />
+        <Route path="documents/:id" element={<EditorPage />} />
       </Route>
     </Routes>
   );

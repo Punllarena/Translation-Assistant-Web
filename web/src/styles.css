@@ -14,3 +14,23 @@ td, th { padding: 0.25rem 0.5rem; text-align: left; }
 .muted { opacity: 0.7; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
 form.stack { display: grid; gap: 0.5rem; max-width: 24rem; }
+
+.editor-page { font-size: var(--editor-font, 18px); }
+.statusbar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 0.75rem;
+  align-items: center; padding: 0.4rem 1rem; font-size: 0.875rem; background: Canvas;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent); }
+.editor { max-width: 60rem; margin: 0 auto; padding: 1rem 1rem 45vh; }
+.card { content-visibility: auto; contain-intrinsic-size: auto 6em; padding: 0.6em 0.8em;
+  margin: 0.4em 0; border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
+.card.active { border-color: color-mix(in srgb, currentColor 35%, transparent); cursor: auto; }
+.card-number { float: right; font-size: 0.7em; opacity: 0.5; }
+.source { margin: 0 0 0.3em; font-family: "Noto Serif JP", serif; }
+.translation { margin: 0; white-space: pre-wrap; }
+.code-editor .cm-editor.cm-focused { outline: none; }
+.code-editor .cm-content { font: inherit; padding: 0; }
+.jp-katakana { color: color-mix(in srgb, #2563eb 55%, currentColor); }
+.jp-kanji { color: color-mix(in srgb, #b45309 45%, currentColor); }
+.jp-punct { opacity: 0.6; }
+.sentence-current { background: color-mix(in srgb, #2563eb 25%, transparent); border-radius: 2px; }
+.find-current { background: color-mix(in srgb, #f97316 50%, transparent); }
+.misspelled { text-decoration: underline wavy #dc2626; text-decoration-skip-ink: none; }
