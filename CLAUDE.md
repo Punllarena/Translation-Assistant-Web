@@ -70,6 +70,9 @@ that database each run; conftest refuses any database name not ending in `_test`
   imported in `api/models/__init__.py`. Fix the model and regenerate rather than
   hand-patching a migration. `migrations/versions/*` is exempt from E501 only.
 - **Config:** env only (`TA_` prefix, pydantic-settings in `api/config.py`), no config files.
+- **E2E conventions:** each Playwright spec owns its seeded rows in `tools/e2e_seed.py`; seed
+  names must not contain "E2E chapter"; glossary phrases a spec adds must occur only in its own
+  chapters; the `ta_e2e` database is reset once per run, not per spec.
 - **Size discipline:** no Python module over ~400 lines (spec §2).
 - Tests use a per-test transaction rolled back at the end (`db` fixture), with
   `app_client` overriding `db_session`. `insecure_cookies` is needed because
