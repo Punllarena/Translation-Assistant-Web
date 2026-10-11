@@ -24,6 +24,7 @@ export function createSaveStore({
   let timer: ReturnType<typeof setTimeout> | undefined;
   let inFlight: Promise<void> | null = null;
   let again = false;
+  let waiters: Array<() => void> = [];
 
   const set = (state: SaveState, error: string | null = null) => {
     snapshot = { state, error };
@@ -43,19 +44,26 @@ export function createSaveStore({
     schedule();
   }
 
+  /** Saves everything dirty. Never rejects: failures are reported via getState().
+   *  Called during a save, it resolves once a follow-up save covering the edits made so
+   *  far has finished (or failed). */
   function flush(): Promise<void> {
     clearTimeout(timer);
     if (inFlight) {
       again = true;
-      return inFlight;
+      return new Promise((resolve) => waiters.push(resolve));
     }
     if (!dirty.size) {
       set("saved");
       return Promise.resolve();
     }
-    const sent = new Map(dirty);
+    // Capture exactly the batch sent; only these lines may be cleared on success.
+    const batch = unsaved();
+    const sent = new Map(batch.map((e) => [e.line_number, e.translated_text]));
     set("saving");
-    inFlight = save(unsaved(), false)
+    // Deferred so a synchronous throw from save becomes an error state.
+    inFlight = Promise.resolve()
+      .then(() => save(batch, false))
       .then(
         () => {
           for (const [n, t] of sent) if (dirty.get(n) === t) dirty.delete(n);
@@ -66,9 +74,13 @@ export function createSaveStore({
       )
       .finally(() => {
         inFlight = null;
+        const done = waiters;
+        waiters = [];
         if (again) {
           again = false;
-          void flush();
+          void flush().then(() => done.forEach((resolve) => resolve()));
+        } else {
+          done.forEach((resolve) => resolve());
         }
       });
     return inFlight;
@@ -76,7 +88,12 @@ export function createSaveStore({
 
   /** Page hide: send everything with keepalive; nothing can be awaited any more. */
   function flushOnExit() {
-    if (dirty.size) save(unsaved(), true).catch(() => {});
+    if (!dirty.size) return;
+    try {
+      save(unsaved(), true).catch(() => {});
+    } catch {
+      // nothing can be done during page hide
+    }
   }
 
   return {

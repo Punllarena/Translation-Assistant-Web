@@ -58,6 +58,52 @@ describe("save store", () => {
     expect(store.getState()).toEqual({ state: "saved", error: null });
   });
 
+  it("clears only the lines it sent; lines past the batch cap stay dirty", async () => {
+    const calls: Edit[][] = [];
+    const store = createSaveStore({ save: async (edits) => { calls.push(edits); } });
+    for (let i = 1; i <= 5001; i++) store.edit(i, `t${i}`);
+    await store.flush();
+    expect(calls[0]).toHaveLength(5000);
+    expect(store.getState().state).toBe("unsaved");
+    expect(store.unsaved()).toEqual([{ line_number: 5001, translated_text: "t5001" }]);
+    await store.flush();
+    expect(calls[1]).toEqual([{ line_number: 5001, translated_text: "t5001" }]);
+    expect(store.getState().state).toBe("saved");
+  });
+
+  it("a flush during a save resolves only after a follow-up save of the new edits", async () => {
+    const first = deferred();
+    const second = deferred();
+    const calls: Edit[][] = [];
+    const store = createSaveStore({
+      save: (edits) => { calls.push(edits); return calls.length === 1 ? first.promise : second.promise; },
+    });
+    store.edit(1, "a");
+    const firstFlush = store.flush();
+    store.edit(1, "ab");
+    let resolved = false;
+    const waiting = store.flush().then(() => { resolved = true; });
+    first.resolve();
+    await firstFlush;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls[1]).toEqual([{ line_number: 1, translated_text: "ab" }]);
+    expect(resolved).toBe(false);
+    second.resolve();
+    await waiting;
+    expect(resolved).toBe(true);
+    expect(store.getState().state).toBe("saved");
+  });
+
+  it("a save that throws synchronously ends in the error state", async () => {
+    const store = createSaveStore({
+      save: () => { throw new Error("boom"); },
+    });
+    store.edit(1, "a");
+    await store.flush();
+    expect(store.getState()).toEqual({ state: "error", error: "boom" });
+    expect(store.unsaved()).toEqual([{ line_number: 1, translated_text: "a" }]);
+  });
+
   it("flush with nothing dirty saves nothing", async () => {
     const save = vi.fn(async () => {});
     const store = createSaveStore({ save });

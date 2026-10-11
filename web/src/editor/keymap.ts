@@ -42,13 +42,18 @@ export const RESERVED = new Set([
 ]);
 
 const MODIFIERS = new Set(["Control", "Shift", "Alt", "Meta", "AltGraph", "CapsLock"]);
+/** Keys an IME or dead-key sequence reports instead of a real key. */
+const COMPOSING_KEYS = new Set(["Process", "Dead", "Unidentified"]);
 
 /** A key press as a binding string, e.g. "Ctrl+Shift+ArrowRight"; null for a bare
- *  modifier. Cmd counts as Ctrl so defaults work on macOS. */
+ *  modifier, or for a key during IME composition (its Enter confirms a conversion and
+ *  must not run an action). Cmd counts as Ctrl so defaults work on macOS. */
 export function bindingOf(
-  e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey">,
+  e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey"> & {
+    isComposing?: boolean;
+  },
 ): string | null {
-  if (MODIFIERS.has(e.key)) return null;
+  if (e.isComposing || COMPOSING_KEYS.has(e.key) || MODIFIERS.has(e.key)) return null;
   const key = e.key === " " ? "Space" : e.key.length === 1 ? e.key.toUpperCase() : e.key;
   return [e.ctrlKey || e.metaKey ? "Ctrl" : "", e.altKey ? "Alt" : "", e.shiftKey ? "Shift" : "", key]
     .filter(Boolean)

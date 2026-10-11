@@ -13,6 +13,14 @@ describe("keymap", () => {
     expect(bindingOf(key(" ", { altKey: true }))).toBe("Alt+Space");
     expect(bindingOf(key("Shift", { shiftKey: true }))).toBeNull();
   });
+  it("ignores key presses during IME composition and dead keys", () => {
+    expect(bindingOf({ ...key("Enter"), isComposing: true })).toBeNull();
+    expect(bindingOf({ ...key("a"), isComposing: true })).toBeNull();
+    expect(bindingOf(key("Process"))).toBeNull();
+    expect(bindingOf(key("Dead"))).toBeNull();
+    expect(bindingOf(key("Unidentified"))).toBeNull();
+    expect(bindingOf({ ...key("Enter"), isComposing: false })).toBe("Enter");
+  });
   it("has unique action keys and default bindings, nine F-key inserts", () => {
     expect(new Set(ACTIONS.map((a) => a.key)).size).toBe(ACTIONS.length);
     expect(new Set(ACTIONS.map((a) => a.binding)).size).toBe(ACTIONS.length);
