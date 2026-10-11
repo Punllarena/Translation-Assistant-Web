@@ -25,7 +25,7 @@ export default function SeriesPage() {
       navigate("/");
     },
   });
-  if (all.isPending || docs.isPending) return <main><p className="muted">Loading…</p></main>;
+  if (all.isPending || docs.isPending || profiles.isPending) return <main><p className="muted">Loading…</p></main>;
   const loadError = all.error ?? docs.error;
   if (loadError) return <main><p className="error" role="alert">{loadError.message}</p></main>;
   const series = all.data?.find((s) => s.id === seriesId);
