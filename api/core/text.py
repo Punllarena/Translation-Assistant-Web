@@ -289,3 +289,18 @@ def replace_and_parse(
 def split_parse_chars(setting: str) -> list[str]:
     """A profile's parse_chars setting as a list (desktop main_widget._update_parse_chars)."""
     return [c for c in setting.split(" ") if c]
+
+
+def load_glossary(text: str) -> list[tuple[str, str]]:
+    """From the desktop ``core.load_glossary``, taking the file's text instead of a path.
+
+    Lines are "phrase,translation"; a missing translation is "". Blank lines are ignored.
+    """
+    result: list[tuple[str, str]] = []
+    for line in text.removeprefix("﻿").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(",", 1)
+        result.append((parts[0], parts[1] if len(parts) > 1 else ""))
+    return result
