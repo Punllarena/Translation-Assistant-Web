@@ -9,7 +9,7 @@ def read_capped(upload: UploadFile, limit: int) -> bytes:
 
     Starlette has already spooled the body (to disk past 1 MB), so this bounds what
     reaches memory and the database, not what crossed the network.
-    # ponytail: the proxy should cap request bodies too; that arrives with Caddy in phase 3
+    # Caddy caps request bodies at 12 MB before they reach uvicorn (web/Caddyfile).
     """
     data = upload.file.read(limit + 1)
     if len(data) > limit:

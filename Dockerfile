@@ -14,5 +14,7 @@ COPY tools ./tools
 RUN pip install --no-cache-dir .
 
 EXPOSE 8000
-# --proxy-headers so the login rate limiter sees real client addresses behind a reverse proxy.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port 8000 --proxy-headers"]
+# --proxy-headers --forwarded-allow-ips='*': the login limiter keys on the real client
+# address from Caddy's X-Forwarded-For. Safe only because compose does not publish
+# this port; Caddy is the only client.
+CMD ["sh", "-c", "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]

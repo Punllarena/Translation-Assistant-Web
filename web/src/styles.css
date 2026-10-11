@@ -1,0 +1,16 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+body { margin: 0; }
+main { max-width: 72rem; margin: 0 auto; padding: 1rem; }
+header.app { display: flex; gap: 1rem; align-items: center; padding: 0.5rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent); }
+header.app nav { display: flex; gap: 1rem; flex: 1; }
+table { border-collapse: collapse; width: 100%; }
+td, th { padding: 0.25rem 0.5rem; text-align: left; }
+.error { color: #c62828; }
+.muted { opacity: 0.7; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
+form.stack { display: grid; gap: 0.5rem; max-width: 24rem; }

@@ -21,8 +21,18 @@ services:
     environment:
       TA_SECRET_KEY: ${TA_SECRET_KEY:?set TA_SECRET_KEY in .env}
       TA_DATABASE_URL: postgresql+psycopg://ta:ta@postgres:5432/ta
-      TA_COOKIE_SECURE: "false"
-    ports: ["127.0.0.1:8000:8000"]
+    # Not published: only Caddy reaches it, which is what makes trusting
+    # X-Forwarded-For (--forwarded-allow-ips in the Dockerfile) safe.
+    expose: ["8000"]
+
+  caddy:
+    build: ./web
+    depends_on: [api]
+    environment:
+      TA_SITE_ADDRESS: ${TA_SITE_ADDRESS:-localhost}
+    ports: ["80:80", "443:443"]
+    volumes: ["caddy_data:/data"]
 
 volumes:
   pgdata:
+  caddy_data:

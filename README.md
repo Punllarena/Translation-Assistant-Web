@@ -102,15 +102,26 @@ dump cannot be decrypted.
 docker compose up --build        # needs TA_SECRET_KEY in .env or the environment
 ```
 
-The `api` service runs `alembic upgrade head` and then uvicorn on port 8000. TLS and a reverse
-proxy arrive with the SPA in phase 3; until then the API is served directly, bound to loopback only (`127.0.0.1:8000`, like Postgres)
-because cookies are not `Secure` without TLS; opening it up belongs with the TLS work in phase 3, together with a reverse-proxy
-request-body size cap (see Uploads below).
-Once a proxy fronts it, keep `--proxy-headers` on uvicorn (already in the container command) and make sure the
-proxy is the only thing that can reach it, otherwise clients can spoof their address.
+Caddy serves the SPA and proxies `/api/*` to the API (prefix stripped) at
+`https://$TA_SITE_ADDRESS` (default `localhost`, with Caddy's internal CA). Set
+`TA_SITE_ADDRESS` to a public hostname and Caddy obtains a certificate for it. Caddy caps
+request bodies at 12 MB. The API container is not published; uvicorn trusts the
+forwarded client address because Caddy is its only client.
+
+## Web app (development)
+
+```bash
+uvicorn api.main:app --reload                 # API on 127.0.0.1:8000 (TA_COOKIE_SECURE=false)
+cd web && npm install && npm run dev          # SPA on http://localhost:5173, /api proxied
+npm run gen:api                               # after any API schema change; commit the result
+npm test                                      # vitest
+```
 
 ## Design decisions
 
+- **Caddy serves the SPA and fronts the API under `/api`.** The API's paths and the SPA's
+  routes would otherwise collide on a refresh; the proxy strips the prefix, so the API itself
+  is unchanged. The interactive docs are at `http://127.0.0.1:8000/docs` in development only.
 - **Sessions are opaque random tokens**, stored hashed in a `sessions` row, instead of the spec's
   "signed session id". Same guarantee, no signing dependency, and revocation is deleting a row.
 - **Registration is invite-only**, by construction: `/auth/accept-invite` is the only
@@ -148,6 +159,6 @@ proxy is the only thing that can reach it, otherwise clients can spoof their add
   covers at most 10 MiB, PNG/JPEG/GIF/WebP by magic bytes. These caps apply only after the
   request body has been received (multipart file parts are spooled before auth and before
   `read_capped`), so a reverse-proxy body cap (e.g. Caddy `request_body { max_size 12MB }`) is
-  required before the API is exposed beyond 127.0.0.1 — a phase 3 gate.
+  required before the API is exposed beyond 127.0.0.1 (Caddy provides it).
 - **Imported and created documents are capped at 50,000 lines** (`MAX_LINES` in
   `api/library.py`); TXT import and `POST /documents` answer 422 beyond that.

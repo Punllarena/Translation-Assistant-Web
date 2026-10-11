@@ -1,0 +1,19 @@
+{$TA_SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	# Uploads are capped again in the API (10 MiB images, 5 MiB text) after the body
+	# is received; this stops a larger body before it reaches uvicorn at all.
+	request_body {
+		max_size 12MB
+	}
+
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
