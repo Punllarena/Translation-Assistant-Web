@@ -2,7 +2,10 @@ import type { EditorView } from "@codemirror/view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router";
+import SpellMenu from "./SpellMenu";
+import { useSpell } from "./useSpell";
 import { api, call, type Schemas } from "../api/client";
+import type { Misspelling } from "./LineCard";
 import CardList from "./CardList";
 import CodeEditor, { insertAtCursor, setMarks } from "./CodeEditor";
 import FindBar from "./FindBar";
@@ -16,7 +19,7 @@ import { useBindings, useEditorKeys } from "./useEditorKeys";
 
 type Data = Schemas["DocumentLines"];
 
-export default function Editor({ id, data }: { id: number; data: Data; onProfile(id: number | null): void }) {
+export default function Editor({ id, data, onProfile }: { id: number; data: Data; onProfile(id: number | null): void }) {
   const lines = data.lines;
   const startAt = useMemo(() => {
     const p = data.document.last_position;
@@ -50,13 +53,48 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
   const step = (dir: 1 | -1) => {
     const next = at < 0 && dir === 1 ? firstFrom(hits, ed.active) : wrapStep(at, hits.length, dir);
     setFind((f) => ({ ...f, at: next }));
-    if (hits[next]) ed.activate(hits[next].index);
+    if (hits[next]) {
+      stepped.current = true;
+      ed.activate(hits[next].index);
+    }
   };
+  const stepped = useRef(false); // the last activation came from stepping through find hits
+  useEffect(() => { stepped.current = false; }, [ed.active]);
+  const profileId = data.profile?.id ?? null;
+  const spell = useSpell(profileId, lines.map((l) => ed.texts[l.line_number] ?? ""));
+  const profiles = useQuery({ queryKey: ["profiles"], queryFn: () => call(api.GET("/profiles")) });
+  const [menu, setMenu] = useState<{ x: number; y: number; word: Misspelling } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const addWord = async (word: string) => {
+    if (!profileId) return setNotice("No profile to add words to");
+    if (!word || /\s/.test(word)) return setNotice("Select a single word first");
+    try {
+      await call(api.PUT("/profiles/{profile_id}/words/{word}", { params: { path: { profile_id: profileId, word } } }));
+      spell.forget();
+      setNotice(`Added \u201c${word}\u201d to the dictionary`);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Could not add the word");
+    }
+  };
+  const onContextMenu = (v: EditorView, e: MouseEvent) => {
+    const pos = v.posAtCoords({ x: e.clientX, y: e.clientY });
+    const text = v.state.doc.toString();
+    const word = pos == null ? undefined
+      : spell.misspelled(text).find((m) => m.start <= pos && pos <= m.end && text.slice(m.start, m.end) === m.word);
+    if (!word) return false;
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, word });
+    return true;
+  };
+  const closeMenu = useCallback(() => { setMenu(null); view.current?.focus(); }, []);
+  const activeText = current ? (ed.texts[current.line_number] ?? "") : "";
   useEffect(() => {
-    const marks = hit && hit.index === ed.active && hit.field === "translation"
-      ? [{ from: hit.from, to: hit.to, cls: "find-current" }] : [];
-    view.current?.dispatch({ effects: setMarks.of(marks) });
-  }, [hit, ed.active]);
+    const v = view.current;
+    if (!v || (!spell.known(activeText) && !(hit && hit.index === ed.active))) return;
+    const marks = spell.misspelled(activeText).map((m) => ({ from: m.start, to: m.end, cls: "misspelled" }));
+    if (hit && hit.index === ed.active && hit.field === "translation") marks.push({ from: hit.from, to: hit.to, cls: "find-current" });
+    v.dispatch({ effects: setMarks.of(marks) });
+  }, [spell.misspelled, spell.known, activeText, hit, ed.active]);
   const run = (action: string) => {
     const at = ed.active;
     if (!lines[at]) return;
@@ -98,6 +136,14 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
       case "font_smaller":
         setFont(fontPx - 1);
         break;
+      case "add_word": {
+        const v = view.current;
+        if (v) {
+          const { from, to } = v.state.selection.main;
+          void addWord(v.state.sliceDoc(from, to).trim());
+        }
+        break;
+      }
       case "find":
         setFind((f) => ({ ...f, open: f.open + 1 }));
         break;
@@ -115,14 +161,21 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
   const n = current.line_number;
   const editor = (
     <CodeEditor key={n} value={ed.texts[n] ?? ""} label="Translation"
-      onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} autoFocus={find.open === 0} />
+      onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} autoFocus={!stepped.current} onContextMenu={onContextMenu} />
   );
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
       <StatusBar title={data.document.title} line={n + 1} total={lines.length}
         percent={stats.percent} words={stats.words}
         phrase={ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null}
-        save={ed.save} onRetry={() => void ed.store.flush()} />
+        save={ed.save} onRetry={() => void ed.store.flush()} notice={notice}
+        extra={<>
+          <select aria-label="Profile" value={profileId ?? ""} onChange={(e) => onProfile(e.target.value ? Number(e.target.value) : null)}>
+            {!profileId && <option value="">No profile</option>}
+            {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          {!spell.available && <span className="muted">Spellcheck unavailable</span>}
+        </>} />
       {find.open > 0 && (
         <FindBar key={find.open} needle={find.needle} position={at} total={hits.length}
           onNeedle={(needle) => setFind((f) => ({ ...f, needle, at: -1 }))} onStep={step}
@@ -130,8 +183,11 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
       )}
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
-          onActivate={ed.activate} editor={editor} highlight={hit} />
+          onActivate={(i) => { stepped.current = false; ed.activate(i); }} editor={editor} highlight={hit}
+          misspelled={spell.misspelled} />
       </div>
+      {menu && <SpellMenu {...menu} onClose={closeMenu} onAdd={() => { void addWord(menu.word.word); closeMenu(); }}
+        onPick={(s) => { view.current?.dispatch({ changes: { from: menu.word.start, to: menu.word.end, insert: s } }); closeMenu(); }} />}
     </div>
   );
 }

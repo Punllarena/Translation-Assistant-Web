@@ -19,6 +19,7 @@ export default function FindBar({ needle, onNeedle, position, total, onStep, onC
   return (
     <div className="findbar" role="search"
       onKeyDown={(e) => {
+        if (e.nativeEvent.isComposing || e.key === "Process") return;
         if (e.key === "Escape") {
           e.preventDefault();
           onClose();
