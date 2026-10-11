@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api, ApiError, call } from "../api/client";
@@ -16,7 +16,8 @@ export default function EditorPage() {
       call(api.GET("/documents/{document_id}/lines", {
         params: { path: { document_id: id }, query: profileId === null ? {} : { profile_id: profileId } },
       })),
-    placeholderData: keepPreviousData,
+    // Keep the old lines while switching profile, never across documents.
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === id ? prev : undefined),
     gcTime: 0,
     refetchOnMount: "always",
   });

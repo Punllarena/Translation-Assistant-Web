@@ -1,13 +1,16 @@
 import type { EditorView } from "@codemirror/view";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, type CSSProperties } from "react";
 import { Link } from "react-router";
 import { api, call, type Schemas } from "../api/client";
 import CardList from "./CardList";
-import CodeEditor from "./CodeEditor";
-import { buildRows, firstContent, hasContent, progress } from "./rows";
+import CodeEditor, { insertAtCursor } from "./CodeEditor";
+import { PUNCTUATIONS } from "./keymap";
+import { advanceParse, retreatParse } from "./parse";
+import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, prevContent, progress } from "./rows";
 import StatusBar from "./StatusBar";
 import { useEditor } from "./useEditor";
+import { useBindings, useEditorKeys } from "./useEditorKeys";
 
 type Data = Schemas["DocumentLines"];
 
@@ -27,6 +30,58 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
   const stats = useMemo(() => progress(lines, ed.texts), [lines, ed.texts]);
   const onReady = useCallback((v: EditorView | null) => { view.current = v; }, []);
   const current = lines[ed.active];
+  const queryClient = useQueryClient();
+  const setFont = (px: number) => {
+    const size = Math.max(12, Math.min(32, px));
+    queryClient.setQueryData(["settings"], { ...settings.data, editor_font_px: size });
+    void call(api.PUT("/settings", { body: { editor_font_px: size } })).catch(() => {});
+  };
+  const run = (action: string) => {
+    const at = ed.active;
+    if (!lines[at]) return;
+    switch (action) {
+      case "save_next":
+        void ed.store.flush();
+        ed.activate(nextContent(lines, at));
+        break;
+      case "next":
+      case "next_alt":
+        ed.activate(nextContent(lines, at));
+        break;
+      case "prev":
+      case "prev_alt":
+        ed.activate(prevContent(lines, at));
+        break;
+      case "first":
+        ed.activate(firstContent(lines));
+        break;
+      case "next_untranslated":
+        // desktop: only from a line that already has a translation
+        if (ed.texts[lines[at].line_number]) ed.activate(firstUntranslated(lines, ed.texts));
+        break;
+      case "parse_next":
+        ed.setParse((p) => advanceParse(p, lines[at].sentences.length));
+        break;
+      case "parse_prev":
+        ed.setParse((p) => retreatParse(p, lines[at].replaced));
+        break;
+      case "go_to_line": {
+        const answer = window.prompt(`Go to line (1\u2013${lines.length})`);
+        const k = Number(answer);
+        if (answer && Number.isInteger(k)) ed.activate(lineAtOrAfter(lines, k));
+        break;
+      }
+      case "font_larger":
+        setFont(fontPx + 1);
+        break;
+      case "font_smaller":
+        setFont(fontPx - 1);
+        break;
+      default:
+        if (action.startsWith("punct_")) insertAtCursor(view.current, PUNCTUATIONS[Number(action.slice(6))], 1);
+    }
+  };
+  useEditorKeys(useBindings(), run);
   // Every hook stays above this early return; later tasks add theirs here too and read
   // `current?.` (it is undefined for a chapter with no lines).
 

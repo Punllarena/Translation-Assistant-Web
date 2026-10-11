@@ -5,6 +5,7 @@ import { RequireAuth } from "./auth/session";
 import EditorPage from "./editor/EditorPage";
 import Picker from "./library/Picker";
 import SeriesPage from "./library/SeriesPage";
+import ShortcutsPage from "./settings/ShortcutsPage";
 import Shell from "./Shell";
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
       <Route element={<RequireAuth><Shell /></RequireAuth>}>
         <Route index element={<Picker />} />
         <Route path="series/:id" element={<SeriesPage />} />
+        <Route path="settings/shortcuts" element={<ShortcutsPage />} />
         <Route path="documents/:id" element={<EditorPage />} />
       </Route>
     </Routes>
