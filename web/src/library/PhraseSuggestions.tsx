@@ -1,11 +1,13 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { api, call } from "../api/client";
 
 /** Frequent terms in a series that the chosen profile's glossary lacks; add one with its translation. */
 export default function PhraseSuggestions({ seriesId, defaultProfileId }: { seriesId: number; defaultProfileId: number | null }) {
+  const queryClient = useQueryClient();
   const profiles = useQuery({ queryKey: ["profiles"], queryFn: () => call(api.GET("/profiles")) });
-  const [profileId, setProfileId] = useState<number | null>(defaultProfileId);
+  const [chosen, setChosen] = useState<number | null>(null);
+  const profileId = chosen ?? defaultProfileId;
   const [terms, setTerms] = useState<{ term: string; count: number }[] | null>(null);
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [unavailable, setUnavailable] = useState("");
@@ -25,7 +27,10 @@ export default function PhraseSuggestions({ seriesId, defaultProfileId }: { seri
       call(api.POST("/profiles/{profile_id}/glossary", {
         params: { path: { profile_id: profileId! } }, body: { phrase: term, translation: translations[term].trim() },
       })),
-    onSuccess: (_, { term }) => setTerms((t) => t && t.filter((x) => x.term !== term)),
+    onSuccess: (_, { term }) => {
+      queryClient.invalidateQueries({ queryKey: ["glossary", profileId] });
+      setTerms((t) => t && t.filter((x) => x.term !== term));
+    },
   });
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -39,7 +44,7 @@ export default function PhraseSuggestions({ seriesId, defaultProfileId }: { seri
       <form className="toolbar" onSubmit={submit}>
         <label>
           Profile{" "}
-          <select value={profileId ?? ""} onChange={(e) => setProfileId(e.target.value ? Number(e.target.value) : null)}>
+          <select value={profileId ?? ""} onChange={(e) => setChosen(e.target.value ? Number(e.target.value) : null)}>
             {profileId === null && <option value="">Choose a profile</option>}
             {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>

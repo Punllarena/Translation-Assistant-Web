@@ -71,8 +71,8 @@ export default function SeriesPage() {
       </form>
       <Chapters seriesId={seriesId} docs={chapters} />
       <Volumes seriesId={seriesId} docs={chapters} />
-      <FindReplace seriesId={seriesId} />
-      <PhraseSuggestions seriesId={seriesId}
+      <FindReplace key={seriesId} seriesId={seriesId} />
+      <PhraseSuggestions key={seriesId} seriesId={seriesId}
         defaultProfileId={series.profile_id ?? profiles.data?.find((p) => p.is_default)?.id ?? null} />
     </main>
   );
