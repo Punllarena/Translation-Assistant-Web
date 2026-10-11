@@ -15,8 +15,11 @@ code is not. The full mapping is in the spec, §1.
 **Phases 1–2** exist: FastAPI app, full Postgres schema, invite-only session auth,
 per-user profiles/settings/shortcuts/encrypted credentials, the `ta.db` importer, and
 the library API (series/volumes/documents CRUD, reorder, renumber, merge/split, covers,
-TXT import, TXT/Markdown export). Phases 3–6 (editor, memory, MT aggregator,
-acquisition/publishing) and the Vite+React SPA under `web/` are not built yet.
+TXT import, TXT/Markdown export).
+
+Phase 3a: editor API (lines, spell, images), Caddy, and the SPA under `web/` (login, picker,
+series manager). Phase 3b (editor screen) is next. Phases 4–6 (memory, MT aggregator,
+acquisition/publishing) are not built yet.
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
@@ -34,6 +37,10 @@ python -m tools.import_tadb --db ta.db --user you@example.com --dry-run
 ruff check .
 pytest                                 # all
 pytest tests/test_auth.py::test_name   # one test
+
+cd web && npm run dev                  # SPA on :5173, /api proxied to :8000
+npm run gen:api                        # regenerate web/src/api/schema.d.ts after API changes
+npm test                               # vitest (pure modules only)
 ```
 
 `TA_SECRET_KEY` must be set and ≥32 chars; the app refuses the `.env.example`

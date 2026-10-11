@@ -1,15 +1,18 @@
 # ta-web
 
-Web port of the Translation Assistant desktop app. This repo currently holds **phases 1-2**:
+Web port of the Translation Assistant desktop app. This repo currently holds **phases 1–2 and 3a**:
 the skeleton (FastAPI app, full Postgres schema via Alembic, session auth with invites,
-per-user profiles/settings/shortcuts/encrypted credentials, the `ta.db` importer) and the
+per-user profiles/settings/shortcuts/encrypted credentials, the `ta.db` importer), the
 library API (series, volumes, documents, picker listing with progress, reorder and renumber,
-merge and split, covers, TXT import, TXT/Markdown export). There is no web UI yet; the SPA
-arrives in phase 3. Phases 3-6 are described in the spec.
+merge and split, covers, TXT import, TXT/Markdown export), and the editor API (line load and
+dirty-line save, parse navigation, spellcheck, inline images). Phase 3a also brings the SPA under
+`web/` (login, picker, series manager); the editor screen is phase 3b. Phases 3b–6 are described
+in the spec.
 
 - Spec: [`docs/superpowers/specs/2026-10-10-web-app-port-design.md`](docs/superpowers/specs/2026-10-10-web-app-port-design.md)
 - Phase 1 plan: [`docs/superpowers/plans/2026-10-10-phase1-skeleton.md`](docs/superpowers/plans/2026-10-10-phase1-skeleton.md)
 - Phase 2 plan: [`docs/superpowers/plans/2026-10-10-phase2-library.md`](docs/superpowers/plans/2026-10-10-phase2-library.md)
+- Phase 3a plan: [`docs/superpowers/plans/2026-10-11-phase3a-editor-api-and-spa.md`](docs/superpowers/plans/2026-10-11-phase3a-editor-api-and-spa.md)
 
 ## Prerequisites
 
@@ -162,3 +165,15 @@ npm test                                      # vitest
   required before the API is exposed beyond 127.0.0.1 (Caddy provides it).
 - **Imported and created documents are capped at 50,000 lines** (`MAX_LINES` in
   `api/library.py`); TXT import and `POST /documents` answer 422 beyond that.
+- **`translated_at` is the day a line was first translated.** A save stamps it when a line goes
+  from empty to non-empty, clears it when the line is emptied, and keeps it on an edit (the
+  desktop restamped every edit).
+- **Spellcheck spans are UTF-16 offsets**, the units of a browser string; enchant runs
+  server-side with each profile's custom words. Without enchant or an English dictionary the
+  endpoint answers `available: false` and flags nothing. Requests are capped at 200 texts,
+  100,000 characters each and 200,000 in total (422 beyond), and enchant calls are serialised
+  behind one global lock.
+- **Images are served by sniffed type only** (PNG/JPEG/GIF/WebP); anything else is
+  `application/octet-stream` with `nosniff`.
+- **The SPA drops every cached query except the session's on sign-in and sign-out**, so one
+  user's data never shows to the next.
