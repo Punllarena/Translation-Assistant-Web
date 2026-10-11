@@ -11,7 +11,7 @@ COPY pyproject.toml alembic.ini ./
 COPY api ./api
 COPY migrations ./migrations
 COPY tools ./tools
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[mecab]"
 
 EXPOSE 8000
 # --proxy-headers --forwarded-allow-ips='*': the login limiter keys on the real client

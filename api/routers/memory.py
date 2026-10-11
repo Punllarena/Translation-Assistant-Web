@@ -4,9 +4,10 @@ from fastapi import Depends, HTTPException, Query, status
 from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.orm import Session
 
+from api.core import nouns
 from api.core.text import needle_pattern, replace_all
-from api.deps import current_user, db_session, scoped
-from api.models import Document, Line, Series, User
+from api.deps import current_user, db_session, owned_ref, scoped
+from api.models import Document, GlossaryEntry, Line, Profile, Series, User
 from api.routing import api_router
 from api.schemas.lines import NoNulStr
 from api.schemas.memory import (
@@ -15,6 +16,9 @@ from api.schemas.memory import (
     FindResult,
     ReplaceRequest,
     ReplaceResult,
+    Suggestions,
+    SuggestRequest,
+    Term,
     TmMatch,
 )
 
@@ -146,3 +150,37 @@ def replace_in_series(
         db.execute(update(Document).where(Document.id.in_(touched)).values(updated_at=func.now()))
     db.flush()
     return ReplaceResult(replaced=replaced, skipped=len(wanted) - replaced)
+
+
+MAX_TERMS = 500
+
+
+@router.post("/series/{series_id}/phrase-suggestions", response_model=Suggestions)
+def phrase_suggestions(
+    series_id: int,
+    body: SuggestRequest,
+    user: User = Depends(current_user),
+    db: Session = Depends(db_session),
+) -> Suggestions:
+    """The desktop SeriesPhrasesDialog analysis, synchronous until phase 6 (ruling 2)."""
+    series = scoped(db, Series, series_id, user.id)
+    known: set[str] = set()
+    if body.profile_id is not None:
+        profile = owned_ref(db, Profile, body.profile_id, user.id, "profile_id")
+        known = set(
+            db.scalars(select(GlossaryEntry.phrase).where(GlossaryEntry.profile_id == profile.id))
+        )
+    raw = [
+        r
+        for r in db.scalars(
+            select(Line.raw_text)
+            .join(Document, Document.id == Line.document_id)
+            .where(Document.series_id == series.id)
+        )
+        if r.strip()
+    ]
+    try:
+        terms = nouns.frequent_nouns(raw, known, body.min_freq)
+    except nouns.Unavailable as exc:
+        return Suggestions(available=False, message=str(exc), terms=[])
+    return Suggestions(available=True, terms=[Term(term=t, count=c) for t, c in terms[:MAX_TERMS]])

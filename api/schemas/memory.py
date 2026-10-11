@@ -44,3 +44,19 @@ class ReplaceRequest(BaseModel):
 class ReplaceResult(BaseModel):
     replaced: int
     skipped: int  # changed since the search, or not in this series
+
+
+class SuggestRequest(BaseModel):
+    profile_id: int | None = None  # its glossary's phrases are left out
+    min_freq: int = Field(default=2, ge=1, le=999)
+
+
+class Term(BaseModel):
+    term: str
+    count: int
+
+
+class Suggestions(BaseModel):
+    available: bool
+    message: str | None = None
+    terms: list[Term]

@@ -32,7 +32,7 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: sudo apt-get update && sudo apt-get install -y libenchant-2-2 hunspell-en-us
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ".[dev,mecab]"
       - run: ruff check .
       - run: pytest -q
       - name: Generated client is current
@@ -82,7 +82,7 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: sudo apt-get update && sudo apt-get install -y libenchant-2-2 hunspell-en-us
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ".[dev,mecab]"
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
