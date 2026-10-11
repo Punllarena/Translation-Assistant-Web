@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 from api.core.text import lines_to_db_rows, replace_and_parse, split_parse_chars
 from api.deps import current_user, db_session, owned_ref, scoped
 from api.library import check_line_count
-from api.models import Document, GlossaryEntry, Line, Profile, Series, User
+from api.models import Document, GlossaryEntry, Line, Profile, Series, User, UserSetting
 from api.routing import api_router
 from api.schemas.documents import DocumentOut
-from api.schemas.lines import DocumentLines, LineBatch, LineOut, SourceUpdate
+from api.schemas.lines import DocumentLines, LineBatch, LineOut, SaveResult, SourceUpdate
 from api.schemas.profiles import DEFAULT_PARSE_CHARS
 
 router = api_router(tags=["lines"])
@@ -20,13 +20,23 @@ def editor_profile(
     db: Session, user_id: int, doc: Document, profile_id: int | None
 ) -> Profile | None:
     """The profile whose glossary and parse characters the editor uses: an explicit
-    choice, else the series' profile, else the default, else the oldest, else none."""
+    choice, else the series' profile, else the remembered `profile_used` setting, else the
+    default, else the oldest, else none."""
     if profile_id is not None:
         return owned_ref(db, Profile, profile_id, user_id, "profile_id")
     if doc.series_id is not None:
         series = db.get(Series, doc.series_id)
         if series.profile_id is not None:
             return db.get(Profile, series.profile_id)
+    used = db.scalar(
+        select(UserSetting.value_json).where(
+            UserSetting.user_id == user_id, UserSetting.key == "profile_used"
+        )
+    )
+    if isinstance(used, int):
+        profile = db.get(Profile, used)
+        if profile is not None and profile.user_id == user_id:
+            return profile
     return db.scalar(
         select(Profile)
         .where(Profile.user_id == user_id)
@@ -74,16 +84,17 @@ def get_lines(
     return DocumentLines(document=doc, profile=profile, lines=lines)
 
 
-@router.patch("/documents/{document_id}/lines", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/documents/{document_id}/lines", response_model=SaveResult)
 def save_lines(
     document_id: int,
     body: LineBatch,
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
-) -> None:
+) -> SaveResult:
     """Write the client's dirty lines in one statement. translated_at is stamped when a
     line goes from empty to translated, cleared when it is emptied, and kept on an edit,
-    so the statistics heatmap counts the day a line was first translated."""
+    so the statistics heatmap counts the day a line was first translated. Unknown lines are
+    reported, not fatal, so one stale line cannot block the rest."""
     doc = scoped(db, Document, document_id, user.id)
     edits = {edit.line_number: edit.translated_text for edit in body.lines}
     if len(edits) != len(body.lines):
@@ -99,14 +110,11 @@ def save_lines(
         )
     }
     missing = sorted(set(edits) - set(current))
-    if missing:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            f"line_number: no such line ({', '.join(map(str, missing))})",
-        )
     now = datetime.now(UTC)
     rows = []
     for number, text in edits.items():
+        if number not in current:
+            continue
         line_id, old = current[number]
         row = {"id": line_id, "translated_text": text}
         if not text:
@@ -119,6 +127,7 @@ def save_lines(
         db.execute(update(Line), [r for r in rows if tuple(sorted(r)) == keys])
     doc.updated_at = func.now()
     db.flush()
+    return SaveResult(missing=missing)
 
 
 @router.put("/documents/{document_id}/source", response_model=DocumentOut)

@@ -75,10 +75,10 @@ def test_no_profile_uses_default_parse_chars(app_client, doc):
 
 
 def test_save_stamps_translated_at_only_from_empty(app_client, db, doc):
-    assert _save(app_client, doc, (0, "Taro ran.")).status_code == 204
+    assert _save(app_client, doc, (0, "Taro ran.")).status_code == 200
     first = _line(db, doc, 0).translated_at
     assert first is not None and _line(db, doc, 0).translated_text == "Taro ran."
-    assert _save(app_client, doc, (0, "Taro ran off.")).status_code == 204
+    assert _save(app_client, doc, (0, "Taro ran off.")).status_code == 200
     assert _line(db, doc, 0).translated_at == first  # an edit keeps the history
 
 
@@ -96,10 +96,34 @@ def test_save_bumps_document_updated_at(app_client, db, doc):
     assert db.get(Document, doc.id).updated_at.year > 2000
 
 
-def test_unknown_line_number_is_422_and_writes_nothing(app_client, db, doc):
-    r = _save(app_client, doc, (0, "Taro ran."), (99, "ghost"))
-    assert (r.status_code, r.json()["detail"]) == (422, "line_number: no such line (99)")
-    assert _line(db, doc, 0).translated_text == ""
+def test_unknown_line_numbers_are_reported_and_the_rest_saved(app_client, db, doc):
+    r = _save(app_client, doc, (0, "kept"), (99, "gone"))
+    assert (r.status_code, r.json()) == (200, {"missing": [99]})
+    assert _line(db, doc, 0).translated_text == "kept"
+
+
+def test_profile_used_setting_applies_to_loose_chapters(app_client, db, me, doc):
+    _profile(db, me, "default", is_default=True)
+    chosen = _profile(db, me, "chosen", glossary=[("次", "Next")])
+    app_client.put("/settings", json={"profile_used": chosen.id})
+    body = app_client.get(f"/documents/{doc.id}/lines").json()
+    assert body["profile"]["name"] == "chosen"
+
+
+def test_profile_used_ignores_a_stale_or_foreign_id(app_client, db, me, doc):
+    _profile(db, me, "default", is_default=True)
+    app_client.put("/settings", json={"profile_used": 999999})
+    assert app_client.get(f"/documents/{doc.id}/lines").json()["profile"]["name"] == "default"
+
+
+def test_series_profile_wins_over_profile_used(app_client, db, me, make_series, make_doc):
+    series_profile = _profile(db, me, "series")
+    used = _profile(db, me, "used")
+    series = make_series(me)
+    series.profile_id = series_profile.id
+    chapter = make_doc(me, ["次"], series=series)
+    app_client.put("/settings", json={"profile_used": used.id})
+    assert app_client.get(f"/documents/{chapter.id}/lines").json()["profile"]["name"] == "series"
 
 
 def test_duplicate_line_number_in_batch_is_422(app_client, doc):

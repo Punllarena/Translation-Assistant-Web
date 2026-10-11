@@ -45,6 +45,11 @@ class LineBatch(BaseModel):
     lines: list[LineEdit] = Field(min_length=1, max_length=5000)
 
 
+class SaveResult(BaseModel):
+    # Lines that no longer exist (the source was edited elsewhere); everything else saved.
+    missing: list[int]
+
+
 class SourceUpdate(BaseModel):
     text: NoNulStr = Field(max_length=MAX_RAW_CHARS)
     force: bool = False  # confirm a change in the number of lines

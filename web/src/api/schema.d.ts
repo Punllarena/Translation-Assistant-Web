@@ -265,7 +265,8 @@ export interface paths {
          * Save Lines
          * @description Write the client's dirty lines in one statement. translated_at is stamped when a
          *     line goes from empty to translated, cleared when it is emptied, and kept on an edit,
-         *     so the statistics heatmap counts the day a line was first translated.
+         *     so the statistics heatmap counts the day a line was first translated. Unknown lines are
+         *     reported, not fatal, so one stale line cannot block the rest.
          */
         patch: operations["save_lines_documents__document_id__lines_patch"];
         trace?: never;
@@ -405,6 +406,45 @@ export interface paths {
         patch: operations["update_profile_profiles__profile_id__patch"];
         trace?: never;
     };
+    "/profiles/{profile_id}/glossary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Glossary */
+        get: operations["list_glossary_profiles__profile_id__glossary_get"];
+        /**
+         * Replace Glossary
+         * @description The desktop set_glossary: the whole list, in order (edit, delete and reorder).
+         */
+        put: operations["replace_glossary_profiles__profile_id__glossary_put"];
+        /** Add Phrase */
+        post: operations["add_phrase_profiles__profile_id__glossary_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profiles/{profile_id}/glossary/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Csv */
+        post: operations["import_csv_profiles__profile_id__glossary_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/profiles/{profile_id}/words": {
         parameters: {
             query?: never;
@@ -506,6 +546,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/series/{series_id}/find": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find In Series
+         * @description The desktop find_in_series, with each match's replaced text as a preview.
+         */
+        get: operations["find_in_series_series__series_id__find_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/series/{series_id}/order": {
         parameters: {
             query?: never;
@@ -527,6 +587,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/series/{series_id}/phrase-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Phrase Suggestions
+         * @description The desktop SeriesPhrasesDialog analysis, synchronous until phase 6 (ruling 2).
+         */
+        post: operations["phrase_suggestions_series__series_id__phrase_suggestions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/series/{series_id}/renumber": {
         parameters: {
             query?: never;
@@ -542,6 +622,27 @@ export interface paths {
          *     desktop displays: chapter_title, else title.
          */
         post: operations["renumber_by_title_series__series_id__renumber_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/replace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace In Series
+         * @description Apply a reviewed batch in one transaction (ruling 4). A target is replaced only if
+         *     its line still holds the text the user reviewed; anything else is skipped.
+         */
+        post: operations["replace_in_series_series__series_id__replace_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -653,6 +754,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tm/matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tm Matches
+         * @description The desktop find_tm_matches: earlier translations of this exact source text in the
+         *     user's other documents, most recently updated document first (ruling 1).
+         */
+        get: operations["tm_matches_tm_matches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/volumes/{volume_id}": {
         parameters: {
             query?: never;
@@ -709,6 +831,11 @@ export interface components {
             password: string;
             /** Token */
             token: string;
+        };
+        /** Body_import_csv_profiles__profile_id__glossary_import_post */
+        Body_import_csv_profiles__profile_id__glossary_import_post: {
+            /** File */
+            file: string;
         };
         /** Body_import_txt_documents_import_txt_post */
         Body_import_txt_documents_import_txt_post: {
@@ -920,6 +1047,49 @@ export interface components {
             /** Volume Id */
             volume_id?: number | null;
         };
+        /** FindMatch */
+        FindMatch: {
+            /** After */
+            after: string;
+            /** Before */
+            before: string;
+            /** Document Id */
+            document_id: number;
+            /** Line Number */
+            line_number: number;
+            /** Title */
+            title: string;
+        };
+        /** FindResult */
+        FindResult: {
+            /** Matches */
+            matches: components["schemas"]["FindMatch"][];
+            /** Truncated */
+            truncated: boolean;
+        };
+        /** GlossaryIn */
+        GlossaryIn: {
+            /** Phrase */
+            phrase: string;
+            /** Translation */
+            translation: string;
+        };
+        /** GlossaryList */
+        GlossaryList: {
+            /** Entries */
+            entries: components["schemas"]["GlossaryIn"][];
+        };
+        /** GlossaryOut */
+        GlossaryOut: {
+            /** Id */
+            id: number;
+            /** Phrase */
+            phrase: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Translation */
+            translation: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -944,6 +1114,15 @@ export interface components {
         ImageUpdate: {
             /** Exclude Export */
             exclude_export?: boolean | null;
+        };
+        /** ImportResult */
+        ImportResult: {
+            /** Added */
+            added: number;
+            /** Skipped */
+            skipped: number;
+            /** Updated */
+            updated: number;
         };
         /** InviteCreate */
         InviteCreate: {
@@ -1076,6 +1255,41 @@ export interface components {
             /** Parse Chars */
             parse_chars?: string | null;
         };
+        /** ReplaceRequest */
+        ReplaceRequest: {
+            /**
+             * Case Sensitive
+             * @default false
+             */
+            case_sensitive: boolean;
+            /** Find */
+            find: string;
+            /** Replace */
+            replace: string;
+            /** Targets */
+            targets: components["schemas"]["ReplaceTarget"][];
+        };
+        /** ReplaceResult */
+        ReplaceResult: {
+            /** Replaced */
+            replaced: number;
+            /** Skipped */
+            skipped: number;
+        };
+        /** ReplaceTarget */
+        ReplaceTarget: {
+            /** Before */
+            before: string;
+            /** Document Id */
+            document_id: number;
+            /** Line Number */
+            line_number: number;
+        };
+        /** SaveResult */
+        SaveResult: {
+            /** Missing */
+            missing: number[];
+        };
         /** SeriesCreate */
         SeriesCreate: {
             /** Profile Id */
@@ -1167,6 +1381,46 @@ export interface components {
         SplitRequest: {
             /** Cuts */
             cuts: components["schemas"]["SplitCut"][];
+        };
+        /** SuggestRequest */
+        SuggestRequest: {
+            /**
+             * Min Freq
+             * @default 2
+             */
+            min_freq: number;
+            /** Profile Id */
+            profile_id?: number | null;
+        };
+        /** Suggestions */
+        Suggestions: {
+            /** Available */
+            available: boolean;
+            /** Message */
+            message?: string | null;
+            /** Terms */
+            terms: components["schemas"]["Term"][];
+        };
+        /** Term */
+        Term: {
+            /** Count */
+            count: number;
+            /** Term */
+            term: string;
+        };
+        /** TmMatch */
+        TmMatch: {
+            /** Document Id */
+            document_id: number;
+            /** Document Title */
+            document_title: string;
+            /** Translated Text */
+            translated_text: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /** UserOut */
         UserOut: {
@@ -1899,11 +2153,13 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SaveResult"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -2273,6 +2529,142 @@ export interface operations {
             };
         };
     };
+    list_glossary_profiles__profile_id__glossary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlossaryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_glossary_profiles__profile_id__glossary_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GlossaryList"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlossaryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_phrase_profiles__profile_id__glossary_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GlossaryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlossaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_csv_profiles__profile_id__glossary_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profile_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_csv_profiles__profile_id__glossary_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_words_profiles__profile_id__words_get: {
         parameters: {
             query?: never;
@@ -2545,6 +2937,41 @@ export interface operations {
             };
         };
     };
+    find_in_series_series__series_id__find_get: {
+        parameters: {
+            query: {
+                q: string;
+                replace?: string;
+                case_sensitive?: boolean;
+            };
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reorder_chapters_series__series_id__order_put: {
         parameters: {
             query?: never;
@@ -2580,6 +3007,41 @@ export interface operations {
             };
         };
     };
+    phrase_suggestions_series__series_id__phrase_suggestions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     renumber_by_title_series__series_id__renumber_post: {
         parameters: {
             query?: never;
@@ -2598,6 +3060,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_in_series_series__series_id__replace_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplaceResult"];
                 };
             };
             /** @description Validation Error */
@@ -2873,6 +3370,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SpellResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tm_matches_tm_matches_get: {
+        parameters: {
+            query: {
+                document_id: number;
+                line_number: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TmMatch"][];
                 };
             };
             /** @description Validation Error */
