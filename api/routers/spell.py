@@ -13,6 +13,9 @@ from api.schemas.spell import Misspelling, SpellRequest, SpellResult
 
 router = api_router(tags=["spell"])
 
+# suggest() runs under a global lock at ~2 ms a call; bound what one request can cost.
+MAX_SUGGESTED_WORDS = 100
+
 # A dictionary word: no whitespace or slash, at most the column width.
 Word = Annotated[str, Path(min_length=1, max_length=120, pattern=r"^[^\s/]+$")]
 
@@ -24,7 +27,10 @@ def check(
     custom: set[str] = set()
     if body.profile_id is not None:
         profile = owned_ref(db, Profile, body.profile_id, user.id, "profile_id")
-        custom = set(db.scalars(select(CustomWord.word).where(CustomWord.profile_id == profile.id)))
+        custom = {
+            w.lower()
+            for w in db.scalars(select(CustomWord.word).where(CustomWord.profile_id == profile.id))
+        }
     d = spell.dictionary()
     if d is None:
         return SpellResult(available=False, results=[[] for _ in body.texts])
@@ -34,7 +40,9 @@ def check(
         spans = []
         for start, end, word in spell.misspellings(text, custom, d):
             if word not in suggestions:
-                suggestions[word] = spell.suggest(d, word)
+                suggestions[word] = (
+                    spell.suggest(d, word) if len(suggestions) < MAX_SUGGESTED_WORDS else []
+                )
             spans.append(
                 Misspelling(start=start, end=end, word=word, suggestions=suggestions[word])
             )

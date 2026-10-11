@@ -121,3 +121,30 @@ def test_misspellings_from_many_threads():
         results = list(ex.map(lambda _: spell.misspellings(text, set(), d), range(400)))
     assert all(r == results[0] for r in results)
     assert results[0] == [(8, 11, "sta")]
+
+
+def test_suggestion_lookups_are_capped_per_request(app_client, me, monkeypatch):
+    calls = []
+
+    class Counting(FakeDict):
+        def suggest(self, word):
+            calls.append(word)
+            return ["x"]
+
+    monkeypatch.setattr(spell, "dictionary", lambda: Counting())
+    words = [f"zq{'a' * (i % 20)}{chr(98 + i // 20)}" for i in range(150)]
+    assert len(set(words)) == 150
+    body = check(app_client, " ".join(words)).json()
+    spans = body["results"][0]
+    assert len(spans) == 150
+    assert len(calls) == 100
+    assert sum(1 for s in spans if s["suggestions"]) == 100
+
+
+def test_custom_words_match_case_insensitively(app_client, db, fake, profile):
+    db.add(CustomWord(profile_id=profile.id, word="taro"))
+    db.flush()
+    assert check(app_client, "Taro sat", profile_id=profile.id).json()["results"] == [[]]
+    url = f"/profiles/{profile.id}/words"
+    assert app_client.delete(f"{url}/TARO").status_code == 204
+    assert app_client.get(url).json() == []

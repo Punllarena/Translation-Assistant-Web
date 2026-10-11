@@ -118,3 +118,10 @@ def test_another_users_lines_are_404(app_client, me, make_user, make_doc, method
     theirs = make_doc(make_user(email="other@example.com"), ["x"])
     r = getattr(app_client, method)(f"/documents/{theirs.id}/lines", **kwargs)
     assert r.status_code == 404
+
+
+def test_nul_in_translation_is_422_and_writes_nothing(app_client, db, doc):
+    r = _save(app_client, doc, (0, "fine"), (1, "a\x00b"))
+    assert r.status_code == 422
+    assert "NUL" in r.text
+    assert _line(db, doc, 0).translated_text == ""

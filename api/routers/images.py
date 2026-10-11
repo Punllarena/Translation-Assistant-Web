@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException, Response, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
 from api.deps import current_user, db_session, scoped
 from api.models import Document, DocumentImage, User
@@ -17,6 +17,7 @@ def scoped_image(db: Session, image_id: int, user_id: int) -> DocumentImage:
     """An image is owned through its document; 404 for missing and foreign alike."""
     image = db.scalar(
         select(DocumentImage)
+        .options(defer(DocumentImage.data))
         .join(Document)
         .where(DocumentImage.id == image_id, Document.user_id == user_id)
     )
@@ -33,6 +34,7 @@ def list_images(
     return list(
         db.scalars(
             select(DocumentImage)
+            .options(defer(DocumentImage.data))
             .where(DocumentImage.document_id == doc.id)
             .order_by(DocumentImage.anchor_position, DocumentImage.id)
         )
@@ -54,6 +56,7 @@ def get_image(
         headers={
             "Cache-Control": "private, max-age=31536000, immutable",
             "X-Content-Type-Options": "nosniff",
+            "Vary": "Cookie",  # the URL is user-agnostic; keep one user's image from another's cache
         },
     )
 

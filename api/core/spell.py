@@ -35,14 +35,15 @@ def _utf16_len(s: str) -> int:
 
 def misspellings(text: str, custom: set[str], d) -> list[tuple[int, int, str]]:
     """(start, end, word) for each misspelled word, in UTF-16 code units — the offsets a
-    browser string uses, so the client can slice with them as given."""
+    browser string uses, so the client can slice with them as given. `custom` holds
+    lowercased words; a word is skipped when its lowercase form is in it."""
     found = []
     offset, prev = 0, 0
     for m in _WORD_RE.finditer(text):
         offset += _utf16_len(text[prev : m.start()])
         prev = m.start()
         word = m.group()
-        if word in custom:
+        if word.lower() in custom:
             continue
         try:
             with _LOCK:

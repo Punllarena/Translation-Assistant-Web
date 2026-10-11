@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from api.schemas.documents import DocumentOut
 from api.schemas.profiles import ProfileOut
@@ -26,6 +26,13 @@ class DocumentLines(BaseModel):
 class LineEdit(BaseModel):
     line_number: int = Field(ge=0, le=2**31 - 1)
     translated_text: str = Field(max_length=MAX_TRANSLATION_CHARS)
+
+    @field_validator("translated_text")
+    @classmethod
+    def _no_nul(cls, v: str) -> str:
+        if "\x00" in v:
+            raise ValueError("NUL control character is not allowed")
+        return v
 
 
 class LineBatch(BaseModel):

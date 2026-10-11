@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy import inspect as sa_inspect
 
 from api.models import DocumentImage
 
@@ -22,9 +23,12 @@ def _image(db, doc, data=PNG, anchor=0, **kw):
 
 def test_list_is_ordered_by_anchor_without_bytes(app_client, db, doc):
     late, early = _image(db, doc, anchor=2), _image(db, doc, anchor=1)
+    db.expire_all()  # so only what the list query itself loads is loaded
     body = app_client.get(f"/documents/{doc.id}/images").json()
     assert [i["id"] for i in body] == [early.id, late.id]
     assert "data" not in body[0]
+    assert all("data" in sa_inspect(i).unloaded for i in db.identity_map.values()
+               if isinstance(i, DocumentImage))
 
 
 def test_get_serves_bytes_with_sniffed_type(app_client, db, doc):
@@ -32,6 +36,7 @@ def test_get_serves_bytes_with_sniffed_type(app_client, db, doc):
     assert (r.status_code, r.content, r.headers["content-type"]) == (200, PNG, "image/png")
     assert r.headers["x-content-type-options"] == "nosniff"
     assert "private" in r.headers["cache-control"]
+    assert r.headers["vary"] == "Cookie"
 
 
 def test_unrecognised_image_is_never_served_as_svg(app_client, db, doc):
