@@ -11,3 +11,4 @@ node_modules/
 web/openapi.json
 web/test-results/
 web/playwright-report/
+*.tsbuildinfo
