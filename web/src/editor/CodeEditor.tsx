@@ -41,11 +41,12 @@ interface Props {
   onChange(text: string): void;
   onBlur?(): void;
   onReady(view: EditorView | null): void;
+  autoFocus?: boolean;
   onContextMenu?(view: EditorView, e: MouseEvent): boolean;
 }
 
 /** A CodeMirror view, created once per mount (key it to replace the document). */
-export default function CodeEditor({ value, label, onChange, onBlur, onReady, onContextMenu }: Props) {
+export default function CodeEditor({ value, label, onChange, onBlur, onReady, onContextMenu, autoFocus = true }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const latest = useRef({ onChange, onBlur, onContextMenu });
@@ -72,7 +73,7 @@ export default function CodeEditor({ value, label, onChange, onBlur, onReady, on
       }),
     });
     viewRef.current = view;
-    view.focus();
+    if (autoFocus) view.focus();
     onReady(view);
     return () => {
       viewRef.current = null;

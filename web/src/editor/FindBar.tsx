@@ -17,16 +17,20 @@ export default function FindBar({ needle, onNeedle, position, total, onStep, onC
     input.current?.select();
   }, []);
   return (
-    <div className="findbar" role="search">
+    <div className="findbar" role="search"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onClose();
+        }
+      }}>
       <input ref={input} aria-label="Find" value={needle} className={needle && !total ? "notfound" : undefined}
         onChange={(e) => onNeedle(e.target.value)}
         onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing || e.key === "Process") return;
           if (e.key === "Enter") {
             e.preventDefault();
             onStep(e.shiftKey ? -1 : 1);
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            onClose();
           }
         }} />
       <span aria-live="polite">{needle ? `${total ? position + 1 : 0}/${total}` : ""}</span>

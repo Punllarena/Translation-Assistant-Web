@@ -45,11 +45,12 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
       : []), find.needle),
     [rows, ed.texts, find.needle],
   );
-  const hit = find.open && find.at >= 0 ? (hits[find.at] ?? null) : null;
+  const at = find.at < hits.length ? find.at : -1;
+  const hit = find.open && at >= 0 ? hits[at] : null;
   const step = (dir: 1 | -1) => {
-    const at = find.at < 0 && dir === 1 ? firstFrom(hits, ed.active) : wrapStep(find.at, hits.length, dir);
-    setFind((f) => ({ ...f, at }));
-    if (hits[at]) ed.activate(hits[at].index);
+    const next = at < 0 && dir === 1 ? firstFrom(hits, ed.active) : wrapStep(at, hits.length, dir);
+    setFind((f) => ({ ...f, at: next }));
+    if (hits[next]) ed.activate(hits[next].index);
   };
   useEffect(() => {
     const marks = hit && hit.index === ed.active && hit.field === "translation"
@@ -114,7 +115,7 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
   const n = current.line_number;
   const editor = (
     <CodeEditor key={n} value={ed.texts[n] ?? ""} label="Translation"
-      onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} />
+      onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} autoFocus={find.open === 0} />
   );
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
@@ -123,7 +124,7 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
         phrase={ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null}
         save={ed.save} onRetry={() => void ed.store.flush()} />
       {find.open > 0 && (
-        <FindBar key={find.open} needle={find.needle} position={find.at} total={hits.length}
+        <FindBar key={find.open} needle={find.needle} position={at} total={hits.length}
           onNeedle={(needle) => setFind((f) => ({ ...f, needle, at: -1 }))} onStep={step}
           onClose={() => { setFind((f) => ({ ...f, open: 0, at: -1 })); view.current?.focus(); }} />
       )}
