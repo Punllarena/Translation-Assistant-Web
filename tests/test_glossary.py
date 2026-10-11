@@ -108,3 +108,27 @@ def test_another_users_profile_is_404(app_client, db, other_users_profile_id, me
     r = getattr(app_client, method)(f"/profiles/{other_users_profile_id}/glossary{tail}", **kwargs)
     assert r.status_code == 404
     assert db.scalars(select(GlossaryEntry)).all() == []
+
+
+def test_import_applies_underscore_rule(app_client, profile):
+    files = {"file": ("g.csv", b"a,b c\n", "text/csv")}
+    assert app_client.post(url(profile, "/import"), files=files).status_code == 200
+    assert pairs(app_client, profile) == [("a", "b_c")]
+
+
+def test_import_skips_nul_and_overlong_rows(app_client, db, profile):
+    long_phrase = "p" * 501
+    csv = f"ok,1\na\x00b,2\nx,\x00\n{long_phrase},3\n"
+    files = {"file": ("g.csv", csv.encode(), "text/csv")}
+    r = app_client.post(url(profile, "/import"), files=files)
+    assert r.status_code == 200
+    assert r.json() == {"added": 1, "updated": 0, "skipped": 3}
+    assert pairs(app_client, profile) == [("ok", "1")]
+
+
+def test_import_over_entry_cap_is_422_and_writes_nothing(app_client, db, profile):
+    csv = "".join(f"p{i},t\n" for i in range(10_001))
+    files = {"file": ("g.csv", csv.encode(), "text/csv")}
+    r = app_client.post(url(profile, "/import"), files=files)
+    assert r.status_code == 422
+    assert db.scalars(select(GlossaryEntry)).all() == []

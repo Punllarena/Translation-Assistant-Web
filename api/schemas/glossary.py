@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from api.schemas.lines import NoNulStr
 
 MAX_PHRASE_CHARS = 500
+MAX_GLOSSARY_ENTRIES = 10_000
 
 
 def underscored(translation: str) -> str:
@@ -21,7 +22,7 @@ class GlossaryIn(BaseModel):
 
 
 class GlossaryList(BaseModel):
-    entries: list[GlossaryIn] = Field(max_length=10_000)
+    entries: list[GlossaryIn] = Field(max_length=MAX_GLOSSARY_ENTRIES)
 
     @model_validator(mode="after")
     def _unique(self) -> "GlossaryList":

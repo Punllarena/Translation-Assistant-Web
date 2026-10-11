@@ -8,6 +8,7 @@ from api.deps import current_user, db_session, scoped
 from api.models import GlossaryEntry, Profile, User
 from api.routing import api_router
 from api.schemas.glossary import (
+    MAX_GLOSSARY_ENTRIES,
     MAX_PHRASE_CHARS,
     GlossaryIn,
     GlossaryList,
@@ -120,11 +121,16 @@ def import_csv(
     pairs: dict[str, str] = {}  # a phrase repeated in the file: the last row wins
     skipped = 0
     for phrase, translation in load_glossary(text):
-        bad = not phrase or "\x00" in phrase + translation
+        bad = not phrase or "\x00" in phrase or "\x00" in translation
         if bad or len(phrase) > MAX_PHRASE_CHARS or len(translation) > MAX_PHRASE_CHARS:
             skipped += 1
             continue
         pairs[phrase] = underscored(translation)
+    if len(pairs) > MAX_GLOSSARY_ENTRIES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"the file holds more than {MAX_GLOSSARY_ENTRIES} phrases",
+        )
     added = _upsert(db, profile.id, pairs) if pairs else 0
     db.flush()
     return ImportResult(added=added, updated=len(pairs) - added, skipped=skipped)
