@@ -46,7 +46,7 @@ pytest tests/test_auth.py::test_name   # one test
 cd web && npm run dev                  # SPA on :5173, /api proxied to :8000
 npm run gen:api                        # regenerate web/src/api/schema.d.ts after API changes
 npm test                               # vitest (pure modules only)
-npm run e2e                            # Playwright; venv active, Postgres up, ta_e2e reset
+npm run e2e                            # Playwright; venv active (with the mecab extra), Postgres up, ta_e2e reset
 ```
 
 `TA_SECRET_KEY` must be set and ≥32 chars; the app refuses the `.env.example`
