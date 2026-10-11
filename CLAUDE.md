@@ -18,8 +18,10 @@ the library API (series/volumes/documents CRUD, reorder, renumber, merge/split, 
 TXT import, TXT/Markdown export).
 
 Phase 3a: editor API (lines, spell, images), Caddy, and the SPA under `web/` (login, picker,
-series manager). Phase 3b (editor screen) is next. Phases 4–6 (memory, MT aggregator,
-acquisition/publishing) are not built yet.
+series manager).
+
+Phase 3b: editor screen: cards, CodeMirror input, saving, keymap, find, spell, images,
+Edit Source/Split; Playwright smoke flows. Phases 4–6 are next.
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
@@ -41,6 +43,7 @@ pytest tests/test_auth.py::test_name   # one test
 cd web && npm run dev                  # SPA on :5173, /api proxied to :8000
 npm run gen:api                        # regenerate web/src/api/schema.d.ts after API changes
 npm test                               # vitest (pure modules only)
+npm run e2e                            # Playwright; venv active, Postgres up, ta_e2e reset
 ```
 
 `TA_SECRET_KEY` must be set and ≥32 chars; the app refuses the `.env.example`
@@ -50,7 +53,9 @@ that database each run; conftest refuses any database name not ending in `_test`
 ## Architecture rules
 
 - **Commit boundary:** writes commit in `CommitOnResponseRoute` (`api/routing.py`),
-  before the response is sent. Build every router with `api_router()` —
+  before the response is sent, via `run_in_threadpool(session.commit)`. The commit must
+  stay off the event loop: a synchronous commit there deadlocked overlapping same-session
+  requests (they all update `sessions.last_seen_at`). Build every router with `api_router()` —
   `tests/test_commit_boundary.py` fails otherwise. Handlers only `flush()`, never
   `commit()`. `db_session` teardown is rollback-and-close.
 - **Tenancy:** fetch user-owned rows by id via `scoped()` in `api/deps.py`

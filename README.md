@@ -1,18 +1,19 @@
 # ta-web
 
-Web port of the Translation Assistant desktop app. This repo currently holds **phases 1–2 and 3a**:
+Web port of the Translation Assistant desktop app. This repo currently holds **phases 1–2, 3a and 3b**:
 the skeleton (FastAPI app, full Postgres schema via Alembic, session auth with invites,
 per-user profiles/settings/shortcuts/encrypted credentials, the `ta.db` importer), the
 library API (series, volumes, documents, picker listing with progress, reorder and renumber,
 merge and split, covers, TXT import, TXT/Markdown export), and the editor API (line load and
-dirty-line save, parse navigation, spellcheck, inline images). Phase 3a also brings the SPA under
-`web/` (login, picker, series manager); the editor screen is phase 3b. Phases 3b–6 are described
+dirty-line save, parse navigation, spellcheck, inline images). Phase 3a brings the SPA under
+`web/` (login, picker, series manager); phase 3b adds the editor screen. Phases 4–6 are described
 in the spec.
 
 - Spec: [`docs/superpowers/specs/2026-10-10-web-app-port-design.md`](docs/superpowers/specs/2026-10-10-web-app-port-design.md)
 - Phase 1 plan: [`docs/superpowers/plans/2026-10-10-phase1-skeleton.md`](docs/superpowers/plans/2026-10-10-phase1-skeleton.md)
 - Phase 2 plan: [`docs/superpowers/plans/2026-10-10-phase2-library.md`](docs/superpowers/plans/2026-10-10-phase2-library.md)
 - Phase 3a plan: [`docs/superpowers/plans/2026-10-11-phase3a-editor-api-and-spa.md`](docs/superpowers/plans/2026-10-11-phase3a-editor-api-and-spa.md)
+- Phase 3b plan: [`docs/superpowers/plans/2026-10-11-phase3b-editor.md`](docs/superpowers/plans/2026-10-11-phase3b-editor.md)
 
 ## Prerequisites
 
@@ -118,7 +119,11 @@ uvicorn api.main:app --reload                 # API on 127.0.0.1:8000 (TA_COOKIE
 cd web && npm install && npm run dev          # SPA on http://localhost:5173, /api proxied
 npm run gen:api                               # after any API schema change; commit the result
 npm test                                      # vitest
+npm run e2e   # Playwright; needs the venv active and Postgres up (database ta_e2e is reset)
 ```
+
+The first e2e run needs Chromium: `cd web && npx playwright install chromium`. The e2e run uses
+ports 8001 (API) and 5174 (SPA).
 
 ## Design decisions
 
@@ -146,7 +151,9 @@ npm test                                      # vitest
   answer 404 for an id that is not the caller's. Phases 2-6 should follow the same rule.
 - **Writes commit in the request path**, in `CommitOnResponseRoute` (`api/routing.py`), not in the
   session dependency's teardown — a teardown commit runs after the response has been sent, so its
-  failure could not be reported. Build every router with `api_router()`; handlers only `flush()`.
+  failure could not be reported. The commit runs in the threadpool: a synchronous commit on the
+  event loop deadlocked overlapping requests on the same session (they all update
+  `sessions.last_seen_at`). Build every router with `api_router()`; handlers only `flush()`.
 - **An id in a request body that is missing or someone else's is a 422**, with one message for
   both (`series_id: no such item`, `document_ids: no such item` for merge). The URL names the
   resource, so a 404 there would misreport which thing was not found; the single message keeps
@@ -177,3 +184,18 @@ npm test                                      # vitest
   `application/octet-stream` with `nosniff`.
 - **The SPA drops every cached query except the session's on sign-in and sign-out**, so one
   user's data never shows to the next.
+- **The editor saves as you type.** Edits are kept per line and sent 800 ms after typing
+  stops (or on leaving a line); the status bar says Saved only for text the server accepted.
+  A flush waits for any save already in flight, then sends what is still dirty. On page hide
+  the rest goes out with `fetch` keepalive and is stashed in sessionStorage, so a closed tab
+  or expired session cannot lose it — it is re-sent when the chapter reopens. A NUL character
+  in a translation or source is refused with a 422.
+- **Every editor key is rebindable** (Shortcuts screen). A key another action uses, or one the
+  browser reserves (Ctrl+N/T/W), is refused. Bare printable keys cannot be bound, since they
+  would make the text untypable, and IME composition keys are ignored.
+- **Edit Source keeps one line per line** and does not re-split sentences; a `$` line continues
+  the previous paragraph. Only newlines split lines (CRLF is normalised to LF). A save that
+  changes the number of lines asks for confirmation, because translations stay attached by
+  line position.
+- **Japanese highlighting is by character class** (kanji/kana/punctuation); part-of-speech
+  colouring arrives with MeCab in phase 5.
