@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router";
+import { createBrowserRouter, createRoutesFromElements, Route } from "react-router";
 import AcceptInvite from "./auth/AcceptInvite";
 import Login from "./auth/Login";
 import { RequireAuth } from "./auth/session";
@@ -9,9 +9,9 @@ import SeriesPage from "./library/SeriesPage";
 import ShortcutsPage from "./settings/ShortcutsPage";
 import Shell from "./Shell";
 
-export default function App() {
-  return (
-    <Routes>
+export const router = createBrowserRouter(
+  createRoutesFromElements(
+    <>
       <Route path="/login" element={<Login />} />
       <Route path="/invite" element={<AcceptInvite />} />
       <Route element={<RequireAuth><Shell /></RequireAuth>}>
@@ -22,6 +22,6 @@ export default function App() {
         <Route path="documents/:id/source" element={<SourcePage mode="edit" />} />
         <Route path="documents/:id/split" element={<SourcePage mode="split" />} />
       </Route>
-    </Routes>
-  );
-}
+    </>,
+  ),
+);

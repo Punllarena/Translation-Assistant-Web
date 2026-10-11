@@ -1,0 +1,24 @@
+import { expect, test } from "@playwright/test";
+
+test("leaving Edit Source with unsaved text asks first", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("e2e@example.com");
+  await page.getByLabel("Password").fill("e2e-password-123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"));
+  await page.goto("/");
+  await page.getByRole("link", { name: "Open E2E chapter" }).click();
+  await page.getByRole("link", { name: "Edit source" }).click();
+  await page.locator(".source-editor .cm-content").click();
+  await page.keyboard.type("x");
+  // The confirm runs in an effect after the click returns, so wait for each dialog explicitly.
+  const library = page.getByRole("banner").getByRole("link", { name: "Library" });
+  const dismissed = page.waitForEvent("dialog").then((d) => d.dismiss());
+  await library.click();
+  await dismissed;
+  await expect(page).toHaveURL(/\/source$/);
+  const accepted = page.waitForEvent("dialog").then((d) => d.accept());
+  await library.click();
+  await accepted;
+  await expect(page).toHaveURL(/\/$/);
+});

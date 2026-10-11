@@ -1,7 +1,7 @@
 import { EditorView } from "@codemirror/view";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useBlocker, useNavigate, useParams } from "react-router";
 import { api, ApiError, call, type Schemas } from "../api/client";
 import { invalidateLibrary } from "../library/queries";
 import CodeEditor, { setMarks } from "./CodeEditor";
@@ -74,6 +74,17 @@ function SourceBody({ id, mode, data }: { id: number; mode: "edit" | "split"; da
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    dirty && !sent.current && currentLocation.pathname !== nextLocation.pathname
+    // a sign-out redirect must not be held up
+    && !nextLocation.pathname.startsWith("/login"));
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    if (window.confirm("Discard your unsaved changes?")) blocker.proceed();
+    else blocker.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-ask when the state changes
+  }, [blocker.state]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (bindingOf(e) !== bindings.find) return;
@@ -96,16 +107,13 @@ function SourceBody({ id, mode, data }: { id: number; mode: "edit" | "split"; da
         : [setMarks.of([])],
     });
   };
-  const leave = (e: React.MouseEvent) => {
-    if (dirty && !window.confirm("Discard your unsaved changes?")) e.preventDefault();
-  };
 
   const error = problem
     ?? (save.isError && !(save.error instanceof ApiError && save.error.status === 409 && !save.variables) ? save.error.message : null)
     ?? split.error?.message;
   return (
     <main>
-      <p><Link to={`/documents/${id}`} onClick={leave}>← Back to the editor</Link></p>
+      <p><Link to={`/documents/${id}`}>← Back to the editor</Link></p>
       <h1>{mode === "edit" ? "Edit source" : "Split chapter"} — {data.document.title}</h1>
       <p className="muted">
         {mode === "edit"
@@ -145,7 +153,7 @@ function SourceBody({ id, mode, data }: { id: number; mode: "edit" | "split"; da
             }}>Split</button>
           </>
         )}
-        <Link to={`/documents/${id}`} onClick={leave}>Cancel</Link>
+        <Link to={`/documents/${id}`}>Cancel</Link>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
     </main>
