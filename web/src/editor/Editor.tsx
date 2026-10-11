@@ -1,10 +1,12 @@
 import type { EditorView } from "@codemirror/view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router";
 import { api, call, type Schemas } from "../api/client";
 import CardList from "./CardList";
-import CodeEditor, { insertAtCursor } from "./CodeEditor";
+import CodeEditor, { insertAtCursor, setMarks } from "./CodeEditor";
+import FindBar from "./FindBar";
+import { firstFrom, findHits, wrapStep } from "./find";
 import { PUNCTUATIONS } from "./keymap";
 import { advanceParse, retreatParse } from "./parse";
 import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, prevContent, progress } from "./rows";
@@ -36,6 +38,24 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
     queryClient.setQueryData(["settings"], { ...settings.data, editor_font_px: size });
     void call(api.PUT("/settings", { body: { editor_font_px: size } })).catch(() => {});
   };
+  const [find, setFind] = useState<{ open: number; needle: string; at: number }>({ open: 0, needle: "", at: -1 });
+  const hits = useMemo(
+    () => findHits(rows.flatMap((r) => r.kind === "line"
+      ? [{ index: r.index, source: r.line.display_text, translation: ed.texts[r.line.line_number] ?? "" }]
+      : []), find.needle),
+    [rows, ed.texts, find.needle],
+  );
+  const hit = find.open && find.at >= 0 ? (hits[find.at] ?? null) : null;
+  const step = (dir: 1 | -1) => {
+    const at = find.at < 0 && dir === 1 ? firstFrom(hits, ed.active) : wrapStep(find.at, hits.length, dir);
+    setFind((f) => ({ ...f, at }));
+    if (hits[at]) ed.activate(hits[at].index);
+  };
+  useEffect(() => {
+    const marks = hit && hit.index === ed.active && hit.field === "translation"
+      ? [{ from: hit.from, to: hit.to, cls: "find-current" }] : [];
+    view.current?.dispatch({ effects: setMarks.of(marks) });
+  }, [hit, ed.active]);
   const run = (action: string) => {
     const at = ed.active;
     if (!lines[at]) return;
@@ -77,6 +97,9 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
       case "font_smaller":
         setFont(fontPx - 1);
         break;
+      case "find":
+        setFind((f) => ({ ...f, open: f.open + 1 }));
+        break;
       default:
         if (action.startsWith("punct_")) insertAtCursor(view.current, PUNCTUATIONS[Number(action.slice(6))], 1);
     }
@@ -99,9 +122,14 @@ export default function Editor({ id, data }: { id: number; data: Data; onProfile
         percent={stats.percent} words={stats.words}
         phrase={ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null}
         save={ed.save} onRetry={() => void ed.store.flush()} />
+      {find.open > 0 && (
+        <FindBar key={find.open} needle={find.needle} position={find.at} total={hits.length}
+          onNeedle={(needle) => setFind((f) => ({ ...f, needle, at: -1 }))} onStep={step}
+          onClose={() => { setFind((f) => ({ ...f, open: 0, at: -1 })); view.current?.focus(); }} />
+      )}
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
-          onActivate={ed.activate} editor={editor} />
+          onActivate={ed.activate} editor={editor} highlight={hit} />
       </div>
     </div>
   );

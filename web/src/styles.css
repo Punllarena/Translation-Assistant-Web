@@ -34,3 +34,7 @@ form.stack { display: grid; gap: 0.5rem; max-width: 24rem; }
 .sentence-current { background: color-mix(in srgb, #2563eb 25%, transparent); border-radius: 2px; }
 .find-current { background: color-mix(in srgb, #f97316 50%, transparent); }
 .misspelled { text-decoration: underline wavy #dc2626; text-decoration-skip-ink: none; }
+
+.findbar { position: sticky; top: 2.4rem; z-index: 2; display: flex; gap: 0.4rem; align-items: center;
+  max-width: 60rem; margin: 0 auto; padding: 0.3rem 1rem; background: Canvas; }
+.findbar input.notfound { background: color-mix(in srgb, #dc2626 20%, Canvas); }

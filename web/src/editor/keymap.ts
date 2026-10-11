@@ -76,6 +76,12 @@ export function bindingProblem(
   binding: string,
 ): string | null {
   if (RESERVED.has(binding)) return `${binding} is reserved by the browser`;
+  const parts = binding.split("+");
+  const key = parts[parts.length - 1] === "" ? "+" : parts[parts.length - 1];
+  const mods = parts.slice(0, -1);
+  if ((key.length === 1 || key === "Space") && !mods.includes("Ctrl") && !mods.includes("Alt")) {
+    return `${key} needs Ctrl or Alt, or it could not be typed`;
+  }
   const owner = actionOf(bindings, binding);
   if (owner && owner !== action) {
     return `${binding} is already used by "${ACTIONS.find((a) => a.key === owner)?.label ?? owner}"`;

@@ -40,4 +40,13 @@ describe("keymap", () => {
   it("refuses browser-reserved bindings", () => {
     expect(bindingProblem(effective({}), "next", "Ctrl+W")).toMatch(/reserved/);
   });
+  it("refuses bare printable keys but allows named keys and modified ones", () => {
+    const b = effective({});
+    for (const x of ["A", "Shift+A", "Space", "1", "Shift+Space"]) {
+      expect(bindingProblem(b, "next", x)).toMatch(/needs Ctrl or Alt/);
+    }
+    for (const x of ["Enter", "PageDown", "F1", "ArrowUp", "Escape", "Tab", "Ctrl+A", "Alt+Space", "Shift+Enter"]) {
+      expect(bindingProblem(b, "add_word", x)?.match(/needs Ctrl/)).toBeFalsy();
+    }
+  });
 });
