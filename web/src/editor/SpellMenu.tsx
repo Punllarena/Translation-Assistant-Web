@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Misspelling } from "./LineCard";
 
 interface Props {
@@ -13,6 +13,11 @@ interface Props {
 /** The right-click menu on a misspelled word: suggestions, then "Add to dictionary". */
 export default function SpellMenu({ x, y, word, onPick, onAdd, onClose }: Props) {
   const menu = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: x, top: y });
+  useLayoutEffect(() => {
+    const r = menu.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.max(0, Math.min(x, window.innerWidth - r.width)), top: Math.max(0, Math.min(y, window.innerHeight - r.height)) });
+  }, [x, y]);
   useEffect(() => {
     menu.current?.querySelector("button")?.focus();
     const away = (e: MouseEvent) => { if (!menu.current?.contains(e.target as Node)) onClose(); };
@@ -20,7 +25,7 @@ export default function SpellMenu({ x, y, word, onPick, onAdd, onClose }: Props)
     return () => window.removeEventListener("mousedown", away);
   }, [onClose]);
   return (
-    <div ref={menu} className="spell-menu" role="menu" style={{ left: x, top: y }}
+    <div ref={menu} className="spell-menu" role="menu" style={pos}
       onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
       {word.suggestions.length ? (
         word.suggestions.map((s) => (

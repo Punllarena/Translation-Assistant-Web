@@ -50,15 +50,19 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   );
   const at = find.at < hits.length ? find.at : -1;
   const hit = find.open && at >= 0 ? hits[at] : null;
+  const edRef = useRef(ed);
+  edRef.current = ed;
+  const stepped = useRef(false); // the next editor mount comes from a find step: leave focus in the bar
+  const activate = useCallback((i: number | null) => { stepped.current = false; edRef.current.activate(i); }, []);
   const step = (dir: 1 | -1) => {
     const next = at < 0 && dir === 1 ? firstFrom(hits, ed.active) : wrapStep(at, hits.length, dir);
     setFind((f) => ({ ...f, at: next }));
     if (hits[next]) {
+      if (hits[next].index === ed.active) return;
       stepped.current = true;
       ed.activate(hits[next].index);
     }
   };
-  const stepped = useRef(false); // the last activation came from stepping through find hits
   useEffect(() => { stepped.current = false; }, [ed.active]);
   const profileId = data.profile?.id ?? null;
   const spell = useSpell(profileId, lines.map((l) => ed.texts[l.line_number] ?? ""));
@@ -67,7 +71,9 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   const [notice, setNotice] = useState<string | null>(null);
   const addWord = async (word: string) => {
     if (!profileId) return setNotice("No profile to add words to");
+    word = word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
     if (!word || /\s/.test(word)) return setNotice("Select a single word first");
+    if (word.includes("/")) return setNotice("Words with / can't be added");
     try {
       await call(api.PUT("/profiles/{profile_id}/words/{word}", { params: { path: { profile_id: profileId, word } } }));
       spell.forget();
@@ -101,22 +107,22 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
     switch (action) {
       case "save_next":
         void ed.store.flush();
-        ed.activate(nextContent(lines, at));
+        activate(nextContent(lines, at));
         break;
       case "next":
       case "next_alt":
-        ed.activate(nextContent(lines, at));
+        activate(nextContent(lines, at));
         break;
       case "prev":
       case "prev_alt":
-        ed.activate(prevContent(lines, at));
+        activate(prevContent(lines, at));
         break;
       case "first":
-        ed.activate(firstContent(lines));
+        activate(firstContent(lines));
         break;
       case "next_untranslated":
         // desktop: only from a line that already has a translation
-        if (ed.texts[lines[at].line_number]) ed.activate(firstUntranslated(lines, ed.texts));
+        if (ed.texts[lines[at].line_number]) activate(firstUntranslated(lines, ed.texts));
         break;
       case "parse_next":
         ed.setParse((p) => advanceParse(p, lines[at].sentences.length));
@@ -127,7 +133,7 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
       case "go_to_line": {
         const answer = window.prompt(`Go to line (1\u2013${lines.length})`);
         const k = Number(answer);
-        if (answer && Number.isInteger(k)) ed.activate(lineAtOrAfter(lines, k));
+        if (answer && Number.isInteger(k)) activate(lineAtOrAfter(lines, k));
         break;
       }
       case "font_larger":
@@ -179,15 +185,20 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
       {find.open > 0 && (
         <FindBar key={find.open} needle={find.needle} position={at} total={hits.length}
           onNeedle={(needle) => setFind((f) => ({ ...f, needle, at: -1 }))} onStep={step}
-          onClose={() => { setFind((f) => ({ ...f, open: 0, at: -1 })); view.current?.focus(); }} />
+          onClose={() => { stepped.current = false; setFind((f) => ({ ...f, open: 0, at: -1 })); view.current?.focus(); }} />
       )}
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
-          onActivate={(i) => { stepped.current = false; ed.activate(i); }} editor={editor} highlight={hit}
+          onActivate={activate} editor={editor} highlight={hit}
           misspelled={spell.misspelled} />
       </div>
       {menu && <SpellMenu {...menu} onClose={closeMenu} onAdd={() => { void addWord(menu.word.word); closeMenu(); }}
-        onPick={(s) => { view.current?.dispatch({ changes: { from: menu.word.start, to: menu.word.end, insert: s } }); closeMenu(); }} />}
+        onPick={(s) => {
+          const v = view.current;
+          const { start, end, word } = menu.word;
+          if (v && end <= v.state.doc.length && v.state.sliceDoc(start, end) === word) v.dispatch({ changes: { from: start, to: end, insert: s } });
+          closeMenu();
+        }} />}
     </div>
   );
 }
