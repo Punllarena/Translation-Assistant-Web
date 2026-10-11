@@ -6,6 +6,7 @@ from api.routers import (
     credentials,
     documents,
     invites,
+    lines,
     profiles,
     series,
     settings,
@@ -31,6 +32,7 @@ def create_app() -> FastAPI:
     app.include_router(transfer.router)  # before documents: literal POST path
     app.include_router(documents.router)
     app.include_router(volumes.router)
+    app.include_router(lines.router)
     app.include_router(settings.router)
     app.include_router(credentials.router)
 
