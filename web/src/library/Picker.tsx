@@ -1,0 +1,91 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link } from "react-router";
+import { api, call } from "../api/client";
+import DocumentRow from "./DocumentRow";
+import { groupDocuments } from "./group";
+import NewDocument from "./NewDocument";
+import { invalidateLibrary, useDocuments, useSeriesList } from "./queries";
+
+export default function Picker() {
+  const queryClient = useQueryClient();
+  const docs = useDocuments();
+  const series = useSeriesList();
+  const [filter, setFilter] = useState("");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [creating, setCreating] = useState(false);
+  const done = () => {
+    setSelected(new Set());
+    return invalidateLibrary(queryClient);
+  };
+  const remove = useMutation({
+    mutationFn: (ids: number[]) =>
+      Promise.all(ids.map((id) =>
+        call(api.DELETE("/documents/{document_id}", { params: { path: { document_id: id } } })))),
+    onSettled: done,
+  });
+  const merge = useMutation({
+    mutationFn: (title: string) =>
+      call(api.POST("/documents/merge", { body: { document_ids: [...selected], title } })),
+    onSuccess: done,
+  });
+  const newSeries = useMutation({
+    mutationFn: (title: string) => call(api.POST("/series", { body: { title, syosetu_url: "" } })),
+    onSuccess: done,
+  });
+  if (docs.isPending || series.isPending) return <main><p className="muted">Loading…</p></main>;
+  if (docs.isError || series.isError) {
+    return <main><p className="error">{(docs.error ?? series.error)?.message}</p></main>;
+  }
+  const groups = groupDocuments(docs.data, series.data, filter);
+  const toggle = (id: number, on: boolean) => {
+    const next = new Set(selected);
+    if (on) next.add(id);
+    else next.delete(id);
+    setSelected(next);
+  };
+  const error = remove.error ?? merge.error ?? newSeries.error;
+  return (
+    <main>
+      <div className="toolbar">
+        <input type="search" placeholder="Filter" aria-label="Filter" value={filter}
+          onChange={(e) => setFilter(e.target.value)} />
+        <button onClick={() => setCreating(true)}>New document</button>
+        <button onClick={() => {
+          const title = window.prompt("Series title");
+          if (title?.trim()) newSeries.mutate(title);
+        }}>New series</button>
+        <button disabled={selected.size < 2} onClick={() => {
+          const title = window.prompt("Title of the merged chapter");
+          if (title?.trim()) merge.mutate(title);
+        }}>Merge {selected.size || ""}</button>
+        <button disabled={!selected.size} onClick={() => {
+          if (window.confirm(`Delete ${selected.size} document(s)? This cannot be undone.`)) {
+            remove.mutate([...selected]);
+          }
+        }}>Delete {selected.size || ""}</button>
+      </div>
+      {error && <p className="error" role="alert">{error.message}</p>}
+      {creating && <NewDocument series={series.data} onDone={() => setCreating(false)} />}
+      {groups.map((g) => (
+        <section key={g.series?.id ?? "unsorted"}>
+          <h2>
+            {g.series ? <Link to={`/series/${g.series.id}`}>{g.series.title}</Link> : "Unsorted"}
+          </h2>
+          {g.docs.length ? (
+            <table>
+              <tbody>
+                {g.docs.map((d) => (
+                  <DocumentRow key={d.id} doc={d} series={series.data}
+                    selected={selected.has(d.id)} onSelect={(on) => toggle(d.id, on)} />
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="muted">No chapters yet.</p>
+          )}
+        </section>
+      ))}
+    </main>
+  );
+}
