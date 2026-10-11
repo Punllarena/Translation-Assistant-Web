@@ -96,6 +96,15 @@ def test_save_bumps_document_updated_at(app_client, db, doc):
     assert db.get(Document, doc.id).updated_at.year > 2000
 
 
+def test_only_unknown_lines_leave_updated_at_alone(app_client, db, doc):
+    doc.updated_at = datetime(2000, 1, 1, tzinfo=UTC)
+    db.flush()
+    r = _save(app_client, doc, (99, "gone"))
+    assert (r.status_code, r.json()) == (200, {"missing": [99]})
+    db.expire_all()
+    assert db.get(Document, doc.id).updated_at.year == 2000
+
+
 def test_unknown_line_numbers_are_reported_and_the_rest_saved(app_client, db, doc):
     r = _save(app_client, doc, (0, "kept"), (99, "gone"))
     assert (r.status_code, r.json()) == (200, {"missing": [99]})
@@ -113,6 +122,19 @@ def test_profile_used_setting_applies_to_loose_chapters(app_client, db, me, doc)
 def test_profile_used_ignores_a_stale_or_foreign_id(app_client, db, me, doc):
     _profile(db, me, "default", is_default=True)
     app_client.put("/settings", json={"profile_used": 999999})
+    assert app_client.get(f"/documents/{doc.id}/lines").json()["profile"]["name"] == "default"
+
+
+def test_profile_used_ignores_another_users_profile(app_client, db, me, make_user, doc):
+    _profile(db, me, "default", is_default=True)
+    theirs = _profile(db, make_user(email="other@example.com"), "theirs")
+    app_client.put("/settings", json={"profile_used": theirs.id})
+    assert app_client.get(f"/documents/{doc.id}/lines").json()["profile"]["name"] == "default"
+
+
+def test_profile_used_ignores_a_boolean(app_client, db, me, doc):
+    _profile(db, me, "default", is_default=True)
+    app_client.put("/settings", json={"profile_used": True})
     assert app_client.get(f"/documents/{doc.id}/lines").json()["profile"]["name"] == "default"
 
 

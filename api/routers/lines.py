@@ -33,7 +33,7 @@ def editor_profile(
             UserSetting.user_id == user_id, UserSetting.key == "profile_used"
         )
     )
-    if isinstance(used, int):
+    if isinstance(used, int) and not isinstance(used, bool):
         profile = db.get(Profile, used)
         if profile is not None and profile.user_id == user_id:
             return profile
@@ -125,7 +125,8 @@ def save_lines(
     # Rows differ in which columns they set, so group them: one executemany per shape.
     for keys in {tuple(sorted(r)) for r in rows}:
         db.execute(update(Line), [r for r in rows if tuple(sorted(r)) == keys])
-    doc.updated_at = func.now()
+    if rows:
+        doc.updated_at = func.now()
     db.flush()
     return SaveResult(missing=missing)
 
