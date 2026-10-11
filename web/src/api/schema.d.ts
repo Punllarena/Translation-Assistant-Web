@@ -270,6 +270,28 @@ export interface paths {
         patch: operations["save_lines_documents__document_id__lines_patch"];
         trace?: never;
     };
+    "/documents/{document_id}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace Source
+         * @description Edit Source (the desktop replace_raw_content). One text line is one line, a leading
+         *     $ marks a continuation; lines are not re-split. Translations and translated_at stay
+         *     attached by position, so a change in line count is refused unless forced.
+         */
+        put: operations["replace_source_documents__document_id__source_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}/split": {
         parameters: {
             query?: never;
@@ -1107,6 +1129,16 @@ export interface components {
             /** Wp Unlock After */
             wp_unlock_after?: number | null;
         };
+        /** SourceUpdate */
+        SourceUpdate: {
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+            /** Text */
+            text: string;
+        };
         /** SpellRequest */
         SpellRequest: {
             /** Profile Id */
@@ -1872,6 +1904,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_source_documents__document_id__source_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SourceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentOut"];
+                };
             };
             /** @description Validation Error */
             422: {

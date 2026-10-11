@@ -4,11 +4,13 @@ from fastapi import Depends, HTTPException, Query, status
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from api.core.text import replace_and_parse, split_parse_chars
+from api.core.text import lines_to_db_rows, replace_and_parse, split_parse_chars
 from api.deps import current_user, db_session, owned_ref, scoped
+from api.library import check_line_count
 from api.models import Document, GlossaryEntry, Line, Profile, Series, User
 from api.routing import api_router
-from api.schemas.lines import DocumentLines, LineBatch, LineOut
+from api.schemas.documents import DocumentOut
+from api.schemas.lines import DocumentLines, LineBatch, LineOut, SourceUpdate
 from api.schemas.profiles import DEFAULT_PARSE_CHARS
 
 router = api_router(tags=["lines"])
@@ -117,3 +119,51 @@ def save_lines(
         db.execute(update(Line), [r for r in rows if tuple(sorted(r)) == keys])
     doc.updated_at = func.now()
     db.flush()
+
+
+@router.put("/documents/{document_id}/source", response_model=DocumentOut)
+def replace_source(
+    document_id: int,
+    body: SourceUpdate,
+    user: User = Depends(current_user),
+    db: Session = Depends(db_session),
+) -> Document:
+    """Edit Source (the desktop replace_raw_content). One text line is one line, a leading
+    $ marks a continuation; lines are not re-split. Translations and translated_at stay
+    attached by position, so a change in line count is refused unless forced."""
+    doc = scoped(db, Document, document_id, user.id)
+    if not body.text.strip():
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "source text is empty")
+    raw = body.text.splitlines()
+    check_line_count(raw)
+    rows = lines_to_db_rows(raw, [])
+    existing = {
+        line.line_number: line
+        for line in db.scalars(select(Line).where(Line.document_id == doc.id))
+    }
+    if len(rows) != len(existing) and not body.force:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"line count changes from {len(existing)} to {len(rows)}; translations stay "
+            "attached by line position",
+        )
+    for row in rows:
+        line = existing.pop(row["line_number"], None)
+        prefix = row["prefix"] or "%"
+        if line is None:
+            db.add(
+                Line(
+                    document_id=doc.id,
+                    line_number=row["line_number"],
+                    prefix=prefix,
+                    raw_text=row["raw_text"],
+                    translated_text="",
+                )
+            )
+        else:
+            line.prefix, line.raw_text = prefix, row["raw_text"]
+    for line in existing.values():
+        db.delete(line)
+    doc.updated_at = func.now()
+    db.flush()
+    return doc

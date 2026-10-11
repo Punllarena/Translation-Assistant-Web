@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 
-from api.schemas.documents import DocumentOut
+from api.schemas.documents import MAX_RAW_CHARS, DocumentOut
 from api.schemas.profiles import ProfileOut
 
 # A pasted translation for one paragraph; generous, but bounded.
@@ -38,3 +38,8 @@ class LineEdit(BaseModel):
 class LineBatch(BaseModel):
     # The client flushes its dirty set; a few thousand covers any real chapter.
     lines: list[LineEdit] = Field(min_length=1, max_length=5000)
+
+
+class SourceUpdate(BaseModel):
+    text: str = Field(max_length=MAX_RAW_CHARS)
+    force: bool = False  # confirm a change in the number of lines
