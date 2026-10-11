@@ -8,10 +8,10 @@ export default defineConfig({
     // Same shape as Caddy in production: /api/* reaches uvicorn without the prefix.
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8000",
+        target: process.env.TA_API_URL ?? "http://127.0.0.1:8000",
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },
   },
-  test: { environment: "node" },
+  test: { environment: "node", include: ["src/**/*.test.ts"] },
 });
