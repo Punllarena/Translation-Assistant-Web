@@ -34,7 +34,7 @@ export default function MtSettingsPage() {
     onSuccess: done("Saved"),
   });
   const resetPrompt = useMutation({
-    mutationFn: () => call(api.DELETE("/settings/{key}", { params: { path: { key: "ollama_system_prompt" } } } })),
+    mutationFn: () => call(api.DELETE("/settings/{key}", { params: { path: { key: "ollama_system_prompt" } } })),
     onSuccess: done("Prompt reset"),
   });
   const saveCred = useMutation({
