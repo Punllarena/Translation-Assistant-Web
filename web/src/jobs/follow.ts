@@ -7,7 +7,7 @@ const TERMINAL = new Set(["done", "failed", "cancelled"]);
 export const isTerminal = (job: Job): boolean => TERMINAL.has(job.state);
 
 /** Follow a job over SSE; closes itself on a terminal state or error. Returns a close function. */
-export function followJob(id: number, onJob: (job: Job) => void, Source = EventSource): () => void {
+export function followJob(id: number, onJob: (job: Job) => void, Source = EventSource, onError: () => void = () => {}): () => void {
   const source = new Source(`/api/jobs/${id}/events`);
   source.addEventListener("job", (e) => {
     let job: Job;
@@ -15,7 +15,15 @@ export function followJob(id: number, onJob: (job: Job) => void, Source = EventS
     onJob(job);
     if (isTerminal(job)) source.close();
   });
-  // EventSource would reconnect forever; the job can be re-read after a reload instead.
-  source.onerror = () => source.close();
-  return () => source.close();
+  // EventSource would reconnect forever: close, then read the job once. A terminal job is
+  // delivered as a normal update; anything else is reported through onError.
+  let closed = false;
+  source.onerror = () => {
+    source.close();
+    fetch(`/api/jobs/${id}`)
+      .then((r) => (r.ok ? (r.json() as Promise<Job>) : Promise.reject(new Error("status"))))
+      .then((job) => { if (closed) return; if (isTerminal(job)) onJob(job); else onError(); })
+      .catch(() => { if (!closed) onError(); });
+  };
+  return () => { closed = true; source.close(); };
 }

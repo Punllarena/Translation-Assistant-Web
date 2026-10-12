@@ -13,27 +13,36 @@ interface FetchResult {
 export default function JobProgress({ jobId, onDone }: { jobId: number; onDone?: (job: Job) => void }) {
   const [job, setJob] = useState<Job | null>(null);
   const [cancelError, setCancelError] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+  const [lost, setLost] = useState(false);
   const done = useRef(onDone);
   done.current = onDone;
   useEffect(() => {
     let finished = false;
     setJob(null);
+    setLost(false);
     return followJob(jobId, (j) => {
       setJob(j);
       if (isTerminal(j) && !finished) {
         finished = true;
         done.current?.(j);
       }
-    });
+    }, EventSource, () => setLost(true));
   }, [jobId]);
   const cancel = async () => {
     setCancelError("");
+    setCancelling(true);
     try {
       await call(api.POST("/jobs/{job_id}/cancel", { params: { path: { job_id: jobId } } }));
     } catch (e) {
       setCancelError((e as Error).message);
+    } finally {
+      setCancelling(false);
     }
   };
+  if (lost && !(job && isTerminal(job))) {
+    return <p className="error" role="alert">Connection lost — reload to resume.</p>;
+  }
   if (!job) return <p className="muted">Starting…</p>;
   if (!isTerminal(job)) {
     return (
@@ -42,7 +51,7 @@ export default function JobProgress({ jobId, onDone }: { jobId: number; onDone?:
           {job.message || "Working…"}{" "}
           <progress max={job.total || undefined} value={job.progress} />
         </label>
-        <div className="toolbar"><button type="button" onClick={cancel}>Cancel</button></div>
+        <div className="toolbar"><button type="button" disabled={cancelling} onClick={cancel}>Cancel</button></div>
         {cancelError && <p className="error" role="alert">{cancelError}</p>}
       </div>
     );

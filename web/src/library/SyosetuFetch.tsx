@@ -8,11 +8,11 @@ import { invalidateLibrary } from "./queries";
 export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
   const queryClient = useQueryClient();
   const [jobId, setJobId] = useState<number | null>(null);
+  const [finished, setFinished] = useState(false);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const active = useQuery({
     queryKey: ["jobs", "active", seriesId],
     queryFn: () => call(api.GET("/jobs", { params: { query: { active: true, series_id: seriesId } } })),
-    staleTime: Infinity,
   });
   const list = useMutation({
     mutationFn: () => call(api.GET("/series/{series_id}/syosetu/chapters", { params: { path: { series_id: seriesId } } })),
@@ -22,16 +22,25 @@ export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
     mutationFn: () => call(api.POST("/series/{series_id}/syosetu/fetch", {
       params: { path: { series_id: seriesId } }, body: { nums: [...picked].sort((a, b) => a - b) },
     })),
-    onSuccess: (job) => setJobId(job.id),
+    onSuccess: (job) => { setFinished(false); setJobId(job.id); },
   });
   const running = jobId ?? active.data?.find((j) => j.kind === "syosetu_fetch")?.id ?? null;
+  const fetchMore = () => {
+    setJobId(null);
+    setFinished(false);
+    list.reset();
+    queryClient.removeQueries({ queryKey: ["jobs", "active", seriesId] });
+  };
   const toggle = (num: number, on: boolean) =>
     setPicked((p) => { const n = new Set(p); if (on) n.add(num); else n.delete(num); return n; });
   return (
     <section className="stack">
       <h2>Fetch from Syosetu</h2>
       {running !== null ? (
-        <JobProgress jobId={running} onDone={() => { void invalidateLibrary(queryClient); }} />
+        <>
+          <JobProgress jobId={running} onDone={() => { setFinished(true); void invalidateLibrary(queryClient); }} />
+          {finished && <div className="toolbar"><button type="button" onClick={fetchMore}>Fetch more</button></div>}
+        </>
       ) : (
         <>
           <div className="toolbar">
