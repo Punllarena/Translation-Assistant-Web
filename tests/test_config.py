@@ -34,3 +34,13 @@ def test_settings_reject_env_example_placeholder(monkeypatch):
     monkeypatch.setenv("TA_SECRET_KEY", PLACEHOLDER_SECRET_KEY)
     with pytest.raises(ValidationError, match="placeholder"):
         Settings(_env_file=None)
+
+
+def test_mt_settings_defaults(monkeypatch):
+    monkeypatch.setenv("TA_SECRET_KEY", "x" * 32)
+    for name in ("TA_OLLAMA_URL", "TA_LIBRETRANSLATE_URL", "TA_EDICT_PATH", "TA_CONJUGATIONS_PATH"):
+        monkeypatch.delenv(name, raising=False)
+    s = Settings(_env_file=None)
+    assert (s.ollama_url, s.libretranslate_url, s.edict_path, s.conjugations_path) == (
+        "http://localhost:11434", "", "", ""
+    )

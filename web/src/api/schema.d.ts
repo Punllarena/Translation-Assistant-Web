@@ -877,7 +877,10 @@ export interface components {
              * @default
              */
             name: string;
-            /** Secret */
+            /**
+             * Secret
+             * @default
+             */
             secret: string;
         };
         /** CredentialOut */

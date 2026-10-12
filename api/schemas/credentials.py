@@ -11,13 +11,20 @@ CredentialKind = Literal["deepl", "libretranslate", "wordpress", "ollama"]
 Name = Annotated[str, StringConstraints(max_length=120)]
 EndpointUrl = Annotated[str, StringConstraints(max_length=2048)]
 SECRET_MAX_LENGTH = 4096
+SECRET_OPTIONAL = {"ollama", "libretranslate"}  # endpoint-only kinds: the key is optional
 
 
 class CredentialCreate(BaseModel):
     kind: CredentialKind
     name: Name = ""
-    secret: str = Field(min_length=1, max_length=SECRET_MAX_LENGTH)
+    secret: str = Field(default="", max_length=SECRET_MAX_LENGTH)
     endpoint_url: EndpointUrl = ""
+
+    @model_validator(mode="after")
+    def _secret_required(self) -> "CredentialCreate":
+        if not self.secret and self.kind not in SECRET_OPTIONAL:
+            raise ValueError(f"secret: required for {self.kind}")
+        return self
 
 
 class CredentialUpdate(BaseModel):

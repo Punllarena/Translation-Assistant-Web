@@ -198,3 +198,21 @@ def test_secret_over_4096_characters_is_422_on_post_and_patch(app_client, make_u
 def test_load_secret_returns_none_when_absent(app_client, db, make_user):
     user = make_user(email="k@example.com")
     assert load_secret(db, user.id, "deepl") is None
+
+
+@pytest.mark.parametrize("kind", ["ollama", "libretranslate"])
+def test_endpoint_kinds_allow_an_empty_secret(app_client, make_user, login, kind):
+    make_user(email="k@example.com")
+    login(app_client, "k@example.com")
+    r = app_client.post(
+        "/credentials", json={"kind": kind, "secret": "", "endpoint_url": "http://mt.local:5000"}
+    )
+    assert r.status_code == 201
+    assert (r.json()["has_secret"], r.json()["endpoint_url"]) == (False, "http://mt.local:5000")
+
+
+@pytest.mark.parametrize("kind", ["deepl", "wordpress"])
+def test_secret_kinds_still_require_a_secret(app_client, make_user, login, kind):
+    make_user(email="k@example.com")
+    login(app_client, "k@example.com")
+    assert app_client.post("/credentials", json={"kind": kind, "secret": ""}).status_code == 422
