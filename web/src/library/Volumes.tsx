@@ -49,7 +49,7 @@ function VolumeEditor({ volume, docs, onChanged }: { volume: Volume; docs: Doc[]
       a.href = url;
       a.download = `${volume.title}.epub`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 0); // after the click has started the download
     },
   });
   const submit = (e: FormEvent<HTMLFormElement>) => {
@@ -80,10 +80,11 @@ function VolumeEditor({ volume, docs, onChanged }: { volume: Volume; docs: Doc[]
         </div>
       </form>
       <div className="toolbar">
-        <a href={`/api/volumes/${volume.id}/export/epub`} download onClick={(e) => {
-          e.preventDefault();
-          download.mutate();
-        }}>EPUB</a>
+        <a href={`/api/volumes/${volume.id}/export/epub`} download aria-disabled={download.isPending}
+          onClick={(e) => {
+            e.preventDefault();
+            if (!download.isPending) download.mutate();
+          }}>{download.isPending ? "Building…" : "EPUB"}</a>
       </div>
       <div className="toolbar">
         <select multiple aria-label="Chapters to assign" value={assign.map(String)}

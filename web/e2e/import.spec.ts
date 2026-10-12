@@ -23,7 +23,7 @@ const txt = (name: string, raw: string) => ({
 test("batch import of TXT files into a new series", async ({ page }) => {
   await openImport(page);
   await page.getByLabel("Files to import").setInputFiles([
-    txt("Batch A.txt", "猫がいる。"), txt("Batch B.txt", "犬がいる。"),
+    txt("Batch A.txt", "鳥がいる。"), txt("Batch B.txt", "犬がいる。"),
   ]);
   await page.getByLabel("New series title").first().fill("Import Batch");
   await page.getByRole("button", { name: "Import", exact: true }).click();

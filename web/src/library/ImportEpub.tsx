@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import type { Schemas } from "../api/client";
 import type { SeriesRow } from "./group";
@@ -24,13 +24,15 @@ export default function ImportEpub({ series }: { series: SeriesRow[] }) {
   const [choice, setChoice] = useState<Choice>({ id: "", title: "" });
   const [volumeTitle, setVolumeTitle] = useState("");
   const [meta, setMeta] = useState<Meta>(NO_META);
+  const current = useRef<File | null>(null); // a slow inspect of an earlier pick must not win
   const inspect = useMutation({
     mutationFn: (f: File) => {
       const form = new FormData();
       form.append("file", f);
       return postForm<Schemas["BookOut"]>("/epub/inspect", form);
     },
-    onSuccess: (b) => {
+    onSuccess: (b, f) => {
+      if (f !== current.current) return;
       setBook(b);
       setChecked(new Set(b.chapters.filter((c) => c.char_count >= CHECK_THRESHOLD || c.image_count > 0).map((c) => c.href)));
       setChoice({ id: "", title: b.title });
@@ -51,10 +53,12 @@ export default function ImportEpub({ series }: { series: SeriesRow[] }) {
     onSuccess: () => invalidateLibrary(queryClient),
   });
   const pick = (f: File | null) => {
+    current.current = f;
     setFile(f);
     setBook(null);
     run.reset();
     if (f) inspect.mutate(f);
+    else inspect.reset();
   };
   const submit = (e: FormEvent) => {
     e.preventDefault();

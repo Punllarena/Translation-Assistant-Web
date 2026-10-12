@@ -29,7 +29,10 @@ export default function ImportFiles({ series }: { series: SeriesRow[] }) {
     <form className="stack" onSubmit={submit}>
       <label>
         Files <input type="file" multiple accept=".txt,.csv" aria-label="Files to import"
-          onChange={(e) => setFiles([...(e.target.files ?? [])])} />
+          onChange={(e) => {
+            setFiles([...(e.target.files ?? [])]);
+            run.reset();
+          }} />
       </label>
       <SeriesChoice series={series} value={choice} onChange={setChoice} />
       <div className="toolbar">
