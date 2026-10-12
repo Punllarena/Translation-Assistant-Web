@@ -67,6 +67,13 @@ def main() -> None:
             write_lines(db, ch.id, [
                 {"line_number": 0, "prefix": "%", "raw_text": raw, "translated_text": translated},
             ])
+        # mt spec: 猫 occurs only here (JParser's sample dictionary has it)
+        mt = Document(user_id=user.id, title="MT target")
+        db.add(mt)
+        db.flush()
+        write_lines(db, mt.id, [
+            {"line_number": 0, "prefix": "%", "raw_text": "猫です。", "translated_text": ""},
+        ])
         db.commit()
 
 

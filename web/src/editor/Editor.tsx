@@ -15,6 +15,7 @@ import { advanceParse, retreatParse } from "./parse";
 import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, prevContent, progress } from "./rows";
 import PhraseDialog from "./PhraseDialog";
 import StatusBar from "./StatusBar";
+import MtPanels from "./MtPanels";
 import TmPanel from "./TmPanel";
 import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
@@ -40,6 +41,7 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   });
   const rows = useMemo(() => buildRows(lines, images.data ?? []), [lines, images.data]);
   const tmVisible = settings.data?.tm_visible !== false;
+  const mtVisible = settings.data?.mt_visible !== false;
   const imagesCollapsed = Boolean(settings.data?.images_collapsed);
   const stats = useMemo(() => progress(lines, ed.texts), [lines, ed.texts]);
   const onReady = useCallback((v: EditorView | null) => { view.current = v; }, []);
@@ -170,6 +172,7 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
     <CodeEditor key={n} value={ed.texts[n] ?? ""} label="Translation"
       onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} autoFocus={!find.stepped.current} onContextMenu={onContextMenu} />
   );
+  const useText = (t: string) => { ed.setText(n, t); view.current?.focus(); };
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
       <StatusBar title={data.document.title} line={n + 1} total={lines.length}
@@ -189,6 +192,10 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
             queryClient.setQueryData(["settings"], { ...settings.data, tm_visible: !tmVisible });
             void call(api.PUT("/settings", { body: { tm_visible: !tmVisible } })).catch(() => {});
           }}>{tmVisible ? "Hide TM" : "Show TM"}</button>
+          <button onClick={() => {
+            queryClient.setQueryData(["settings"], { ...settings.data, mt_visible: !mtVisible });
+            void call(api.PUT("/settings", { body: { mt_visible: !mtVisible } })).catch(() => {});
+          }}>{mtVisible ? "Hide MT" : "Show MT"}</button>
           {images.data?.length ? (
             <button onClick={() => {
               queryClient.setQueryData(["settings"], { ...settings.data, images_collapsed: !imagesCollapsed });
@@ -208,7 +215,12 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
           misspelled={spell.misspelled}
           renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
       </div>
-      {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={(t) => { ed.setText(n, t); view.current?.focus(); }} />}
+      {(tmVisible || mtVisible) && (
+        <div className="side-col">
+          {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={useText} />}
+          {mtVisible && <MtPanels documentId={id} lineNumber={n} profileId={profileId} onUse={useText} />}
+        </div>
+      )}
       </div>
       {phrase !== null && <PhraseDialog initial={phrase} onClose={() => { setPhrase(null); view.current?.focus(); }} onSave={async (p, t) => {
         await call(api.POST("/profiles/{profile_id}/glossary", { params: { path: { profile_id: profileId! } }, body: { phrase: p, translation: t } }));

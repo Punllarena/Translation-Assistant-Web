@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineConfig } from "@playwright/test";
 
 export const E2E_DB = process.env.TA_E2E_DATABASE_URL ?? "postgresql+psycopg://ta:ta@localhost:5432/ta_e2e";
@@ -14,7 +15,8 @@ export default defineConfig({
     {
       command: "cd .. && python -m uvicorn api.main:app --port 8001",
       url: `${API}/healthz`,
-      env: { ...process.env, TA_DATABASE_URL: E2E_DB, TA_SECRET_KEY: SECRET, TA_COOKIE_SECURE: "false" } as Record<string, string>,
+      env: { ...process.env, TA_DATABASE_URL: E2E_DB, TA_SECRET_KEY: SECRET, TA_COOKIE_SECURE: "false",
+        TA_EDICT_PATH: path.resolve(import.meta.dirname, "../tests/fixtures/mt/edict2_sample") } as Record<string, string>,
     },
     {
       command: "npm run dev -- --port 5174 --strictPort",
