@@ -3,24 +3,34 @@ with their illustrations into a series volume. Synchronous (plan ruling 5); the 
 is uploaded twice, once per step (ruling 6)."""
 
 import io
+import mimetypes
 import zipfile
 import zlib
 
-from fastapi import Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import DataError
 from sqlalchemy.orm import Session
 
+from api.core.epub_build import build_epub
 from api.core.epub_read import (
     MAX_UNCOMPRESSED,
     EpubError,
     extract_chapter_content,
     open_book,
 )
-from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
-from api.deps import current_user, db_session, owned_ref
-from api.library import check_line_count, next_series_order, write_lines
+from api.core.text import (
+    build_epub_content,
+    build_new_file,
+    calculate_progress,
+    lines_to_db_rows,
+    parse_file_content,
+    sanitize_filename,
+)
+from api.deps import current_user, db_session, owned_ref, scoped_volume
+from api.library import check_line_count, line_arrays, next_series_order, write_lines
 from api.models import Document, DocumentImage, Series, User, Volume
+from api.routers.transfer import attachment
 from api.routing import api_router
 from api.schemas.epub import BookOut, ChapterError, EpubImportOut
 from api.uploads import read_capped
@@ -211,3 +221,48 @@ def import_epub(
         series_id=series.id, volume_id=volume.id, imported=imported, skipped=skipped,
         empty=empty, errors=errors,
     )
+
+
+@router.get("/volumes/{volume_id}/export/epub")
+def export_volume(
+    volume_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
+) -> Response:
+    # ponytail: synchronous build, the book in memory; make it a job with a result blob if volumes outgrow a request
+    volume = scoped_volume(db, volume_id, user.id)
+    docs = db.scalars(select(Document).where(Document.volume_id == volume.id)
+                      .order_by(Document.series_order, Document.id))
+    chapters, cover, incomplete = [], None, []
+    for doc in docs:
+        raw, translated = line_arrays(db, doc.id)
+        images = list(db.scalars(select(DocumentImage).where(DocumentImage.document_id == doc.id)
+                                 .order_by(DocumentImage.anchor_position, DocumentImage.id)))
+        inline = [im for im in images if not im.is_cover and not im.exclude_export]
+        if cover is None:
+            row = next((im for im in images if im.is_cover), None)
+            if row is not None:
+                media = mimetypes.guess_type(row.src_path)[0] or "application/octet-stream"
+                cover = {"data": row.data, "media_type": media}
+        if not raw and not inline:
+            continue  # nothing to show; it must not block the volume (desktop)
+        if raw and calculate_progress(raw, translated)[0] < 100:
+            incomplete.append(doc.chapter_title or doc.title)
+            continue
+        refs = [{"anchor_position": im.anchor_position, "src_path": im.src_path} for im in inline]
+        chapters.append((
+            doc.chapter_title or doc.title,
+            build_epub_content(raw, translated, refs),
+            [{"src_path": im.src_path, "data": im.data} for im in inline],
+        ))
+    if incomplete:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "not fully translated: " + ", ".join(incomplete))
+    if not chapters:
+        raise _unprocessable("the volume has no chapters with content")
+    data = build_epub(
+        volume.epub_title or volume.title or volume.series.title, chapters,
+        language=volume.epub_language or "en", cover=cover,
+        creator=volume.epub_author, illustrator=volume.epub_illustrator,
+        publisher=volume.epub_publisher, identifier=volume.epub_identifier,
+    )
+    name = f"{sanitize_filename(volume.title) or 'volume'}.epub"
+    return Response(data, media_type="application/epub+zip", headers=attachment(name))
