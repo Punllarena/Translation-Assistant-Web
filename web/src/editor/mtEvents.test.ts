@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { apply, initial } from "./mtEvents";
+import { apply, initial, type MtState } from "./mtEvents";
 
 describe("mt events", () => {
   it("accumulates chunks and thinking, then completes", () => {
-    let s = { ...initial, status: "running" as const };
+    let s: MtState = { ...initial, status: "running" };
     s = apply(s, "thinking", { text: "hm" });
     s = apply(s, "chunk", { text: "a\n\nb" });
     s = apply(s, "chunk", { text: "!" });
