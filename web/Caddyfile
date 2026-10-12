@@ -1,9 +1,15 @@
 {$TA_SITE_ADDRESS:localhost} {
 	encode zstd gzip
 
-	# Uploads are capped again in the API (10 MiB images, 5 MiB text) after the body
+	# Uploads are capped again in the API (10 MiB images, 5 MiB text, 64 MiB EPUB) after the body
 	# is received; this stops a larger body before it reaches uvicorn at all.
-	request_body {
+	# EPUB uploads may be up to 64 MiB (plan ruling 3); everything else stays at 12 MB.
+	@epub path /api/epub/*
+	request_body @epub {
+		max_size 64MB
+	}
+	@not_epub not path /api/epub/*
+	request_body @not_epub {
 		max_size 12MB
 	}
 
