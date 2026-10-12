@@ -120,9 +120,15 @@ export default function MtSettingsPage() {
         <span className="muted">{keyState("libretranslate")}</span>
       </form>
       <h2>Ollama</h2>
-      <form key={cred("ollama")?.endpoint_url} className="toolbar" onSubmit={(e) => saveCred.mutate({ kind: "ollama", endpoint_url: typed(form(e).get("u")) })}>
+      <form key={cred("ollama")?.endpoint_url} className="toolbar" onSubmit={(e) => {
+        const el = e.currentTarget; const f = form(e); const secret = typed(f.get("k"));
+        saveCred.mutate({ kind: "ollama", endpoint_url: typed(f.get("u")), ...(secret ? { secret } : {}) },
+          { onSuccess: () => { (el.elements.namedItem("k") as HTMLInputElement).value = ""; } });
+      }}>
         <input name="u" aria-label="Ollama URL" placeholder="server default" defaultValue={cred("ollama")?.endpoint_url ?? ""} />
+        <input type="password" name="k" aria-label="Ollama token" autoComplete="off" />
         <button type="submit">Save Ollama URL</button>
+        <span className="muted">{keyState("ollama").replace("key", "token").replace("Key", "Token")}</span>
       </form>
       <form key={`${s.ollama_model}|${s.ollama_system_prompt}`} onSubmit={(e) => {
         const f = form(e);

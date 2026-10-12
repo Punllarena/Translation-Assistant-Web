@@ -22,17 +22,18 @@ function useMtStream(backend: string, documentId: number, lineNumber: number, pr
       const source = new EventSource(`/api/mt/stream?${params}`);
       es = source;
       let heard = false;
+      let terminal = false;
       for (const type of EVENTS) {
         source.addEventListener(type, (e) => {
           heard = true;
           let data: unknown = {};
           try { data = JSON.parse((e as MessageEvent).data); } catch { /* keep {} */ }
           setState((s) => apply(s, type, data));
-          if (TERMINAL.has(type)) source.close();
+          if (TERMINAL.has(type)) { terminal = true; source.close(); }
         });
       }
       source.onerror = () => {
-        if (!heard) setState((s) => apply(s, "error", { message: "Connection failed" }));
+        if (!terminal) setState((s) => apply(s, "error", { message: heard ? "Connection lost" : "Connection failed" }));
         source.close();
       };
     }, 300);
