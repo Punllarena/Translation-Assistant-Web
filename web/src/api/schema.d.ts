@@ -369,6 +369,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mt/backends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Backends */
+        get: operations["backends_mt_backends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mt/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream */
+        get: operations["stream_mt_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/profiles": {
         parameters: {
             query?: never;
@@ -831,6 +865,31 @@ export interface components {
             password: string;
             /** Token */
             token: string;
+        };
+        /** BackendStatus */
+        BackendStatus: {
+            /** Available */
+            available: boolean;
+            /** Message */
+            message?: string | null;
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "deepl" | "libretranslate" | "ollama" | "mecab" | "jparser";
+        };
+        /** Backends */
+        Backends: {
+            /** Backends */
+            backends: components["schemas"]["BackendStatus"][];
+            /** Enabled */
+            enabled: string[];
+            /** Languages */
+            languages: {
+                [key: string]: string;
+            };
+            /** Target */
+            target: string;
         };
         /** Body_import_csv_profiles__profile_id__glossary_import_post */
         Body_import_csv_profiles__profile_id__glossary_import_post: {
@@ -2377,6 +2436,58 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["InviteCreated"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    backends_mt_backends_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Backends"];
+                };
+            };
+        };
+    };
+    stream_mt_stream_get: {
+        parameters: {
+            query: {
+                backend: "deepl" | "libretranslate" | "ollama" | "mecab" | "jparser";
+                document_id: number;
+                line_number: number;
+                profile_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -45,15 +45,11 @@ def editor_profile(
     )
 
 
-@router.get("/documents/{document_id}/lines", response_model=DocumentLines)
-def get_lines(
-    document_id: int,
-    profile_id: int | None = Query(None),
-    user: User = Depends(current_user),
-    db: Session = Depends(db_session),
-) -> DocumentLines:
-    doc = scoped(db, Document, document_id, user.id)
-    profile = editor_profile(db, user.id, doc, profile_id)
+def editor_context(
+    db: Session, user_id: int, doc: Document, profile_id: int | None
+) -> tuple[Profile | None, list[tuple[str, str]], list[str]]:
+    """The editor profile with its glossary (in apply order) and parse characters."""
+    profile = editor_profile(db, user_id, doc, profile_id)
     glossary: list[tuple[str, str]] = []
     if profile is not None:
         glossary = [
@@ -65,6 +61,27 @@ def get_lines(
             )
         ]
     parse_chars = split_parse_chars(profile.parse_chars if profile else DEFAULT_PARSE_CHARS)
+    return profile, glossary, parse_chars
+
+
+def display_line(
+    db: Session, user_id: int, doc: Document, line: Line, profile_id: int | None
+) -> str:
+    """One line as the editor displays it (glossary applied, % and $ stripped), trimmed:
+    the text machine translation is asked for (desktop source_sentence_changed)."""
+    _, glossary, parse_chars = editor_context(db, user_id, doc, profile_id)
+    return replace_and_parse(line.raw_text, glossary, parse_chars)[0].strip()
+
+
+@router.get("/documents/{document_id}/lines", response_model=DocumentLines)
+def get_lines(
+    document_id: int,
+    profile_id: int | None = Query(None),
+    user: User = Depends(current_user),
+    db: Session = Depends(db_session),
+) -> DocumentLines:
+    doc = scoped(db, Document, document_id, user.id)
+    profile, glossary, parse_chars = editor_context(db, user.id, doc, profile_id)
     lines = []
     for line in db.scalars(
         select(Line).where(Line.document_id == doc.id).order_by(Line.line_number)

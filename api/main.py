@@ -10,6 +10,7 @@ from api.routers import (
     invites,
     lines,
     memory,
+    mt,
     profiles,
     series,
     settings,
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(images.router)
     app.include_router(settings.router)
     app.include_router(credentials.router)
+    app.include_router(mt.router)
 
     return app
 
