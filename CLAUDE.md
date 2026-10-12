@@ -31,7 +31,13 @@ are cached in `mt_cache`, whose keys include the endpoint: `deepl`, `libretransl
 `ollama:<model prefix>:<sha12(json [url, model, prompt])>`, so one user's server never answers for another's.
 Per-user backend settings live under `/mt` and Settings → Machine translation. User-supplied LibreTranslate and
 Ollama URLs are refused when they resolve to a non-global address unless `TA_MT_ALLOW_PRIVATE_URLS=true`
-(guard in `api/mt/urls.py`). Phase 6 is next.
+(guard in `api/mt/urls.py`).
+
+Phase 6a: acquisition. Jobs (`api/jobs.py`; worker started in the lifespan; SSE at `/jobs/{id}/events`);
+syosetu fetch (`api/core/scrape.py`: chapter numbers only, redirects checked, only `*.syosetu.com`);
+batch TXT import (<=500 files, 12 MiB per request) and EPUB import (`api/core/epub_read.py`, 64 MiB upload,
+256 MiB per-import budget, 900 chapters) are synchronous; per-volume EPUB build (`epub_build.py`). Form titles
+with NUL are 422. Phase 6b (WordPress publish, scheduling, statistics) is next.
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
@@ -89,4 +95,6 @@ that database each run; conftest refuses any database name not ending in `_test`
   account-creation path.
 - MT backends take an injected `httpx.AsyncClient`; tests use `httpx.MockTransport` fixtures
   (`tests/fixtures/mt/`), never live endpoints. The `/mt/stream` cache write runs in its own session
-  (`_put_sync` in `api/routers/mt.py`), the one sanctioned commit outside the route boundary.
+  (`_put_sync` in `api/routers/mt.py`), one of two sanctioned commits outside the route boundary; the other is the
+  job worker (`JobContext.progress` and `run_next` in `api/jobs.py`).
+- Tests set `TA_RUN_JOBS_WORKER=false` and drive jobs with `jobs.run_next()`, swapping `api.jobs.SessionLocal` for the test session.

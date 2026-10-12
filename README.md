@@ -1,13 +1,13 @@
 # ta-web
 
-Web port of the Translation Assistant desktop app. This repo currently holds **phases 1–5**:
+Web port of the Translation Assistant desktop app. This repo currently holds **phases 1–5 and 6a**:
 the skeleton (FastAPI app, full Postgres schema via Alembic, session auth with invites,
 per-user profiles/settings/shortcuts/encrypted credentials, the `ta.db` importer), the
 library API (series, volumes, documents, picker listing with progress, reorder and renumber,
 merge and split, covers, TXT import, TXT/Markdown export), and the editor API (line load and
 dirty-line save, parse navigation, spellcheck, inline images). Phase 3a brings the SPA under
 `web/` (login, picker, series manager); phase 3b adds the editor screen; phases 4–5 add glossary, translation memory and machine
-translation. Phase 6 is described in the spec.
+translation; phase 6a adds acquisition (below). Phase 6b is described in the spec.
 
 - Spec: [`docs/superpowers/specs/2026-10-10-web-app-port-design.md`](docs/superpowers/specs/2026-10-10-web-app-port-design.md)
 - Phase 1 plan: [`docs/superpowers/plans/2026-10-10-phase1-skeleton.md`](docs/superpowers/plans/2026-10-10-phase1-skeleton.md)
@@ -109,7 +109,7 @@ docker compose up --build        # needs TA_SECRET_KEY in .env or the environmen
 Caddy serves the SPA and proxies `/api/*` to the API (prefix stripped) at
 `https://$TA_SITE_ADDRESS` (default `localhost`, with Caddy's internal CA). Set
 `TA_SITE_ADDRESS` to a public hostname and Caddy obtains a certificate for it. Caddy caps
-request bodies at 12 MB. The API container is not published; uvicorn trusts the
+request bodies at 12 MB (64 MiB on `/api/epub/*`). The API container is not published; uvicorn trusts the
 forwarded client address because Caddy is its only client.
 
 ## Web app (development)
@@ -129,6 +129,28 @@ ports 8001 (API) and 5174 (SPA).
 
 `pip install -e '.[mecab]'` installs fugashi and unidic-lite. Without it, phrase
 suggestions report that MeCab is unavailable. The Docker image already installs `.[mecab]`.
+
+## Acquisition
+
+- **Syosetu fetch.** Fetch a single chapter from a URL, or a whole series as a background job
+  with live progress. Requests to syosetu are spaced `TA_SYOSETU_DELAY_SECONDS` apart
+  (default 5), process-wide. Only `*.syosetu.com` hosts are fetched.
+- **Re-fetch** a chapter to refresh its source; translations stay attached by line position.
+- **Batch TXT import** with an optional glossary CSV: at most 500 files, 5 MiB per TXT and 12 MiB
+  per request in total (enforced by Caddy and by the API). A form title containing a NUL
+  character is a 422.
+- **EPUB import.** The upload is at most 64 MiB (Caddy allows that size on `/api/epub/*` only; the
+  API enforces it too). An archive may expand to at most 256 MiB, any single XML/XHTML entry is
+  at most 16 MiB, the chapter files and images of one import share a 256 MiB budget (413 beyond),
+  and one import takes at most 900 chapters (422 beyond).
+- **EPUB download** per volume. Every chapter in the volume must be fully translated.
+
+### Background jobs
+
+The in-process job worker runs inside the API process. `TA_RUN_JOBS_WORKER=false` disables it.
+A restart marks the running job failed; starting the same fetch again resumes it. Run a single
+API process: the startup sweep fails every running job. Progress streams over SSE at
+`/jobs/{id}/events`.
 
 ## Machine translation
 

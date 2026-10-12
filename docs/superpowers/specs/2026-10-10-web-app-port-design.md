@@ -385,6 +385,9 @@ No Celery, no Redis, no broker in v1. Syosetu fetching keeps the desktop's
 rate limiting — a fixed delay between chapter requests, enforced in the worker
 so concurrent jobs cannot defeat it.
 
+> Note (2026-10-12): in phase 6a the syosetu series fetch is the only job. Batch import, EPUB import
+> and EPUB build are synchronous (plan ruling 5). Batch publish arrives in 6b.
+
 ---
 
 ## 10. Publishing and statistics
@@ -404,6 +407,9 @@ period comparisons, served from `GET /stats` and computed by the ported
 `compute_streaks` and `compute_period_comparisons` over `lines.translated_at`.
 Per-series stats as today. The desktop's JSONL history log becomes
 `work_sessions` rows, written when the client reports session boundaries.
+
+> Note (2026-10-12): `work_sessions` is not written in phase 6a, because nothing reads it (user
+> decision during 6a planning). The table stays for a future reader.
 
 ---
 
@@ -508,6 +514,9 @@ the application usable.
    and series fetch, batch file import, EPUB import and build, WordPress
    publish with the re-publish safeguard, batch publish and scheduling,
    statistics with the heatmap and streaks.
+
+> Note (2026-10-12): phase 6 was split into 6a (acquisition: jobs, syosetu fetch, batch import, EPUB
+> import and build) and 6b (publishing and statistics).
 
 Phase 5 depends only on phase 1; it can run in parallel with 3 and 4 if that
 suits. Everything else is sequential.
