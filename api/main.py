@@ -23,6 +23,9 @@ from api.routers import (
     transfer,
     volumes,
 )
+from api.routers import (
+    jobs as jobs_routes,
+)
 from api.routing import CommitOnResponseRoute
 
 
@@ -65,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(settings.router)
     app.include_router(credentials.router)
     app.include_router(mt.router)
+    app.include_router(jobs_routes.router)
 
     return app
 
