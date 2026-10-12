@@ -870,3 +870,51 @@ def test_extract_chapter_content_refuses_unsafe_and_bad_zips():
 
 def test_cap_constant():
     assert MAX_UNCOMPRESSED == 256 * 1024 * 1024
+
+
+# ---------------------------------------------------------------------------
+# Hostile but valid zips surface as EpubError only
+# ---------------------------------------------------------------------------
+
+_HOSTILE_CONTAINER = (
+    b'<container><rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>'
+)
+
+
+def test_non_utf8_container_is_an_epub_error():
+    with pytest.raises(EpubError, match="UnicodeDecodeError"):
+        open_book(zipped({"META-INF/container.xml": b"\xff\xfe\x00bad"}))
+
+
+def test_nav_item_without_href_is_an_epub_error():
+    opf = (
+        b'<package><metadata><dc:title>T</dc:title></metadata><manifest>'
+        b'<item id="nav" properties="nav" media-type="application/xhtml+xml"/>'
+        b"</manifest><spine/></package>"
+    )
+    with pytest.raises(EpubError, match="KeyError"):
+        open_book(zipped({"META-INF/container.xml": _HOSTILE_CONTAINER, "OEBPS/content.opf": opf}))
+
+
+def test_cover_item_without_href_is_an_epub_error():
+    opf = (
+        b'<package><metadata><meta name="cover" content="c"/></metadata><manifest>'
+        b'<item id="c" media-type="image/png"/></manifest><spine/></package>'
+    )
+    with pytest.raises(EpubError):
+        open_book(zipped({"META-INF/container.xml": _HOSTILE_CONTAINER, "OEBPS/content.opf": opf}))
+
+
+def test_corrupt_deflate_stream_is_an_epub_error():
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("META-INF/container.xml", b"<container/>" * 50)
+    raw = bytearray(buf.getvalue())
+    raw[54:64] = b"\xff" * 10  # inside the compressed data (local header is 30 + 22 name bytes)
+    with pytest.raises(EpubError, match="Not a readable"):
+        open_book(io.BytesIO(bytes(raw)))
+
+
+def test_extract_chapter_non_utf8_is_an_epub_error():
+    with pytest.raises(EpubError, match="UnicodeDecodeError"):
+        extract_chapter_content(zipped({"c.xhtml": b"\xff\xfe\x00"}), "c.xhtml")

@@ -38,7 +38,7 @@ asyncio_mode = "auto"
 filterwarnings = [
     # Raised by Starlette's TestClient on import when httpx is installed; not our code.
     "ignore:Using `httpx` with `starlette.testclient` is deprecated:starlette.exceptions.StarletteDeprecationWarning",
-    # EPUB OPF/NCX files are XML parsed with html.parser on purpose (as the desktop does).
+    # EPUB OPF/NCX are XML parsed with html.parser on purpose (pytest resets module-level filters).
     "ignore::bs4.builder.XMLParsedAsHTMLWarning",
 ]
 

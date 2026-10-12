@@ -322,9 +322,6 @@ def replace_all(pattern: re.Pattern[str], text: str, replacement: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------
-
-
 def build_epub_content(
     raw_lines: list[str], translated_lines: list[str], images: list[dict],
 ) -> list[tuple[str, str]]:

@@ -2,15 +2,25 @@
 in epub_build.py. Zip/XML handling only via stdlib zipfile + the already-installed
 beautifulsoup4. Archive-safety checks (``_check_archive``) are ours (spec section 6)."""
 import posixpath
+import warnings
 import zipfile
+import zlib
+from contextlib import contextmanager
 from pathlib import Path
 from typing import IO
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
 from api.core.text import build_new_file, parse_file_content
 
+# OPF/NCX are XML parsed with html.parser on purpose (as the desktop does).
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+
 MAX_UNCOMPRESSED = 256 * 1024 * 1024  # ours (spec §6): cap what a book may expand to
+
+
+class EpubError(ValueError):
+    """Raised when an EPUB file can't be parsed."""
 
 
 def _check_archive(zf: zipfile.ZipFile) -> None:
@@ -27,8 +37,16 @@ def _check_archive(zf: zipfile.ZipFile) -> None:
             raise EpubError(f"EPUB expands to more than {MAX_UNCOMPRESSED // (1024 * 1024)} MB")
 
 
-class EpubError(ValueError):
-    """Raised when an EPUB file can't be parsed."""
+@contextmanager
+def _unreadable():
+    """Hostile but valid zips fail in many ways below EpubError (bad encoding, a corrupt
+    deflate stream, an encrypted entry, a manifest item without href); callers only ever
+    handle EpubError."""
+    try:
+        yield
+    except (KeyError, UnicodeDecodeError, zlib.error, RuntimeError, NotImplementedError,
+            EOFError, zipfile.BadZipFile) as exc:
+        raise EpubError(f"Not a readable EPUB: {type(exc).__name__}") from exc
 
 
 def _read(zf: zipfile.ZipFile, path: str) -> str:
@@ -174,7 +192,7 @@ def open_book(source: str | Path | IO[bytes]) -> dict:
     except zipfile.BadZipFile as exc:
         raise EpubError("Not a valid EPUB (bad zip)") from exc
 
-    with zf:
+    with _unreadable(), zf:
         _check_archive(zf)
         container = BeautifulSoup(_read(zf, "META-INF/container.xml"), "html.parser")
         rootfile = container.find("rootfile")
@@ -235,7 +253,7 @@ def extract_chapter_content(
     except zipfile.BadZipFile as exc:
         raise EpubError("Not a valid EPUB (bad zip)") from exc
 
-    with zf:
+    with _unreadable(), zf:
         _check_archive(zf)
         xhtml = _read(zf, href)
         soup = BeautifulSoup(xhtml, "html.parser")
