@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from api.core.text import db_rows_to_arrays
+from api.core.text import db_rows_to_arrays, lines_to_db_rows
 from api.models import Document, Line
 
 
@@ -78,3 +78,39 @@ def renumber(docs: list[Document]) -> None:
     """Give ``docs`` series_order 1..N in list order (the caller flushes)."""
     for order, doc in enumerate(docs, start=1):
         doc.series_order = order
+
+
+def replace_raw_lines(db: Session, doc: Document, raw: list[str], force: bool) -> None:
+    """Replace a document's source lines. Translations and translated_at stay attached
+    by position, so a change in line count is refused (409) unless forced."""
+    check_line_count(raw)
+    rows = lines_to_db_rows(raw, [])
+    existing = {
+        line.line_number: line
+        for line in db.scalars(select(Line).where(Line.document_id == doc.id))
+    }
+    if existing and len(rows) != len(existing) and not force:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"line count changes from {len(existing)} to {len(rows)}; translations stay "
+            "attached by line position",
+        )
+    for row in rows:
+        line = existing.pop(row["line_number"], None)
+        prefix = row["prefix"] or "%"
+        if line is None:
+            db.add(
+                Line(
+                    document_id=doc.id,
+                    line_number=row["line_number"],
+                    prefix=prefix,
+                    raw_text=row["raw_text"],
+                    translated_text="",
+                )
+            )
+        else:
+            line.prefix, line.raw_text = prefix, row["raw_text"]
+    for line in existing.values():
+        db.delete(line)
+    doc.updated_at = func.now()
+    db.flush()

@@ -17,6 +17,7 @@ from api.routers import (
     memory,
     mt,
     profiles,
+    scrape,
     series,
     settings,
     spell,
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(profiles.router)
     app.include_router(glossary.router)
     app.include_router(series.router)
+    app.include_router(scrape.router)  # literal paths under /documents/{id}
     app.include_router(transfer.router)  # before documents: literal POST path
     app.include_router(documents.router)
     app.include_router(volumes.router)

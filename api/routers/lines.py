@@ -4,9 +4,9 @@ from fastapi import Depends, HTTPException, Query, status
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from api.core.text import lines_to_db_rows, replace_and_parse, split_parse_chars
+from api.core.text import replace_and_parse, split_parse_chars
 from api.deps import current_user, db_session, owned_ref, scoped
-from api.library import check_line_count
+from api.library import replace_raw_lines
 from api.models import Document, GlossaryEntry, Line, Profile, Series, User, UserSetting
 from api.routing import api_router
 from api.schemas.documents import DocumentOut
@@ -164,35 +164,5 @@ def replace_source(
     # The client joins its lines with "\n", so split on that alone: str.splitlines would
     # also break on \v, \x1c-\x1e, \x85, U+2028 and U+2029, and drop a trailing blank line.
     raw = body.text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    check_line_count(raw)
-    rows = lines_to_db_rows(raw, [])
-    existing = {
-        line.line_number: line
-        for line in db.scalars(select(Line).where(Line.document_id == doc.id))
-    }
-    if existing and len(rows) != len(existing) and not body.force:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"line count changes from {len(existing)} to {len(rows)}; translations stay "
-            "attached by line position",
-        )
-    for row in rows:
-        line = existing.pop(row["line_number"], None)
-        prefix = row["prefix"] or "%"
-        if line is None:
-            db.add(
-                Line(
-                    document_id=doc.id,
-                    line_number=row["line_number"],
-                    prefix=prefix,
-                    raw_text=row["raw_text"],
-                    translated_text="",
-                )
-            )
-        else:
-            line.prefix, line.raw_text = prefix, row["raw_text"]
-    for line in existing.values():
-        db.delete(line)
-    doc.updated_at = func.now()
-    db.flush()
+    replace_raw_lines(db, doc, raw, body.force)
     return doc
