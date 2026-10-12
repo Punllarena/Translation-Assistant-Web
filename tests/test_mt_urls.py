@@ -24,7 +24,8 @@ def test_public_address_passes(resolves, address):
 
 
 @pytest.mark.parametrize("address", ["127.0.0.1", "10.0.0.5", "192.168.1.1", "169.254.169.254",
-                                     "0.0.0.0", "::1", "fe80::1", "::ffff:127.0.0.1", "224.0.0.1"])
+                                     "0.0.0.0", "100.64.0.1", "::1", "fe80::1", "::ffff:127.0.0.1",
+                                     "224.0.0.1"])
 def test_private_or_local_address_is_refused(resolves, address):
     resolves(address)
     msg = urls.check_user_url("http://lt.example.com", False, "LibreTranslate")

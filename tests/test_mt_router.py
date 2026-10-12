@@ -218,9 +218,33 @@ def test_private_user_urls_are_allowed_when_the_server_says_so(
 
 
 def test_ollama_cache_key_fits_the_column_and_keeps_the_hash():
-    key = prefs.ollama_cache_key("m" * 60, "prompt")
-    assert len(key) == prefs.CACHE_BACKEND_MAX
-    assert key.startswith("ollama:mmm") and key.endswith(":" + prefs.prompt_hash("prompt"))
+    key = prefs.ollama_cache_key("http://o", "m" * 60, "prompt")
+    assert len(key) == prefs.CACHE_BACKEND_MAX and key.startswith("ollama:mmm")
+
+
+def test_ollama_cache_key_separates_models_endpoints_and_prompts():
+    base = ("http://o", "qwen2.5:32b-instruct-q4_K_M", "p")
+    keys = {prefs.ollama_cache_key(*base),
+            prefs.ollama_cache_key("http://o", "qwen2.5:32b-instruct-q8_0", "p"),
+            prefs.ollama_cache_key("http://other", *base[1:]),
+            prefs.ollama_cache_key(*base[:2], "q")}
+    assert len(keys) == 4 and all(len(k) <= prefs.CACHE_BACKEND_MAX for k in keys)
+
+
+def test_users_on_different_libretranslate_servers_never_share_results(
+        app_client, me, make_user, login, make_doc, wire, db, monkeypatch):
+    install, calls = wire
+    install(lambda r: httpx.Response(200, json={"translatedText": f"from {r.url.host}"}))
+    monkeypatch.setattr(get_settings(), "mt_allow_private_urls", True)
+    results = []
+    for user, host in ((me, "one"), (make_user(email="two@example.com"), "two")):
+        login(app_client, user.email)
+        app_client.post("/credentials", json={"kind": "libretranslate",
+                                              "endpoint_url": f"http://{host}:5000"})
+        doc = make_doc(user, ["猫"], translated=False)
+        results.append(events(stream(app_client, doc, "libretranslate").text)[0])
+    assert results == [("result", {"text": "from one"}), ("result", {"text": "from two"})]
+    assert len(calls) == 2 and db.query(MtCache).count() == 2
 
 
 def test_foreign_profile_id_query_is_422(app_client, db, me, make_user, make_doc):

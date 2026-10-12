@@ -48,7 +48,7 @@ class Job:
     url: str = ""        # LibreTranslate / Ollama endpoint
     model: str = ""
     prompt: str = ""
-    cache_key: str = ""  # mt_cache.backend for a configured HTTP backend, else ""
+    cache_key: str = ""  # mt_cache.backend (per endpoint) for a configured HTTP backend
     cached: str | None = None
     setup: str | None = None  # a needs_setup message found while preparing
 
@@ -91,13 +91,13 @@ def _configure(db: Session, user_id: int, backend: str, p: Prefs) -> Job:
             settings.libretranslate_url if backend == "libretranslate" else settings.ollama_url
         )
     if backend == "libretranslate":
-        job.cache_key = "libretranslate" if job.url else ""
+        job.cache_key = prefs.libretranslate_cache_key(job.url) if job.url else ""
     else:
         job.model, job.prompt = p.ollama_model, p.ollama_prompt
         if not job.url:
             job.setup = job.setup or prefs.NO_OLLAMA_URL
         if job.model:
-            job.cache_key = prefs.ollama_cache_key(job.model, job.prompt)
+            job.cache_key = prefs.ollama_cache_key(job.url, job.model, job.prompt)
     return job
 
 

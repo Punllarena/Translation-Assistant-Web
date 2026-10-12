@@ -54,12 +54,19 @@ def unreadable_key(backend: str) -> str:
     return f"Your saved {LABELS[backend]} key cannot be read; enter it again {WHERE}"
 
 
-def prompt_hash(system_prompt: str) -> str:
-    return hashlib.sha256(system_prompt.encode("utf-8")).hexdigest()[:12]
+def _digest(*parts: str) -> str:
+    return hashlib.sha256("\0".join(parts).encode("utf-8")).hexdigest()[:12]
 
 
-def ollama_cache_key(model: str, system_prompt: str) -> str:
-    """ollama:<model>:<sha12>, the model truncated so the key fits mt_cache.backend."""
-    digest = prompt_hash(system_prompt)
+def libretranslate_cache_key(url: str) -> str:
+    """Per endpoint: mt_cache is shared by all users, so one user's server must never
+    answer for another's."""
+    return f"libretranslate:{_digest(url)}"
+
+
+def ollama_cache_key(url: str, model: str, system_prompt: str) -> str:
+    """ollama:<model prefix>:<hash of url, full model, prompt>; fits mt_cache.backend.
+    The model prefix is only for reading the table: the hash is what keys."""
+    digest = _digest(url, model, system_prompt)
     room = CACHE_BACKEND_MAX - len("ollama:") - len(":") - len(digest)
     return f"ollama:{model[:room]}:{digest}"

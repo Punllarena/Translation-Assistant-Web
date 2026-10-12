@@ -13,8 +13,9 @@ def _blocked(address: str) -> bool:
     ip = ipaddress.ip_address(address.split("%", 1)[0])  # drop an IPv6 scope id
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
         ip = ip.ipv4_mapped
-    return (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified
-            or ip.is_reserved or ip.is_multicast)
+    # not is_global also covers shared space such as 100.64.0.0/10 (CGNAT, Tailscale).
+    return (not ip.is_global or ip.is_private or ip.is_loopback or ip.is_link_local
+            or ip.is_unspecified or ip.is_reserved or ip.is_multicast)
 
 
 def check_user_url(url: str, allow_private: bool, label: str) -> str | None:
