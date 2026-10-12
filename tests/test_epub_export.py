@@ -39,7 +39,9 @@ def test_an_incomplete_chapter_is_a_409_naming_it(app_client, db, me, make_serie
     assert r.status_code == 409 and "Todo" in r.json()["detail"]
 
 
-def test_an_empty_volume_is_422_and_another_users_is_404(app_client, db, me, make_series, make_user):
+def test_an_empty_volume_is_422_and_another_users_is_404(
+    app_client, db, me, make_series, make_user
+):
     v = volume(db, make_series(me, "S"))
     assert app_client.get(f"/volumes/{v.id}/export/epub").status_code == 422
     theirs = volume(db, make_series(make_user(email="o@example.com"), "T"))

@@ -227,7 +227,7 @@ def import_epub(
 def export_volume(
     volume_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
 ) -> Response:
-    # ponytail: synchronous build, the book in memory; make it a job with a result blob if volumes outgrow a request
+    # ponytail: synchronous build, book in memory; make it a job if volumes outgrow a request
     volume = scoped_volume(db, volume_id, user.id)
     docs = db.scalars(select(Document).where(Document.volume_id == volume.id)
                       .order_by(Document.series_order, Document.id))
