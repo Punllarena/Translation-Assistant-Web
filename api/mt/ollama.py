@@ -50,15 +50,23 @@ async def stream(
             if r.status_code != 200:
                 await r.aread()
                 try:
-                    detail = r.json().get("error", "")
+                    body = r.json()
                 except ValueError:
-                    detail = ""
+                    body = None
+                detail = body.get("error", "") if isinstance(body, dict) else ""
                 raise BackendError(f"Ollama answered HTTP {r.status_code}"
                                    + (f": {detail}" if detail else ""))
             async for line in r.aiter_lines():
                 if not line.strip():
                     continue
-                obj = json.loads(line)
+                try:
+                    obj = json.loads(line)
+                except ValueError as exc:
+                    raise BackendError("Ollama sent an unreadable response") from exc
+                if not isinstance(obj, dict):
+                    raise BackendError("Ollama sent an unreadable response")
+                if obj.get("error"):
+                    raise BackendError(f"Ollama failed: {obj['error']}")
                 if obj.get("done"):
                     return
                 message = obj.get("message", {})
@@ -66,5 +74,7 @@ async def stream(
                     yield ("thinking", {"text": message["thinking"]})
                 if message.get("content"):
                     yield ("chunk", {"text": message["content"]})
+            # Ended without a done object: truncated, so the caller must not cache it.
+            raise BackendError("Ollama ended the stream early")
     except httpx.HTTPError as exc:
         raise BackendError(f"Ollama is unreachable ({type(exc).__name__})") from exc

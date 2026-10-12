@@ -75,3 +75,46 @@ async def test_available_pings_tags():
     async with httpx.AsyncClient(transport=httpx.MockTransport(
         lambda r: (_ for _ in ()).throw(httpx.ConnectError("no")))) as c:
         assert "unreachable" in await ollama.available(c, "http://ol", "")
+
+
+async def test_midstream_error_object_raises_instead_of_ending_cleanly():
+    body = (b'{"model":"m","message":{"role":"assistant","content":"part"},"done":false}\n'
+            b'{"error":"out of memory"}\n')
+
+    def handler(request):
+        return httpx.Response(200, content=body)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        with pytest.raises(BackendError, match="out of memory"):
+            await collect(ollama.stream(c, "http://ol", "", "m", "p", "x", "ja", "en"))
+
+
+async def test_stream_that_ends_without_done_is_truncated():
+    body = b"".join(STREAM.splitlines(keepends=True)[:-1])
+
+    def handler(request):
+        return httpx.Response(200, content=body)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        with pytest.raises(BackendError, match="ended the stream early"):
+            await collect(ollama.stream(c, "http://ol", "", "m", "p", "x", "ja", "en"))
+
+
+async def test_malformed_ndjson_line_raises_backend_error():
+    body = b'{"message":{"content":"a"},"done":false}\n{not json\n'
+
+    def handler(request):
+        return httpx.Response(200, content=body)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        with pytest.raises(BackendError, match="unreadable"):
+            await collect(ollama.stream(c, "http://ol", "", "m", "p", "x", "ja", "en"))
+
+
+async def test_non_object_error_body_does_not_crash_the_status_path():
+    def handler(request):
+        return httpx.Response(500, json=["not", "an", "object"])
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        with pytest.raises(BackendError, match="^Ollama answered HTTP 500$"):
+            await collect(ollama.stream(c, "http://ol", "", "m", "p", "x", "ja", "en"))
