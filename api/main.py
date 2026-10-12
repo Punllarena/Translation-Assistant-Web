@@ -1,5 +1,10 @@
-from fastapi import FastAPI
+import asyncio
+from contextlib import asynccontextmanager
 
+from fastapi import FastAPI
+from fastapi.concurrency import run_in_threadpool
+
+from api import jobs
 from api.config import get_settings
 from api.routers import (
     auth,
@@ -21,9 +26,24 @@ from api.routers import (
 from api.routing import CommitOnResponseRoute
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if not get_settings().run_jobs_worker:
+        yield
+        return
+    await run_in_threadpool(jobs.fail_interrupted)
+    jobs.stopping.clear()
+    stop = asyncio.Event()
+    task = asyncio.create_task(jobs.worker(stop))
+    yield
+    jobs.stopping.set()  # a running job stops at its next progress point
+    stop.set()
+    await task
+
+
 def create_app() -> FastAPI:
     get_settings()  # fail fast: refuses to start without TA_SECRET_KEY
-    app = FastAPI(title="ta-web", version="0.1.0")
+    app = FastAPI(title="ta-web", version="0.1.0", lifespan=lifespan)
     app.router.route_class = CommitOnResponseRoute  # for routes declared on the app itself
 
     @app.get("/healthz")

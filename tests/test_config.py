@@ -44,3 +44,11 @@ def test_mt_settings_defaults(monkeypatch):
     assert (s.ollama_url, s.libretranslate_url, s.edict_path, s.conjugations_path) == (
         "http://localhost:11434", "", "", ""
     )
+
+
+def test_jobs_settings_defaults(monkeypatch):
+    monkeypatch.setenv("TA_SECRET_KEY", "x" * 32)
+    for name in ("TA_RUN_JOBS_WORKER", "TA_SYOSETU_DELAY_SECONDS"):
+        monkeypatch.delenv(name, raising=False)
+    s = Settings(_env_file=None)
+    assert (s.run_jobs_worker, s.syosetu_delay_seconds) == (True, 5.0)

@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     # by construction (only /auth/accept-invite creates accounts); the spec asks for the
     # flag, and the path it will gate arrives with the signup form in a later phase.
     allow_public_signup: bool = False
+    run_jobs_worker: bool = True  # tests and one-off tools turn the in-process worker off
+    syosetu_delay_seconds: float = 5.0  # seconds between syosetu requests (desktop: 5)
     session_ttl_days: int = 30
     cookie_secure: bool = True
     login_max_attempts: int = 10

@@ -13,6 +13,8 @@ os.environ.setdefault("TA_SECRET_KEY", "test-secret-key-at-least-32-chars-long")
 os.environ.setdefault(
     "TA_DATABASE_URL", "postgresql+psycopg://ta:ta@localhost:5432/ta_test"
 )
+os.environ.setdefault("TA_RUN_JOBS_WORKER", "false")
+os.environ.setdefault("TA_SYOSETU_DELAY_SECONDS", "0")
 
 
 @pytest.fixture
