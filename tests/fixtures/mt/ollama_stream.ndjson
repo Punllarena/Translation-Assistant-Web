@@ -1,0 +1,4 @@
+{"model":"qwen3","message":{"role":"assistant","content":"","thinking":"Consider tone."},"done":false}
+{"model":"qwen3","message":{"role":"assistant","content":"This is "},"done":false}
+{"model":"qwen3","message":{"role":"assistant","content":"the first line."},"done":false}
+{"model":"qwen3","message":{"role":"assistant","content":""},"done":true,"eval_count":12}
