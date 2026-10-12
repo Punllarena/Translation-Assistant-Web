@@ -144,3 +144,61 @@ def test_refetch_replaces_source_and_keeps_translations_by_position(
 def test_refetch_without_source_url_is_422(app_client, me, make_doc):
     doc = make_doc(me, ["x"])
     assert app_client.post(f"/documents/{doc.id}/refetch", json={}).status_code == 422
+
+
+@pytest.fixture
+def busy():
+    """Hold both request slots, as two slow syosetu requests would."""
+    assert scrape_router.syosetu_slots.acquire(blocking=False)
+    assert scrape_router.syosetu_slots.acquire(blocking=False)
+    yield
+    scrape_router.syosetu_slots.release()
+    scrape_router.syosetu_slots.release()
+
+
+def test_request_paths_are_503_while_syosetu_is_busy(
+        app_client, me, make_series, make_doc, site, db, busy):
+    _, calls = site
+    s = make_series(me, "S")
+    s.syosetu_url = "https://ncode.syosetu.com/n1/"
+    doc = make_doc(me, ["x"])
+    doc.source_url = "https://ncode.syosetu.com/n1/1/"
+    db.flush()
+    for r in (app_client.post("/scrape/syosetu", json={"url": "https://ncode.syosetu.com/n1/1/"}),
+              app_client.get(f"/series/{s.id}/syosetu/chapters"),
+              app_client.post(f"/documents/{doc.id}/refetch", json={})):
+        assert r.status_code == 503 and "busy" in r.json()["detail"]
+    assert calls == []
+
+
+def test_request_slots_are_released_after_errors(app_client, me, site):
+    for _ in range(3):
+        bad = app_client.post("/scrape/syosetu", json={"url": "https://ncode.syosetu.com/n1/9/"})
+        assert bad.status_code == 502
+    assert app_client.post(
+        "/scrape/syosetu", json={"url": "https://ncode.syosetu.com/n1/1/"}).status_code == 200
+
+
+@pytest.mark.parametrize("url", ["https://ncode.syosetu.com/n1/\t1/",
+                                 "https://ncode.syosetu.com/n1/\x001/",
+                                 "http://ｅvil.syosetu.com/"])
+def test_malformed_urls_are_422_not_500(app_client, me, site, url):
+    _, calls = site
+    r = app_client.post("/scrape/syosetu", json={"url": url})
+    assert r.status_code == 422 and calls == []
+
+
+def test_a_second_fetch_job_for_the_same_series_is_409(app_client, me, make_series, site, db):
+    s = make_series(me, "S")
+    s.syosetu_url = "https://ncode.syosetu.com/n1/"
+    other = make_series(me, "O")
+    other.syosetu_url = "https://ncode.syosetu.com/n1/"
+    db.flush()
+    url = f"/series/{s.id}/syosetu/fetch"
+    assert app_client.post(url, json={"nums": [1]}).status_code == 202
+    assert app_client.post(url, json={"nums": [2]}).status_code == 409
+    other_url = f"/series/{other.id}/syosetu/fetch"
+    assert app_client.post(other_url, json={"nums": [1]}).status_code == 202
+    jobs.run_next()
+    jobs.run_next()
+    assert app_client.post(url, json={"nums": [2]}).status_code == 202

@@ -226,3 +226,10 @@ def test_throttle_spaces_calls(monkeypatch):
     clock[0] += 1
     scrape.throttle(5)
     assert slept == [4.0]
+
+
+@pytest.mark.parametrize("url", ["https://ncode.syosetu.com/\tx/", "https://ncode.syosetu.com/\x7f/",
+                                 "http://ｅvil.syosetu.com/"])
+def test_malformed_urls_are_value_errors(url):
+    with pytest.raises(ValueError):
+        scrape.validate_url(url)

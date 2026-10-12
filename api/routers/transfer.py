@@ -178,7 +178,7 @@ def _batch_glossary(db, user, csv_file, series, errors, budget) -> int | None:
 def import_batch(
     files: list[UploadFile] = File(...),
     series_id: int | None = Form(None),
-    series_title: str = Form(""),
+    series_title: str = Form("", max_length=300),
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
 ) -> dict:

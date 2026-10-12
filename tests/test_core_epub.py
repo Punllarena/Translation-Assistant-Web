@@ -11,11 +11,13 @@ import pytest
 from bs4 import BeautifulSoup
 
 from api.core.epub_build import build_epub
-from api.core.epub_read import (
+from api.core.epub_read import extract_chapter_content, open_book
+from api.core.epub_safety import (
+    MAX_PARSED_TEXT,
+    MAX_TEXT_ENTRY,
     MAX_UNCOMPRESSED,
+    EpubBudgetExceeded,
     EpubError,
-    extract_chapter_content,
-    open_book,
 )
 
 _CONTAINER_XML = """<?xml version="1.0" encoding="UTF-8"?>
@@ -851,7 +853,7 @@ def test_unsafe_entry_names_are_refused(name):
 
 
 def test_declared_size_over_the_cap_is_refused(monkeypatch):
-    monkeypatch.setattr("api.core.epub_read.MAX_UNCOMPRESSED", 10)
+    monkeypatch.setattr("api.core.epub_safety.MAX_UNCOMPRESSED", 10)
     with pytest.raises(EpubError, match="MB"):
         open_book(zipped({"META-INF/container.xml": b"x" * 11}))
 
@@ -918,3 +920,52 @@ def test_corrupt_deflate_stream_is_an_epub_error():
 def test_extract_chapter_non_utf8_is_an_epub_error():
     with pytest.raises(EpubError, match="UnicodeDecodeError"):
         extract_chapter_content(zipped({"c.xhtml": b"\xff\xfe\x00"}), "c.xhtml")
+
+
+# ---------------------------------------------------------------------------
+# Memory budgets (C1, I1)
+# ---------------------------------------------------------------------------
+
+def _many_refs_book(refs: int, size: int = 600) -> tuple[bytes, str]:
+    img = {"src_path": "pic.png", "data": b"\x89PNG" + b"\x00" * size}
+    items = [("A", [("text", "本文。")] + [("image", "pic.png"), ("text", "次。")] * refs, [img])]
+    data = build_epub("Book", items)
+    return data, open_book(io.BytesIO(data))["chapters"][0]["href"]
+
+
+def test_repeated_image_refs_read_the_image_once(monkeypatch):
+    data, href = _many_refs_book(5)
+    reads = []
+    real = zipfile.ZipFile.read
+
+    def counting(self, name, pwd=None):
+        reads.append(name if isinstance(name, str) else name.filename)
+        return real(self, name, pwd)
+    monkeypatch.setattr(zipfile.ZipFile, "read", counting)
+    _, images = extract_chapter_content(io.BytesIO(data), href)
+    assert len(images) == 5 and len({id(i["data"]) for i in images}) == 1
+    assert [a["anchor_position"] for a in images] == sorted({a["anchor_position"] for a in images})
+    assert sum(1 for r in reads if r.endswith("pic.png")) == 1
+
+
+def test_image_refs_are_charged_to_the_budget_before_reading():
+    data, href = _many_refs_book(40)
+    budget = [5 * 604]
+    with pytest.raises(EpubBudgetExceeded):
+        extract_chapter_content(io.BytesIO(data), href, budget)
+    budget = [5 * 604]
+    _, images = extract_chapter_content(io.BytesIO(_many_refs_book(5)[0]), href, budget)
+    assert len(images) == 5 and budget == [0]
+
+
+def test_parsed_text_per_book_is_capped(monkeypatch):
+    data = build_epub("Book", [(t, [("text", "本文。" * 50)], []) for t in "ABC"])
+    monkeypatch.setattr("api.core.epub_safety.MAX_PARSED_TEXT", 2500)
+    with pytest.raises(EpubError, match="text"):
+        open_book(io.BytesIO(data))
+    monkeypatch.setattr("api.core.epub_safety.MAX_PARSED_TEXT", 10 ** 6)
+    assert len(open_book(io.BytesIO(data))["chapters"]) == 3
+
+
+def test_text_entry_cap_is_4_mib():
+    assert MAX_TEXT_ENTRY == 4 * 1024 * 1024 and MAX_PARSED_TEXT == 32 * 1024 * 1024

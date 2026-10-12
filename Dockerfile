@@ -19,4 +19,4 @@ EXPOSE 8000
 # this port; Caddy is the only client. Also safe only because Caddy sets X-Forwarded-For
 # itself (no trusted_proxies); adding a trusted upstream proxy later (e.g. Cloudflare)
 # would make the leftmost entry spoofable.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*' --timeout-graceful-shutdown 5"]

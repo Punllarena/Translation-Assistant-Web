@@ -110,7 +110,8 @@ Caddy serves the SPA and proxies `/api/*` to the API (prefix stripped) at
 `https://$TA_SITE_ADDRESS` (default `localhost`, with Caddy's internal CA). Set
 `TA_SITE_ADDRESS` to a public hostname and Caddy obtains a certificate for it. Caddy caps
 request bodies at 12 MB (64 MiB on `/api/epub/*`). The API container is not published; uvicorn trusts the
-forwarded client address because Caddy is its only client.
+forwarded client address because Caddy is its only client. uvicorn runs with
+`--timeout-graceful-shutdown 5` because open job SSE streams would otherwise block a shutdown or reload.
 
 ## Web app (development)
 
@@ -134,15 +135,19 @@ suggestions report that MeCab is unavailable. The Docker image already installs 
 
 - **Syosetu fetch.** Fetch a single chapter from a URL, or a whole series as a background job
   with live progress. Requests to syosetu are spaced `TA_SYOSETU_DELAY_SECONDS` apart
-  (default 5), process-wide. Only `*.syosetu.com` hosts are fetched.
+  (default 5), process-wide. Only `*.syosetu.com` hosts are fetched. At most two interactive
+  requests (fetch from URL, chapter list, re-fetch) wait on syosetu at once (503 beyond), and a
+  series has at most one queued or running fetch job (409 beyond).
 - **Re-fetch** a chapter to refresh its source; translations stay attached by line position.
-- **Batch TXT import** with an optional glossary CSV: at most 500 files, 5 MiB per TXT and 12 MiB
-  per request in total (enforced by Caddy and by the API). A form title containing a NUL
-  character is a 422.
+- **Batch TXT import** with an optional glossary CSV: at most 500 files, 5 MiB per TXT and
+  12 MB (Caddy) / 12 MiB (API) per request in total. A form title containing a NUL
+  character, or longer than 300 characters, is a 422.
 - **EPUB import.** The upload is at most 64 MiB (Caddy allows that size on `/api/epub/*` only; the
   API enforces it too). An archive may expand to at most 256 MiB, any single XML/XHTML entry is
-  at most 16 MiB, the chapter files and images of one import share a 256 MiB budget (413 beyond),
-  and one import takes at most 900 chapters (422 beyond).
+  at most 4 MiB and at most 32 MiB of XML/XHTML is parsed per book (422 beyond: giant omnibus
+  EPUBs are refused), the chapter files and images of one import share a 256 MiB budget, charged
+  per image reference before it is read (413 beyond), and one import takes at most 900 chapters
+  (422 beyond).
 - **EPUB download** per volume. Every chapter in the volume must be fully translated.
 
 ### Background jobs

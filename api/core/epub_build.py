@@ -173,7 +173,8 @@ def build_epub(
                             f'media-type="{_escape_attr(media_type)}"/>'
                         )
                         written_images[src_path] = img_href
-                    body_parts.append(f'<p><img src="../{written_images[src_path]}"/></p>\n')
+                    body_parts.append(
+                        f'<p><img src="../{_escape_attr(written_images[src_path])}"/></p>\n')
 
             xhtml = _CHAPTER_TEMPLATE.format(
                 title=escape(chapter_title), body="".join(body_parts), lang=language,

@@ -23,6 +23,12 @@ class ScrapeError(Exception):
 
 
 def validate_url(url: str) -> None:
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in url):
+        raise ValueError("The URL contains control characters")
+    try:
+        httpx.URL(url)  # what httpx would refuse later (e.g. a non-IDNA host) is a 422, not a 500
+    except httpx.InvalidURL as exc:
+        raise ValueError(f"Not a valid URL: {exc}") from exc
     # hostname, not the desktop's netloc: "x.syosetu.com@evil.com" has that netloc suffix
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
@@ -46,6 +52,8 @@ def _get(c: httpx.Client, url: str) -> str:
     validate_url(url)
     try:
         r = c.get(url)
+    except httpx.InvalidURL as exc:
+        raise ValueError(f"Not a valid URL: {exc}") from exc
     except httpx.HTTPError as exc:
         host = urlparse(url).hostname
         raise ScrapeError(f"could not reach {host} ({type(exc).__name__})") from exc

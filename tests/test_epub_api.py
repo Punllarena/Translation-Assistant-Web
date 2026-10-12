@@ -142,7 +142,7 @@ def test_chapter_files_count_against_the_budget(app_client, me, db, monkeypatch)
 
 
 def test_oversized_text_entry_is_422(app_client, me, monkeypatch):
-    monkeypatch.setattr("api.core.epub_read.MAX_TEXT_ENTRY", 10)
+    monkeypatch.setattr("api.core.epub_safety.MAX_TEXT_ENTRY", 10)
     assert app_client.post("/epub/inspect", files=upload(book())).status_code == 422
 
 
@@ -151,3 +151,45 @@ def test_nul_in_epub_titles_is_422(app_client, me):
     hrefs = _book_hrefs(app_client, data)
     assert _import(app_client, data, hrefs, series_title="a\x00b").status_code == 422
     assert _import(app_client, data, hrefs, volume_title="a\x00b").status_code == 422
+
+
+def _refs_book(refs: int) -> bytes:
+    img = {"src_path": "pic.png", "data": PNG + b"\x00" * 560}
+    body = [("text", "本文。")] + [("image", "pic.png"), ("text", "次。")] * refs
+    return build_epub("Book", [("A", body, [img])], creator="Author")
+
+
+def test_many_refs_to_one_image_are_413_before_reading_them(app_client, me, db, monkeypatch):
+    data = _refs_book(40)
+    hrefs = _book_hrefs(app_client, data)
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        chapter = zf.getinfo(hrefs[0]).file_size
+    monkeypatch.setattr("api.routers.epub.MAX_UNCOMPRESSED", chapter + 5 * len(PNG + b"\x00" * 560))
+    r = _import(app_client, data, hrefs)
+    assert r.status_code == 413
+    db.rollback()
+    assert db.query(Document).count() == 0
+
+
+def test_repeated_refs_to_a_small_image_store_one_row_per_reference(app_client, me, db):
+    data = _refs_book(3)
+    out = _import(app_client, data, _book_hrefs(app_client, data)).json()
+    assert out["imported"] == ["A"] and out["errors"] == []
+    rows = (db.query(DocumentImage).filter_by(is_cover=False)
+            .order_by(DocumentImage.anchor_position).all())
+    assert [r.anchor_position for r in rows] == [1, 2, 3]
+    assert {r.src_path for r in rows} == {"OEBPS/images/pic.png"}
+
+
+def test_book_text_over_the_parse_budget_is_422(app_client, me, monkeypatch):
+    monkeypatch.setattr("api.core.epub_safety.MAX_PARSED_TEXT", 100)
+    r = app_client.post("/epub/inspect", files=upload(book()))
+    assert r.status_code == 422 and "text" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("field", ["series_title", "volume_title", "author", "illustrator",
+                                   "publisher", "identifier"])
+def test_long_form_fields_are_422(app_client, me, db, field):
+    data = book()
+    r = _import(app_client, data, _book_hrefs(app_client, data), **{field: "x" * 301})
+    assert r.status_code == 422 and db.query(Document).count() == 0

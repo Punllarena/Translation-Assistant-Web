@@ -95,3 +95,9 @@ def test_batch_total_cap_is_413_and_rolls_back(app_client, me, db, monkeypatch):
     assert r.status_code == 413
     db.rollback()
     assert db.query(Document).count() == 0
+
+
+def test_a_long_series_title_is_422(app_client, me, db):
+    r = app_client.post("/documents/import/batch", data={"series_title": "x" * 301},
+                        files=[txt("a.txt")])
+    assert r.status_code == 422 and db.query(Series).count() == 0

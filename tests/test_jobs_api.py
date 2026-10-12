@@ -59,3 +59,19 @@ def test_other_users_job_is_404_everywhere(app_client, db, me, make_user):
                          ("get", f"/jobs/{theirs.id}/events")]:
         assert getattr(app_client, method)(path).status_code == 404
     assert app_client.get("/jobs").json() == []
+
+
+def test_events_send_keepalive_comments_while_nothing_changes(app_client, db, me, same_db,
+                                                              monkeypatch):
+    job = jobs.enqueue(db, me.id, "noop", {})
+    states = iter(["running", "running", "running", "done"])
+    real = jobs_router._snapshot
+
+    def scripted(job_id):
+        snap = real(job_id)
+        return {**snap, "state": next(states)}
+    monkeypatch.setattr(jobs_router, "_snapshot", scripted)
+    monkeypatch.setattr(jobs_router, "KEEPALIVE_SECONDS", 0)
+    body = app_client.get(f"/jobs/{job.id}/events").text
+    assert ": keepalive\n\n" in body
+    assert [f["state"] for f in frames(body.replace(": keepalive\n\n", ""))] == ["running", "done"]

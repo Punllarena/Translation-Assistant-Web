@@ -35,8 +35,9 @@ Ollama URLs are refused when they resolve to a non-global address unless `TA_MT_
 
 Phase 6a: acquisition. Jobs (`api/jobs.py`; worker started in the lifespan; SSE at `/jobs/{id}/events`);
 syosetu fetch (`api/core/scrape.py`: chapter numbers only, redirects checked, only `*.syosetu.com`);
-batch TXT import (<=500 files, 12 MiB per request) and EPUB import (`api/core/epub_read.py`, 64 MiB upload,
-256 MiB per-import budget, 900 chapters) are synchronous; per-volume EPUB build (`epub_build.py`). Form titles
+batch TXT import (<=500 files, 12 MB (Caddy) / 12 MiB (API) per request) and EPUB import (`api/core/epub_read.py`,
+limits in `epub_safety.py`: 64 MiB upload, 4 MiB per text entry, 32 MiB parsed per book, 256 MiB per-import
+budget charged per image reference before reading, 900 chapters) are synchronous; per-volume EPUB build (`epub_build.py`). Form titles
 with NUL are 422. Phase 6b (WordPress publish, scheduling, statistics) is next.
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)

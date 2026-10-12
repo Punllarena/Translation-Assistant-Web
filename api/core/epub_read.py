@@ -1,62 +1,28 @@
 """EPUB reader ported from the desktop ``translation_assistant/epub.py``; the builder is
 in epub_build.py. Zip/XML handling only via stdlib zipfile + the already-installed
-beautifulsoup4. Archive-safety checks (``_check_archive``) are ours (spec section 6)."""
+beautifulsoup4. Archive-safety checks and limits are ours, in epub_safety.py."""
 import posixpath
 import warnings
 import zipfile
-import zlib
-from contextlib import contextmanager
 from pathlib import Path
 from typing import IO
 
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
+from api.core.epub_safety import (
+    EpubError,
+    TextBudgetExceeded,
+    charge,
+    check_archive,
+    read_text,
+    unreadable,
+)
 from api.core.text import build_new_file, parse_file_content
 
 # OPF/NCX are XML parsed with html.parser on purpose (as the desktop does).
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
-MAX_UNCOMPRESSED = 256 * 1024 * 1024  # ours (spec §6): cap what a book may expand to
-MAX_TEXT_ENTRY = 16 * 1024 * 1024  # ours: one XML/XHTML file BeautifulSoup will parse
-
-
-class EpubError(ValueError):
-    """Raised when an EPUB file can't be parsed."""
-
-
-def _check_archive(zf: zipfile.ZipFile) -> None:
-    """Refuse absolute and parent-relative entry names and oversized archives
-    (spec §6). Entries are only ever read by name, never extracted to disk, but a
-    book that names one is not one we should trust with anything else."""
-    total = 0
-    for info in zf.infolist():
-        parts = info.filename.replace("\\", "/").split("/")
-        if info.filename.startswith(("/", "\\")) or ".." in parts:
-            raise EpubError(f"unsafe path in EPUB: {info.filename!r}")
-        total += info.file_size
-        if total > MAX_UNCOMPRESSED:
-            raise EpubError(f"EPUB expands to more than {MAX_UNCOMPRESSED // (1024 * 1024)} MB")
-
-
-@contextmanager
-def _unreadable():
-    """Hostile but valid zips fail in many ways below EpubError (bad encoding, a corrupt
-    deflate stream, an encrypted entry, a manifest item without href); callers only ever
-    handle EpubError."""
-    try:
-        yield
-    except (KeyError, UnicodeDecodeError, zlib.error, RuntimeError, NotImplementedError,
-            EOFError, zipfile.BadZipFile) as exc:
-        raise EpubError(f"Not a readable EPUB: {type(exc).__name__}") from exc
-
-
-def _read(zf: zipfile.ZipFile, path: str) -> str:
-    try:
-        if zf.getinfo(path).file_size > MAX_TEXT_ENTRY:
-            raise EpubError(f"{path} is larger than {MAX_TEXT_ENTRY // (1024 * 1024)} MB")
-        return zf.read(path).decode("utf-8")
-    except KeyError as exc:
-        raise EpubError(f"Missing file in EPUB: {path}") from exc
+__all__ = ["EpubError", "extract_chapter_content", "open_book"]
 
 
 def _resolve(base_dir: str, href: str) -> str:
@@ -195,20 +161,21 @@ def open_book(source: str | Path | IO[bytes]) -> dict:
     except zipfile.BadZipFile as exc:
         raise EpubError("Not a valid EPUB (bad zip)") from exc
 
-    with _unreadable(), zf:
-        _check_archive(zf)
-        container = BeautifulSoup(_read(zf, "META-INF/container.xml"), "html.parser")
+    parsed = [0]  # XML/XHTML bytes read so far, against MAX_PARSED_TEXT
+    with unreadable(), zf:
+        check_archive(zf)
+        container = BeautifulSoup(read_text(zf, "META-INF/container.xml", parsed), "html.parser")
         rootfile = container.find("rootfile")
         if rootfile is None or not rootfile.get("full-path"):
             raise EpubError("container.xml has no rootfile")
         opf_path = rootfile["full-path"]
         opf_dir = posixpath.dirname(opf_path)
 
-        opf = BeautifulSoup(_read(zf, opf_path), "html.parser")
+        opf = BeautifulSoup(read_text(zf, opf_path, parsed), "html.parser")
         title_el = opf.find("dc:title")
         title = title_el.get_text(strip=True) if title_el else ""
 
-        toc_entries = _dedupe_by_href(_read_toc(zf, opf, opf_dir))
+        toc_entries = _dedupe_by_href(_read_toc(zf, opf, opf_dir, parsed))
         entries = _order_by_spine(opf, opf_dir, toc_entries)
         cover_href = _find_cover_href(opf, opf_dir)
         metadata = _find_metadata(opf)
@@ -216,7 +183,9 @@ def open_book(source: str | Path | IO[bytes]) -> dict:
         chapters = []
         for order, (chap_title, href) in enumerate(entries, start=1):
             try:
-                xhtml = _read(zf, href)
+                xhtml = read_text(zf, href, parsed)
+            except TextBudgetExceeded:
+                raise
             except EpubError:
                 continue  # broken TOC entry — skip rather than fail the whole import
             soup = BeautifulSoup(xhtml, "html.parser")
@@ -231,7 +200,7 @@ def open_book(source: str | Path | IO[bytes]) -> dict:
 
 
 def extract_chapter_content(
-    source: str | Path | IO[bytes], href: str,
+    source: str | Path | IO[bytes], href: str, budget: list[int] | None = None,
 ) -> tuple[str, list[dict]]:
     """
     Returns (text, images).
@@ -250,19 +219,24 @@ def extract_chapter_content(
     accumulating a running raw-line offset -- this never feeds the actual
     output, only the count, since build_new_file()'s sentence-splitting is
     local per input line.
+
+    budget (remaining bytes, mutated in place) is charged each image reference's
+    size before anything is read (EpubBudgetExceeded when it would go negative); each
+    distinct image is read once and repeated references share its bytes.
     """
     try:
         zf = zipfile.ZipFile(source)
     except zipfile.BadZipFile as exc:
         raise EpubError("Not a valid EPUB (bad zip)") from exc
 
-    with _unreadable(), zf:
-        _check_archive(zf)
-        xhtml = _read(zf, href)
+    with unreadable(), zf:
+        check_archive(zf)
+        xhtml = read_text(zf, href)
         soup = BeautifulSoup(xhtml, "html.parser")
 
         text_paragraphs: list[str] = []
         images: list[dict] = []
+        read_once: dict[str, bytes] = {}
         offset = 0
         base_dir = posixpath.dirname(href)
 
@@ -270,10 +244,16 @@ def extract_chapter_content(
             src = _illustration_src(el)
             if src:
                 resolved_src = _resolve(base_dir, src)
-                try:
-                    data = zf.read(resolved_src)
-                except KeyError:
-                    continue  # broken manifest reference -- skip, not fatal
+                data = read_once.get(resolved_src)
+                if data is None:
+                    try:
+                        size = zf.getinfo(resolved_src).file_size
+                    except KeyError:
+                        continue  # broken manifest reference -- skip, not fatal
+                    charge(budget, size)
+                    data = read_once[resolved_src] = zf.read(resolved_src)
+                else:
+                    charge(budget, len(data))
                 images.append({
                     "anchor_position": offset, "src_path": resolved_src, "data": data,
                 })
@@ -357,12 +337,14 @@ def _extract_inline(node) -> str:
     return "".join(parts)
 
 
-def _read_toc(zf: zipfile.ZipFile, opf: BeautifulSoup, opf_dir: str) -> list[tuple[str, str]]:
+def _read_toc(
+    zf: zipfile.ZipFile, opf: BeautifulSoup, opf_dir: str, parsed: list[int],
+) -> list[tuple[str, str]]:
     """Returns [(chapter_title, resolved_href), ...] in TOC order."""
     nav_item = opf.find("item", attrs={"properties": lambda v: v and "nav" in v.split()})
     if nav_item is not None:
         nav_href = _resolve(opf_dir, nav_item["href"])
-        nav_soup = BeautifulSoup(_read(zf, nav_href), "html.parser")
+        nav_soup = BeautifulSoup(read_text(zf, nav_href, parsed), "html.parser")
         nav_dir = posixpath.dirname(nav_href)
         # An EPUB3 nav doc may hold several <nav>s (toc / landmarks / page-list)
         # in any order, so prefer the toc-typed one. html.parser keeps the
@@ -387,7 +369,7 @@ def _read_toc(zf: zipfile.ZipFile, opf: BeautifulSoup, opf_dir: str) -> list[tup
     if ncx_item is None:
         raise EpubError("No EPUB3 nav doc and no EPUB2 toc.ncx found")
     ncx_href = _resolve(opf_dir, ncx_item["href"])
-    ncx_soup = BeautifulSoup(_read(zf, ncx_href), "html.parser")
+    ncx_soup = BeautifulSoup(read_text(zf, ncx_href, parsed), "html.parser")
     ncx_dir = posixpath.dirname(ncx_href)
     entries = []
     for navpoint in ncx_soup.find_all("navpoint"):

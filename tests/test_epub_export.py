@@ -46,3 +46,15 @@ def test_an_empty_volume_is_422_and_another_users_is_404(
     assert app_client.get(f"/volumes/{v.id}/export/epub").status_code == 422
     theirs = volume(db, make_series(make_user(email="o@example.com"), "T"))
     assert app_client.get(f"/volumes/{theirs.id}/export/epub").status_code == 404
+
+
+def test_a_chapter_of_blank_lines_is_skipped_not_incomplete(
+    app_client, db, me, make_series, make_doc
+):
+    s = make_series(me, "S")
+    v = volume(db, s)
+    make_doc(me, ["一"], series=s, order=1, volume=v, title="Done", translated=True)
+    make_doc(me, ["", "  "], series=s, order=2, volume=v, title="Blank", translated=False)
+    r = app_client.get(f"/volumes/{v.id}/export/epub")
+    assert r.status_code == 200
+    assert [c["title"] for c in open_book(io.BytesIO(r.content))["chapters"]] == ["Done"]

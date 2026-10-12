@@ -13,16 +13,13 @@ from sqlalchemy.exc import DataError
 from sqlalchemy.orm import Session
 
 from api.core.epub_build import build_epub
-from api.core.epub_read import (
-    MAX_UNCOMPRESSED,
-    EpubError,
-    extract_chapter_content,
-    open_book,
-)
+from api.core.epub_read import EpubError, extract_chapter_content, open_book
+from api.core.epub_safety import MAX_UNCOMPRESSED, EpubBudgetExceeded, charge
 from api.core.text import (
     build_epub_content,
     build_new_file,
     calculate_progress,
+    line_has_content,
     lines_to_db_rows,
     parse_file_content,
     sanitize_filename,
@@ -46,10 +43,6 @@ router = api_router(tags=["epub"])
 MAX_EPUB_BYTES = 64 * 1024 * 1024  # plan ruling 3; Caddy allows the same on /api/epub/*
 # Starlette's multipart max_fields is 1000 and counts the other form fields too.
 MAX_CHAPTERS = 900
-
-
-class _ImageBudgetExceeded(Exception):
-    """Not caught per chapter: the whole import rolls back."""
 
 
 def _over_budget() -> HTTPException:
@@ -115,12 +108,10 @@ def _import_chapter(
     title: str, href: str, order: int, budget: list[int],
 ) -> tuple[Document, bool]:
     """One chapter into one document; the caller wraps this in a savepoint."""
-    text, images = extract_chapter_content(data, href)
     # The chapter file is decompressed again for every chapter, so it counts too.
-    budget[0] -= zipfile.ZipFile(data).getinfo(href).file_size
-    budget[0] -= sum(len(img["data"]) for img in images)
-    if budget[0] < 0:
-        raise _ImageBudgetExceeded
+    charge(budget, zipfile.ZipFile(data).getinfo(href).file_size)
+    # Images are charged per reference (each is a stored row) before they are read.
+    text, images = extract_chapter_content(data, href, budget)
     text = text.replace("\x00", "")  # Postgres text cannot hold NUL
     raw, translated, _ = parse_file_content(build_new_file(text))
     check_line_count(raw)
@@ -146,12 +137,12 @@ def _import_chapter(
 def import_epub(
     file: UploadFile = File(...),
     series_id: int | None = Form(None),
-    series_title: str = Form(""),
-    volume_title: str = Form(...),
-    author: str = Form(""),
-    illustrator: str = Form(""),
-    publisher: str = Form(""),
-    identifier: str = Form(""),
+    series_title: str = Form("", max_length=300),
+    volume_title: str = Form(..., max_length=300),
+    author: str = Form("", max_length=300),
+    illustrator: str = Form("", max_length=300),
+    publisher: str = Form("", max_length=300),
+    identifier: str = Form("", max_length=300),
     hrefs: list[str] = Form(...),
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
@@ -193,7 +184,7 @@ def import_epub(
             with db.begin_nested():
                 doc, is_empty = _import_chapter(
                     db, user, series, volume, data, title, href, order, budget)
-        except _ImageBudgetExceeded:
+        except EpubBudgetExceeded:  # not per chapter: the whole import rolls back
             raise _over_budget() from None
         except (EpubError, ValueError, KeyError, DataError, HTTPException) as exc:
             errors.append(ChapterError(
@@ -251,9 +242,10 @@ def export_volume(
             if row is not None:
                 media = mimetypes.guess_type(row.src_path)[0] or "application/octet-stream"
                 cover = {"data": row.data, "media_type": media}
-        if not raw and not inline:
+        has_text = any(line_has_content(r) for r in raw)
+        if not has_text and not inline:
             continue  # nothing to show; it must not block the volume (desktop)
-        if raw and calculate_progress(raw, translated)[0] < 100:
+        if has_text and calculate_progress(raw, translated)[0] < 100:
             incomplete.append(doc.chapter_title or doc.title)
             continue
         refs = [{"anchor_position": im.anchor_position, "src_path": im.src_path} for im in inline]

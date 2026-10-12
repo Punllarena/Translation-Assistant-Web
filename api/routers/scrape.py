@@ -1,7 +1,11 @@
 """Syosetu acquisition (spec §6, §9): fetch one chapter's text, list a series'
 chapters, fetch a series as a job, and re-fetch a chapter's source."""
 
+import threading
+from contextlib import contextmanager
+
 from fastapi import Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import api.fetch_job  # noqa: F401  registers the syosetu_fetch handler
@@ -22,10 +26,25 @@ router = api_router(tags=["scrape"])
 
 http_client = scrape.client  # the seam tests replace
 
+# Request paths hold a pool connection and a worker thread while they wait on the
+# process-wide throttle, so at most two wait at once; the job worker does not use this.
+syosetu_slots = threading.BoundedSemaphore(2)
+
+
+@contextmanager
+def _slot():
+    if not syosetu_slots.acquire(blocking=False):
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            "syosetu is busy, try again shortly")
+    try:
+        yield
+    finally:
+        syosetu_slots.release()
+
 
 def _fetch(url: str) -> tuple[str, str]:
     try:
-        with http_client() as c:
+        with _slot(), http_client() as c:
             return scrape.fetch_syosetu(c, url, delay=get_settings().syosetu_delay_seconds)
     except scrape.ScrapeError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
@@ -53,7 +72,7 @@ def list_chapters(
 ) -> list[IndexChapter]:
     series = _series_with_url(db, series_id, user.id)
     try:
-        with http_client() as c:
+        with _slot(), http_client() as c:
             index = scrape.fetch_series_index(c, series.syosetu_url)
     except scrape.ScrapeError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
@@ -72,6 +91,13 @@ def fetch_series(
     user: User = Depends(current_user), db: Session = Depends(db_session),
 ) -> Job:
     series = _series_with_url(db, series_id, user.id)
+    if db.scalar(select(Job.id).where(
+        Job.user_id == user.id, Job.kind == "syosetu_fetch",
+        Job.state.in_(("queued", "running")),
+        Job.params_json["series_id"].as_integer() == series.id,
+    ).limit(1)):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "a fetch for this series is already queued or running")
     nums = sorted(set(body.nums))
     return jobs.enqueue(db, user.id, "syosetu_fetch",
                         {"series_id": series.id, "nums": nums}, total=len(nums))

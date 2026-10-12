@@ -1,6 +1,7 @@
 """Jobs (spec §9): list, read, cancel, and follow one over SSE."""
 
 import asyncio
+import time
 
 from fastapi import Depends
 from fastapi.concurrency import run_in_threadpool
@@ -19,6 +20,7 @@ from api.schemas.jobs import JobOut
 router = api_router(prefix="/jobs", tags=["jobs"])
 
 POLL_SECONDS = 1.0
+KEEPALIVE_SECONDS = 15.0  # an SSE comment so proxies keep an idle stream open
 
 
 @router.get("", response_model=list[JobOut])
@@ -72,12 +74,15 @@ async def job_events(
     await run_in_threadpool(scoped, db, Job, job_id, user.id)
 
     async def frames():
-        last = None
+        last, sent_at = None, time.monotonic()
         while True:
             snap = await run_in_threadpool(_snapshot, job_id)
             if snap != last:
                 yield sse(("job", snap))
-                last = snap
+                last, sent_at = snap, time.monotonic()
+            elif time.monotonic() - sent_at >= KEEPALIVE_SECONDS:
+                yield ": keepalive\n\n"
+                sent_at = time.monotonic()
             if snap["state"] in TERMINAL:
                 return
             await asyncio.sleep(POLL_SECONDS)
