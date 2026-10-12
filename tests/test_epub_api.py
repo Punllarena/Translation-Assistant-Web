@@ -144,3 +144,10 @@ def test_chapter_files_count_against_the_budget(app_client, me, db, monkeypatch)
 def test_oversized_text_entry_is_422(app_client, me, monkeypatch):
     monkeypatch.setattr("api.core.epub_read.MAX_TEXT_ENTRY", 10)
     assert app_client.post("/epub/inspect", files=upload(book())).status_code == 422
+
+
+def test_nul_in_epub_titles_is_422(app_client, me):
+    data = book()
+    hrefs = _book_hrefs(app_client, data)
+    assert _import(app_client, data, hrefs, series_title="a\x00b").status_code == 422
+    assert _import(app_client, data, hrefs, volume_title="a\x00b").status_code == 422

@@ -19,6 +19,12 @@ def next_series_order(db: Session, series_id: int | None) -> int:
     )
 
 
+def reject_nul(*values: str) -> None:
+    """422 for a NUL in a form-supplied string: Postgres text cannot hold it (else a 500)."""
+    if any("\x00" in v for v in values):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "text must not contain NUL")
+
+
 MAX_LINES = 50_000  # a 5 MiB file of "a\n" would otherwise become millions of ORM rows
 
 

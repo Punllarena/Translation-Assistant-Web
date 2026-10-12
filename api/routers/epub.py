@@ -28,7 +28,13 @@ from api.core.text import (
     sanitize_filename,
 )
 from api.deps import current_user, db_session, owned_ref, scoped_volume
-from api.library import check_line_count, line_arrays, next_series_order, write_lines
+from api.library import (
+    check_line_count,
+    line_arrays,
+    next_series_order,
+    reject_nul,
+    write_lines,
+)
 from api.models import Document, DocumentImage, Series, User, Volume
 from api.routers.transfer import attachment
 from api.routing import api_router
@@ -150,6 +156,7 @@ def import_epub(
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
 ) -> EpubImportOut:
+    reject_nul(series_title, volume_title, author, illustrator, publisher, identifier)
     if (series_id is None) == (not series_title.strip()):
         raise _unprocessable("give exactly one of series_id and series_title")
     if not volume_title.strip():

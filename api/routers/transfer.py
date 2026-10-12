@@ -27,6 +27,7 @@ from api.library import (
     check_line_count,
     line_arrays,
     next_series_order,
+    reject_nul,
     write_lines,
 )
 from api.models import Document, Profile, Series, User
@@ -40,6 +41,7 @@ router = api_router(tags=["transfer"])
 
 MAX_TEXT_BYTES = 5 * 1024 * 1024
 MAX_BATCH_FILES = 500
+MAX_BATCH_BYTES = 12 * 1024 * 1024  # Caddy's body cap, enforced here too
 
 
 def _unprocessable(detail: str) -> HTTPException:
@@ -104,6 +106,7 @@ def import_txt(
 
 
 def _series_for(db: Session, user: User, series_id: int | None, title: str) -> Series | None:
+    reject_nul(title)
     title = title.strip()
     if series_id is not None and title:
         raise _unprocessable("give series_id or series_title, not both")
@@ -119,12 +122,37 @@ def _series_for(db: Session, user: User, series_id: int | None, title: str) -> S
     return series
 
 
-def _batch_glossary(db, user, csv_file, series, errors) -> int | None:
+class _BatchTooLarge(HTTPException):
+    pass
+
+
+class _Budget:
+    """Bytes read across one batch; 413 for the whole request once past the cap."""
+
+    def __init__(self) -> None:
+        self.total = 0
+
+    def read(self, upload: UploadFile, cap: int) -> bytes:
+        data = read_capped(upload, cap)  # a single oversized file is a per-file 413
+        self.total += len(data)
+        if self.total > MAX_BATCH_BYTES:
+            raise _BatchTooLarge(status.HTTP_413_CONTENT_TOO_LARGE, "batch is too large")
+        return data
+
+
+def _batch_glossary(db, user, csv_file, series, errors, budget) -> int | None:
     """Upsert the one CSV into a profile named by its stem; the series adopts it."""
     name = PureWindowsPath(csv_file.filename or "").stem[:120] or "Imported"
     try:
+        data = budget.read(csv_file, MAX_CSV_BYTES)
+    except _BatchTooLarge:
+        raise
+    except HTTPException as exc:
+        errors.append({"name": csv_file.filename, "message": str(exc.detail)})
+        return None
+    try:
         with db.begin_nested():
-            text = read_capped(csv_file, MAX_CSV_BYTES).decode("utf-8-sig")
+            text = data.decode("utf-8-sig")
             profile = db.scalar(
                 select(Profile).where(Profile.user_id == user.id, Profile.name == name)
             )
@@ -162,12 +190,15 @@ def import_batch(
     series = _series_for(db, user, series_id, series_title)
     errors: list[dict] = []
     warnings: list[str] = []
+    budget = _Budget()
     texts: list[tuple[str, UploadFile]] = []
     csvs: list[UploadFile] = []
     for f in files:
         name = f.filename or ""
         ext = PureWindowsPath(name).suffix.lower()
-        if ext == ".txt":
+        if "\x00" in name:
+            errors.append({"name": name, "message": "invalid file name"})
+        elif ext == ".txt":
             texts.append((PureWindowsPath(name).stem, f))
         elif ext == ".csv":
             csvs.append(f)
@@ -175,7 +206,7 @@ def import_batch(
             errors.append({"name": name, "message": "not a .txt or .csv file"})
     profile_id = None
     if len(csvs) == 1:
-        profile_id = _batch_glossary(db, user, csvs[0], series, errors)
+        profile_id = _batch_glossary(db, user, csvs[0], series, errors, budget)
     elif csvs:
         warnings.append(f"{len(csvs)} CSV files found; glossary import skipped.")
     existing = set(db.scalars(select(Document.title).where(Document.user_id == user.id)))
@@ -183,15 +214,23 @@ def import_batch(
     imported: list[str] = []
     skipped: list[str] = []
     for stem, f in sorted(texts, key=lambda t: natural_key(t[0])):
-        if stem in existing:
-            skipped.append(stem)
+        title = stem or "Untitled"
+        if title in existing:
+            skipped.append(title)
+            continue
+        try:
+            data = budget.read(f, MAX_TEXT_BYTES)
+        except _BatchTooLarge:
+            raise
+        except HTTPException as exc:
+            errors.append({"name": f.filename, "message": str(exc.detail)})
             continue
         try:
             with db.begin_nested():
-                raw, translated = _txt_lines(read_capped(f, MAX_TEXT_BYTES))
+                raw, translated = _txt_lines(data)
                 doc = Document(
                     user_id=user.id,
-                    title=stem or "Untitled",
+                    title=title,
                     series_id=series.id if series else None,
                     series_order=first + len(imported) if series else 0,
                 )
@@ -201,8 +240,8 @@ def import_batch(
         except HTTPException as exc:
             errors.append({"name": f.filename, "message": str(exc.detail)})
             continue
-        existing.add(stem)
-        imported.append(stem)
+        existing.add(title)
+        imported.append(title)
     return {
         "series_id": series.id if series else None,
         "profile_id": profile_id,
