@@ -38,6 +38,8 @@ asyncio_mode = "auto"
 filterwarnings = [
     # Raised by Starlette's TestClient on import when httpx is installed; not our code.
     "ignore:Using `httpx` with `starlette.testclient` is deprecated:starlette.exceptions.StarletteDeprecationWarning",
+    # EPUB OPF/NCX files are XML parsed with html.parser on purpose (as the desktop does).
+    "ignore::bs4.builder.XMLParsedAsHTMLWarning",
 ]
 
 [tool.ruff]
@@ -58,3 +60,7 @@ ignore = ["B008"]
 # Alembic writes these; rewrapping its lines by hand would be undone by the next
 # --autogenerate run, and the plan forbids hand-patching migrations.
 "migrations/versions/*" = ["E501"]
+# Ported verbatim from the desktop (templates, comments, tests); rewrapping would drift
+# from the reference.
+"api/core/epub_build.py" = ["E501"]
+"tests/test_core_epub.py" = ["E501"]

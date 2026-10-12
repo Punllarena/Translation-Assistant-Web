@@ -1,5 +1,5 @@
 """Qt-free text logic ported verbatim from the desktop ``translation_assistant/core.py``
-(commit f1a96ce). Only the functions phases 2-3 use are here; later phases append theirs.
+(commit f1a96ce). Only the functions phases 2-6 use are here; later phases append theirs.
 No database imports: callers convert rows at the edge (see api/library.py)."""
 
 import re
@@ -315,3 +315,54 @@ def needle_pattern(needle: str, case_sensitive: bool) -> re.Pattern[str]:
 def replace_all(pattern: re.Pattern[str], text: str, replacement: str) -> str:
     """Every match replaced by `replacement` taken literally (no \\1 or $1 expansion)."""
     return pattern.sub(lambda _m: replacement, text)
+
+
+# ---------------------------------------------------------------------------
+# build_epub_content
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+
+
+def build_epub_content(
+    raw_lines: list[str], translated_lines: list[str], images: list[dict],
+) -> list[tuple[str, str]]:
+    """
+    Returns ordered [("text", paragraph), ("image", src_path), ...]. Uses the
+    same %/$ grouping and empty-group skipping as build_markdown_translation,
+    merged with images at their anchor_position.
+    images: [{"anchor_position": int, "src_path": str}, ...]. Callers pass
+    them pre-sorted by (anchor_position, id) -- db.get_document_images()
+    already returns that order -- so equal anchors here simply preserve
+    input order (stable sort is not needed; we just iterate in order).
+    """
+    result: list[tuple[str, str]] = []
+    count = 0
+    n = len(raw_lines)
+    img_idx = 0
+
+    def _flush_images_up_to(position: int) -> None:
+        nonlocal img_idx
+        while img_idx < len(images) and images[img_idx]["anchor_position"] <= position:
+            result.append(("image", images[img_idx]["src_path"]))
+            img_idx += 1
+
+    while count < n:
+        line = raw_lines[count]
+        if line:
+            _flush_images_up_to(count)
+            group_size = 1
+            while (count + group_size < n
+                   and raw_lines[count + group_size].startswith("$")):
+                group_size += 1
+            translations = [translated_lines[count + x] for x in range(group_size)]
+            text = " ".join(t for t in translations if t).strip()
+            if text:
+                result.append(("text", text))
+            count += group_size
+        else:
+            count += 1
+
+    _flush_images_up_to(n)
+    return result

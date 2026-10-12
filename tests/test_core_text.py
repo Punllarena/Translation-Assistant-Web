@@ -3,6 +3,7 @@ import pytest
 
 from api.core.text import (
     SEPARATOR,
+    build_epub_content,
     build_markdown_ruby,
     build_markdown_translation,
     build_new_file,
@@ -481,3 +482,49 @@ def test_replace_and_parse_ignores_empty_phrase():
 
 def test_split_parse_chars_matches_the_desktop_setting_split():
     assert split_parse_chars("、 。 ？ ！ 「 」 …… ") == ["、", "。", "？", "！", "「", "」", "……"]
+
+
+
+
+# ---------------------------------------------------------------------------
+# build_epub_content
+# ---------------------------------------------------------------------------
+
+def test_build_epub_content_no_images_matches_paragraphs():
+    raw = ["%A", "%B"]
+    tl = ["Alpha", "Beta"]
+    result = build_epub_content(raw, tl, [])
+    assert result == [("text", "Alpha"), ("text", "Beta")]
+
+def test_build_epub_content_image_between_paragraphs():
+    raw = ["%A", "%B"]
+    tl = ["Alpha", "Beta"]
+    images = [{"anchor_position": 1, "src_path": "images/pic.png"}]
+    result = build_epub_content(raw, tl, images)
+    assert result == [("text", "Alpha"), ("image", "images/pic.png"), ("text", "Beta")]
+
+def test_build_epub_content_image_at_start():
+    raw = ["%A"]
+    tl = ["Alpha"]
+    images = [{"anchor_position": 0, "src_path": "images/pic.png"}]
+    result = build_epub_content(raw, tl, images)
+    assert result == [("image", "images/pic.png"), ("text", "Alpha")]
+
+def test_build_epub_content_image_at_end():
+    raw = ["%A"]
+    tl = ["Alpha"]
+    images = [{"anchor_position": 1, "src_path": "images/pic.png"}]
+    result = build_epub_content(raw, tl, images)
+    assert result == [("text", "Alpha"), ("image", "images/pic.png")]
+
+def test_build_epub_content_two_images_same_anchor_preserve_order():
+    raw = ["%A"]
+    tl = ["Alpha"]
+    images = [
+        {"anchor_position": 1, "src_path": "images/pic1.png"},
+        {"anchor_position": 1, "src_path": "images/pic2.png"},
+    ]
+    result = build_epub_content(raw, tl, images)
+    assert result == [
+        ("text", "Alpha"), ("image", "images/pic1.png"), ("image", "images/pic2.png"),
+    ]
