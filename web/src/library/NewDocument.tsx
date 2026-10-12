@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { api, ApiError, call, errorMessage } from "../api/client";
+import { api, call } from "../api/client";
 import type { SeriesRow } from "./group";
 import { invalidateLibrary } from "./queries";
+import { postForm } from "./upload";
 
 /** New document from pasted text, or import a desktop ---SEPERATOR--- TXT file. */
 export default function NewDocument({ series, onDone }: { series: SeriesRow[]; onDone: () => void }) {
@@ -27,19 +28,11 @@ export default function NewDocument({ series, onDone }: { series: SeriesRow[]; o
       if (!file) {
         return call(api.POST("/documents", { body: { title, series_id, raw_text: rawText, chapter_title: "", source_language: "ja", source_url: sourceUrl } }));
       }
-      // Multipart: built by hand, since the generated client types JSON bodies.
       const form = new FormData();
       form.append("file", file);
       if (title.trim()) form.append("title", title);
       if (series_id !== null) form.append("series_id", String(series_id));
-      const response = await fetch("/api/documents/import/txt", { method: "POST", body: form });
-      if (!response.ok) {
-        throw new ApiError(
-          response.status,
-          response.status === 413 ? "File too large" : errorMessage(await response.json().catch(() => null)),
-        );
-      }
-      return response.json();
+      return postForm("/documents/import/txt", form);
     },
     onSuccess: async () => {
       await invalidateLibrary(queryClient);

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { api, call, type Schemas } from "../api/client";
+import { api, ApiError, call, errorMessage, type Schemas } from "../api/client";
 import type { Doc } from "./group";
 import { invalidateLibrary } from "./queries";
 
@@ -37,11 +37,26 @@ function VolumeEditor({ volume, docs, onChanged }: { volume: Volume; docs: Doc[]
       call(api.PATCH("/documents/{document_id}", { params: { path: { document_id: documentId } }, body: { volume_id: null } })),
     onSuccess: onChanged,
   });
+  // Fetched on click: a 409/422 would otherwise download as a JSON file.
+  const download = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/volumes/${volume.id}/export/epub`);
+      if (!response.ok) {
+        throw new ApiError(response.status, errorMessage(await response.json().catch(() => null)));
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${volume.title}.epub`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+  });
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     save.mutate(Object.fromEntries(new FormData(e.currentTarget)) as Schemas["VolumeUpdate"]);
   };
-  const error = save.error ?? remove.error ?? add.error ?? unassign.error;
+  const error = save.error ?? remove.error ?? add.error ?? unassign.error ?? download.error;
   return (
     <details>
       <summary>{volume.title} <span className="muted">({docs.filter((d) => d.volume_id === volume.id).length} chapters)</span></summary>
@@ -64,6 +79,12 @@ function VolumeEditor({ volume, docs, onChanged }: { volume: Volume; docs: Doc[]
           }}>Delete volume</button>
         </div>
       </form>
+      <div className="toolbar">
+        <a href={`/api/volumes/${volume.id}/export/epub`} download onClick={(e) => {
+          e.preventDefault();
+          download.mutate();
+        }}>EPUB</a>
+      </div>
       <div className="toolbar">
         <select multiple aria-label="Chapters to assign" value={assign.map(String)}
           onChange={(e) => setAssign([...e.target.selectedOptions].map((o) => Number(o.value)))}>

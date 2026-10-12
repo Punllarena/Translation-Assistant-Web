@@ -57,6 +57,7 @@ export default function Picker() {
           const title = window.prompt("Series title");
           if (title?.trim()) newSeries.mutate(title);
         }}>New series</button>
+        <Link to="/import">Import…</Link>
         <button disabled={visible.length < 2 || busy} onClick={() => {
           const title = window.prompt("Chapter heading for the merged chapter (it keeps the first chapter's name)");
           if (title?.trim()) merge.mutate({ ids: visible, title });

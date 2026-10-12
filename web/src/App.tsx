@@ -4,6 +4,7 @@ import Login from "./auth/Login";
 import { RequireAuth } from "./auth/session";
 import EditorPage from "./editor/EditorPage";
 import SourcePage from "./editor/SourcePage";
+import ImportPage from "./library/ImportPage";
 import Picker from "./library/Picker";
 import SeriesPage from "./library/SeriesPage";
 import ProfilesPage from "./settings/ProfilesPage";
@@ -18,6 +19,7 @@ export const router = createBrowserRouter(
       <Route path="/invite" element={<AcceptInvite />} />
       <Route element={<RequireAuth><Shell /></RequireAuth>}>
         <Route index element={<Picker />} />
+        <Route path="import" element={<ImportPage />} />
         <Route path="series/:id" element={<SeriesPage />} />
         <Route path="settings/profiles" element={<ProfilesPage />} />
         <Route path="settings/shortcuts" element={<ShortcutsPage />} />
