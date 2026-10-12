@@ -248,6 +248,27 @@ def test_users_on_different_libretranslate_servers_never_share_results(
     assert len(calls) == 2 and db.query(MtCache).count() == 2
 
 
+def test_users_never_send_each_others_deepl_key_or_ollama_url(
+        app_client, me, make_user, login, make_doc, wire, monkeypatch):
+    install, calls = wire
+    install(lambda r: httpx.Response(200, json={"translations": [{"text": "ok"}]}
+                                     if r.url.host != "ollama-a" else {}))
+    monkeypatch.setattr(get_settings(), "mt_allow_private_urls", True)
+    b = make_user(email="b@example.com")
+    app_client.post("/credentials", json={"kind": "deepl", "secret": "key-of-a"})
+    app_client.post("/credentials", json={"kind": "ollama", "endpoint_url": "http://ollama-a:11434"})
+    app_client.put("/settings", json={"ollama_model": "m"})
+    login(app_client, b.email)
+    app_client.post("/credentials", json={"kind": "deepl", "secret": "key-of-b"})
+    app_client.put("/settings", json={"ollama_model": "m"})
+    doc = make_doc(b, ["猫"], translated=False)
+    stream(app_client, doc, "deepl")
+    stream(app_client, doc, "ollama")
+    assert calls[0].headers["Authorization"] == "DeepL-Auth-Key key-of-b"
+    assert all(c.url.host != "ollama-a" for c in calls)
+    assert all("key-of-a" not in str(c.headers) for c in calls)
+
+
 def test_foreign_profile_id_query_is_422(app_client, db, me, make_user, make_doc):
     from api.models import Profile
     theirs = Profile(user_id=make_user(email="other@example.com").id, name="p")

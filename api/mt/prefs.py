@@ -2,6 +2,7 @@
 helpers for api/routers/mt.py."""
 
 import hashlib
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -55,7 +56,7 @@ def unreadable_key(backend: str) -> str:
 
 
 def _digest(*parts: str) -> str:
-    return hashlib.sha256("\0".join(parts).encode("utf-8")).hexdigest()[:12]
+    return hashlib.sha256(json.dumps(parts).encode("utf-8")).hexdigest()[:12]
 
 
 def libretranslate_cache_key(url: str) -> str:

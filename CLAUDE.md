@@ -28,7 +28,7 @@ Phase 4: glossary API and Profiles page, translation memory panel, series find a
 Phase 5: machine-translation aggregator. DeepL, LibreTranslate and Ollama stream through `GET /mt/stream`
 (SSE; the single-shot backends yield once); MeCab and JParser return structured entries, not HTML. Results
 are cached in `mt_cache`, whose keys include the endpoint: `deepl`, `libretranslate:<sha12(url)>`, and
-`ollama:<model prefix>:<sha12(url\0model\0prompt)>`, so one user's server never answers for another's.
+`ollama:<model prefix>:<sha12(json [url, model, prompt])>`, so one user's server never answers for another's.
 Per-user backend settings live under `/mt` and Settings → Machine translation. User-supplied LibreTranslate and
 Ollama URLs are refused when they resolve to a non-global address unless `TA_MT_ALLOW_PRIVATE_URLS=true`
 (guard in `api/mt/urls.py`). Phase 6 is next.
