@@ -134,6 +134,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/import/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Batch
+         * @description The desktop batch_import_folder: many .txt files become chapters, appended to the
+         *     series in natural filename order; titles already present are skipped. One .csv is
+         *     imported as the series' glossary profile. Bad files are reported, not fatal.
+         */
+        post: operations["import_batch_documents_import_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/import/txt": {
         parameters: {
             query?: never;
@@ -271,6 +293,27 @@ export interface paths {
         patch: operations["save_lines_documents__document_id__lines_patch"];
         trace?: never;
     };
+    "/documents/{document_id}/refetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refetch
+         * @description The desktop Re-fetch: the title, a blank line, then the text, re-split into
+         *     lines; translations stay attached by position (409 on a line-count change).
+         */
+        post: operations["refetch_documents__document_id__refetch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}/source": {
         parameters: {
             query?: never;
@@ -304,6 +347,40 @@ export interface paths {
         put?: never;
         /** Split */
         post: operations["split_documents__document_id__split_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/epub/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Epub */
+        post: operations["import_epub_epub_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/epub/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Inspect */
+        post: operations["inspect_epub_inspect_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -363,6 +440,78 @@ export interface paths {
         put?: never;
         /** Create Invite */
         post: operations["create_invite_invites_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Jobs */
+        get: operations["list_jobs_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Job */
+        get: operations["get_job_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Job
+         * @description A queued job is cancelled at once; a running one stops at its next progress
+         *     point (the worker checks cancel_requested). Terminal jobs are left as they are.
+         */
+        post: operations["cancel_job_jobs__job_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{job_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Job Events */
+        get: operations["job_events_jobs__job_id__events_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -512,6 +661,26 @@ export interface paths {
         post?: never;
         /** Remove Word */
         delete: operations["remove_word_profiles__profile_id__words__word__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scrape/syosetu": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fetch One
+         * @description The desktop New document → Fetch from URL tab: returns the text for the form.
+         */
+        post: operations["fetch_one_scrape_syosetu_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -677,6 +846,40 @@ export interface paths {
          *     its line still holds the text the user reviewed; anything else is skipped.
          */
         post: operations["replace_in_series_series__series_id__replace_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/syosetu/chapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Chapters */
+        get: operations["list_chapters_series__series_id__syosetu_chapters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/syosetu/fetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fetch Series */
+        post: operations["fetch_series_series__series_id__syosetu_fetch_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -850,6 +1053,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/volumes/{volume_id}/export/epub": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Volume */
+        get: operations["export_volume_volumes__volume_id__export_epub_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -893,10 +1113,80 @@ export interface components {
             /** Target */
             target: string;
         };
+        /** BatchError */
+        BatchError: {
+            /** Message */
+            message: string;
+            /** Name */
+            name: string;
+        };
+        /** BatchImportOut */
+        BatchImportOut: {
+            /** Errors */
+            errors: components["schemas"]["BatchError"][];
+            /** Imported */
+            imported: string[];
+            /** Profile Id */
+            profile_id: number | null;
+            /** Series Id */
+            series_id: number | null;
+            /** Skipped */
+            skipped: string[];
+            /** Warnings */
+            warnings: string[];
+        };
+        /** Body_import_batch_documents_import_batch_post */
+        Body_import_batch_documents_import_batch_post: {
+            /** Files */
+            files: string[];
+            /** Series Id */
+            series_id?: number | null;
+            /**
+             * Series Title
+             * @default
+             */
+            series_title: string;
+        };
         /** Body_import_csv_profiles__profile_id__glossary_import_post */
         Body_import_csv_profiles__profile_id__glossary_import_post: {
             /** File */
             file: string;
+        };
+        /** Body_import_epub_epub_import_post */
+        Body_import_epub_epub_import_post: {
+            /**
+             * Author
+             * @default
+             */
+            author: string;
+            /** File */
+            file: string;
+            /** Hrefs */
+            hrefs: string[];
+            /**
+             * Identifier
+             * @default
+             */
+            identifier: string;
+            /**
+             * Illustrator
+             * @default
+             */
+            illustrator: string;
+            /**
+             * Publisher
+             * @default
+             */
+            publisher: string;
+            /** Series Id */
+            series_id?: number | null;
+            /**
+             * Series Title
+             * @default
+             */
+            series_title: string;
+            /** Volume Title */
+            volume_title: string;
         };
         /** Body_import_txt_documents_import_txt_post */
         Body_import_txt_documents_import_txt_post: {
@@ -907,10 +1197,52 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /** Body_inspect_epub_inspect_post */
+        Body_inspect_epub_inspect_post: {
+            /** File */
+            file: string;
+        };
         /** Body_set_cover_documents__document_id__cover_put */
         Body_set_cover_documents__document_id__cover_put: {
             /** File */
             file: string;
+        };
+        /** BookChapter */
+        BookChapter: {
+            /** Char Count */
+            char_count: number;
+            /** Href */
+            href: string;
+            /** Image Count */
+            image_count: number;
+            /** Order */
+            order: number;
+            /** Title */
+            title: string;
+        };
+        /** BookOut */
+        BookOut: {
+            /** Author */
+            author: string;
+            /** Chapters */
+            chapters: components["schemas"]["BookChapter"][];
+            /** Has Cover */
+            has_cover: boolean;
+            /** Identifier */
+            identifier: string;
+            /** Illustrator */
+            illustrator: string;
+            /** Publisher */
+            publisher: string;
+            /** Title */
+            title: string;
+        };
+        /** ChapterError */
+        ChapterError: {
+            /** Message */
+            message: string;
+            /** Title */
+            title: string;
         };
         /** CoverOut */
         CoverOut: {
@@ -1111,6 +1443,38 @@ export interface components {
             /** Volume Id */
             volume_id?: number | null;
         };
+        /** EpubImportOut */
+        EpubImportOut: {
+            /** Empty */
+            empty: string[];
+            /** Errors */
+            errors: components["schemas"]["ChapterError"][];
+            /** Imported */
+            imported: string[];
+            /** Series Id */
+            series_id: number;
+            /** Skipped */
+            skipped: string[];
+            /** Volume Id */
+            volume_id: number;
+        };
+        /** FetchChapters */
+        FetchChapters: {
+            /** Nums */
+            nums: number[];
+        };
+        /** FetchUrl */
+        FetchUrl: {
+            /** Url */
+            url: string;
+        };
+        /** Fetched */
+        Fetched: {
+            /** Content */
+            content: string;
+            /** Title */
+            title: string;
+        };
         /** FindMatch */
         FindMatch: {
             /** After */
@@ -1193,6 +1557,17 @@ export interface components {
             /** Updated */
             updated: number;
         };
+        /** IndexChapter */
+        IndexChapter: {
+            /** Fetched */
+            fetched: boolean;
+            /** Num */
+            num: number;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
         /** InviteCreate */
         InviteCreate: {
             /** Email */
@@ -1231,6 +1606,38 @@ export interface components {
             expires_at: string;
             /** Id */
             id: number;
+        };
+        /** JobOut */
+        JobOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Message */
+            message: string;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Progress */
+            progress: number;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            } | null;
+            /** Started At */
+            started_at: string | null;
+            /** State */
+            state: string;
+            /** Total */
+            total: number;
         };
         /** LineBatch */
         LineBatch: {
@@ -1323,6 +1730,14 @@ export interface components {
             name?: string | null;
             /** Parse Chars */
             parse_chars?: string | null;
+        };
+        /** Refetch */
+        Refetch: {
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
         };
         /** ReplaceRequest */
         ReplaceRequest: {
@@ -1884,6 +2299,39 @@ export interface operations {
             };
         };
     };
+    import_batch_documents_import_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_batch_documents_import_batch_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchImportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     import_txt_documents_import_txt_post: {
         parameters: {
             query?: never;
@@ -2241,6 +2689,41 @@ export interface operations {
             };
         };
     };
+    refetch_documents__document_id__refetch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Refetch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     replace_source_documents__document_id__source_put: {
         parameters: {
             query?: never;
@@ -2298,6 +2781,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_epub_epub_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_epub_epub_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpubImportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inspect_epub_inspect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_inspect_epub_inspect_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookOut"];
                 };
             };
             /** @description Validation Error */
@@ -2437,6 +2986,131 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InviteCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_jobs_jobs_get: {
+        parameters: {
+            query?: {
+                active?: boolean;
+                series_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_job_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_job_jobs__job_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_events_jobs__job_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2877,6 +3551,39 @@ export interface operations {
             };
         };
     };
+    fetch_one_scrape_syosetu_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FetchUrl"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Fetched"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_series_series_get: {
         parameters: {
             query?: never;
@@ -3216,6 +3923,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReplaceResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_chapters_series__series_id__syosetu_chapters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexChapter"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fetch_series_series__series_id__syosetu_fetch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FetchChapters"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
                 };
             };
             /** @description Validation Error */
@@ -3622,6 +4395,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_volume_volumes__volume_id__export_epub_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                volume_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

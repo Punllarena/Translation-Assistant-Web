@@ -8,6 +8,7 @@ from typing import Literal
 from urllib.parse import quote
 
 from fastapi import Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.core.text import (
@@ -16,6 +17,7 @@ from api.core.text import (
     build_markdown_translation,
     calculate_progress,
     lines_to_db_rows,
+    natural_key,
     parse_file_content,
     sanitize_filename,
 )
@@ -27,18 +29,37 @@ from api.library import (
     next_series_order,
     write_lines,
 )
-from api.models import Document, Series, User
+from api.models import Document, Profile, Series, User
+from api.routers.glossary import MAX_CSV_BYTES, import_pairs
 from api.routing import api_router
 from api.schemas.documents import DocumentOut
+from api.schemas.transfer import BatchImportOut
 from api.uploads import read_capped
 
 router = api_router(tags=["transfer"])
 
 MAX_TEXT_BYTES = 5 * 1024 * 1024
+MAX_BATCH_FILES = 500
 
 
 def _unprocessable(detail: str) -> HTTPException:
     return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail)
+
+
+def _txt_lines(data: bytes) -> tuple[list[str], list[str]]:
+    """Raw and translated lines of a desktop ---SEPERATOR--- file; 422 when unusable."""
+    if b"\x00" in data:
+        raise _unprocessable("not a text file")
+    try:
+        text = data.decode("utf-8-sig")  # -sig: Windows editors prepend a BOM
+    except UnicodeDecodeError:
+        raise _unprocessable("file is not UTF-8 text") from None
+    try:
+        raw, translated, _ = parse_file_content(text)
+    except ValueError as exc:
+        raise _unprocessable(str(exc)) from None
+    check_line_count(raw)
+    return raw, translated
 
 
 def attachment(filename: str) -> dict[str, str]:
@@ -66,18 +87,7 @@ def import_txt(
 ) -> Document:
     """A desktop ---SEPERATOR--- file becomes a document (the desktop import_txt). The
     title defaults to the file name without its extension."""
-    data = read_capped(file, MAX_TEXT_BYTES)
-    if b"\x00" in data:
-        raise _unprocessable("not a text file")
-    try:
-        text = data.decode("utf-8-sig")  # -sig: Windows editors prepend a BOM
-    except UnicodeDecodeError:
-        raise _unprocessable("file is not UTF-8 text") from None
-    try:
-        raw, translated, _ = parse_file_content(text)
-    except ValueError as exc:
-        raise _unprocessable(str(exc)) from None
-    check_line_count(raw)
+    raw, translated = _txt_lines(read_capped(file, MAX_TEXT_BYTES))
     if series_id is not None:
         owned_ref(db, Series, series_id, user.id, "series_id")
     name = (title or "").strip() or PureWindowsPath(file.filename or "").stem or "Untitled"
@@ -91,6 +101,116 @@ def import_txt(
     db.flush()
     write_lines(db, doc.id, lines_to_db_rows(raw, translated))
     return doc
+
+
+def _series_for(db: Session, user: User, series_id: int | None, title: str) -> Series | None:
+    title = title.strip()
+    if series_id is not None and title:
+        raise _unprocessable("give series_id or series_title, not both")
+    if series_id is not None:
+        return owned_ref(db, Series, series_id, user.id, "series_id")
+    if not title:
+        return None
+    series = db.scalar(select(Series).where(Series.user_id == user.id, Series.title == title))
+    if series is None:
+        series = Series(user_id=user.id, title=title)
+        db.add(series)
+        db.flush()
+    return series
+
+
+def _batch_glossary(db, user, csv_file, series, errors) -> int | None:
+    """Upsert the one CSV into a profile named by its stem; the series adopts it."""
+    name = PureWindowsPath(csv_file.filename or "").stem[:120] or "Imported"
+    try:
+        with db.begin_nested():
+            text = read_capped(csv_file, MAX_CSV_BYTES).decode("utf-8-sig")
+            profile = db.scalar(
+                select(Profile).where(Profile.user_id == user.id, Profile.name == name)
+            )
+            if profile is None:
+                profile = Profile(user_id=user.id, name=name)
+                db.add(profile)
+                db.flush()
+            import_pairs(db, profile.id, text)
+    except UnicodeDecodeError:
+        errors.append({"name": csv_file.filename, "message": "file is not UTF-8 text"})
+        return None
+    except HTTPException as exc:
+        errors.append({"name": csv_file.filename, "message": str(exc.detail)})
+        return None
+    if series is not None:
+        series.profile_id = profile.id
+    return profile.id
+
+
+@router.post(
+    "/documents/import/batch", response_model=BatchImportOut, status_code=status.HTTP_201_CREATED
+)
+def import_batch(
+    files: list[UploadFile] = File(...),
+    series_id: int | None = Form(None),
+    series_title: str = Form(""),
+    user: User = Depends(current_user),
+    db: Session = Depends(db_session),
+) -> dict:
+    """The desktop batch_import_folder: many .txt files become chapters, appended to the
+    series in natural filename order; titles already present are skipped. One .csv is
+    imported as the series' glossary profile. Bad files are reported, not fatal."""
+    if len(files) > MAX_BATCH_FILES:
+        raise _unprocessable(f"more than {MAX_BATCH_FILES} files")
+    series = _series_for(db, user, series_id, series_title)
+    errors: list[dict] = []
+    warnings: list[str] = []
+    texts: list[tuple[str, UploadFile]] = []
+    csvs: list[UploadFile] = []
+    for f in files:
+        name = f.filename or ""
+        ext = PureWindowsPath(name).suffix.lower()
+        if ext == ".txt":
+            texts.append((PureWindowsPath(name).stem, f))
+        elif ext == ".csv":
+            csvs.append(f)
+        else:
+            errors.append({"name": name, "message": "not a .txt or .csv file"})
+    profile_id = None
+    if len(csvs) == 1:
+        profile_id = _batch_glossary(db, user, csvs[0], series, errors)
+    elif csvs:
+        warnings.append(f"{len(csvs)} CSV files found; glossary import skipped.")
+    existing = set(db.scalars(select(Document.title).where(Document.user_id == user.id)))
+    first = next_series_order(db, series.id if series else None)
+    imported: list[str] = []
+    skipped: list[str] = []
+    for stem, f in sorted(texts, key=lambda t: natural_key(t[0])):
+        if stem in existing:
+            skipped.append(stem)
+            continue
+        try:
+            with db.begin_nested():
+                raw, translated = _txt_lines(read_capped(f, MAX_TEXT_BYTES))
+                doc = Document(
+                    user_id=user.id,
+                    title=stem or "Untitled",
+                    series_id=series.id if series else None,
+                    series_order=first + len(imported) if series else 0,
+                )
+                db.add(doc)
+                db.flush()
+                write_lines(db, doc.id, lines_to_db_rows(raw, translated))
+        except HTTPException as exc:
+            errors.append({"name": f.filename, "message": str(exc.detail)})
+            continue
+        existing.add(stem)
+        imported.append(stem)
+    return {
+        "series_id": series.id if series else None,
+        "profile_id": profile_id,
+        "imported": imported,
+        "skipped": skipped,
+        "errors": errors,
+        "warnings": warnings,
+    }
 
 
 @router.get("/documents/{document_id}/export")

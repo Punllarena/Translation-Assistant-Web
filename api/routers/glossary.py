@@ -106,18 +106,8 @@ def add_phrase(
     )
 
 
-@router.post("/import", response_model=ImportResult)
-def import_csv(
-    profile_id: int,
-    file: UploadFile = File(...),
-    user: User = Depends(current_user),
-    db: Session = Depends(db_session),
-) -> ImportResult:
-    profile = scoped(db, Profile, profile_id, user.id)
-    try:
-        text = read_capped(file, MAX_CSV_BYTES).decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "the file is not UTF-8") from exc
+def import_pairs(db: Session, profile_id: int, text: str) -> ImportResult:
+    """Upsert the glossary CSV ``text`` into the profile (shared with the batch TXT import)."""
     pairs: dict[str, str] = {}  # a phrase repeated in the file: the last row wins
     skipped = 0
     for phrase, translation in load_glossary(text):
@@ -131,6 +121,21 @@ def import_csv(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             f"the file holds more than {MAX_GLOSSARY_ENTRIES} phrases",
         )
-    added = _upsert(db, profile.id, pairs) if pairs else 0
+    added = _upsert(db, profile_id, pairs) if pairs else 0
     db.flush()
     return ImportResult(added=added, updated=len(pairs) - added, skipped=skipped)
+
+
+@router.post("/import", response_model=ImportResult)
+def import_csv(
+    profile_id: int,
+    file: UploadFile = File(...),
+    user: User = Depends(current_user),
+    db: Session = Depends(db_session),
+) -> ImportResult:
+    profile = scoped(db, Profile, profile_id, user.id)
+    try:
+        text = read_capped(file, MAX_CSV_BYTES).decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "the file is not UTF-8") from exc
+    return import_pairs(db, profile.id, text)
