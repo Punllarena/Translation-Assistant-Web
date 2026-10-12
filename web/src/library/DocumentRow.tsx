@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
-import { api, call } from "../api/client";
+import { api, ApiError, call } from "../api/client";
 import type { Doc, SeriesRow } from "./group";
 import { invalidateLibrary } from "./queries";
 
@@ -20,6 +20,21 @@ export default function DocumentRow({ doc, series, selected, onSelect }: Props) 
   const update = useMutation({
     mutationFn: (body: { title?: string; series_id?: number | null }) =>
       call(api.PATCH("/documents/{document_id}", { params: { path: { document_id: doc.id } }, body })),
+    onSuccess: () => invalidateLibrary(queryClient),
+  });
+  const refetch = useMutation({
+    mutationFn: async () => {
+      if (!window.confirm(`Re-fetch content from: ${doc.source_url}? Existing translations will be preserved by line position.`)) return;
+      const send = (force: boolean) =>
+        call(api.POST("/documents/{document_id}/refetch", { params: { path: { document_id: doc.id } }, body: { force } }));
+      try {
+        await send(false);
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 409) throw e;
+        if (!window.confirm(`${e.message}\n\nReplace anyway?`)) return;
+        await send(true);
+      }
+    },
     onSuccess: () => invalidateLibrary(queryClient),
   });
   const rename = (title: string) => {
@@ -53,6 +68,10 @@ export default function DocumentRow({ doc, series, selected, onSelect }: Props) 
             <Link to={`/documents/${doc.id}`} aria-label={`Open ${doc.title}`}>Open</Link>
           </>
         )}
+        {doc.source_url && (
+          <>{" "}<button type="button" disabled={refetch.isPending} onClick={() => refetch.mutate()}>Re-fetch</button></>
+        )}
+        {refetch.isError && <span className="error" role="alert"> {refetch.error.message}</span>}
         {update.isError && <span className="error"> {update.error.message}</span>}
       </td>
       <td>{doc.progress}%</td>

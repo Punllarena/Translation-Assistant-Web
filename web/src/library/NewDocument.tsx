@@ -11,11 +11,21 @@ export default function NewDocument({ series, onDone }: { series: SeriesRow[]; o
   const [seriesId, setSeriesId] = useState("");
   const [rawText, setRawText] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [url, setUrl] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const fetchUrl = useMutation({
+    mutationFn: () => call(api.POST("/scrape/syosetu", { body: { url: url.trim() } })),
+    onSuccess: (fetched) => {
+      setTitle((t) => t || fetched.title);
+      setRawText(fetched.content);
+      setSourceUrl(url.trim());
+    },
+  });
   const create = useMutation({
     mutationFn: async () => {
       const series_id = seriesId ? Number(seriesId) : null;
       if (!file) {
-        return call(api.POST("/documents", { body: { title, series_id, raw_text: rawText, chapter_title: "", source_language: "ja", source_url: "" } }));
+        return call(api.POST("/documents", { body: { title, series_id, raw_text: rawText, chapter_title: "", source_language: "ja", source_url: sourceUrl } }));
       }
       // Multipart: built by hand, since the generated client types JSON bodies.
       const form = new FormData();
@@ -52,6 +62,15 @@ export default function NewDocument({ series, onDone }: { series: SeriesRow[]; o
           {series.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
         </select>
       </label>
+      <div className="toolbar">
+        <label>
+          Fetch from URL <input type="url" aria-label="Syosetu URL" value={url} disabled={!!file}
+            onChange={(e) => setUrl(e.target.value)} />
+        </label>
+        <button type="button" disabled={!url.trim() || !!file || fetchUrl.isPending}
+          onClick={() => fetchUrl.mutate()}>Fetch</button>
+      </div>
+      {fetchUrl.isError && <p className="error" role="alert">{fetchUrl.error.message}</p>}
       <label>
         Source text <textarea rows={8} value={rawText} disabled={!!file}
           onChange={(e) => setRawText(e.target.value)} />
