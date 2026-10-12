@@ -1,13 +1,13 @@
 # ta-web
 
-Web port of the Translation Assistant desktop app. This repo currently holds **phases 1–2, 3a and 3b**:
+Web port of the Translation Assistant desktop app. This repo currently holds **phases 1–5**:
 the skeleton (FastAPI app, full Postgres schema via Alembic, session auth with invites,
 per-user profiles/settings/shortcuts/encrypted credentials, the `ta.db` importer), the
 library API (series, volumes, documents, picker listing with progress, reorder and renumber,
 merge and split, covers, TXT import, TXT/Markdown export), and the editor API (line load and
 dirty-line save, parse navigation, spellcheck, inline images). Phase 3a brings the SPA under
-`web/` (login, picker, series manager); phase 3b adds the editor screen. Phases 4–6 are described
-in the spec.
+`web/` (login, picker, series manager); phase 3b adds the editor screen; phases 4–5 add glossary, translation memory and machine
+translation. Phase 6 is described in the spec.
 
 - Spec: [`docs/superpowers/specs/2026-10-10-web-app-port-design.md`](docs/superpowers/specs/2026-10-10-web-app-port-design.md)
 - Phase 1 plan: [`docs/superpowers/plans/2026-10-10-phase1-skeleton.md`](docs/superpowers/plans/2026-10-10-phase1-skeleton.md)
@@ -147,7 +147,10 @@ User-supplied LibreTranslate and Ollama URLs are checked before the server calls
 that resolves to a private, loopback, link-local, or CGNAT (100.64.0.0/10) address is refused.
 Set `TA_MT_ALLOW_PRIVATE_URLS=true` to allow those, for example for a LibreTranslate instance on
 your LAN. The server defaults (`TA_OLLAMA_URL`, `TA_LIBRETRANSLATE_URL`) are operator-trusted and
-are not checked. The guard lives in `api/mt/urls.py`.
+are not checked. The guard lives in `api/mt/urls.py`. DNS is checked when the request is
+prepared and the result is not pinned, so a host whose DNS changes between the check and the call
+(DNS rebinding) can bypass the guard; operators exposing the server to untrusted users should keep
+that in mind.
 
 ## Design decisions
 
