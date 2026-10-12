@@ -130,3 +130,17 @@ def test_image_budget_exhausted_rolls_back_the_whole_import(app_client, me, db, 
     assert r.status_code == 413
     db.rollback()  # what db_session's teardown does on a failed request
     assert db.query(Document).count() == 0
+
+
+def test_chapter_files_count_against_the_budget(app_client, me, db, monkeypatch):
+    data = book(cover=False)
+    hrefs = _book_hrefs(app_client, data)
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        one = zf.getinfo(hrefs[0]).file_size
+    monkeypatch.setattr("api.routers.epub.MAX_UNCOMPRESSED", one + 1)
+    assert _import(app_client, data, hrefs).status_code == 413
+
+
+def test_oversized_text_entry_is_422(app_client, me, monkeypatch):
+    monkeypatch.setattr("api.core.epub_read.MAX_TEXT_ENTRY", 10)
+    assert app_client.post("/epub/inspect", files=upload(book())).status_code == 422

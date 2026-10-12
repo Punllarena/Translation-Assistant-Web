@@ -49,7 +49,7 @@ class _ImageBudgetExceeded(Exception):
 def _over_budget() -> HTTPException:
     return HTTPException(
         status.HTTP_413_CONTENT_TOO_LARGE,
-        f"EPUB images exceed {MAX_UNCOMPRESSED // (1024 * 1024)} MB in total; "
+        f"EPUB chapters and images exceed {MAX_UNCOMPRESSED // (1024 * 1024)} MB in total; "
         "import fewer chapters at a time",
     )
 
@@ -110,6 +110,8 @@ def _import_chapter(
 ) -> tuple[Document, bool]:
     """One chapter into one document; the caller wraps this in a savepoint."""
     text, images = extract_chapter_content(data, href)
+    # The chapter file is decompressed again for every chapter, so it counts too.
+    budget[0] -= zipfile.ZipFile(data).getinfo(href).file_size
     budget[0] -= sum(len(img["data"]) for img in images)
     if budget[0] < 0:
         raise _ImageBudgetExceeded
@@ -169,7 +171,7 @@ def import_epub(
     empty: list[str] = []
     errors: list[ChapterError] = []
     first_doc: Document | None = None
-    budget = [MAX_UNCOMPRESSED]  # extracted image bytes left for this whole import
+    budget = [MAX_UNCOMPRESSED]  # chapter-file + image bytes left for this import
     order = next_series_order(db, series.id)
     for href in hrefs:
         chapter = known.get(href)

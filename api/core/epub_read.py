@@ -17,6 +17,7 @@ from api.core.text import build_new_file, parse_file_content
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 MAX_UNCOMPRESSED = 256 * 1024 * 1024  # ours (spec §6): cap what a book may expand to
+MAX_TEXT_ENTRY = 16 * 1024 * 1024  # ours: one XML/XHTML file BeautifulSoup will parse
 
 
 class EpubError(ValueError):
@@ -51,6 +52,8 @@ def _unreadable():
 
 def _read(zf: zipfile.ZipFile, path: str) -> str:
     try:
+        if zf.getinfo(path).file_size > MAX_TEXT_ENTRY:
+            raise EpubError(f"{path} is larger than {MAX_TEXT_ENTRY // (1024 * 1024)} MB")
         return zf.read(path).decode("utf-8")
     except KeyError as exc:
         raise EpubError(f"Missing file in EPUB: {path}") from exc
