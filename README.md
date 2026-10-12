@@ -130,6 +130,25 @@ ports 8001 (API) and 5174 (SPA).
 `pip install -e '.[mecab]'` installs fugashi and unidic-lite. Without it, phrase
 suggestions report that MeCab is unavailable. The Docker image already installs `.[mecab]`.
 
+## Machine translation
+
+Each user sets up backends at Settings → Machine translation.
+
+- **DeepL** needs your own API key. Free keys end in `:fx` and use the free API host.
+- **LibreTranslate** needs a URL. The server default is `TA_LIBRETRANSLATE_URL`; a per-user URL
+  overrides it.
+- **Ollama** uses the server default `TA_OLLAMA_URL`, a per-user URL override, and a model name.
+- **MeCab** needs the `mecab` extra (`pip install -e '.[mecab]'`).
+- **JParser** needs `edict2` from <https://www.edrdg.org/jmdict/edict.html>, at `TA_EDICT_PATH`.
+- `TA_CONJUGATIONS_PATH` (optional) points at the desktop's `Conjugations.txt` and enables
+  deconjugation in JParser.
+
+User-supplied LibreTranslate and Ollama URLs are checked before the server calls them: a host
+that resolves to a private, loopback, link-local, or CGNAT (100.64.0.0/10) address is refused.
+Set `TA_MT_ALLOW_PRIVATE_URLS=true` to allow those, for example for a LibreTranslate instance on
+your LAN. The server defaults (`TA_OLLAMA_URL`, `TA_LIBRETRANSLATE_URL`) are operator-trusted and
+are not checked. The guard lives in `api/mt/urls.py`.
+
 ## Design decisions
 
 - **Caddy serves the SPA and fronts the API under `/api`.** The API's paths and the SPA's

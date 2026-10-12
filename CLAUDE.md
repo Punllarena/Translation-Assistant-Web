@@ -23,7 +23,15 @@ series manager).
 Phase 3b: editor screen: cards, CodeMirror input, saving, keymap, find, spell, images,
 Edit Source/Split; Playwright smoke flows.
 
-Phase 4: glossary API and Profiles page, translation memory panel, series find and replace (reviewed batch), phrase suggestions (MeCab via the optional `mecab` extra). Phases 5–6 are next.
+Phase 4: glossary API and Profiles page, translation memory panel, series find and replace (reviewed batch), phrase suggestions (MeCab via the optional `mecab` extra).
+
+Phase 5: machine-translation aggregator. DeepL, LibreTranslate and Ollama stream through `GET /mt/stream`
+(SSE; the single-shot backends yield once); MeCab and JParser return structured entries, not HTML. Results
+are cached in `mt_cache`, whose keys include the endpoint: `deepl`, `libretranslate:<sha12(url)>`, and
+`ollama:<model prefix>:<sha12(url\0model\0prompt)>`, so one user's server never answers for another's.
+Per-user backend settings live under `/mt` and Settings → Machine translation. User-supplied LibreTranslate and
+Ollama URLs are refused when they resolve to a non-global address unless `TA_MT_ALLOW_PRIVATE_URLS=true`
+(guard in `api/mt/urls.py`). Phase 6 is next.
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
@@ -79,3 +87,6 @@ that database each run; conftest refuses any database name not ending in `_test`
   TestClient speaks plain http.
 - `TA_ALLOW_PUBLIC_SIGNUP` is reserved and inert; `/auth/accept-invite` is the only
   account-creation path.
+- MT backends take an injected `httpx.AsyncClient`; tests use `httpx.MockTransport` fixtures
+  (`tests/fixtures/mt/`), never live endpoints. The `/mt/stream` cache write runs in its own session
+  (`_put_sync` in `api/routers/mt.py`), the one sanctioned commit outside the route boundary.

@@ -358,6 +358,13 @@ They ship marked as best-effort and are not the defaults. DeepL (with the
 user's own key) and Ollama (local model) are the recommended backends. This is
 a documented limitation, not a bug to fix.
 
+**Note (2026-10-12).** Google and Bing were not shipped; this was a user decision during phase 5
+planning, because the desktop used keyed APIs and the shared-IP free endpoints are unreliable.
+MeCab and JParser return structured entries instead of HTML. Cache keys in `mt_cache` include the
+endpoint (LibreTranslate and Ollama keys hash the URL, and Ollama's also hash the model and prompt),
+so one user's server never answers for another's. User-supplied LibreTranslate and Ollama URLs are
+refused when they resolve to a non-global address, unless `TA_MT_ALLOW_PRIVATE_URLS` is true.
+
 ---
 
 ## 9. Background jobs
