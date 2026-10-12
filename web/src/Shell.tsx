@@ -19,6 +19,7 @@ export default function Shell() {
         <nav>
           <NavLink to="/">Library</NavLink>
           <NavLink to="/settings/profiles">Profiles</NavLink>
+          <NavLink to="/settings/mt">Machine translation</NavLink>
           <NavLink to="/settings/shortcuts">Shortcuts</NavLink>
         </nav>
         <span className="muted">{me.data?.email}</span>
