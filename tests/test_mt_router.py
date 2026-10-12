@@ -177,6 +177,7 @@ def test_backends_report_availability_and_languages(app_client, me, wire, monkey
     body = app_client.get("/mt/backends").json()
     assert body["target"] == "en" and body["enabled"] == ["mecab", "jparser"]
     assert body["languages"]["ja"] == "Japanese"
+    assert "{src}" in body["ollama_default_prompt"]
     by = {b["name"]: b for b in body["backends"]}
     assert set(by) == {"deepl", "libretranslate", "ollama", "mecab", "jparser"}
     assert by["deepl"]["available"] is False and "DeepL" in by["deepl"]["message"]

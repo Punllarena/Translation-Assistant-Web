@@ -15,4 +15,5 @@ class Backends(BaseModel):
     languages: dict[str, str]
     target: str
     enabled: list[str]
+    ollama_default_prompt: str
     backends: list[BackendStatus]

@@ -9,8 +9,8 @@ test("machine translation: DeepL key persists and enables the panel", async ({ p
   await page.getByRole("link", { name: "Machine translation" }).click();
   await expect(page.getByRole("heading", { name: "Machine translation" })).toBeVisible();
   const show = page.getByLabel("Show DeepL");
-  await show.check();
-  await expect(page.getByRole("status")).toHaveText("Saved");
+  const saved = () => page.waitForResponse((r) => r.url().endsWith("/api/settings") && r.request().method() === "PUT");
+  await Promise.all([saved(), show.check()]);
   await page.getByLabel("DeepL API key").fill("test-key:fx");
   await page.getByRole("button", { name: "Save DeepL" }).click();
   await expect(page.getByText("…y:fx")).toBeVisible();
@@ -18,8 +18,7 @@ test("machine translation: DeepL key persists and enables the panel", async ({ p
   await expect(page.getByText("…y:fx")).toBeVisible();
   await expect(page.getByTestId("status-deepl")).toHaveText("Ready");
   await expect(show).toBeChecked();
-  await show.uncheck();
-  await expect(page.getByRole("status")).toHaveText("Saved");
+  await Promise.all([saved(), show.uncheck()]);
   await page.reload();
   await expect(show).not.toBeChecked();
 });

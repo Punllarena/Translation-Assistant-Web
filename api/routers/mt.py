@@ -245,6 +245,7 @@ async def backends(
     problems |= local
     return Backends(
         languages=LANGUAGES, target=p.target, enabled=p.enabled,
+        ollama_default_prompt=ollama.DEFAULT_SYSTEM_PROMPT,
         backends=[
             BackendStatus(name=name, available=problems[name] is None, message=problems[name])
             for name in ("deepl", "libretranslate", "ollama", "mecab", "jparser")

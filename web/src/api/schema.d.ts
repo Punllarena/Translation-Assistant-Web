@@ -888,6 +888,8 @@ export interface components {
             languages: {
                 [key: string]: string;
             };
+            /** Ollama Default Prompt */
+            ollama_default_prompt: string;
             /** Target */
             target: string;
         };

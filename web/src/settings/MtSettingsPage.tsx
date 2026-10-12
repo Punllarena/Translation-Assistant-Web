@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api, call, type Schemas } from "../api/client";
 
 type Kind = "deepl" | "libretranslate" | "ollama";
@@ -28,10 +28,13 @@ export default function MtSettingsPage() {
   const shown = (order ?? [...enabled, ...names.filter((n) => !enabled.includes(n))]).filter((n) => names.includes(n));
   const [checked, setChecked] = useState<string[] | null>(null);
   const on = checked ?? enabled;
+  const enabledKey = enabled.join(",");
+  useEffect(() => { setOrder(null); setChecked(null); }, [enabledKey]);
 
   const putSetting = useMutation({
     mutationFn: (body: Record<string, unknown>) => call(api.PUT("/settings", { body })),
     onSuccess: done("Saved"),
+    onError: () => { setOrder(null); setChecked(null); },
   });
   const resetPrompt = useMutation({
     mutationFn: () => call(api.DELETE("/settings/{key}", { params: { path: { key: "ollama_system_prompt" } } })),
@@ -100,15 +103,16 @@ export default function MtSettingsPage() {
         </>
       )}
       <h2>DeepL</h2>
-      <form className="toolbar" onSubmit={(e) => { const secret = typed(form(e).get("k")); if (secret) saveCred.mutate({ kind: "deepl", secret }); }}>
+      <form className="toolbar" onSubmit={(e) => { const f = e.currentTarget; const secret = typed(form(e).get("k")); if (secret) saveCred.mutate({ kind: "deepl", secret }, { onSuccess: () => f.reset() }); }}>
         <input type="password" name="k" aria-label="DeepL API key" autoComplete="off" />
         <button type="submit">Save DeepL</button>
         <span className="muted">{keyState("deepl")}</span>
       </form>
       <h2>LibreTranslate</h2>
       <form key={cred("libretranslate")?.endpoint_url} className="toolbar" onSubmit={(e) => {
-        const f = form(e); const secret = typed(f.get("k"));
-        saveCred.mutate({ kind: "libretranslate", endpoint_url: typed(f.get("u")), ...(secret ? { secret } : {}) });
+        const el = e.currentTarget; const f = form(e); const secret = typed(f.get("k"));
+        saveCred.mutate({ kind: "libretranslate", endpoint_url: typed(f.get("u")), ...(secret ? { secret } : {}) },
+          { onSuccess: () => { (el.elements.namedItem("k") as HTMLInputElement).value = ""; } });
       }}>
         <input name="u" aria-label="LibreTranslate URL" defaultValue={cred("libretranslate")?.endpoint_url ?? ""} />
         <input type="password" name="k" aria-label="LibreTranslate API key" autoComplete="off" />
@@ -125,7 +129,7 @@ export default function MtSettingsPage() {
         putSetting.mutate({ ollama_model: typed(f.get("m")), ollama_system_prompt: String(f.get("p") ?? "") });
       }}>
         <p><input name="m" aria-label="Ollama model" defaultValue={String(s.ollama_model ?? "")} /></p>
-        <p><textarea name="p" aria-label="Ollama system prompt" rows={8} placeholder="Server default prompt"
+        <p><textarea name="p" aria-label="Ollama system prompt" rows={8} placeholder={backends.data?.ollama_default_prompt}
           defaultValue={String(s.ollama_system_prompt ?? "")} /></p>
         <button type="submit">Save Ollama options</button>{" "}
         <button type="button" onClick={() => resetPrompt.mutate()}>Reset</button>
