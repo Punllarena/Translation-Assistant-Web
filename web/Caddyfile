@@ -6,7 +6,7 @@
 	# EPUB uploads may be up to 64 MiB (plan ruling 3); everything else stays at 12 MB.
 	@epub path /api/epub/*
 	request_body @epub {
-		max_size 64MB
+		max_size 64MiB
 	}
 	@not_epub not path /api/epub/*
 	request_body @not_epub {

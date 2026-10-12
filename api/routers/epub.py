@@ -4,12 +4,19 @@ is uploaded twice, once per step (ruling 6)."""
 
 import io
 import zipfile
+import zlib
 
 from fastapi import Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import DataError
 from sqlalchemy.orm import Session
 
-from api.core.epub_read import EpubError, extract_chapter_content, open_book
+from api.core.epub_read import (
+    MAX_UNCOMPRESSED,
+    EpubError,
+    extract_chapter_content,
+    open_book,
+)
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.deps import current_user, db_session, owned_ref
 from api.library import check_line_count, next_series_order, write_lines
@@ -21,7 +28,20 @@ from api.uploads import read_capped
 router = api_router(tags=["epub"])
 
 MAX_EPUB_BYTES = 64 * 1024 * 1024  # plan ruling 3; Caddy allows the same on /api/epub/*
-MAX_CHAPTERS = 1000
+# Starlette's multipart max_fields is 1000 and counts the other form fields too.
+MAX_CHAPTERS = 900
+
+
+class _ImageBudgetExceeded(Exception):
+    """Not caught per chapter: the whole import rolls back."""
+
+
+def _over_budget() -> HTTPException:
+    return HTTPException(
+        status.HTTP_413_CONTENT_TOO_LARGE,
+        f"EPUB images exceed {MAX_UNCOMPRESSED // (1024 * 1024)} MB in total; "
+        "import fewer chapters at a time",
+    )
 
 
 def _unprocessable(detail: str) -> HTTPException:
@@ -76,10 +96,14 @@ def _volume(db: Session, series: Series, title: str, meta: dict[str, str]) -> Vo
 
 def _import_chapter(
     db: Session, user: User, series: Series, volume: Volume, data: io.BytesIO,
-    title: str, href: str, order: int,
+    title: str, href: str, order: int, budget: list[int],
 ) -> tuple[Document, bool]:
     """One chapter into one document; the caller wraps this in a savepoint."""
     text, images = extract_chapter_content(data, href)
+    budget[0] -= sum(len(img["data"]) for img in images)
+    if budget[0] < 0:
+        raise _ImageBudgetExceeded
+    text = text.replace("\x00", "")  # Postgres text cannot hold NUL
     raw, translated, _ = parse_file_content(build_new_file(text))
     check_line_count(raw)
     doc = Document(
@@ -135,6 +159,7 @@ def import_epub(
     empty: list[str] = []
     errors: list[ChapterError] = []
     first_doc: Document | None = None
+    budget = [MAX_UNCOMPRESSED]  # extracted image bytes left for this whole import
     order = next_series_order(db, series.id)
     for href in hrefs:
         chapter = known.get(href)
@@ -147,15 +172,17 @@ def import_epub(
             continue
         try:
             with db.begin_nested():
-                doc, is_empty = _import_chapter(db, user, series, volume, data, title, href, order)
-        except (EpubError, ValueError, KeyError, HTTPException) as exc:
+                doc, is_empty = _import_chapter(
+                    db, user, series, volume, data, title, href, order, budget)
+        except _ImageBudgetExceeded:
+            raise _over_budget() from None
+        except (EpubError, ValueError, KeyError, DataError, HTTPException) as exc:
             errors.append(ChapterError(
                 title=title, message=str(getattr(exc, "detail", None) or exc)))
             continue
         first_doc = first_doc or doc
         order += 1
         imported.append(title)
-        already.add(title)
         if is_empty:
             empty.append(title)
 
@@ -168,9 +195,13 @@ def import_epub(
     ):
         try:
             cover = zipfile.ZipFile(data).read(cover_href)
-        except (zipfile.BadZipFile, KeyError, ValueError):
+        except (zipfile.BadZipFile, KeyError, ValueError, RuntimeError, NotImplementedError,
+                EOFError, zlib.error):
             cover = None
         if cover:
+            budget[0] -= len(cover)
+            if budget[0] < 0:
+                raise _over_budget()
             db.add(DocumentImage(
                 document_id=first_doc.id, anchor_position=0, is_cover=True,
                 src_path=cover_href, data=cover,
