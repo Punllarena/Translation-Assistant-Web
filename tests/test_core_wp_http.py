@@ -109,3 +109,11 @@ def test_a_json_list_body_is_an_error_not_a_crash():
     with make(lambda r: httpx.Response(200, json=[1, 2])) as c:
         with pytest.raises(WPPublishError):
             wp_http.publish(c, SITE, {})
+
+
+def test_non_json_body_never_reaches_the_message():
+    body = "<html>GET /wp-json/ta-publisher/v1/status?api_key=sekret-key</html>"
+    with make(lambda r: httpx.Response(200, text=body)) as c:
+        with pytest.raises(WPPublishError, match="non-JSON") as e:
+            wp_http.check_status(c, SITE, "sekret-key", "s", 1)
+    assert "sekret-key" not in e.value.message

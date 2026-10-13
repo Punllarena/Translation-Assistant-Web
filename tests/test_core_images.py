@@ -40,3 +40,21 @@ def test_a_decompression_bomb_is_returned_as_is(monkeypatch):
     monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 1000)  # anything over 2000 px raises
     data = encode(Image.frombytes("RGB", (800, 800), os.urandom(800 * 800 * 3)), "PNG")
     assert shrink_image(data) is data
+
+
+def test_a_truncated_big_png_is_returned_as_is():
+    noise = Image.frombytes("RGB", (800, 800), os.urandom(800 * 800 * 3))
+    data = encode(noise, "PNG")
+    assert len(data) > 700_000
+    cut = data[: len(data) // 2]
+    assert len(cut) > 350_000
+    assert shrink_image(cut) is cut
+
+
+def test_over_the_pixel_cap_is_returned_as_is(monkeypatch):
+    from api.core import images
+
+    monkeypatch.setattr(images, "MAX_PIXELS", 1000)
+    data = encode(Image.frombytes("RGB", (800, 800), os.urandom(800 * 800 * 3)), "PNG")
+    assert len(data) > 350_000
+    assert shrink_image(data) is data

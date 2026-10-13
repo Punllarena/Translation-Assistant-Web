@@ -32,7 +32,7 @@ def _send(c: httpx.Client, method: str, url: str, *, timeout: float,
     try:
         r = c.request(method, url, timeout=timeout, **kwargs)
     except (httpx.HTTPError, httpx.InvalidURL) as exc:
-        raise WPPublishError(f"Could not reach {url}: {type(exc).__name__}") from exc
+        raise WPPublishError(f"Could not reach {url}: {type(exc).__name__}") from None
     if r.is_redirect:
         raise WPPublishError(
             f"{url} redirected to {r.headers.get('location', '?')}; save that address instead",
@@ -49,7 +49,7 @@ def _send(c: httpx.Client, method: str, url: str, *, timeout: float,
     try:
         body = r.json()
     except ValueError:
-        raise WPPublishError(f"Server returned non-JSON response: {r.content[:200]!r}") from None
+        raise WPPublishError(f"Server returned non-JSON response (HTTP {r.status_code})") from None
     if not isinstance(body, dict):
         raise WPPublishError("Server returned an unexpected response")
     return body

@@ -8,6 +8,7 @@ import io
 
 from PIL import Image
 
+MAX_PIXELS = 40_000_000  # ponytail: decode cap per image; larger art is sent as-is
 _QUALITY_STEPS = (82, 70, 60, 50, 40)
 
 
@@ -21,10 +22,14 @@ def shrink_image(data: bytes, max_dim: int = 1600, target_bytes: int = 350_000) 
         return data
     try:
         with Image.open(io.BytesIO(data)) as im:
+            if im.width * im.height > MAX_PIXELS:
+                return data
             # thumbnail keeps aspect and never enlarges
             im.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
             img = im.convert("RGB")
-    except (OSError, ValueError, Image.DecompressionBombError):
+    except Exception:
+        # ponytail: any decode failure (Pillow raises OSError, SyntaxError, EOFError,
+        # struct.error...) sends the original
         return data
     out = b""
     for quality in _QUALITY_STEPS:
