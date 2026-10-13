@@ -45,7 +45,7 @@ server-enforced re-publish 409 (`confirm_republish`), batch publish and volume i
 Every WordPress call passes `check_user_url` unless `TA_WP_ALLOW_PRIVATE_URLS=true`, and the client never follows
 redirects. Images over 40 megapixels (`MAX_PIXELS`, `api/core/images.py`) are sent as-is without decoding. A
 cancelled or interrupted batch keeps per-chapter results (passwords included) in the job result. WordPress error
-messages never include the server's response body. `GET /stats?tz=` buckets `lines.translated_at` in the viewer's
+messages show only the plugin's JSON `error`/`message` field; a non-JSON or other body never reaches them. `GET /stats?tz=` buckets `lines.translated_at` in the viewer's
 IANA zone. The SPA's publish dialogs open with native `showModal()` (non-modal `<dialog open>` inside table cells
 got covered by rows).
 

@@ -185,14 +185,14 @@ The WordPress endpoint has its own flag, `TA_WP_ALLOW_PRIVATE_URLS` (see WordPre
 
 Install the Translation Assistant Publisher plugin on the WordPress site, then enter its endpoint
 (site URL or `…/wp-json/ta-publisher/v1/publish`) and API key under Settings → WordPress, and each
-series' slug and short title on its series page. Publish one chapter from its picker row, or select
+series' slug and short title on its series page. Publish one chapter with the Publish… button on its row in the library, or select
 chapters and choose Publish to publish or schedule them as a job. Volumes have a Publish
 illustrations button.
 
 The endpoint may not resolve to a private or local address unless `TA_WP_ALLOW_PRIVATE_URLS=true`
 (for a WordPress on the same network). The server never follows a redirect from WordPress; save the
 address it redirects to instead. Images are downscaled (Pillow) to keep each request under the
-~1 MB body limit some hosts enforce. The DNS-rebinding caveat described under Machine translation
+~1 MB body limit some hosts enforce; images over 40 megapixels are sent unchanged. The DNS-rebinding caveat described under Machine translation
 applies to the WordPress endpoint too.
 
 ## Design decisions
