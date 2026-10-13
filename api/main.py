@@ -22,6 +22,7 @@ from api.routers import (
     series,
     settings,
     spell,
+    stats,
     transfer,
     volumes,
     wp,
@@ -75,6 +76,7 @@ def create_app() -> FastAPI:
     app.include_router(jobs_routes.router)
     app.include_router(epub.router)
     app.include_router(wp.router)
+    app.include_router(stats.router)
 
     return app
 
