@@ -11,6 +11,7 @@ import ProfilesPage from "./settings/ProfilesPage";
 import MtSettingsPage from "./settings/MtSettingsPage";
 import WpSettingsPage from "./settings/WpSettingsPage";
 import ShortcutsPage from "./settings/ShortcutsPage";
+import StatsPage from "./stats/StatsPage";
 import Shell from "./Shell";
 
 export const router = createBrowserRouter(
@@ -21,6 +22,7 @@ export const router = createBrowserRouter(
       <Route element={<RequireAuth><Shell /></RequireAuth>}>
         <Route index element={<Picker />} />
         <Route path="import" element={<ImportPage />} />
+        <Route path="stats" element={<StatsPage />} />
         <Route path="series/:id" element={<SeriesPage />} />
         <Route path="settings/profiles" element={<ProfilesPage />} />
         <Route path="settings/shortcuts" element={<ShortcutsPage />} />

@@ -69,3 +69,4 @@ form.stack { display: grid; gap: 0.5rem; max-width: 24rem; }
 .tm-panel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
 .tm-panel button { display: block; width: 100%; text-align: left; font: inherit; }
 @media (max-width: 60rem) { .editor-layout { flex-direction: column; } .side-col { position: static; width: auto; max-height: none; } }
+tr.selected { background: var(--highlight, #fff3b0); }

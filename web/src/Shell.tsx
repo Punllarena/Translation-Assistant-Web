@@ -18,6 +18,7 @@ export default function Shell() {
       <header className="app">
         <nav>
           <NavLink to="/">Library</NavLink>
+          <NavLink to="/stats">Statistics</NavLink>
           <NavLink to="/settings/profiles">Profiles</NavLink>
           <NavLink to="/settings/mt">Machine translation</NavLink>
           <NavLink to="/settings/wp">WordPress</NavLink>
