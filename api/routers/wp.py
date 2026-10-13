@@ -2,6 +2,7 @@
 publish, and the batch publish and volume illustrations jobs (api/publish_job.py)."""
 
 from dataclasses import asdict
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -9,10 +10,10 @@ from sqlalchemy.orm import Session
 from api import publish, wp_prefs
 from api.core import wp_http
 from api.core.wp import WPPublishError
-from api.deps import current_user, db_session
-from api.models import User
+from api.deps import current_user, db_session, scoped, zone
+from api.models import Document, Series, User
 from api.routing import api_router
-from api.schemas.wp import WpPrefsOut, WpTestOut
+from api.schemas.wp import PublishIn, PublishOut, WpPrefsOut, WpStatusOut, WpTestOut
 
 router = api_router(tags=["wp"])
 
@@ -47,3 +48,73 @@ def test_connection(
             return WpTestOut(ok=False, message="WordPress answered, but rejected the API key.")
         return WpTestOut(ok=False, message=exc.message)
     return WpTestOut(ok=True, message="Connected; WordPress accepted the API key.")
+
+
+def _chapter_context(
+    db: Session, document_id: int, user_id: int
+) -> tuple[Document, Series, str, str]:
+    doc = scoped(db, Document, document_id, user_id)
+    endpoint, key = _ready(publish.wp_config, db, user_id)
+    if doc.series is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            "Only a chapter in a series can be published.")
+    _ready(publish.check_series, doc.series)
+    return doc, doc.series, endpoint, key
+
+
+@router.post("/documents/{document_id}/wp/status", response_model=WpStatusOut)
+def refresh_status(
+    document_id: int, tz: ZoneInfo = Depends(zone),
+    user: User = Depends(current_user), db: Session = Depends(db_session),
+) -> WpStatusOut:
+    """What the desktop confirm dialog showed: the cached and live status, and whether the
+    previous chapter is still scheduled (with the auto slot after it)."""
+    doc, series, endpoint, key = _chapter_context(db, document_id, user.id)
+    cached, remote_error = doc.wp_status, ""
+    try:
+        with http_client() as c:
+            remote = wp_http.check_status(c, endpoint, key, series.wp_series_slug, doc.series_order)
+            publish.apply_remote_status(doc, remote)
+    except WPPublishError as exc:
+        remote_error = exc.message
+    previous, slot = publish.suggested_slot(db, doc, wp_prefs.load(db, user.id), tz)
+    db.flush()
+    return WpStatusOut(cached_status=cached, status=doc.wp_status, post_url=doc.wp_post_url,
+                       remote_error=remote_error, previous_scheduled=previous, suggested_slot=slot)
+
+
+@router.post("/documents/{document_id}/wp/publish", response_model=PublishOut)
+def publish_chapter(
+    document_id: int, body: PublishIn,
+    user: User = Depends(current_user), db: Session = Depends(db_session),
+) -> PublishOut:
+    """The desktop run_single_publish, with the re-publish safeguard enforced (ruling 6)."""
+    doc, series, endpoint, key = _chapter_context(db, document_id, user.id)
+    prefs = wp_prefs.load(db, user.id)
+    ch = _ready(publish.build_chapter, db, doc, prefs)
+    with http_client() as c:
+        live = doc.wp_status in publish.LIVE
+        try:
+            remote = wp_http.check_status(c, endpoint, key, series.wp_series_slug, doc.series_order)
+            live = live or remote.get("status") in publish.LIVE
+        except WPPublishError:
+            pass  # WordPress could not be asked: the cached status decides, as on the desktop
+        if live and not body.confirm_republish:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f'"{doc.title}" is already published or scheduled on WordPress; '
+                "publishing again overwrites it.")
+        try:
+            result = wp_http.publish(c, endpoint, publish.payload(
+                ch, key, scheduled=body.scheduled_for, attribution=prefs.wp_attribution_enabled))
+        except WPPublishError as exc:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    written = publish.record(doc, result, body.scheduled_for)
+    db.flush()
+    return PublishOut(
+        created=bool(result.get("created")), updated=bool(result.get("updated")),
+        page_url=str(result.get("page_url") or ""), post_url=str(result.get("post_url") or ""),
+        password=ch.password if written else None,
+        unlock_chapter_index=ch.unlock_chapter_index if written else None,
+        scheduled_for=body.scheduled_for,
+    )
