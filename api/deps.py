@@ -1,8 +1,9 @@
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -98,3 +99,18 @@ def scoped_volume(db: Session, volume_id: int, user_id: int) -> Volume:
     if volume is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
     return volume
+
+
+def parse_zone(name: str) -> ZoneInfo:
+    """An IANA zone name from the browser (Intl...timeZone); 422 for anything else,
+    including path tricks such as "../../etc/passwd", which ZoneInfo rejects."""
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, f"tz: unknown time zone {name[:64]!r}"
+        ) from exc
+
+
+def zone(tz: str = Query("UTC", max_length=64)) -> ZoneInfo:
+    return parse_zone(tz)

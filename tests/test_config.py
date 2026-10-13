@@ -52,3 +52,9 @@ def test_jobs_settings_defaults(monkeypatch):
         monkeypatch.delenv(name, raising=False)
     s = Settings(_env_file=None)
     assert (s.run_jobs_worker, s.syosetu_delay_seconds) == (True, 5.0)
+
+
+def test_wp_private_urls_default_off(monkeypatch):
+    from api.config import Settings
+    monkeypatch.setenv("TA_SECRET_KEY", "x" * 32)
+    assert Settings().wp_allow_private_urls is False

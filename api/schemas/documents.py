@@ -45,6 +45,8 @@ class DocumentOut(BaseModel):
     last_position: int
     wp_status: str
     wp_post_url: str
+    wp_published_at: datetime | None
+    wp_scheduled_for: datetime | None
     created_at: datetime
     updated_at: datetime
 

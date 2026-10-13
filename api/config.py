@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # A user's own LibreTranslate/Ollama URL may not resolve to a private or local address
     # (SSRF) unless this is set, e.g. on a single-user install next to a local Ollama.
     mt_allow_private_urls: bool = False
+    # The same guard for the user's WordPress endpoint. Separate on purpose: allowing a
+    # private Ollama must not also allow a private WordPress.
+    wp_allow_private_urls: bool = False
 
     @field_validator("secret_key")
     @classmethod

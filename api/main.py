@@ -24,6 +24,7 @@ from api.routers import (
     spell,
     transfer,
     volumes,
+    wp,
 )
 from api.routers import (
     jobs as jobs_routes,
@@ -73,6 +74,7 @@ def create_app() -> FastAPI:
     app.include_router(mt.router)
     app.include_router(jobs_routes.router)
     app.include_router(epub.router)
+    app.include_router(wp.router)
 
     return app
 
