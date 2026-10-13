@@ -5,7 +5,7 @@ helpers. Used by api/routers/wp.py and api/publish_job.py."""
 from dataclasses import dataclass
 from datetime import UTC, datetime, tzinfo
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from api.config import get_settings
@@ -197,10 +197,11 @@ def batch_slots(start: datetime, n: int, per_day: int, default_time: str,
 def volume_images(db: Session, volume_id: int) -> tuple[list[dict], dict | None]:
     """The desktop _on_publish_volume_illustrations gathering: every chapter's images in
     reading order, the first cover, the rest unless excluded from export; shrunk.
-    ponytail: the volume's art is held in memory at once (bounded by the import budget)."""
+    ponytail: the volume's art is held in memory at once; stream batches if volumes outgrow it."""
     rows = db.scalars(
         select(DocumentImage).join(Document, Document.id == DocumentImage.document_id)
-        .where(Document.volume_id == volume_id)
+        .where(Document.volume_id == volume_id,
+               or_(DocumentImage.is_cover, DocumentImage.exclude_export.is_(False)))
         .order_by(Document.series_order, Document.id, DocumentImage.anchor_position,
                   DocumentImage.id)).all()
     cover = next((im for im in rows if im.is_cover), None)

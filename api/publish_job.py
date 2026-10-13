@@ -47,10 +47,11 @@ def _publish_one(db: Session, c: httpx.Client, user_id: int, item: dict, endpoin
     except Exception:  # one bad chapter must not stop the rest
         log.exception("publishing document %s failed", doc.id)
         return {**row, "ok": False, "error": "publishing this chapter failed"}
-    publish.record(doc, result, scheduled)
+    written = publish.record(doc, result, scheduled)
     return {**row, "ok": True, "created": bool(result.get("created")),
             "post_url": str(result.get("post_url") or ""),
-            "password": ch.password, "unlock_chapter_index": ch.unlock_chapter_index}
+            "password": ch.password if written else None,
+            "unlock_chapter_index": ch.unlock_chapter_index if written else None}
 
 
 @handler("wp_publish")
@@ -64,6 +65,7 @@ def publish_batch(ctx: JobContext) -> dict:
         for i, item in enumerate(items, start=1):
             rows.append(_publish_one(ctx.db, c, ctx.job.user_id, item, endpoint, key, prefs,
                                      ctx.params["confirm_republish"]))
+            ctx.job.result_json = {"chapters": list(rows)}  # durable with the progress commit
             ctx.progress(i, len(items), f"Chapter {i} of {len(items)}")
     return {"chapters": rows}
 

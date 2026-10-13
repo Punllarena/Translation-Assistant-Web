@@ -121,6 +121,8 @@ def test_cancel_stops_between_chapters_keeping_what_was_published(
     assert app_client.get(f"/jobs/{jid}").json()["state"] == "cancelled"
     db.refresh(docs[0])
     assert docs[0].wp_status == "publish" and len(wp_site["posted"]) == 1
+    rows = app_client.get(f"/jobs/{jid}").json()["result"]["chapters"]
+    assert len(rows) == 1 and rows[0]["ok"] is True
 
 
 def test_batch_enqueue_checks(app_client, me, ready, make_doc, make_user, make_series, wp_site, db):
@@ -181,3 +183,15 @@ def test_illustrations_need_images_and_your_volume(app_client, me, ready, make_u
     r = app_client.post(f"/volumes/{vol.id}/wp/illustrations")
     assert r.status_code == 422 and "no illustrations" in r.json()["detail"]
     assert app_client.post(f"/volumes/{other.id}/wp/illustrations").status_code == 404
+
+
+def test_one_illustrations_upload_at_a_time(app_client, me, ready, make_doc, wp_site, db):
+    vol = Volume(series_id=ready.id, title="Vol 1")
+    db.add(vol)
+    db.flush()
+    doc = make_doc(me, ["一"], series=ready, order=1, volume=vol)
+    db.add(DocumentImage(document_id=doc.id, anchor_position=0, src_path="a.png", data=b"A"))
+    db.flush()
+    assert app_client.post(f"/volumes/{vol.id}/wp/illustrations").status_code == 202
+    r = app_client.post(f"/volumes/{vol.id}/wp/illustrations")
+    assert r.status_code == 409 and "already queued" in r.json()["detail"]

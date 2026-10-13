@@ -86,7 +86,8 @@ def refresh_status(
                        remote_error=remote_error, previous_scheduled=previous, suggested_slot=slot)
 
 
-# ponytail: a publish request holds a pool connection for up to ~25 s (status + publish timeouts); make it a job if that starves the pool  # noqa: E501
+# ponytail: a publish request holds a pool connection for up to ~25 s (status + publish
+# timeouts); make it a job if that starves the pool
 @router.post("/documents/{document_id}/wp/publish", response_model=PublishOut)
 def publish_chapter(
     document_id: int, body: PublishIn,
@@ -172,5 +173,11 @@ def publish_volume_illustrations(
     ):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             "This volume has no illustrations to publish.")
+    if db.scalar(select(Job.id).where(
+        Job.user_id == user.id, Job.kind == "wp_illustrations",
+        Job.state.in_(("queued", "running")),
+    ).limit(1)):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "an illustrations upload is already queued or running")
     return jobs.enqueue(db, user.id, "wp_illustrations",
                         {"volume_id": volume.id, "series_id": volume.series_id})
