@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, ApiError, call, type Schemas } from "../api/client";
 import type { Doc } from "../library/group";
 import { invalidateLibrary } from "../library/queries";
@@ -9,6 +9,8 @@ const LABEL: Record<string, string> = { publish: "Published", future: "Scheduled
 
 /** Publish one chapter: live status, the previous-chapter warning, optional schedule, then the result. */
 export default function PublishDialog({ doc, onClose }: { doc: Doc; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => { const d = ref.current; if (d && !d.open) d.showModal(); }, []);
   const queryClient = useQueryClient();
   const id = { params: { path: { document_id: doc.id } } };
   const status = useQuery({
@@ -36,7 +38,7 @@ export default function PublishDialog({ doc, onClose }: { doc: Doc; onClose: () 
   });
   const chapter = doc.series_order === 0 ? "Synopsis" : `Chapter ${doc.series_order}`;
   return (
-    <dialog open aria-label="Publish to WordPress" className="stack">
+    <dialog ref={ref} onClose={onClose} aria-label="Publish to WordPress" className="stack">
       {result ? (
         <>
           <p role="status">{result.created || result.updated ? (result.scheduled_for ? "Scheduled!" : result.created ? "Published!" : "Updated!") : "Already published."}</p>

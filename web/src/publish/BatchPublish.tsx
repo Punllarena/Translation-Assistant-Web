@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, call } from "../api/client";
 import JobProgress from "../jobs/JobProgress";
 import type { Job } from "../jobs/follow";
@@ -32,6 +32,8 @@ function Summary({ job }: { job: Job }) {
 
 /** Publish or schedule the selected chapters as one job. */
 export default function BatchPublish({ ids, onClose }: { ids: number[]; onClose: () => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => { const d = ref.current; if (d && !d.open) d.showModal(); }, []);
   const queryClient = useQueryClient();
   const prefs = useQuery({ queryKey: ["wp", "prefs"], queryFn: () => call(api.GET("/wp/prefs")) });
   const [schedule, setSchedule] = useState(true);
@@ -47,7 +49,7 @@ export default function BatchPublish({ ids, onClose }: { ids: number[]; onClose:
   const submit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); start.mutate(new FormData(e.currentTarget)); };
   const p = prefs.data;
   return (
-    <dialog open aria-label="Publish / Schedule Chapters" className="stack">
+    <dialog ref={ref} onClose={onClose} aria-label="Publish / Schedule Chapters" className="stack">
       {jobId !== null ? (
         <JobProgress jobId={jobId} onDone={() => invalidateLibrary(queryClient)} outcome={(job) => <Summary job={job} />} />
       ) : p && (
