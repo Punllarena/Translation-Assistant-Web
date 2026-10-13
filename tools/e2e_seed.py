@@ -30,10 +30,10 @@ def main() -> None:
     root = Path(__file__).resolve().parent.parent
     subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True, cwd=root)
 
-    from api.db import SessionLocal
-    from api.library import write_lines
     from sqlalchemy import func, update
 
+    from api.db import SessionLocal
+    from api.library import write_lines
     from api.models import Document, Line, Series
 
     with SessionLocal() as db:
