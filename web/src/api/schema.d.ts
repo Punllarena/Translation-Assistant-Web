@@ -353,6 +353,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{document_id}/wp/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Chapter
+         * @description The desktop run_single_publish, with the re-publish safeguard enforced (ruling 6).
+         */
+        post: operations["publish_chapter_documents__document_id__wp_publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{document_id}/wp/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Status
+         * @description What the desktop confirm dialog showed: the cached and live status, and whether the
+         *     previous chapter is still scheduled (with the auto slot after it).
+         */
+        post: operations["refresh_status_documents__document_id__wp_status_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/epub/import": {
         parameters: {
             query?: never;
@@ -991,6 +1032,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Stats */
+        get: operations["get_stats_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tm/matches": {
         parameters: {
             query?: never;
@@ -1070,6 +1128,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/volumes/{volume_id}/wp/illustrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Volume Illustrations */
+        post: operations["publish_volume_illustrations_volumes__volume_id__wp_illustrations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wp/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batch Publish
+         * @description The desktop Publish / Schedule Chapters: checks up front, slots computed now
+         *     (desktop loop), the publishing itself in a job.
+         */
+        post: operations["batch_publish_wp_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wp/prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Prefs */
+        get: operations["get_prefs_wp_prefs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/wp/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Connection
+         * @description Ruling 13: ask /status with the saved key; not_found for the probe slug is success.
+         */
+        post: operations["test_connection_wp_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1134,6 +1267,33 @@ export interface components {
             skipped: string[];
             /** Warnings */
             warnings: string[];
+        };
+        /** BatchPublishIn */
+        BatchPublishIn: {
+            /**
+             * Chapters Per Day
+             * @default 1
+             */
+            chapters_per_day: number;
+            /**
+             * Confirm Republish
+             * @default false
+             */
+            confirm_republish: boolean;
+            /** Document Ids */
+            document_ids: number[];
+            /**
+             * Schedule
+             * @default true
+             */
+            schedule: boolean;
+            /** Start */
+            start?: string | null;
+            /**
+             * Tz
+             * @default UTC
+             */
+            tz: string;
         };
         /** Body_import_batch_documents_import_batch_post */
         Body_import_batch_documents_import_batch_post: {
@@ -1244,6 +1404,15 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** Comparison */
+        Comparison: {
+            /** Daily Avg 30 */
+            daily_avg_30: number;
+            /** Periods */
+            periods: {
+                [key: string]: components["schemas"]["PeriodChange"];
+            };
+        };
         /** CoverOut */
         CoverOut: {
             /** Document Id */
@@ -1301,6 +1470,17 @@ export interface components {
             name?: string | null;
             /** Secret */
             secret?: string | null;
+        };
+        /** DayStats */
+        DayStats: {
+            /** Chars */
+            chars: number;
+            /** Date */
+            date: string;
+            /** En Words */
+            en_words: number;
+            /** Paragraphs */
+            paragraphs: number;
         };
         /** DocumentCreate */
         DocumentCreate: {
@@ -1388,6 +1568,10 @@ export interface components {
             volume_id: number | null;
             /** Wp Post Url */
             wp_post_url: string;
+            /** Wp Published At */
+            wp_published_at: string | null;
+            /** Wp Scheduled For */
+            wp_scheduled_for: string | null;
             /** Wp Status */
             wp_status: string;
         };
@@ -1423,6 +1607,10 @@ export interface components {
             volume_id: number | null;
             /** Wp Post Url */
             wp_post_url: string;
+            /** Wp Published At */
+            wp_published_at: string | null;
+            /** Wp Scheduled For */
+            wp_scheduled_for: string | null;
             /** Wp Status */
             wp_status: string;
         };
@@ -1696,6 +1884,15 @@ export interface components {
             /** Word */
             word: string;
         };
+        /** PeriodChange */
+        PeriodChange: {
+            /** Current */
+            current: number;
+            /** Pct Change */
+            pct_change: number | null;
+            /** Previous */
+            previous: number;
+        };
         /** ProfileCreate */
         ProfileCreate: {
             /**
@@ -1730,6 +1927,33 @@ export interface components {
             name?: string | null;
             /** Parse Chars */
             parse_chars?: string | null;
+        };
+        /** PublishIn */
+        PublishIn: {
+            /**
+             * Confirm Republish
+             * @default false
+             */
+            confirm_republish: boolean;
+            /** Scheduled For */
+            scheduled_for?: string | null;
+        };
+        /** PublishOut */
+        PublishOut: {
+            /** Created */
+            created: boolean;
+            /** Page Url */
+            page_url: string;
+            /** Password */
+            password: string | null;
+            /** Post Url */
+            post_url: string;
+            /** Scheduled For */
+            scheduled_for: string | null;
+            /** Unlock Chapter Index */
+            unlock_chapter_index: number | null;
+            /** Updated */
+            updated: boolean;
         };
         /** Refetch */
         Refetch: {
@@ -1810,6 +2034,21 @@ export interface components {
             /** Wp Unlock After */
             wp_unlock_after: number | null;
         };
+        /** SeriesStats */
+        SeriesStats: {
+            /** Chapters */
+            chapters: number;
+            /** Chars */
+            chars: number;
+            /** En Words */
+            en_words: number;
+            /** Paragraphs */
+            paragraphs: number;
+            /** Series */
+            series: string;
+            /** Series Id */
+            series_id: number;
+        };
         /** SeriesUpdate */
         SeriesUpdate: {
             /** Profile Id */
@@ -1866,6 +2105,38 @@ export interface components {
             /** Cuts */
             cuts: components["schemas"]["SplitCut"][];
         };
+        /** StatsOut */
+        StatsOut: {
+            /** Comparisons */
+            comparisons: {
+                [key: string]: components["schemas"]["Comparison"];
+            };
+            /** Daily */
+            daily: components["schemas"]["DayStats"][];
+            /** Series */
+            series: components["schemas"]["SeriesStats"][];
+            streaks: components["schemas"]["Streaks"];
+            /** Summary */
+            summary: {
+                [key: string]: components["schemas"]["Totals"];
+            };
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
+        };
+        /** Streaks */
+        Streaks: {
+            /** Best Day Date */
+            best_day_date: string;
+            /** Best Day Paras */
+            best_day_paras: number;
+            /** Current Streak */
+            current_streak: number;
+            /** Longest Streak */
+            longest_streak: number;
+        };
         /** SuggestRequest */
         SuggestRequest: {
             /**
@@ -1905,6 +2176,15 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** Totals */
+        Totals: {
+            /** Chars */
+            chars: number;
+            /** En Words */
+            en_words: number;
+            /** Paragraphs */
+            paragraphs: number;
         };
         /** UserOut */
         UserOut: {
@@ -2015,6 +2295,43 @@ export interface components {
             title?: string | null;
             /** Volume Order */
             volume_order?: number | null;
+        };
+        /** WpPrefsOut */
+        WpPrefsOut: {
+            /** Wp Attribution Enabled */
+            wp_attribution_enabled: boolean;
+            /** Wp Chapters Per Day */
+            wp_chapters_per_day: number;
+            /** Wp Default Schedule Time */
+            wp_default_schedule_time: string;
+            /** Wp Password Enabled */
+            wp_password_enabled: boolean;
+            /** Wp Schedule Scope Global */
+            wp_schedule_scope_global: boolean;
+            /** Wp Unlock After */
+            wp_unlock_after: number;
+        };
+        /** WpStatusOut */
+        WpStatusOut: {
+            /** Cached Status */
+            cached_status: string;
+            /** Post Url */
+            post_url: string;
+            /** Previous Scheduled */
+            previous_scheduled: boolean;
+            /** Remote Error */
+            remote_error: string;
+            /** Status */
+            status: string;
+            /** Suggested Slot */
+            suggested_slot: string | null;
+        };
+        /** WpTestOut */
+        WpTestOut: {
+            /** Message */
+            message: string;
+            /** Ok */
+            ok: boolean;
         };
     };
     responses: never;
@@ -2781,6 +3098,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_chapter_documents__document_id__wp_publish_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_status_documents__document_id__wp_status_post: {
+        parameters: {
+            query?: {
+                tz?: string;
+            };
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WpStatusOut"];
                 };
             };
             /** @description Validation Error */
@@ -4277,6 +4662,37 @@ export interface operations {
             };
         };
     };
+    get_stats_stats_get: {
+        parameters: {
+            query?: {
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     tm_matches_tm_matches_get: {
         parameters: {
             query: {
@@ -4435,6 +4851,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_volume_illustrations_volumes__volume_id__wp_illustrations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                volume_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_publish_wp_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchPublishIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_prefs_wp_prefs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WpPrefsOut"];
+                };
+            };
+        };
+    };
+    test_connection_wp_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WpTestOut"];
                 };
             };
         };

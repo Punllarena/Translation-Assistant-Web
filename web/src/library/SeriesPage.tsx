@@ -6,6 +6,7 @@ import Chapters from "./Chapters";
 import FindReplace from "./FindReplace";
 import { invalidateLibrary, useDocuments, useSeriesList } from "./queries";
 import PhraseSuggestions from "./PhraseSuggestions";
+import SeriesWp from "./SeriesWp";
 import SyosetuFetch from "./SyosetuFetch";
 import Volumes from "./Volumes";
 
@@ -70,6 +71,7 @@ export default function SeriesPage() {
         </div>
         {(save.error ?? remove.error) && <p className="error" role="alert">{(save.error ?? remove.error)!.message}</p>}
       </form>
+      <SeriesWp series={series} />
       <Chapters seriesId={seriesId} docs={chapters} />
       {series.syosetu_url && <SyosetuFetch key={`fetch-${seriesId}`} seriesId={seriesId} />}
       <Volumes seriesId={seriesId} docs={chapters} />

@@ -9,6 +9,7 @@ import Picker from "./library/Picker";
 import SeriesPage from "./library/SeriesPage";
 import ProfilesPage from "./settings/ProfilesPage";
 import MtSettingsPage from "./settings/MtSettingsPage";
+import WpSettingsPage from "./settings/WpSettingsPage";
 import ShortcutsPage from "./settings/ShortcutsPage";
 import Shell from "./Shell";
 
@@ -24,6 +25,7 @@ export const router = createBrowserRouter(
         <Route path="settings/profiles" element={<ProfilesPage />} />
         <Route path="settings/shortcuts" element={<ShortcutsPage />} />
         <Route path="settings/mt" element={<MtSettingsPage />} />
+        <Route path="settings/wp" element={<WpSettingsPage />} />
         <Route path="documents/:id" element={<EditorPage />} />
         <Route path="documents/:id/source" element={<SourcePage mode="edit" />} />
         <Route path="documents/:id/split" element={<SourcePage mode="split" />} />
