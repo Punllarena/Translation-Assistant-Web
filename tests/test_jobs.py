@@ -122,6 +122,7 @@ def test_a_job_deleted_while_running_ends_quietly(in_test_db, make_user, kind, c
 
     def vanish(ctx):
         ctx.db.execute(delete(Job).where(Job.id == ctx.job.id))  # the user-delete cascade
+        ctx.db.commit()  # durable, as another session's committed cascade is
         ctx.progress(1, 1)
         return {}
 
@@ -130,3 +131,19 @@ def test_a_job_deleted_while_running_ends_quietly(in_test_db, make_user, kind, c
     assert jobs.run_next() is True
     assert "failed" not in caplog.text
     assert jobs.run_next() is False
+
+
+def test_a_handler_bug_raising_invalid_request_error_still_fails_the_job(
+    in_test_db, make_user, kind
+):
+    from sqlalchemy.exc import InvalidRequestError
+    user = make_user(email="j@example.com")
+
+    def boom(ctx):
+        raise InvalidRequestError("boom")
+
+    kind("boom", boom)
+    job = jobs.enqueue(in_test_db, user.id, "boom", {})
+    assert jobs.run_next() is True
+    in_test_db.refresh(job)
+    assert (job.state, job.message) == ("failed", "boom failed")

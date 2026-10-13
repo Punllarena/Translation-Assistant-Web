@@ -102,6 +102,12 @@ def _claim(db: Session) -> Job | None:
     return job
 
 
+def _gone(db: Session, job_id: int) -> bool:
+    """True when the job row is verifiably absent (a fresh SELECT, not the identity map)."""
+    db.rollback()
+    return db.scalar(select(Job.id).where(Job.id == job_id)) is None
+
+
 def run_next() -> bool:
     """Run the oldest queued job to completion. False when there was none."""
     with SessionLocal() as db:
@@ -115,10 +121,6 @@ def run_next() -> bool:
                 raise JobError(f"unknown job kind {kind!r}")
             result = fn(JobContext(db, job))
             job.state, job.result_json = "done", result or {}
-        except GONE:
-            db.rollback()  # the row was deleted mid-run (its user was): nothing to record
-            log.info("job %s was deleted while running", job_id)
-            return True
         except Cancelled:
             db.rollback()
             job.state = "cancelled"
@@ -128,7 +130,10 @@ def run_next() -> bool:
         except JobError as exc:
             db.rollback()
             job.state, job.message = "failed", str(exc)
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, GONE) and _gone(db, job_id):
+                log.info("job %s was deleted while running", job_id)
+                return True  # its user was deleted mid-run: nothing to record
             log.exception("job %s (%s) failed", job_id, kind)
             db.rollback()
             job.state, job.message = "failed", f"{kind} failed"
@@ -136,7 +141,8 @@ def run_next() -> bool:
         try:
             db.commit()
         except GONE:
-            db.rollback()
+            if not _gone(db, job_id):
+                raise
             log.info("job %s was deleted while running", job_id)
         return True
 
