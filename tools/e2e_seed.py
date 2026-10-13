@@ -87,6 +87,12 @@ def main() -> None:
         db.flush()
         write_lines(db, one.id, [{"line_number": 0, "prefix": "%", "raw_text": "公開します。",
                                   "translated_text": "We publish."}])
+        batch = Document(user_id=user.id, title="Batch target", chapter_title="Batch target",
+                         series_id=pub.id, series_order=2)
+        db.add(batch)
+        db.flush()
+        write_lines(db, batch.id, [{"line_number": 0, "prefix": "%", "raw_text": "一括です。",
+                                    "translated_text": "In bulk."}])
         # stats spec: one translated line today, in its own series
         st = Series(user_id=user.id, title="E2E stats series")
         db.add(st)

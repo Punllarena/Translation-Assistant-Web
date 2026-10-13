@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 
@@ -22,21 +22,24 @@ test.beforeAll(async () => {
 });
 test.afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
-test("configure WordPress, publish a chapter, see the badge", async ({ page }) => {
+async function signInAndConnect(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill("e2e@example.com");
   await page.getByLabel("Password").fill("e2e-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
 
-  await page.getByRole("link", { name: "WordPress" }).click();
+  await page.goto("/settings/wp"); // not via "/", which resumes the last open chapter after a late redirect
   await page.getByLabel("WordPress endpoint URL").fill(site);
   await page.getByLabel("WordPress API key").fill("e2e-plugin-key");
   await page.getByRole("button", { name: "Save connection" }).click();
   await expect(page.getByText(/Key saved/)).toBeVisible();
   await page.getByRole("button", { name: "Test connection" }).click();
   await expect(page.getByText("Connected; WordPress accepted the API key.")).toBeVisible();
+}
 
+test("configure WordPress, publish a chapter, see the badge", async ({ page }) => {
+  await signInAndConnect(page);
   await page.getByRole("link", { name: "Library" }).click();
   const row = page.getByRole("row").filter({ hasText: "Publish one" });
   await row.getByRole("button", { name: "Publish…" }).click();
@@ -47,4 +50,24 @@ test("configure WordPress, publish a chapter, see the badge", async ({ page }) =
   await dialog.getByRole("button", { name: "Close" }).click();
   await expect(row.getByText(/^pub /)).toBeVisible();
   expect(received.at(-1)).toMatchObject({ series_slug: "e2e-publish", chapter_title: "E2EP Publish one", chapter_index: 1 });
+});
+
+test("batch publish: closing and reopening the dialog never errors, and the chapter ends up published", async ({ page }) => {
+  await signInAndConnect(page);
+  await page.getByRole("link", { name: "Library" }).click();
+  const row = page.getByRole("row").filter({ hasText: "Batch target" });
+  await row.getByLabel("Select Batch target").check();
+  const open = () => page.getByRole("button", { name: "Publish 1", exact: true }).click();
+  await open();
+  const dialog = page.getByRole("dialog", { name: "Publish / Schedule Chapters" });
+  await dialog.getByRole("checkbox", { name: /Schedule \(unchecked/ }).uncheck();
+  await dialog.getByRole("button", { name: "Start" }).click();
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await open();
+  // The job may already be finished, so the reopened dialog shows progress, the summary or the form;
+  // what must hold is that no error (a 409 from a second batch) is shown, and the chapter gets published.
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(row.getByText(/^pub /)).toBeVisible();
 });
