@@ -55,6 +55,6 @@ def test_jobs_settings_defaults(monkeypatch):
 
 
 def test_wp_private_urls_default_off(monkeypatch):
-    from api.config import Settings
     monkeypatch.setenv("TA_SECRET_KEY", "x" * 32)
-    assert Settings().wp_allow_private_urls is False
+    monkeypatch.delenv("TA_WP_ALLOW_PRIVATE_URLS", raising=False)
+    assert Settings(_env_file=None).wp_allow_private_urls is False

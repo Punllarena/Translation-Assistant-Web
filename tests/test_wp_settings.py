@@ -1,7 +1,8 @@
 import httpx
 import pytest
+from fastapi import HTTPException
 
-from api import wp_prefs
+from api import deps, wp_prefs
 from api.routers import wp as wp_router
 
 SITE = "https://blog.example.com"
@@ -99,3 +100,14 @@ def test_document_out_carries_the_wp_dates(app_client, me, make_doc):
     doc = make_doc(me, ["x"])
     body = app_client.get(f"/documents/{doc.id}").json()
     assert body["wp_published_at"] is None and body["wp_scheduled_for"] is None
+
+
+@pytest.mark.parametrize("name", ["America", "Etc", "../../etc/passwd", "a\x00b", ""])
+def test_parse_zone_rejects_unknown_names_with_422(name):
+    with pytest.raises(HTTPException) as exc:
+        deps.parse_zone(name)
+    assert exc.value.status_code == 422
+
+
+def test_parse_zone_accepts_an_iana_name():
+    assert deps.parse_zone("Asia/Tokyo").key == "Asia/Tokyo"

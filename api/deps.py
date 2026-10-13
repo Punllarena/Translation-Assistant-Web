@@ -106,7 +106,7 @@ def parse_zone(name: str) -> ZoneInfo:
     including path tricks such as "../../etc/passwd", which ZoneInfo rejects."""
     try:
         return ZoneInfo(name)
-    except (ZoneInfoNotFoundError, ValueError) as exc:
+    except (ZoneInfoNotFoundError, ValueError, OSError) as exc:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, f"tz: unknown time zone {name[:64]!r}"
         ) from exc
