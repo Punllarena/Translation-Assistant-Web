@@ -56,7 +56,10 @@ export default function JobProgress({ jobId, onDone, outcome }: { jobId: number;
       </div>
     );
   }
-  if (job.state === "failed") return <p className="error" role="alert">{job.message || "The job failed"}</p>;
+  if (job.state === "failed") {
+    const failure = <p className="error" role="alert">{job.message || "The job failed"}</p>;
+    return outcome ? <div className="stack">{failure}<div>{outcome(job)}</div></div> : failure;
+  }
   if (outcome) return <div role="status">{outcome(job)}</div>;
   const r = (job.result ?? {}) as FetchResult;
   const parts = [job.state === "cancelled" ? "Cancelled" : `Added ${r.added ?? 0} chapter(s)`];

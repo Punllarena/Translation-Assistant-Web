@@ -62,7 +62,7 @@ export default function StatsPage() {
         <thead><tr><th>Date</th><th>Paragraphs</th><th>Source Chars</th><th>EN Words</th></tr></thead>
         <tbody>
           {recent.map((d) => (
-            <tr key={d.date} aria-selected={d.date === picked} className={d.date === picked ? "selected" : ""}>
+            <tr key={d.date} aria-current={d.date === picked ? "date" : undefined} className={d.date === picked ? "selected" : ""}>
               <td>{longDate(d.date)}</td><td>{n(d.paragraphs)}</td><td>{n(d.chars)}</td><td>{n(d.en_words)}</td>
             </tr>
           ))}

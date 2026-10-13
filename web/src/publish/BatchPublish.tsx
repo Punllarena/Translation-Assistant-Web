@@ -38,6 +38,12 @@ export default function BatchPublish({ ids, onClose }: { ids: number[]; onClose:
   const prefs = useQuery({ queryKey: ["wp", "prefs"], queryFn: () => call(api.GET("/wp/prefs")) });
   const [schedule, setSchedule] = useState(true);
   const [jobId, setJobId] = useState<number | null>(null);
+  const active = useQuery({
+    queryKey: ["jobs", "active", "wp_publish"], gcTime: 0,
+    queryFn: () => call(api.GET("/jobs", { params: { query: { active: true } } })),
+  });
+  const running = jobId ?? active.data?.find((j) => j.kind === "wp_publish")?.id ?? null;
+  const close = () => { void invalidateLibrary(queryClient); onClose(); };
   const start = useMutation({
     mutationFn: (f: FormData) => call(api.POST("/wp/batch", { body: {
       document_ids: ids, schedule, tz: browserZone(),
@@ -50,9 +56,9 @@ export default function BatchPublish({ ids, onClose }: { ids: number[]; onClose:
   const p = prefs.data;
   return (
     <dialog ref={ref} onClose={onClose} aria-label="Publish / Schedule Chapters" className="stack">
-      {jobId !== null ? (
-        <JobProgress jobId={jobId} onDone={() => invalidateLibrary(queryClient)} outcome={(job) => <Summary job={job} />} />
-      ) : p && (
+      {running !== null ? (
+        <JobProgress jobId={running} onDone={() => invalidateLibrary(queryClient)} outcome={(job) => <Summary job={job} />} />
+      ) : p && active.isSuccess && (
         <form className="stack" onSubmit={submit}>
           <p>{ids.length} chapter(s) selected.</p>
           <label><input type="checkbox" checked={schedule} onChange={(e) => setSchedule(e.target.checked)} /> Schedule (unchecked = publish all now)</label>
@@ -65,7 +71,7 @@ export default function BatchPublish({ ids, onClose }: { ids: number[]; onClose:
         </form>
       )}
       {(prefs.error ?? start.error) && <p className="error" role="alert">{(prefs.error ?? start.error)!.message}</p>}
-      <div className="toolbar"><button onClick={onClose}>Close</button></div>
+      <div className="toolbar"><button onClick={close}>Close</button></div>
     </dialog>
   );
 }

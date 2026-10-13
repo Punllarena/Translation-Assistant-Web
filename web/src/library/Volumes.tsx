@@ -53,10 +53,17 @@ function VolumeEditor({ volume, docs, onChanged }: { volume: Volume; docs: Doc[]
       setTimeout(() => URL.revokeObjectURL(url), 0); // after the click has started the download
     },
   });
-  const [illusJob, setIllusJob] = useState<number | null>(null);
+  const [newIllus, setNewIllus] = useState<number | null>(null);
+  const [illusDone, setIllusDone] = useState(false);
+  const activeIllus = useQuery({
+    queryKey: ["jobs", "active", "wp_illustrations", volume.id], gcTime: 0,
+    queryFn: () => call(api.GET("/jobs", { params: { query: { active: true } } })),
+  });
+  const illusJob = newIllus ?? activeIllus.data?.find(
+    (j) => j.kind === "wp_illustrations" && (j.params as { volume_id?: number } | null)?.volume_id === volume.id)?.id ?? null;
   const illus = useMutation({
     mutationFn: () => call(api.POST("/volumes/{volume_id}/wp/illustrations", { params: { path: { volume_id: volume.id } } })),
-    onSuccess: (job) => setIllusJob(job.id),
+    onSuccess: (job) => { setIllusDone(false); setNewIllus(job.id); },
   });
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -91,11 +98,11 @@ function VolumeEditor({ volume, docs, onChanged }: { volume: Volume; docs: Doc[]
             e.preventDefault();
             if (!download.isPending) download.mutate();
           }}>{download.isPending ? "Building…" : "EPUB"}</a>
-        <button type="button" disabled={illus.isPending || illusJob !== null} onClick={() => {
+        <button type="button" disabled={illus.isPending || (illusJob !== null && !illusDone)} onClick={() => {
           if (window.confirm(`Publish the illustrations of "${volume.title}" to WordPress? An existing illustrations page for this volume will be overwritten.`)) illus.mutate();
         }}>Publish illustrations</button>
       </div>
-      {illusJob !== null && <JobProgress jobId={illusJob} outcome={(j) => { const r = (j.result ?? {}) as { page_url?: string; created?: boolean }; return <p>{j.state === "cancelled" ? "Cancelled" : `${r.created ? "Created" : "Updated"} the volume illustrations page`} {r.page_url && <a href={r.page_url} target="_blank" rel="noreferrer">{r.page_url}</a>}</p>; }} />}
+      {illusJob !== null && <JobProgress jobId={illusJob} onDone={() => setIllusDone(true)} outcome={(j) => { const r = (j.result ?? {}) as { page_url?: string; created?: boolean }; return <p>{j.state === "cancelled" ? "Cancelled" : `${r.created ? "Created" : "Updated"} the volume illustrations page`} {r.page_url && <a href={r.page_url} target="_blank" rel="noreferrer">{r.page_url}</a>}</p>; }} />}
       <div className="toolbar">
         <select multiple aria-label="Chapters to assign" value={assign.map(String)}
           onChange={(e) => setAssign([...e.target.selectedOptions].map((o) => Number(o.value)))}>

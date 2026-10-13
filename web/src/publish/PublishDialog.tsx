@@ -14,7 +14,7 @@ export default function PublishDialog({ doc, onClose }: { doc: Doc; onClose: () 
   const queryClient = useQueryClient();
   const id = { params: { path: { document_id: doc.id } } };
   const status = useQuery({
-    queryKey: ["wp", "status", doc.id], retry: false, gcTime: 0,
+    queryKey: ["wp", "status", doc.id], retry: false, gcTime: 0, refetchOnWindowFocus: false,
     queryFn: () => call(api.POST("/documents/{document_id}/wp/status", { ...id, params: { ...id.params, query: { tz: browserZone() } } })),
   });
   const prefs = useQuery({ queryKey: ["wp", "prefs"], queryFn: () => call(api.GET("/wp/prefs")) });
@@ -38,7 +38,8 @@ export default function PublishDialog({ doc, onClose }: { doc: Doc; onClose: () 
   });
   const chapter = doc.series_order === 0 ? "Synopsis" : `Chapter ${doc.series_order}`;
   return (
-    <dialog ref={ref} onClose={onClose} aria-label="Publish to WordPress" className="stack">
+    <dialog ref={ref} onClose={onClose} onCancel={(e) => { if (run.isPending) e.preventDefault(); }}
+      aria-label="Publish to WordPress" className="stack">
       {result ? (
         <>
           <p role="status">{result.created || result.updated ? (result.scheduled_for ? "Scheduled!" : result.created ? "Published!" : "Updated!") : "Already published."}</p>
@@ -62,7 +63,7 @@ export default function PublishDialog({ doc, onClose }: { doc: Doc; onClose: () 
       )}
       {(status.error ?? run.error) && <p className="error" role="alert">{(status.error ?? run.error)!.message}</p>}
       <div className="toolbar">
-        {!result && <button disabled={run.isPending || status.isError} onClick={() => run.mutate()}>
+        {!result && <button disabled={run.isPending || status.isPending || status.isError} onClick={() => run.mutate()}>
           {status.data?.previous_scheduled ? "Publish anyway" : "Publish"}</button>}
         <button onClick={onClose}>{result ? "Close" : "Cancel"}</button>
       </div>

@@ -40,7 +40,7 @@ export default function SeriesWp({ series }: { series: Schemas["SeriesOut"] }) {
             <option value="off">Off</option>
           </select>
         </label>
-        <label>Keep N chapters locked <input name="unlock" type="number" min={0} placeholder="my default"
+        <label>Keep N chapters locked <input name="unlock" type="number" min={1} placeholder="my default"
           defaultValue={series.wp_unlock_after ?? ""} /></label>
         <div className="toolbar">
           <button disabled={save.isPending}>Save WordPress fields</button>
