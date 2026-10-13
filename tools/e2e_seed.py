@@ -32,7 +32,9 @@ def main() -> None:
 
     from api.db import SessionLocal
     from api.library import write_lines
-    from api.models import Document, Series
+    from sqlalchemy import func, update
+
+    from api.models import Document, Line, Series
 
     with SessionLocal() as db:
         user = create_admin(db, EMAIL, PASSWORD)
@@ -74,6 +76,28 @@ def main() -> None:
         write_lines(db, mt.id, [
             {"line_number": 0, "prefix": "%", "raw_text": "猫です。", "translated_text": ""},
         ])
+        # publish spec: its own series, with the WordPress fields already set
+        pub = Series(user_id=user.id, title="E2E publish series",
+                     wp_series_slug="e2e-publish", wp_series_title_short="E2EP")
+        db.add(pub)
+        db.flush()
+        one = Document(user_id=user.id, title="Publish one", chapter_title="Publish one",
+                       series_id=pub.id, series_order=1)
+        db.add(one)
+        db.flush()
+        write_lines(db, one.id, [{"line_number": 0, "prefix": "%", "raw_text": "公開します。",
+                                  "translated_text": "We publish."}])
+        # stats spec: one translated line today, in its own series
+        st = Series(user_id=user.id, title="E2E stats series")
+        db.add(st)
+        db.flush()
+        stats_doc = Document(user_id=user.id, title="Stats one", series_id=st.id, series_order=1)
+        db.add(stats_doc)
+        db.flush()
+        write_lines(db, stats_doc.id, [{"line_number": 0, "prefix": "%", "raw_text": "統計です。",
+                                        "translated_text": "Stats."}])
+        db.execute(update(Line).where(Line.document_id == stats_doc.id)
+                   .values(translated_at=func.now()))
         db.commit()
 
 
