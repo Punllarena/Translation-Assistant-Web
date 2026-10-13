@@ -1,19 +1,22 @@
 # ta-web
 
-Web port of the Translation Assistant desktop app. This repo currently holds **phases 1–5 and 6a**:
-the skeleton (FastAPI app, full Postgres schema via Alembic, session auth with invites,
-per-user profiles/settings/shortcuts/encrypted credentials, the `ta.db` importer), the
-library API (series, volumes, documents, picker listing with progress, reorder and renumber,
-merge and split, covers, TXT import, TXT/Markdown export), and the editor API (line load and
-dirty-line save, parse navigation, spellcheck, inline images). Phase 3a brings the SPA under
-`web/` (login, picker, series manager); phase 3b adds the editor screen; phases 4–5 add glossary, translation memory and machine
-translation; phase 6a adds acquisition (below). Phase 6b is described in the spec.
+Web port of the [Translation Assistant](https://github.com/Punllarena/Translation-Assistant) desktop app:
+a self-hosted, multi-user FastAPI + Postgres server with a React SPA under `web/`. All six phases of the
+port are in place:
+
+1. **Skeleton:** FastAPI app, full Postgres schema via Alembic, session auth with invites, per-user
+   profiles/settings/shortcuts/encrypted credentials, the `ta.db` importer.
+2. **Library:** series, volumes, documents, picker with progress, reorder and renumber, merge and split,
+   covers, TXT import, TXT/Markdown export.
+3. **Editor:** line cards with dirty-line saving, keymap and parse navigation, find, spellcheck, inline
+   images, Edit Source/Split.
+4. **Memory:** glossary and profiles, translation memory, series find and replace, phrase suggestions.
+5. **Machine translation:** DeepL, LibreTranslate, Ollama (streamed), MeCab and JParser, with a shared cache.
+6. **Acquisition and publishing:** background jobs, syosetu fetch, batch TXT and EPUB import, EPUB build
+   (6a); WordPress publish, batch publish/schedule, volume illustrations, and statistics (6b).
 
 - Spec: [`docs/superpowers/specs/2026-10-10-web-app-port-design.md`](docs/superpowers/specs/2026-10-10-web-app-port-design.md)
-- Phase 1 plan: [`docs/superpowers/plans/2026-10-10-phase1-skeleton.md`](docs/superpowers/plans/2026-10-10-phase1-skeleton.md)
-- Phase 2 plan: [`docs/superpowers/plans/2026-10-10-phase2-library.md`](docs/superpowers/plans/2026-10-10-phase2-library.md)
-- Phase 3a plan: [`docs/superpowers/plans/2026-10-11-phase3a-editor-api-and-spa.md`](docs/superpowers/plans/2026-10-11-phase3a-editor-api-and-spa.md)
-- Phase 3b plan: [`docs/superpowers/plans/2026-10-11-phase3b-editor.md`](docs/superpowers/plans/2026-10-11-phase3b-editor.md)
+- Plans, one per phase: [`docs/superpowers/plans/`](docs/superpowers/plans/)
 
 ## Prerequisites
 
@@ -57,7 +60,7 @@ ruff check .
 pytest
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same two commands against a `ta_test` database.
+CI (`.github/workflows/ci.yml`) runs lint and pytest against a `ta_test` database, the web unit tests and build, a Caddyfile check, and the Playwright suite against `ta_e2e`.
 
 ## Importing a desktop `ta.db`
 
@@ -194,6 +197,13 @@ The endpoint may not resolve to a private or local address unless `TA_WP_ALLOW_P
 address it redirects to instead. Images are downscaled (Pillow) to keep each request under the
 ~1 MB body limit some hosts enforce; images over 40 megapixels are sent unchanged. The DNS-rebinding caveat described under Machine translation
 applies to the WordPress endpoint too.
+
+## Statistics
+
+The Statistics page (`GET /stats?tz=<IANA zone>`) shows a 52-week activity heatmap, today / 7-day /
+30-day / all-time totals with the change against the previous period, current and longest streaks,
+a per-day table and a per-series breakdown. Everything is derived from `lines.translated_at`; days
+are counted in the viewer's browser time zone.
 
 ## Design decisions
 
