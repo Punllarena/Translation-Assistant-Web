@@ -61,10 +61,11 @@ def cancel_job(
     return job
 
 
-def _snapshot(job_id: int) -> dict:
+def _snapshot(job_id: int) -> dict | None:
+    """None once the row is gone (its user was deleted mid-stream)."""
     with SessionLocal() as s:
         job = s.get(Job, job_id, populate_existing=True)
-        return JobOut.model_validate(job).model_dump(mode="json")
+        return None if job is None else JobOut.model_validate(job).model_dump(mode="json")
 
 
 @router.get("/{job_id}/events")
@@ -77,6 +78,8 @@ async def job_events(
         last, sent_at = None, time.monotonic()
         while True:
             snap = await run_in_threadpool(_snapshot, job_id)
+            if snap is None:
+                return
             if snap != last:
                 yield sse(("job", snap))
                 last, sent_at = snap, time.monotonic()

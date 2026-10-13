@@ -18,12 +18,18 @@ from datetime import UTC, datetime
 
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select, update
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import ObjectDeletedError, StaleDataError
 
 from api.db import SessionLocal
 from api.models import Job
 
 log = logging.getLogger(__name__)
+
+# The row vanished mid-run (its user was deleted): refresh() raises InvalidRequestError
+# ("not persistent"), a flush StaleDataError, a lazy load ObjectDeletedError.
+GONE = (StaleDataError, ObjectDeletedError, InvalidRequestError)
 
 TERMINAL = {"done", "failed", "cancelled"}
 INTERRUPTED = "interrupted by a server restart; start it again to resume"
@@ -102,12 +108,17 @@ def run_next() -> bool:
         job = _claim(db)
         if job is None:
             return False
-        fn = HANDLERS.get(job.kind)
+        job_id, kind = job.id, job.kind
+        fn = HANDLERS.get(kind)
         try:
             if fn is None:
-                raise JobError(f"unknown job kind {job.kind!r}")
+                raise JobError(f"unknown job kind {kind!r}")
             result = fn(JobContext(db, job))
             job.state, job.result_json = "done", result or {}
+        except GONE:
+            db.rollback()  # the row was deleted mid-run (its user was): nothing to record
+            log.info("job %s was deleted while running", job_id)
+            return True
         except Cancelled:
             db.rollback()
             job.state = "cancelled"
@@ -118,11 +129,15 @@ def run_next() -> bool:
             db.rollback()
             job.state, job.message = "failed", str(exc)
         except Exception:
-            log.exception("job %s (%s) failed", job.id, job.kind)
+            log.exception("job %s (%s) failed", job_id, kind)
             db.rollback()
-            job.state, job.message = "failed", f"{job.kind} failed"
+            job.state, job.message = "failed", f"{kind} failed"
         job.finished_at = _now()
-        db.commit()
+        try:
+            db.commit()
+        except GONE:
+            db.rollback()
+            log.info("job %s was deleted while running", job_id)
         return True
 
 

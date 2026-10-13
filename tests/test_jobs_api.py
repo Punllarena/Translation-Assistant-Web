@@ -75,3 +75,17 @@ def test_events_send_keepalive_comments_while_nothing_changes(app_client, db, me
     body = app_client.get(f"/jobs/{job.id}/events").text
     assert ": keepalive\n\n" in body
     assert [f["state"] for f in frames(body.replace(": keepalive\n\n", ""))] == ["running", "done"]
+
+
+def test_events_end_when_the_job_row_disappears(app_client, db, me, same_db, monkeypatch):
+    job = jobs.enqueue(db, me.id, "syosetu_fetch", {"series_id": 1})
+    calls = {"n": 0}
+    real = jobs_router._snapshot
+
+    def snapshot(job_id):
+        calls["n"] += 1
+        return real(job_id) if calls["n"] == 1 else None
+
+    monkeypatch.setattr(jobs_router, "_snapshot", snapshot)
+    body = app_client.get(f"/jobs/{job.id}/events").text
+    assert len(frames(body)) == 1

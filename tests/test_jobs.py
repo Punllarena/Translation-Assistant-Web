@@ -112,3 +112,21 @@ async def test_worker_stops_when_asked(in_test_db):
     await asyncio.sleep(0.05)
     stop.set()
     await asyncio.wait_for(task, 2)
+
+
+def test_a_job_deleted_while_running_ends_quietly(in_test_db, make_user, kind, caplog):
+    from sqlalchemy import delete
+
+    from api.models import Job
+    user = make_user(email="j@example.com")
+
+    def vanish(ctx):
+        ctx.db.execute(delete(Job).where(Job.id == ctx.job.id))  # the user-delete cascade
+        ctx.progress(1, 1)
+        return {}
+
+    kind("vanish", vanish)
+    jobs.enqueue(in_test_db, user.id, "vanish", {})
+    assert jobs.run_next() is True
+    assert "failed" not in caplog.text
+    assert jobs.run_next() is False
