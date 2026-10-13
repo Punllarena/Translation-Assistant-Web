@@ -387,6 +387,7 @@ so concurrent jobs cannot defeat it.
 
 > Note (2026-10-12): in phase 6a the syosetu series fetch is the only job. Batch import, EPUB import
 > and EPUB build are synchronous (plan ruling 5). Batch publish arrives in 6b.
+> Note (2026-10-13): 6b adds the wp_publish and wp_illustrations jobs.
 
 ---
 
@@ -410,6 +411,12 @@ Per-series stats as today. The desktop's JSONL history log becomes
 
 > Note (2026-10-12): `work_sessions` is not written in phase 6a, because nothing reads it (user
 > decision during 6a planning). The table stays for a future reader.
+
+> Note (2026-10-13, phase 6b): one-chapter publish is a request; batch publish and volume
+> illustrations are jobs. The re-publish safeguard is a server 409 unless confirmed. Statistics
+> bucket days in the viewer's time zone (the desktop used UTC). WordPress dates live in
+> `wp_published_at` (the publish time or the scheduled slot); `wp_post_id` stays NULL because the
+> plugin returns no post id. `work_sessions` is still not written.
 
 ---
 

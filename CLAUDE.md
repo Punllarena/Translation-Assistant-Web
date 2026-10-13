@@ -38,7 +38,16 @@ syosetu fetch (`api/core/scrape.py`: chapter numbers only, redirects checked, on
 batch TXT import (<=500 files, 12 MB (Caddy) / 12 MiB (API) per request) and EPUB import (`api/core/epub_read.py`,
 limits in `epub_safety.py`: 64 MiB upload, 4 MiB per text entry, 32 MiB parsed per book, 256 MiB per-import
 budget charged per image reference before reading, 900 chapters) are synchronous; per-volume EPUB build (`epub_build.py`). Form titles
-with NUL are 422. Phase 6b (WordPress publish, scheduling, statistics) is next.
+with NUL are 422. Phase 6b: publishing and statistics. WordPress config is a `wordpress` credential plus `wp_*` user settings
+(`api/wp_prefs.py`); `api/publish.py` builds chapters and records results; single publish is a request with a
+server-enforced re-publish 409 (`confirm_republish`), batch publish and volume illustrations are jobs
+(`api/publish_job.py`); one `wp_publish` and one `wp_illustrations` job may be active per user (409 otherwise).
+Every WordPress call passes `check_user_url` unless `TA_WP_ALLOW_PRIVATE_URLS=true`, and the client never follows
+redirects. Images over 40 megapixels (`MAX_PIXELS`, `api/core/images.py`) are sent as-is without decoding. A
+cancelled or interrupted batch keeps per-chapter results (passwords included) in the job result. WordPress error
+messages never include the server's response body. `GET /stats?tz=` buckets `lines.translated_at` in the viewer's
+IANA zone. The SPA's publish dialogs open with native `showModal()` (non-modal `<dialog open>` inside table cells
+got covered by rows).
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
@@ -97,5 +106,6 @@ that database each run; conftest refuses any database name not ending in `_test`
 - MT backends take an injected `httpx.AsyncClient`; tests use `httpx.MockTransport` fixtures
   (`tests/fixtures/mt/`), never live endpoints. The `/mt/stream` cache write runs in its own session
   (`_put_sync` in `api/routers/mt.py`), one of two sanctioned commits outside the route boundary; the other is the
-  job worker (`JobContext.progress` and `run_next` in `api/jobs.py`).
+  job worker (`JobContext.progress` and `run_next` in `api/jobs.py`). WordPress calls take an injected `httpx.Client`
+  the same way (`http_client` seams in `api/routers/wp.py` and `api/publish_job.py`).
 - Tests set `TA_RUN_JOBS_WORKER=false` and drive jobs with `jobs.run_next()`, swapping `api.jobs.SessionLocal` for the test session.

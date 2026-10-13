@@ -179,6 +179,22 @@ prepared and the result is not pinned, so a host whose DNS changes between the c
 (DNS rebinding) can bypass the guard; operators exposing the server to untrusted users should keep
 that in mind.
 
+The WordPress endpoint has its own flag, `TA_WP_ALLOW_PRIVATE_URLS` (see WordPress publishing).
+
+## WordPress publishing
+
+Install the Translation Assistant Publisher plugin on the WordPress site, then enter its endpoint
+(site URL or `…/wp-json/ta-publisher/v1/publish`) and API key under Settings → WordPress, and each
+series' slug and short title on its series page. Publish one chapter from its picker row, or select
+chapters and choose Publish to publish or schedule them as a job. Volumes have a Publish
+illustrations button.
+
+The endpoint may not resolve to a private or local address unless `TA_WP_ALLOW_PRIVATE_URLS=true`
+(for a WordPress on the same network). The server never follows a redirect from WordPress; save the
+address it redirects to instead. Images are downscaled (Pillow) to keep each request under the
+~1 MB body limit some hosts enforce. The DNS-rebinding caveat described under Machine translation
+applies to the WordPress endpoint too.
+
 ## Design decisions
 
 - **Caddy serves the SPA and fronts the API under `/api`.** The API's paths and the SPA's
