@@ -192,3 +192,17 @@ def batch_slots(start: datetime, n: int, per_day: int, default_time: str,
         assigned.append(wp_date(slot))
         slots.append(slot)
     return slots
+
+
+def volume_images(db: Session, volume_id: int) -> tuple[list[dict], dict | None]:
+    """The desktop _on_publish_volume_illustrations gathering: every chapter's images in
+    reading order, the first cover, the rest unless excluded from export; shrunk.
+    ponytail: the volume's art is held in memory at once (bounded by the import budget)."""
+    rows = db.scalars(
+        select(DocumentImage).join(Document, Document.id == DocumentImage.document_id)
+        .where(Document.volume_id == volume_id)
+        .order_by(Document.series_order, Document.id, DocumentImage.anchor_position,
+                  DocumentImage.id)).all()
+    cover = next((im for im in rows if im.is_cover), None)
+    inline = [image_dict(im) for im in rows if not im.is_cover and not im.exclude_export]
+    return inline, image_dict(cover) if cover is not None else None

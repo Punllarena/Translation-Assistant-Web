@@ -5,15 +5,18 @@ from dataclasses import asdict
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, HTTPException, status
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from api import publish, wp_prefs
+import api.publish_job  # noqa: F401  registers the wp_* handlers
+from api import jobs, publish, wp_prefs
 from api.core import wp_http
 from api.core.wp import WPPublishError
-from api.deps import current_user, db_session, scoped, zone
-from api.models import Document, Series, User
+from api.deps import current_user, db_session, owned_ref, parse_zone, scoped, scoped_volume, zone
+from api.models import Document, DocumentImage, Job, Series, User
 from api.routing import api_router
-from api.schemas.wp import PublishIn, PublishOut, WpPrefsOut, WpStatusOut, WpTestOut
+from api.schemas.jobs import JobOut
+from api.schemas.wp import BatchPublishIn, PublishIn, PublishOut, WpPrefsOut, WpStatusOut, WpTestOut
 
 router = api_router(tags=["wp"])
 
@@ -83,6 +86,7 @@ def refresh_status(
                        remote_error=remote_error, previous_scheduled=previous, suggested_slot=slot)
 
 
+# ponytail: a publish request holds a pool connection for up to ~25 s (status + publish timeouts); make it a job if that starves the pool  # noqa: E501
 @router.post("/documents/{document_id}/wp/publish", response_model=PublishOut)
 def publish_chapter(
     document_id: int, body: PublishIn,
@@ -118,3 +122,55 @@ def publish_chapter(
         unlock_chapter_index=ch.unlock_chapter_index if written else None,
         scheduled_for=body.scheduled_for,
     )
+
+
+@router.post("/wp/batch", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
+def batch_publish(
+    body: BatchPublishIn, user: User = Depends(current_user), db: Session = Depends(db_session),
+) -> Job:
+    """The desktop Publish / Schedule Chapters: checks up front, slots computed now
+    (desktop loop), the publishing itself in a job."""
+    tz = parse_zone(body.tz)
+    _ready(publish.wp_config, db, user.id)
+    docs = [owned_ref(db, Document, i, user.id, "document_ids")
+            for i in dict.fromkeys(body.document_ids)]
+    for series in {d.series_id: d.series for d in docs}.values():
+        if series is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                                "Only chapters in a series can be published.")
+        _ready(publish.check_series, series)
+    if db.scalar(select(Job.id).where(
+        Job.user_id == user.id, Job.kind == "wp_publish", Job.state.in_(("queued", "running")),
+    ).limit(1)):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "a batch publish is already queued or running")
+    docs.sort(key=lambda d: (d.series.title, d.series_order, d.id))
+    prefs = wp_prefs.load(db, user.id)
+    slots = (publish.batch_slots(body.start, len(docs), body.chapters_per_day,
+                                 prefs.wp_default_schedule_time, tz)
+             if body.schedule else [None] * len(docs))
+    chapters = [{"document_id": d.id, "scheduled_for": s.isoformat() if s else None}
+                for d, s in zip(docs, slots, strict=True)]
+    return jobs.enqueue(db, user.id, "wp_publish",
+                        {"chapters": chapters, "confirm_republish": body.confirm_republish},
+                        total=len(chapters))
+
+
+@router.post("/volumes/{volume_id}/wp/illustrations", response_model=JobOut,
+             status_code=status.HTTP_202_ACCEPTED)
+def publish_volume_illustrations(
+    volume_id: int, user: User = Depends(current_user), db: Session = Depends(db_session),
+) -> Job:
+    volume = scoped_volume(db, volume_id, user.id)
+    _ready(publish.wp_config, db, user.id)
+    _ready(publish.check_series, volume.series)
+    if not db.scalar(
+        select(DocumentImage.id).join(Document, Document.id == DocumentImage.document_id)
+        .where(Document.volume_id == volume.id,
+               or_(DocumentImage.is_cover, DocumentImage.exclude_export.is_(False)))
+        .limit(1)
+    ):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            "This volume has no illustrations to publish.")
+    return jobs.enqueue(db, user.id, "wp_illustrations",
+                        {"volume_id": volume.id, "series_id": volume.series_id})

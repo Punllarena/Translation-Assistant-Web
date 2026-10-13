@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import AwareDatetime, BaseModel
+from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
 
 class WpPrefsOut(BaseModel):
@@ -39,3 +39,18 @@ class PublishOut(BaseModel):
     password: str | None
     unlock_chapter_index: int | None
     scheduled_for: datetime | None
+
+
+class BatchPublishIn(BaseModel):
+    document_ids: list[int] = Field(min_length=1, max_length=500)
+    schedule: bool = True  # the desktop dialog's default
+    start: AwareDatetime | None = None
+    chapters_per_day: int = Field(default=1, ge=1, le=99)
+    tz: str = Field(default="UTC", max_length=64)
+    confirm_republish: bool = False
+
+    @model_validator(mode="after")
+    def _start_when_scheduling(self) -> "BatchPublishIn":
+        if self.schedule and self.start is None:
+            raise ValueError("start: required when scheduling")
+        return self
