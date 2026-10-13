@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
+import BatchPublish from "../publish/BatchPublish";
 import DocumentRow from "./DocumentRow";
 import { groupDocuments, visibleSelection } from "./group";
 import NewDocument from "./NewDocument";
@@ -14,6 +15,7 @@ export default function Picker() {
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [creating, setCreating] = useState(false);
+  const [batch, setBatch] = useState<number[] | null>(null);
   const done = () => {
     setSelected(new Set());
     return invalidateLibrary(queryClient);
@@ -67,9 +69,11 @@ export default function Picker() {
             remove.mutate(visible);
           }
         }}>Delete {visible.length || ""}</button>
+        <button disabled={!visible.length || busy} onClick={() => setBatch(visible)}>Publish {visible.length || ""}</button>
       </div>
       {error && <p className="error" role="alert">{error.message}</p>}
       {creating && <NewDocument series={series.data} onDone={() => setCreating(false)} />}
+      {batch && <BatchPublish ids={batch} onClose={() => setBatch(null)} />}
       {groups.map((g) => (
         <section key={g.series?.id ?? "unsorted"}>
           <h2>
@@ -83,6 +87,7 @@ export default function Picker() {
                   <th>Title</th>
                   <th>Progress</th>
                   <th>Edited</th>
+                  <th>WordPress</th>
                   <th>Series</th>
                   <th>Export</th>
                 </tr>

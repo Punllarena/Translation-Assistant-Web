@@ -3,6 +3,8 @@ import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { api, ApiError, call } from "../api/client";
 import type { Doc, SeriesRow } from "./group";
+import PublishDialog from "../publish/PublishDialog";
+import { wpBadge } from "../publish/badge";
 import { invalidateLibrary } from "./queries";
 
 interface Props {
@@ -16,6 +18,7 @@ interface Props {
 export default function DocumentRow({ doc, series, selected, onSelect }: Props) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const settled = useRef(false);
   const update = useMutation({
     mutationFn: (body: { title?: string; series_id?: number | null }) =>
@@ -76,6 +79,7 @@ export default function DocumentRow({ doc, series, selected, onSelect }: Props) 
       </td>
       <td>{doc.progress}%</td>
       <td className="muted">{new Date(doc.updated_at).toLocaleString()}</td>
+      <td className="muted">{wpBadge(doc)}</td>
       <td>
         <select aria-label="Series" value={doc.series_id ?? ""}
           onChange={(e) => update.mutate({ series_id: e.target.value ? Number(e.target.value) : null })}>
@@ -87,6 +91,8 @@ export default function DocumentRow({ doc, series, selected, onSelect }: Props) 
         <a href={exportUrl("txt")} download>TXT</a>{" "}
         <a href={exportUrl("md")} download>MD</a>{" "}
         <a href={exportUrl("md-ruby")} download>Ruby MD</a>
+        {doc.series_id !== null && <>{" "}<button type="button" onClick={() => setPublishing(true)}>Publish…</button></>}
+        {publishing && <PublishDialog doc={doc} onClose={() => setPublishing(false)} />}
       </td>
     </tr>
   );

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { api, ApiError, call, errorMessage, type Schemas } from "../api/client";
+import JobProgress from "../jobs/JobProgress";
 import type { Doc } from "./group";
 import { invalidateLibrary } from "./queries";
 
@@ -52,11 +53,16 @@ function VolumeEditor({ volume, docs, onChanged }: { volume: Volume; docs: Doc[]
       setTimeout(() => URL.revokeObjectURL(url), 0); // after the click has started the download
     },
   });
+  const [illusJob, setIllusJob] = useState<number | null>(null);
+  const illus = useMutation({
+    mutationFn: () => call(api.POST("/volumes/{volume_id}/wp/illustrations", { params: { path: { volume_id: volume.id } } })),
+    onSuccess: (job) => setIllusJob(job.id),
+  });
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     save.mutate(Object.fromEntries(new FormData(e.currentTarget)) as Schemas["VolumeUpdate"]);
   };
-  const error = save.error ?? remove.error ?? add.error ?? unassign.error ?? download.error;
+  const error = save.error ?? remove.error ?? add.error ?? unassign.error ?? download.error ?? illus.error;
   return (
     <details>
       <summary>{volume.title} <span className="muted">({docs.filter((d) => d.volume_id === volume.id).length} chapters)</span></summary>
@@ -85,7 +91,11 @@ function VolumeEditor({ volume, docs, onChanged }: { volume: Volume; docs: Doc[]
             e.preventDefault();
             if (!download.isPending) download.mutate();
           }}>{download.isPending ? "Building…" : "EPUB"}</a>
+        <button type="button" disabled={illus.isPending || illusJob !== null} onClick={() => {
+          if (window.confirm(`Publish the illustrations of "${volume.title}" to WordPress? An existing illustrations page for this volume will be overwritten.`)) illus.mutate();
+        }}>Publish illustrations</button>
       </div>
+      {illusJob !== null && <JobProgress jobId={illusJob} outcome={(j) => { const r = (j.result ?? {}) as { page_url?: string; created?: boolean }; return <p>{j.state === "cancelled" ? "Cancelled" : `${r.created ? "Created" : "Updated"} the volume illustrations page`} {r.page_url && <a href={r.page_url} target="_blank" rel="noreferrer">{r.page_url}</a>}</p>; }} />}
       <div className="toolbar">
         <select multiple aria-label="Chapters to assign" value={assign.map(String)}
           onChange={(e) => setAssign([...e.target.selectedOptions].map((o) => Number(o.value)))}>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, call } from "../api/client";
 import { followJob, isTerminal, type Job } from "./follow";
 
@@ -10,7 +10,7 @@ interface FetchResult {
 }
 
 /** Follows one job over SSE: a progress bar, Cancel, then the outcome. */
-export default function JobProgress({ jobId, onDone }: { jobId: number; onDone?: (job: Job) => void }) {
+export default function JobProgress({ jobId, onDone, outcome }: { jobId: number; onDone?: (job: Job) => void; outcome?: (job: Job) => ReactNode }) {
   const [job, setJob] = useState<Job | null>(null);
   const [cancelError, setCancelError] = useState("");
   const [cancelling, setCancelling] = useState(false);
@@ -57,6 +57,7 @@ export default function JobProgress({ jobId, onDone }: { jobId: number; onDone?:
     );
   }
   if (job.state === "failed") return <p className="error" role="alert">{job.message || "The job failed"}</p>;
+  if (outcome) return <div role="status">{outcome(job)}</div>;
   const r = (job.result ?? {}) as FetchResult;
   const parts = [job.state === "cancelled" ? "Cancelled" : `Added ${r.added ?? 0} chapter(s)`];
   if (r.skipped) parts.push(`skipped ${r.skipped}`);
