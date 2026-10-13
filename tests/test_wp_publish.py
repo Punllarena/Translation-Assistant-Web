@@ -108,6 +108,15 @@ def test_unreachable_status_falls_back_to_cache_and_a_failed_publish_writes_noth
     assert doc.wp_status == "" and doc.wp_published_at is None
 
 
+def test_series_lock_count_of_zero_uses_the_default(app_client, me, ready, make_doc, wp_site, db):
+    app_client.put("/settings", json={"wp_password_enabled": True, "wp_unlock_after": 1})
+    ready.wp_unlock_after = 0
+    db.flush()
+    doc = make_doc(me, ["一"], series=ready, order=3)
+    body = app_client.post(f"/documents/{doc.id}/wp/publish", json={}).json()
+    assert body["unlock_chapter_index"] == 2
+
+
 def test_password_protection_follows_series_then_user(app_client, me, ready, make_doc, wp_site, db):
     _, posted = wp_site
     app_client.put("/settings", json={"wp_password_enabled": True, "wp_unlock_after": 1})

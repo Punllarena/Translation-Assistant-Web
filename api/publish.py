@@ -93,8 +93,7 @@ def build_chapter(db: Session, doc: Document, prefs: WpPrefs) -> Chapter:
     check_series(series)
     password = unlock = None
     if wp.resolve_wp_password_enabled(series.wp_password_enabled, prefs.wp_password_enabled):
-        unlock_after = (series.wp_unlock_after if series.wp_unlock_after is not None
-                        else prefs.wp_unlock_after)
+        unlock_after = series.wp_unlock_after or prefs.wp_unlock_after
         password, unlock = wp.compute_password_fields(doc.series_order, unlock_after)
     lines = [{"prefix": p, "translated_text": t} for p, t in db.execute(
         select(Line.prefix, Line.translated_text)
