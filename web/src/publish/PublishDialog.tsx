@@ -4,6 +4,7 @@ import { api, ApiError, call, type Schemas } from "../api/client";
 import type { Doc } from "../library/group";
 import { invalidateLibrary } from "../library/queries";
 import { browserZone, defaultSlot, fromLocalInput, toLocalInput } from "../time";
+import { confirmLabel, statusTone } from "./label";
 
 const LABEL: Record<string, string> = { publish: "Published", future: "Scheduled", draft: "Draft", "": "Not published" };
 
@@ -37,35 +38,48 @@ export default function PublishDialog({ doc, onClose }: { doc: Doc; onClose: () 
     onSuccess: (r) => { setResult(r); return invalidateLibrary(queryClient); },
   });
   const chapter = doc.series_order === 0 ? "Synopsis" : `Chapter ${doc.series_order}`;
+  const statusText = status.isPending ? "checking…" : status.data ? (LABEL[status.data.status] ?? status.data.status) : "unknown";
+  const title = doc.chapter_title || doc.title;
   return (
     <dialog ref={ref} onClose={onClose} onCancel={(e) => { if (run.isPending) e.preventDefault(); }}
-      aria-label="Publish to WordPress" className="stack">
+      aria-label="Publish to WordPress" className="dlg">
+      <div className="dlg-head">
+        <span className="label">Publish to WordPress</span>
+        <h2>{title}</h2>
+        <p className="muted">{chapter}</p>
+      </div>
       {result ? (
-        <>
-          <p role="status">{result.created || result.updated ? (result.scheduled_for ? "Scheduled!" : result.created ? "Published!" : "Updated!") : "Already published."}</p>
+        <div className="dlg-body">
+          <p className="box ok" role="status">{result.created || result.updated ? (result.scheduled_for ? "Scheduled!" : result.created ? "Published!" : "Updated!") : "Already published."}</p>
           {result.page_url && <p>Page: <a href={result.page_url} target="_blank" rel="noreferrer">{result.page_url}</a></p>}
           {result.post_url && <p>Post: <a href={result.post_url} target="_blank" rel="noreferrer">{result.post_url}</a></p>}
-          {result.password && <label>Password (copy this) <input readOnly value={result.password} onFocus={(e) => e.currentTarget.select()} /></label>}
-          {result.unlock_chapter_index !== null && <p>Chapter {result.unlock_chapter_index} is now unlocked.</p>}
-        </>
-      ) : (
-        <>
-          <p>WP status: {status.isPending ? "checking…" : status.data
-            ? `${LABEL[status.data.status] ?? status.data.status}${status.data.remote_error ? ` (cached — ${status.data.remote_error})` : ""}` : "unknown"}</p>
-          <p>Publish <b>{doc.chapter_title || doc.title}</b> ({chapter}) to WordPress?
-            {status.data?.status === "publish" && " Republishing will overwrite the live chapter."}</p>
-          {status.data?.previous_scheduled && (
-            <p className="error">Warning: Chapter {doc.series_order - 1} is still scheduled and hasn't gone live yet.</p>
+          {result.password && (
+            <label className="field"><span>Password (copy this)</span>
+              <input readOnly className="mono" value={result.password} onFocus={(e) => e.currentTarget.select()} /></label>
           )}
-          <label><input type="checkbox" checked={scheduling} onChange={(e) => setSchedule(e.target.checked)} /> Schedule for later</label>
-          <label>When <input type="datetime-local" disabled={!scheduling} value={slot} onChange={(e) => setWhen(e.target.value)} /></label>
-        </>
+          {result.unlock_chapter_index !== null && <p className="muted">Chapter {result.unlock_chapter_index} is now unlocked.</p>}
+        </div>
+      ) : (
+        <div className="dlg-body">
+          <p>WP status: <span className={`badge ${statusTone(status.data?.status ?? "")}`}>{statusText}</span>
+            {status.data?.remote_error && <span className="muted"> (cached — {status.data.remote_error})</span>}</p>
+          {status.data?.status === "publish" && <p className="muted">Republishing will overwrite the live chapter.</p>}
+          {status.data?.previous_scheduled && (
+            <p className="box warn">Chapter {doc.series_order - 1} is still scheduled and hasn't gone live yet.</p>
+          )}
+          <label className="check"><input type="checkbox" checked={scheduling} onChange={(e) => setSchedule(e.target.checked)} /><span>Schedule for later</span></label>
+          <label className="field"><span>When</span>
+            <input type="datetime-local" className="mono" disabled={!scheduling} value={slot} onChange={(e) => setWhen(e.target.value)} /></label>
+        </div>
       )}
       {(status.error ?? run.error) && <p className="error" role="alert">{(status.error ?? run.error)!.message}</p>}
-      <div className="toolbar">
-        {!result && <button disabled={run.isPending || status.isPending || status.isError} onClick={() => run.mutate()}>
-          {status.data?.previous_scheduled ? "Publish anyway" : "Publish"}</button>}
-        <button onClick={onClose}>{result ? "Close" : "Cancel"}</button>
+      <div className="dlg-foot">
+        <button type="button" onClick={onClose}>{result ? "Close" : "Cancel"}</button>
+        {!result && (
+          <button type="button" className="primary" disabled={run.isPending || status.isPending || status.isError} onClick={() => run.mutate()}>
+            {confirmLabel(!!status.data?.previous_scheduled, scheduling)}
+          </button>
+        )}
       </div>
     </dialog>
   );
