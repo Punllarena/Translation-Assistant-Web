@@ -125,49 +125,55 @@ export default function MtSettingsPage() {
             </div>
           </form>
 
-          <form key={cred("libretranslate")?.endpoint_url} className="panel sec" aria-labelledby="lt-h" onSubmit={(e) => {
-            const el = e.currentTarget; const f = form(e); const secret = typed(f.get("k"));
-            saveCred.mutate({ kind: "libretranslate", endpoint_url: typed(f.get("u")), ...(secret ? { secret } : {}) },
-              { onSuccess: () => { (el.elements.namedItem("k") as HTMLInputElement).value = ""; } });
-          }}>
-            <div className="sec-head"><h2 id="lt-h">LibreTranslate</h2><KeyState text={keyState("libretranslate")} ok={hasKey("libretranslate")} /></div>
-            <div className="row-fields">
-              <label className="field"><span>Server URL</span><input name="u" className="mono" aria-label="LibreTranslate URL" defaultValue={cred("libretranslate")?.endpoint_url ?? ""} /></label>
-              <label className="field"><span>API key (optional)</span><input type="password" name="k" aria-label="LibreTranslate API key" autoComplete="off" /></label>
-            </div>
-            <div><button type="submit">Save LibreTranslate</button></div>
-          </form>
+          {creds.data && ( // keyed forms render once saved values load, so a late remount can't wipe typing
+            <form key={cred("libretranslate")?.endpoint_url} className="panel sec" aria-labelledby="lt-h" onSubmit={(e) => {
+              const el = e.currentTarget; const f = form(e); const secret = typed(f.get("k"));
+              saveCred.mutate({ kind: "libretranslate", endpoint_url: typed(f.get("u")), ...(secret ? { secret } : {}) },
+                { onSuccess: () => { (el.elements.namedItem("k") as HTMLInputElement).value = ""; } });
+            }}>
+              <div className="sec-head"><h2 id="lt-h">LibreTranslate</h2><KeyState text={keyState("libretranslate")} ok={hasKey("libretranslate")} /></div>
+              <div className="row-fields">
+                <label className="field"><span>Server URL</span><input name="u" className="mono" aria-label="LibreTranslate URL" defaultValue={cred("libretranslate")?.endpoint_url ?? ""} /></label>
+                <label className="field"><span>API key (optional)</span><input type="password" name="k" aria-label="LibreTranslate API key" autoComplete="off" /></label>
+              </div>
+              <div><button type="submit">Save LibreTranslate</button></div>
+            </form>
+          )}
 
           <section className="panel sec" aria-labelledby="ollama-h">
             <div className="sec-head">
               <h2 id="ollama-h">Ollama</h2>
               <KeyState text={keyState("ollama").replace("key", "token").replace("Key", "Token")} ok={hasKey("ollama")} />
             </div>
-            <form key={cred("ollama")?.endpoint_url} className="stack" onSubmit={(e) => {
-              const el = e.currentTarget; const f = form(e); const secret = typed(f.get("k"));
-              saveCred.mutate({ kind: "ollama", endpoint_url: typed(f.get("u")), ...(secret ? { secret } : {}) },
-                { onSuccess: () => { (el.elements.namedItem("k") as HTMLInputElement).value = ""; } });
-            }}>
-              <div className="row-fields">
-                <label className="field"><span>Server URL</span><input name="u" className="mono" aria-label="Ollama URL" placeholder="server default" defaultValue={cred("ollama")?.endpoint_url ?? ""} /></label>
-                <label className="field"><span>Token (optional)</span><input type="password" name="k" aria-label="Ollama token" autoComplete="off" /></label>
-              </div>
-              <div><button type="submit">Save Ollama URL</button></div>
-            </form>
-            <form key={`${s.ollama_model}|${s.ollama_system_prompt}`} className="stack" onSubmit={(e) => {
-              const f = form(e);
-              putSetting.mutate({ ollama_model: typed(f.get("m")), ollama_system_prompt: String(f.get("p") ?? "") });
-            }}>
-              <label className="field"><span>Model</span><input name="m" className="mono" aria-label="Ollama model" defaultValue={String(s.ollama_model ?? "")} /></label>
-              <label className="field"><span>System prompt</span>
-                <textarea name="p" aria-label="Ollama system prompt" rows={8} placeholder={backends.data?.ollama_default_prompt}
-                  defaultValue={String(s.ollama_system_prompt ?? "")} aria-describedby="prompt-hint" /></label>
-              <p id="prompt-hint" className="hint">Leave empty to use the built-in prompt. Reset clears your own.</p>
-              <div className="toolbar">
-                <button type="submit">Save Ollama options</button>
-                <button type="button" className="quiet" onClick={() => resetPrompt.mutate()}>Reset</button>
-              </div>
-            </form>
+            {creds.data && (
+              <form key={cred("ollama")?.endpoint_url} className="stack" onSubmit={(e) => {
+                const el = e.currentTarget; const f = form(e); const secret = typed(f.get("k"));
+                saveCred.mutate({ kind: "ollama", endpoint_url: typed(f.get("u")), ...(secret ? { secret } : {}) },
+                  { onSuccess: () => { (el.elements.namedItem("k") as HTMLInputElement).value = ""; } });
+              }}>
+                <div className="row-fields">
+                  <label className="field"><span>Server URL</span><input name="u" className="mono" aria-label="Ollama URL" placeholder="server default" defaultValue={cred("ollama")?.endpoint_url ?? ""} /></label>
+                  <label className="field"><span>Token (optional)</span><input type="password" name="k" aria-label="Ollama token" autoComplete="off" /></label>
+                </div>
+                <div><button type="submit">Save Ollama URL</button></div>
+              </form>
+            )}
+            {settings.data && (
+              <form key={`${s.ollama_model}|${s.ollama_system_prompt}`} className="stack" onSubmit={(e) => {
+                const f = form(e);
+                putSetting.mutate({ ollama_model: typed(f.get("m")), ollama_system_prompt: String(f.get("p") ?? "") });
+              }}>
+                <label className="field"><span>Model</span><input name="m" className="mono" aria-label="Ollama model" defaultValue={String(s.ollama_model ?? "")} /></label>
+                <label className="field"><span>System prompt</span>
+                  <textarea name="p" aria-label="Ollama system prompt" rows={8} placeholder={backends.data?.ollama_default_prompt}
+                    defaultValue={String(s.ollama_system_prompt ?? "")} aria-describedby="prompt-hint" /></label>
+                <p id="prompt-hint" className="hint">Leave empty to use the built-in prompt. Reset clears your own.</p>
+                <div className="toolbar">
+                  <button type="submit">Save Ollama options</button>
+                  <button type="button" className="quiet" onClick={() => resetPrompt.mutate()}>Reset</button>
+                </div>
+              </form>
+            )}
           </section>
         </div>
       </div>
