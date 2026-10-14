@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { api, call } from "../api/client";
 import { ACTIONS, bindingOf, bindingProblem } from "../editor/keymap";
 import { useBindings } from "../editor/useEditorKeys";
+import PageHeader from "../ui/PageHeader";
+import { groupActions } from "./shortcutGroups";
 
 /** Rebind editor keys (desktop dlg_shortcuts): press "Change", then the new key. */
 export default function ShortcutsPage() {
@@ -39,28 +41,41 @@ export default function ShortcutsPage() {
   }, [capturing, bindings, bind]);
   const error = problem ?? bind.error?.message ?? reset.error?.message;
   return (
-    <main>
-      <h1>Keyboard shortcuts</h1>
-      {error && <p className="error" role="alert">{error}</p>}
-      <table>
-        <thead><tr><th>Action</th><th>Key</th><th /></tr></thead>
-        <tbody>
-          {ACTIONS.map((a) => (
-            <tr key={a.key}>
-              <td>{a.label}</td>
-              <td><kbd>{bindings[a.key]}</kbd></td>
-              <td className="toolbar">
-                <button onClick={() => { setProblem(null); setCapturing(a.key); }} disabled={bind.isPending}>
-                  {capturing === a.key ? "Press a key… (Esc cancels)" : "Change"}
-                </button>
-                {bindings[a.key] !== a.binding && (
-                  <button onClick={() => reset.mutate(a.key)} disabled={reset.isPending}>Reset to {a.binding}</button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <main className="settings">
+      <PageHeader title="Keyboard shortcuts" subtitle="Editor keys. Press Change, then the new key; Esc cancels." />
+      {error && <p className="box danger" role="alert">{error}</p>}
+      <div className="shortcut-groups">
+        {groupActions(ACTIONS).map((g, gi) => (
+          <section key={g.title} className="panel" aria-labelledby={`sc-group-${gi}`}>
+            <h2 id={`sc-group-${gi}`} className="label panel-label">{g.title}</h2>
+            <ul className="shortcut-list">
+              {g.actions.map((a) => {
+                const here = capturing === a.key;
+                const changed = bindings[a.key] !== a.binding;
+                return (
+                  <li key={a.key} className={here ? "capturing" : undefined}>
+                    <span>
+                      {a.label}
+                      {changed && <><span className="dot accent" aria-hidden="true" /><span className="visually-hidden"> (changed)</span></>}
+                    </span>
+                    <kbd>{here ? "Press a key…" : bindings[a.key]}</kbd>
+                    <span className="sc-actions">
+                      <button type="button" className="small" disabled={bind.isPending}
+                        onClick={() => { setProblem(null); setCapturing(here ? null : a.key); }}>
+                        {here ? "Cancel" : "Change"}
+                      </button>
+                      {changed && (
+                        <button type="button" className="small quiet" title={`Reset to ${a.binding}`} aria-label={`Reset to ${a.binding}`}
+                          disabled={reset.isPending} onClick={() => reset.mutate(a.key)}>Reset</button>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
     </main>
   );
 }
