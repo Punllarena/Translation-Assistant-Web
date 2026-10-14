@@ -5,6 +5,7 @@ import { RouterProvider } from "react-router";
 import { router } from "./App";
 import { signedOutOn401 } from "./auth/session";
 import "./styles.css";
+import { startTheme } from "./theme/theme";
 
 const onError = (error: Error) => signedOutOn401(queryClient, error);
 
@@ -13,6 +14,8 @@ const queryClient: QueryClient = new QueryClient({
   mutationCache: new MutationCache({ onError }),
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
 });
+
+startTheme();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

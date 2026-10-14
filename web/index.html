@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Translation Assistant</title>
+    <script>
+      // Paint the saved theme before the bundle loads (src/theme/theme.ts owns the rules).
+      (function () {
+        var pref = null;
+        try { pref = localStorage.getItem("ta.theme"); } catch (e) {}
+        var dark = pref === "dark" || (pref !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
