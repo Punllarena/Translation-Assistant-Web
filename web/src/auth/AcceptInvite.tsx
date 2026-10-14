@@ -19,26 +19,29 @@ export default function AcceptInvite() {
   };
   if (accept.isSuccess) {
     return (
-      <main>
-        <p>Account created. <Link to="/login">Sign in</Link>.</p>
+      <main className="auth">
+        <div className="auth-card">
+          <span className="brand"><span className="mark" aria-hidden="true">訳</span>Translation Assistant</span>
+          <h1>Account created</h1>
+          <p><Link to="/login">Sign in</Link> with your email and password.</p>
+        </div>
       </main>
     );
   }
   return (
-    <main>
-      <h1>Create your account</h1>
-      {!token && <p className="error">This link has no invite token.</p>}
-      <form className="stack" onSubmit={submit}>
-        <label>
-          Email <input type="email" autoComplete="username" required value={email}
-            onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        <label>
-          Password <input type="password" autoComplete="new-password" required minLength={12} value={password}
-            onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <button disabled={!token || accept.isPending}>Create account</button>
-        {accept.isError && <p className="error" role="alert">{accept.error.message}</p>}
+    <main className="auth">
+      <form className="auth-card" onSubmit={submit}>
+        <span className="brand"><span className="mark" aria-hidden="true">訳</span>Translation Assistant</span>
+        <h1>Create your account</h1>
+        {!token && <p className="box danger">This link has no invite token.</p>}
+        <label className="field"><span>Email</span>
+          <input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+        <label className="field"><span>Password</span>
+          <input type="password" autoComplete="new-password" required minLength={12} value={password}
+            onChange={(e) => setPassword(e.target.value)} aria-describedby="pw-hint" /></label>
+        <p id="pw-hint" className="hint">At least 12 characters.</p>
+        <button className="primary" disabled={!token || accept.isPending}>Create account</button>
+        {accept.isError && <p className="box danger" role="alert">{accept.error.message}</p>}
       </form>
     </main>
   );

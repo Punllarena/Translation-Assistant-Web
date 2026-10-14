@@ -1,0 +1,8 @@
+.auth { display: grid; place-items: center; min-height: 100dvh; max-width: none; padding: 48px 16px; }
+.auth-card { width: min(400px, 100%); display: flex; flex-direction: column; gap: 18px; padding: 32px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 20px 50px -24px var(--shadow); }
+.auth-card .mark { width: 40px; height: 40px; border-radius: 4px; font-size: 22px; }
+.auth-card h1 { font-family: var(--serif); font-weight: 500; font-size: 30px; line-height: 1.2; }
+.auth-card input { min-height: 44px; }
+.auth-card button.primary { width: 100%; min-height: 44px; }
+.auth-card p { margin: 0; }

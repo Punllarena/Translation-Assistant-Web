@@ -36,19 +36,17 @@ export default function Login() {
     login.mutate();
   };
   return (
-    <main>
-      <h1>Sign in</h1>
-      <form className="stack" onSubmit={submit}>
-        <label>
-          Email <input type="email" autoComplete="username" required value={email}
-            onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        <label>
-          Password <input type="password" autoComplete="current-password" required value={password}
-            onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <button disabled={login.isPending}>Sign in</button>
-        {login.isError && <p className="error" role="alert">{login.error.message}</p>}
+    <main className="auth">
+      <form className="auth-card" onSubmit={submit}>
+        <span className="brand"><span className="mark" aria-hidden="true">訳</span>Translation Assistant</span>
+        <h1>Sign in</h1>
+        <label className="field"><span>Email</span>
+          <input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+        <label className="field"><span>Password</span>
+          <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+        {login.isError && <p className="box danger" role="alert">{login.error.message}</p>}
+        <button className="primary" disabled={login.isPending}>Sign in</button>
+        <p className="hint">Accounts are by invitation. Ask the person who runs this server for a link.</p>
       </form>
     </main>
   );
