@@ -5,6 +5,9 @@ import type { AddressInfo } from "node:net";
 const received: Record<string, unknown>[] = [];
 let server: http.Server;
 let site = "";
+// While set, the fake WordPress holds a batch target's publish until it is called, so a test can
+// close the dialog while the job is still running.
+let hold: Promise<void> | null = null;
 
 test.beforeAll(async () => {
   server = http.createServer((req, res) => {
@@ -12,8 +15,10 @@ test.beforeAll(async () => {
     if (req.url?.startsWith("/wp-json/ta-publisher/v1/status")) return reply({ status: "not_found", post_url: null });
     let raw = "";
     req.on("data", (c) => (raw += c));
-    req.on("end", () => {
-      received.push(JSON.parse(raw));
+    req.on("end", async () => {
+      const body = JSON.parse(raw);
+      received.push(body);
+      if (hold && String(body.chapter_title).includes("Batch target")) await hold;
       reply({ created: true, updated: false, page_url: `${site}/e2e-publish/e2e-publish-c1/`, post_url: `${site}/post/1/` });
     });
   });
@@ -29,10 +34,15 @@ async function signInAndConnect(page: Page) {
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
 
+  // The connection form remounts when the saved credential arrives, dropping anything typed before it.
+  const loaded = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/credentials");
   await page.goto("/settings/wp"); // not via "/", which resumes the last open chapter after a late redirect
+  await loaded;
   await page.getByLabel("WordPress endpoint URL").fill(site);
   await page.getByLabel("WordPress API key").fill("e2e-plugin-key");
   await page.getByRole("button", { name: "Save connection" }).click();
+  // "Key saved" is already showing when an earlier run saved a key; "Saved" only follows this save.
+  await expect(page.getByRole("status").getByText("Saved", { exact: true })).toBeVisible();
   await expect(page.getByText(/Key saved/)).toBeVisible();
   await page.getByRole("button", { name: "Test connection" }).click();
   await expect(page.getByText("Connected; WordPress accepted the API key.")).toBeVisible();
@@ -58,16 +68,27 @@ test("batch publish: closing and reopening the dialog never errors, and the chap
   const row = page.getByRole("row").filter({ hasText: "Batch target" });
   await row.getByLabel("Select Batch target").check();
   const open = () => page.getByRole("button", { name: "Publish 1", exact: true }).click();
-  await open();
-  const dialog = page.getByRole("dialog", { name: "Publish / Schedule Chapters" });
-  await dialog.getByRole("checkbox", { name: /Schedule \(unchecked/ }).uncheck();
-  await dialog.getByRole("button", { name: "Start" }).click();
-  await dialog.getByRole("button", { name: "Close" }).click();
-  await open();
-  // The job may already be finished, so the reopened dialog shows progress, the summary or the form;
-  // what must hold is that no error (a 409 from a second batch) is shown, and the chapter gets published.
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("alert")).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Close" }).click();
+  let release = () => {};
+  hold = new Promise<void>((resolve) => (release = resolve));
+  try {
+    await open();
+    const dialog = page.getByRole("dialog", { name: "Publish / Schedule Chapters" });
+    await dialog.getByRole("checkbox", { name: /Schedule \(unchecked/ }).uncheck();
+    await dialog.getByRole("checkbox", { name: /^Overwrite/ }).check(); // so a rerun publishes it again
+    await dialog.getByRole("button", { name: "Start" }).click();
+    await expect(dialog.getByRole("progressbar")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await open();
+    // The job is still running: the reopened dialog follows it rather than offering a second batch (a 409).
+    await expect(dialog.getByRole("progressbar")).toBeVisible();
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(dialog).toBeHidden();
+  } finally {
+    hold = null;
+    release();
+  }
+  // The job finishes after the dialog is gone; the row still has to pick that up.
   await expect(row.getByText(/^pub /)).toBeVisible();
 });

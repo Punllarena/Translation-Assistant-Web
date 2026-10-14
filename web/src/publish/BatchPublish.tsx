@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, call } from "../api/client";
 import JobProgress from "../jobs/JobProgress";
-import type { Job } from "../jobs/follow";
+import { followJob, isTerminal, type Job } from "../jobs/follow";
 import { invalidateLibrary } from "../library/queries";
 import { browserZone, defaultSlot, fromLocalInput, toLocalInput } from "../time";
 
@@ -43,7 +43,16 @@ export default function BatchPublish({ ids, onClose }: { ids: number[]; onClose:
     queryFn: () => call(api.GET("/jobs", { params: { query: { active: true } } })),
   });
   const running = jobId ?? active.data?.find((j) => j.kind === "wp_publish")?.id ?? null;
-  const close = () => { void invalidateLibrary(queryClient); onClose(); };
+  const finished = useRef(false);
+  const done = () => { finished.current = true; return invalidateLibrary(queryClient); };
+  // Closing does not stop the job: keep following it so the library picks up what it published.
+  const close = () => {
+    if (running !== null && !finished.current) {
+      followJob(running, (j) => { if (isTerminal(j)) void invalidateLibrary(queryClient); });
+    }
+    void invalidateLibrary(queryClient);
+    onClose();
+  };
   const start = useMutation({
     mutationFn: (f: FormData) => call(api.POST("/wp/batch", { body: {
       document_ids: ids, schedule, tz: browserZone(),
@@ -55,9 +64,9 @@ export default function BatchPublish({ ids, onClose }: { ids: number[]; onClose:
   const submit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); start.mutate(new FormData(e.currentTarget)); };
   const p = prefs.data;
   return (
-    <dialog ref={ref} onClose={onClose} aria-label="Publish / Schedule Chapters" className="stack">
+    <dialog ref={ref} onClose={close} aria-label="Publish / Schedule Chapters" className="stack">
       {running !== null ? (
-        <JobProgress jobId={running} onDone={() => invalidateLibrary(queryClient)} outcome={(job) => <Summary job={job} />} />
+        <JobProgress jobId={running} onDone={done} outcome={(job) => <Summary job={job} />} />
       ) : p && active.isSuccess && (
         <form className="stack" onSubmit={submit}>
           <p>{ids.length} chapter(s) selected.</p>
