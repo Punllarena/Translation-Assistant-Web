@@ -1,0 +1,59 @@
+/* The phase 3b editor rules on tokens. The layout redesign is phase 7b. */
+.editor-page { font-size: var(--editor-font, 18px); }
+.statusbar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center;
+  padding: 8px 32px; font-size: 13px; color: var(--muted); background: color-mix(in oklch, var(--bg) 94%, transparent);
+  border-bottom: 1px solid var(--line); }
+.statusbar strong { color: var(--ink); font-family: var(--serif); font-weight: 500; font-size: 17px; }
+.save-state { display: inline-block; min-width: 9em; }
+.editor { max-width: 60rem; margin: 0 auto; padding: 1rem 1rem 45vh; }
+.card { content-visibility: auto; contain-intrinsic-size: auto 6em; padding: .6em .8em; margin: .4em 0;
+  border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+.card:hover { background: var(--raised); }
+.card.active { background: var(--surface); border-color: color-mix(in oklch, var(--accent-text) 45%, transparent);
+  box-shadow: 0 10px 28px -14px var(--shadow); cursor: auto; }
+.card-number { float: right; font-family: var(--mono); font-size: .7em; color: var(--muted); }
+.source { margin: 0 0 .3em; font-family: var(--jp); line-height: 1.85; color: var(--src); }
+.card.active .source { color: var(--ink); }
+.translation { margin: 0; white-space: pre-wrap; font-family: var(--serif); }
+.code-editor { font-family: var(--serif); }
+.code-editor .cm-editor.cm-focused { outline: none; }
+.code-editor .cm-content { font: inherit; padding: 0; caret-color: var(--accent-text); }
+.code-editor .cm-cursor { border-left-color: var(--accent-text); }
+.jp-katakana { color: var(--kata); }
+.jp-kanji { color: color-mix(in oklch, var(--seal) 40%, currentColor); }
+.jp-punct { opacity: .6; }
+.sentence-current { background: var(--sent); border-radius: 2px; }
+.find-current { background: var(--hit-cur); color: var(--ink); }
+.misspelled { text-decoration: underline wavy var(--danger); text-decoration-skip-ink: none; }
+.findbar { position: sticky; top: 2.4rem; z-index: 2; display: flex; gap: .4rem; align-items: center; max-width: 60rem;
+  margin: 0 auto; padding: .3rem 1rem; background: var(--surface); border-bottom: 1px solid var(--line); }
+.findbar input.notfound { background: var(--danger-soft); }
+.spell-menu { position: fixed; z-index: 10; display: grid; min-width: 12rem; padding: .25rem; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 16px 40px -16px var(--shadow); }
+.spell-menu button { justify-content: flex-start; min-height: 32px; border: 0; background: none; font-weight: 400; }
+.spell-menu button:focus, .spell-menu button:hover { background: var(--raised); }
+.image-card { margin: .6em 0; }
+.image-card img { display: block; max-width: min(100%, 400px); margin: .4em auto; }
+.source-editor { border: 1px solid var(--line); border-radius: 6px; padding: .5rem; font-family: var(--mono);
+  max-height: 70vh; overflow: auto; background: var(--field); }
+.editor-layout { display: flex; gap: 1rem; align-items: flex-start; justify-content: center; }
+.editor-layout .editor { flex: 1; min-width: 0; }
+.side-col { position: sticky; top: 3rem; width: 18rem; flex: none; font-size: .875rem; max-height: calc(100vh - 3.5rem); overflow-y: auto; }
+.tm-panel { font-size: .875rem; padding: .5rem; }
+.tm-panel h2 { font-size: .875rem; margin: 0 0 .4rem; }
+.tm-panel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.tm-panel button { display: block; width: 100%; padding: .4rem .5rem; text-align: left; font: inherit; font-family: var(--serif); }
+.mt-panels { display: grid; gap: .5rem; padding: .5rem; }
+.mt-card { min-height: 4rem; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.mt-card header { display: flex; justify-content: space-between; align-items: baseline; }
+.mt-card h3 { font-size: .875rem; margin: 0; }
+.mt-glyph { min-width: 3.5em; text-align: right; }
+.mt-text { white-space: pre-wrap; margin: .3rem 0; font-family: var(--serif); font-size: 1rem; }
+.mt-entries { list-style: none; margin: .3rem 0 0; padding: 0; max-height: 12rem; overflow-y: auto; }
+.mt-entries li { padding: .1rem 0; }
+.mt-entries li.muted { opacity: .55; }
+@media (max-width: 60rem) {
+  .editor-layout { flex-direction: column; }
+  .side-col { position: static; width: auto; max-height: none; }
+  .statusbar { padding: 8px 16px; }
+}

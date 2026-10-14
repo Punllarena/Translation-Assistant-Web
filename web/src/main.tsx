@@ -4,7 +4,8 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router";
 import { router } from "./App";
 import { signedOutOn401 } from "./auth/session";
-import "./styles.css";
+import "./fonts";
+import "./styles/index.css";
 import { startTheme } from "./theme/theme";
 
 const onError = (error: Error) => signedOutOn401(queryClient, error);
