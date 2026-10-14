@@ -3,7 +3,7 @@ import { useState } from "react";
 import { api, call } from "../api/client";
 import { browserZone } from "../time";
 import Heatmap from "./Heatmap";
-import { COLORS, METRICS, type Metric } from "./heatmap";
+import { COLORS, METRICS, type Metric } from "./heatmapGrid";
 
 const LABELS: Record<Metric, string> = { paragraphs: "Paragraphs", chars: "Source Chars", en_words: "EN Words" };
 const UNITS: Record<Metric, string> = { paragraphs: "paragraphs", chars: "source chars", en_words: "EN words" };

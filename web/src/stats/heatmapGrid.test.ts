@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { intensity, thresholds, weeks } from "./heatmap";
+import { intensity, thresholds, weeks } from "./heatmapGrid";
 
 describe("weeks (desktop HeatmapWidget layout)", () => {
   const grid = weeks("2026-10-13"); // a Tuesday

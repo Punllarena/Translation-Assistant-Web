@@ -1,5 +1,5 @@
 import type { Schemas } from "../api/client";
-import { COLORS, intensity, thresholds, weeks, type Metric } from "./heatmap";
+import { COLORS, intensity, thresholds, weeks, type Metric } from "./heatmapGrid";
 
 const CELL = 13, STEP = 15, LEFT = 30, TOP = 16;
 const UNITS: Record<Metric, string> = { paragraphs: "paras", chars: "chars", en_words: "EN words" };
