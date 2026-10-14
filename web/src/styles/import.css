@@ -1,0 +1,16 @@
+.import-cols > :last-child { flex-grow: 1.4; }
+.drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 132px;
+  padding: 20px; border: 1.5px dashed var(--line); border-radius: 8px; background: var(--raised); text-align: center; cursor: pointer; }
+.drop:hover, .drop.over { border-color: var(--accent-text); }
+.drop:focus-within { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.drop-title { font-weight: 500; }
+.file-list { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+.file-list li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 2px; border-top: 1px solid var(--line); }
+.file-list .mono { min-width: 0; overflow-wrap: anywhere; }
+.checklist { min-width: 0; margin: 0; padding: 0; border: 0; }
+.field-legend { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; width: 100%; padding: 0 0 6px; font-size: 13px; font-weight: 500; }
+.check-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 44px;
+  padding: 6px 4px; border-top: 1px solid var(--line); font-size: 14px; }
+.check-row.dim .title { color: var(--muted); }
+.result { flex-direction: column; gap: 2px; }
+.result p { margin: 0; }

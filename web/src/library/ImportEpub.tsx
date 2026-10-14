@@ -73,39 +73,50 @@ export default function ImportEpub({ series }: { series: SeriesRow[] }) {
   const r = run.data;
   const error = (inspect.error ?? run.error)?.message.replace(/^File too large$/, "File too large (64 MB max)");
   return (
-    <form className="stack" onSubmit={submit}>
-      <label>
-        EPUB file <input type="file" accept=".epub" aria-label="EPUB file"
-          onChange={(e) => pick(e.target.files?.[0] ?? null)} />
-      </label>
+    <form className="panel sec" aria-labelledby="import-epub-h" onSubmit={submit}>
+      <div className="sec-head">
+        <h2 id="import-epub-h">EPUB</h2>
+        {file && <span className="muted mono">{file.name}</span>}
+      </div>
+      <div className="inline-form">
+        <label className="btn file-btn">
+          {file ? "Choose another EPUB" : "Choose an EPUB file"}
+          <input type="file" accept=".epub" aria-label="EPUB file" className="visually-hidden"
+            onChange={(e) => pick(e.target.files?.[0] ?? null)} />
+        </label>
+        <span className="hint">Up to 64 MB</span>
+      </div>
       {inspect.isPending && <p className="muted">Reading…</p>}
       {book && (
         <>
           <SeriesChoice series={series} value={choice} onChange={setChoice} />
-          <label>Volume title <input value={volumeTitle} onChange={(e) => setVolumeTitle(e.target.value)} /></label>
-          {META.map(([key, label]) => (
-            <label key={key}>{label}{" "}
-              <input value={meta[key]} onChange={(e) => setMeta({ ...meta, [key]: e.target.value })} />
-            </label>
-          ))}
-          <ul>
-            {book.chapters.map((c) => (
-              <li key={c.href}>
-                <label>
-                  <input type="checkbox" checked={checked.has(c.href)} onChange={(e) => toggle(c.href, e.target.checked)} />{" "}
-                  {c.order}. {c.title} ({c.char_count} chars{c.image_count ? `, ${c.image_count} images` : ""})
-                </label>
-              </li>
+          <label className="field"><span>Volume title</span><input value={volumeTitle} onChange={(e) => setVolumeTitle(e.target.value)} /></label>
+          <div className="row-fields">
+            {META.map(([key, label]) => (
+              <label key={key} className="field"><span>{label}</span>
+                <input value={meta[key]} onChange={(e) => setMeta({ ...meta, [key]: e.target.value })} />
+              </label>
             ))}
-          </ul>
-          <div className="toolbar">
-            <button disabled={!checked.size || run.isPending}>Import</button>
+          </div>
+          <fieldset className="checklist">
+            <legend className="field-legend"><span>Chapters</span><span className="hint">Short pages without images start unchecked</span></legend>
+            {book.chapters.map((c) => (
+              <label key={c.href} className={checked.has(c.href) ? "check-row" : "check-row dim"}>
+                <input type="checkbox" checked={checked.has(c.href)} onChange={(e) => toggle(c.href, e.target.checked)} />
+                <span className="title">{c.order}. {c.title}</span>
+                <span className="muted">{c.char_count.toLocaleString()} chars{c.image_count ? ` · ${c.image_count} images` : ""}</span>
+              </label>
+            ))}
+          </fieldset>
+          <div className="inline-form">
+            <button className="primary" disabled={!checked.size || run.isPending}>Import</button>
+            <span className="muted">{checked.size} chapters selected · {book.chapters.length - checked.size} unchecked</span>
           </div>
         </>
       )}
       {error && <p className="error" role="alert">{error}</p>}
       {r && (
-        <div role="status">
+        <div className="box ok result" role="status">
           <p><b>{r.imported.length ? "Import complete." : "Import finished — nothing new imported."}</b></p>
           <p>Imported: {r.imported.length}</p>
           <p>Skipped: {r.skipped.length} (already imported)</p>

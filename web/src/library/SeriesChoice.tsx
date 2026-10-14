@@ -7,19 +7,17 @@ export default function SeriesChoice({ series, value, onChange }: {
   series: SeriesRow[]; value: Choice; onChange: (c: Choice) => void;
 }) {
   return (
-    <>
-      <label>
-        Series{" "}
+    <div className="row-fields">
+      <label className="field"><span>Series</span>
         <select value={value.id} onChange={(e) => onChange({ id: e.target.value, title: "" })}>
           <option value="">Unsorted</option>
           {series.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
         </select>
       </label>
-      <label>
-        New series title{" "}
+      <label className="field"><span>New series title</span>
         <input value={value.title} onChange={(e) => onChange({ id: "", title: e.target.value })} />
       </label>
-    </>
+    </div>
   );
 }
 

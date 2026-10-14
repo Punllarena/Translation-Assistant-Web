@@ -1,3 +1,5 @@
+import { Link } from "react-router";
+import PageHeader from "../ui/PageHeader";
 import ImportEpub from "./ImportEpub";
 import ImportFiles from "./ImportFiles";
 import { useSeriesList } from "./queries";
@@ -7,16 +9,12 @@ export default function ImportPage() {
   if (series.isPending) return <main><p className="muted">Loading…</p></main>;
   if (series.isError) return <main><p className="error">{series.error.message}</p></main>;
   return (
-    <main>
-      <h1>Import</h1>
-      <section>
-        <h2>TXT and CSV files</h2>
+    <main className="settings">
+      <PageHeader title="Import" crumbs={<><Link to="/">Library</Link><span aria-hidden="true">/</span><span>Import</span></>} />
+      <div className="cols import-cols">
         <ImportFiles series={series.data} />
-      </section>
-      <section>
-        <h2>EPUB</h2>
         <ImportEpub series={series.data} />
-      </section>
+      </div>
     </main>
   );
 }
