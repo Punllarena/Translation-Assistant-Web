@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router";
+import { Navigate, useSearchParams } from "react-router";
 import { api, call } from "../api/client";
 import { safeNext } from "./next";
 import { forgetUserData, useMe } from "./session";
@@ -10,25 +10,27 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [params] = useSearchParams();
   const next = safeNext(params.get("next"));
-  const navigate = useNavigate();
+  const [target, setTarget] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const me = useMe();
   const login = useMutation({
     mutationFn: () => call(api.POST("/auth/login", { body: { email, password } })),
     onSuccess: async (user) => {
       forgetUserData(queryClient);
-      queryClient.setQueryData(["me"], user);
-      let target = next;
+      // Pick the destination before marking the user signed in: one navigation, so a link the
+      // user clicks right after it is never overridden by a late redirect.
+      let to = next;
       if (next === "/") {
         // Restore the last opened chapter (spec §6); a deleted one just answers 404 there.
         const settings = await call(api.GET("/settings")).catch(() => null);
         const last = Number(settings?.last_document_id);
-        if (Number.isInteger(last) && last > 0) target = `/documents/${last}`;
+        if (Number.isInteger(last) && last > 0) to = `/documents/${last}`;
       }
-      navigate(target, { replace: true });
+      setTarget(to);
+      queryClient.setQueryData(["me"], user);
     },
   });
-  if (me.data) return <Navigate to={next} replace />;
+  if (me.data) return <Navigate to={target ?? next} replace />;
   const submit = (e: FormEvent) => {
     e.preventDefault();
     login.mutate();
