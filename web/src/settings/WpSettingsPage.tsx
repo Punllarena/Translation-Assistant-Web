@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { api, call, type Schemas } from "../api/client";
+import PageHeader from "../ui/PageHeader";
+import { KeyState } from "./MtSettingsPage";
 
 /** Settings → WordPress: endpoint and API key (a credential), publish defaults (user settings), a connection test. */
 export default function WpSettingsPage() {
@@ -48,35 +50,53 @@ export default function WpSettingsPage() {
   const error = prefs.error ?? creds.error ?? saveCred.error ?? savePrefs.error ?? test.error;
   const p = prefs.data;
   return (
-    <main>
-      <h1>WordPress</h1>
+    <main className="settings">
+      <PageHeader title="WordPress" subtitle="Publishing goes through the TA Publisher plugin on your site."
+        actions={note ? <span role="status" className="saved-note">{note}</span> : undefined} />
       {error && <p className="error" role="alert">{error.message}</p>}
-      {note && <p role="status">{note}</p>}
-      <form className="stack" key={cred?.endpoint_url ?? ""} onSubmit={submitCred}>
-        <label>Endpoint URL <input name="url" aria-label="WordPress endpoint URL" required
-          placeholder="https://yoursite.com/wp-json/ta-publisher/v1/publish" defaultValue={cred?.endpoint_url ?? ""} /></label>
-        <label>API key <input name="key" type="password" aria-label="WordPress API key" autoComplete="off"
-          required={!cred} placeholder="WP Admin → Settings → TA Publisher" /></label>
-        <span className="muted">{keyState}</span>
-        <div className="toolbar">
-          <button type="submit" disabled={saveCred.isPending}>Save connection</button>
-          <button type="button" disabled={!cred || test.isPending} onClick={() => test.mutate()}>Test connection</button>
-        </div>
-        {test.data && <p role="status" className={test.data.ok ? "" : "error"}>{test.data.message}</p>}
-      </form>
-      {p && (
-        <form className="stack" key={JSON.stringify(p)} onSubmit={submitPrefs}>
-          <h2>Defaults</h2>
-          <label><input type="checkbox" name="pw" defaultChecked={p.wp_password_enabled} /> Enable password protection by default</label>
-          <label>Keep N chapters locked <input type="number" name="unlock" min={1} max={99} defaultValue={p.wp_unlock_after} /></label>
-          <label><input type="checkbox" name="attr" defaultChecked={p.wp_attribution_enabled} /> Add attribution footer to published chapters</label>
-          <label><input type="checkbox" name="timed" defaultChecked={!!p.wp_default_schedule_time} /> Set default schedule time</label>
-          <label>Time <input type="time" name="time" defaultValue={p.wp_default_schedule_time || "20:00"} /></label>
-          <label>Chapters per day <input type="number" name="perday" min={1} max={99} defaultValue={p.wp_chapters_per_day} /></label>
-          <label><input type="checkbox" name="global" defaultChecked={p.wp_schedule_scope_global} /> Count chapters/day across all series</label>
-          <div className="toolbar"><button type="submit" disabled={savePrefs.isPending}>Save defaults</button></div>
+      <div className="cols">
+        <form className="panel sec" key={cred?.endpoint_url ?? ""} onSubmit={submitCred} aria-labelledby="wp-conn-h">
+          <div className="sec-head">
+            <h2 id="wp-conn-h">Connection</h2>
+            <KeyState text={keyState} ok={Boolean(cred?.has_secret && !cred.secret_unreadable)} />
+          </div>
+          <label className="field"><span>Endpoint URL</span>
+            <input name="url" className="mono" aria-label="WordPress endpoint URL" required
+              placeholder="https://yoursite.com/wp-json/ta-publisher/v1/publish" defaultValue={cred?.endpoint_url ?? ""} /></label>
+          <label className="field"><span>API key</span>
+            <input name="key" type="password" aria-label="WordPress API key" autoComplete="off"
+              required={!cred} aria-describedby="wp-key-hint" /></label>
+          <p id="wp-key-hint" className="hint">WP Admin → Settings → TA Publisher</p>
+          <div className="toolbar">
+            <button type="submit" className="primary" disabled={saveCred.isPending}>Save connection</button>
+            <button type="button" disabled={!cred || test.isPending} onClick={() => test.mutate()}>Test connection</button>
+          </div>
+          {test.data && <p role="status" className={test.data.ok ? "box ok" : "box danger"}>{test.data.message}</p>}
         </form>
-      )}
+
+        {p && (
+          <form className="panel sec" key={JSON.stringify(p)} onSubmit={submitPrefs} aria-labelledby="wp-def-h">
+            <h2 id="wp-def-h">Publishing defaults</h2>
+            <fieldset className="grp">
+              <legend className="label">Chapter passwords</legend>
+              <label className="check"><input type="checkbox" name="pw" defaultChecked={p.wp_password_enabled} /><span>Enable password protection by default</span></label>
+              <label className="inline-field"><span>Keep N chapters locked</span>
+                <input type="number" name="unlock" className="num-input mono" min={1} max={99} defaultValue={p.wp_unlock_after} /></label>
+              <label className="check"><input type="checkbox" name="attr" defaultChecked={p.wp_attribution_enabled} /><span>Add attribution footer to published chapters</span></label>
+            </fieldset>
+            <fieldset className="grp">
+              <legend className="label">Schedule</legend>
+              <label className="check"><input type="checkbox" name="timed" defaultChecked={!!p.wp_default_schedule_time} /><span>Set default schedule time</span></label>
+              <label className="inline-field"><span>Time</span>
+                <input type="time" name="time" className="mono" defaultValue={p.wp_default_schedule_time || "20:00"} /></label>
+              <label className="inline-field"><span>Chapters per day</span>
+                <input type="number" name="perday" className="num-input mono" min={1} max={99} defaultValue={p.wp_chapters_per_day} /></label>
+              <label className="check"><input type="checkbox" name="global" defaultChecked={p.wp_schedule_scope_global} /><span>Count chapters/day across all series</span></label>
+            </fieldset>
+            <div><button type="submit" disabled={savePrefs.isPending}>Save defaults</button></div>
+          </form>
+        )}
+      </div>
     </main>
   );
 }

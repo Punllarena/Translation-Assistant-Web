@@ -35,3 +35,8 @@
 .order-list .check { flex: 1; align-items: center; min-height: 36px; font-weight: 500; }
 .order-list .check input { margin-top: 0; }
 .saved-note { font-size: 14px; color: var(--ok); }
+.grp { display: flex; flex-direction: column; gap: 12px; min-width: 0; margin: 0; padding: 16px 0 0; border: 0; border-top: 1px solid var(--line); }
+.grp legend { float: left; width: 100%; padding: 0 0 4px; }
+.grp legend + * { clear: both; }
+.inline-field { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.num-input { width: 88px; }
