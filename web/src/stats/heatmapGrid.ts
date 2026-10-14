@@ -1,6 +1,7 @@
 export const METRICS = ["paragraphs", "chars", "en_words"] as const;
 export type Metric = (typeof METRICS)[number];
-export const COLORS = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"]; // desktop _COLORS
+/** Intensity levels; each is painted by the .heat-N classes in styles/stats.css (tokens --h0…--h4). */
+export const LEVELS = [0, 1, 2, 3, 4] as const;
 
 /** 52 week columns of 7 ISO dates (Sunday first) ending with the week of `today`; null after today. */
 export function weeks(today: string): (string | null)[][] {

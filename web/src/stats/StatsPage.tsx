@@ -2,13 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, call } from "../api/client";
 import { browserZone } from "../time";
+import PageHeader from "../ui/PageHeader";
 import Heatmap from "./Heatmap";
-import { COLORS, METRICS, type Metric } from "./heatmapGrid";
+import { LEVELS, METRICS, type Metric } from "./heatmapGrid";
 
-const LABELS: Record<Metric, string> = { paragraphs: "Paragraphs", chars: "Source Chars", en_words: "EN Words" };
+const LABELS: Record<Metric, string> = { paragraphs: "Paragraphs", chars: "Source chars", en_words: "EN words" };
 const UNITS: Record<Metric, string> = { paragraphs: "paragraphs", chars: "source chars", en_words: "EN words" };
 const n = (v: number) => v.toLocaleString();
 const pct = (v: number | null | undefined) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(0)}%`);
+const trend = (v: number | null | undefined) => (v == null || v === 0 ? "" : v > 0 ? "up" : "down");
 const longDate = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { dateStyle: "long" });
 
 export default function StatsPage() {
@@ -33,53 +35,96 @@ export default function StatsPage() {
   const recent = s.daily.filter((d) => d.date >= cutoff.toISOString().slice(0, 10)).reverse();
   const periods = [[`Today (${longDate(s.today)})`, "today"], ["Last 7 days", "week"], ["Last 30 days", "month"], ["All time", "alltime"]] as const;
   const avg = comp.daily_avg_30;
+  const avgText = avg < 10 ? avg.toFixed(1) : n(Math.round(avg));
+  const { current_streak: streak, longest_streak: longest } = s.streaks;
   return (
-    <main>
-      <h1>Statistics</h1>
-      <label>Metric{" "}
-        <select value={metric} onChange={(e) => saveMetric.mutate(e.target.value as Metric)}>
-          {METRICS.map((m) => <option key={m} value={m}>{LABELS[m]}</option>)}
-        </select>
-      </label>
-      <Heatmap today={s.today} daily={s.daily} metric={metric} onPick={setPicked} />
-      <p className="muted">Less {COLORS.map((c) => <span key={c} style={{ display: "inline-block", width: 13, height: 13, background: c }} />)} More</p>
-      <table>
-        <thead><tr><th>Period</th><th>Paragraphs</th><th>Source Chars</th><th>EN Words</th><th>vs prev</th></tr></thead>
-        <tbody>
-          {periods.map(([label, key]) => (
-            <tr key={key}>
-              <td>{label}</td><td>{n(s.summary[key].paragraphs)}</td><td>{n(s.summary[key].chars)}</td>
-              <td>{n(s.summary[key].en_words)}</td><td>{key === "alltime" ? "—" : pct(comp.periods[key]?.pct_change)}</td>
-            </tr>
+    <main className="stats">
+      <PageHeader title="Statistics" actions={
+        <div className="seg" role="group" aria-label="Metric">
+          {METRICS.map((m) => (
+            <button key={m} type="button" aria-pressed={m === metric} onClick={() => saveMetric.mutate(m)}>{LABELS[m]}</button>
           ))}
-        </tbody>
-      </table>
-      <p>Current streak: {s.streaks.current_streak} days · Longest streak: {s.streaks.longest_streak} days
-        {best && best[metric] > 0 && <> · Best day: {longDate(best.date)} ({n(best[metric])} {UNITS[metric]})</>}</p>
-      <p>Daily avg (30d): {avg < 10 ? avg.toFixed(1) : n(Math.round(avg))} {UNITS[metric]}</p>
-      <button onClick={() => setDays(days === 30 ? 7 : 30)}>{days === 30 ? "Show Last 7 Days" : "Show Last 30 Days"}</button>
-      <table>
-        <thead><tr><th>Date</th><th>Paragraphs</th><th>Source Chars</th><th>EN Words</th></tr></thead>
-        <tbody>
-          {recent.map((d) => (
-            <tr key={d.date} aria-current={d.date === picked ? "date" : undefined} className={d.date === picked ? "selected" : ""}>
-              <td>{longDate(d.date)}</td><td>{n(d.paragraphs)}</td><td>{n(d.chars)}</td><td>{n(d.en_words)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <h2>By series</h2>
-      {s.series.length ? (
-        <table>
-          <thead><tr><th>Series</th><th>Paragraphs</th><th>Source Chars</th><th>EN Words</th><th>Chapters</th></tr></thead>
-          <tbody>
-            {s.series.map((r) => (
-              <tr key={r.series_id}><td>{r.series}</td><td>{n(r.paragraphs)}</td><td>{n(r.chars)}</td><td>{n(r.en_words)}</td><td>{r.chapters}</td></tr>
-            ))}
-          </tbody>
-        </table>
-      ) : <p className="muted">No series data yet.</p>}
+        </div>
+      } />
       {saveMetric.error && <p className="error" role="alert">{saveMetric.error.message}</p>}
+
+      <div className="kpis">
+        <section className="panel kpi" aria-label={`Current streak: ${streak} days`}>
+          <span className="label">Current streak</span><b>{streak} days</b><span className="muted">Longest: {longest} days</span>
+        </section>
+        <section className="panel kpi" aria-label={`Daily average over 30 days: ${avgText} ${UNITS[metric]}`}>
+          <span className="label">Daily average, 30 days</span><b>{avgText}</b><span className="muted">{UNITS[metric]} per day</span>
+        </section>
+        {best && best[metric] > 0 && (
+          <section className="panel kpi" aria-label={`Best day: ${n(best[metric])} ${UNITS[metric]} on ${longDate(best.date)}`}>
+            <span className="label">Best day</span><b>{n(best[metric])}</b>
+            <span className="muted">{UNITS[metric]} · {longDate(best.date)}</span>
+          </section>
+        )}
+      </div>
+
+      <section className="panel pad" aria-labelledby="heat-h">
+        <div className="heat-head">
+          <h2 id="heat-h" className="label">Translated per day, last 52 weeks</h2>
+          <span className="legend" aria-hidden="true">Less {LEVELS.map((l) => <i key={l} className={`swatch heat-${l}`} />)} More</span>
+        </div>
+        <div className="table-scroll"><Heatmap today={s.today} daily={s.daily} metric={metric} onPick={setPicked} /></div>
+      </section>
+
+      <section className="panel" aria-labelledby="period-h">
+        <div className="panel-head"><h2 id="period-h" className="label">By period</h2></div>
+        <div className="table-scroll">
+          <table>
+            <thead><tr><th>Period</th><th className="num">Paragraphs</th><th className="num">Source chars</th><th className="num">EN words</th><th className="num">vs previous</th></tr></thead>
+            <tbody>
+              {periods.map(([label, key]) => {
+                const change = key === "alltime" ? null : comp.periods[key]?.pct_change;
+                return (
+                  <tr key={key}>
+                    <td>{label}</td><td className="num">{n(s.summary[key].paragraphs)}</td><td className="num">{n(s.summary[key].chars)}</td>
+                    <td className="num">{n(s.summary[key].en_words)}</td><td className={`num ${trend(change)}`}>{pct(change)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="panel" aria-labelledby="days-h">
+        <div className="panel-head">
+          <h2 id="days-h" className="label">Last {days} days</h2>
+          <button type="button" className="small" onClick={() => setDays(days === 30 ? 7 : 30)}>{days === 30 ? "Show last 7 days" : "Show last 30 days"}</button>
+        </div>
+        <div className="table-scroll">
+          <table>
+            <thead><tr><th>Date</th><th className="num">Paragraphs</th><th className="num">Source chars</th><th className="num">EN words</th></tr></thead>
+            <tbody>
+              {recent.map((d) => (
+                <tr key={d.date} aria-current={d.date === picked ? "date" : undefined} className={d.date === picked ? "selected" : ""}>
+                  <td>{longDate(d.date)}</td><td className="num">{n(d.paragraphs)}</td><td className="num">{n(d.chars)}</td><td className="num">{n(d.en_words)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="panel" aria-labelledby="series-h">
+        <div className="panel-head"><h2 id="series-h" className="label">By series</h2></div>
+        {s.series.length ? (
+          <div className="table-scroll">
+            <table>
+              <thead><tr><th>Series</th><th className="num">Paragraphs</th><th className="num">Source chars</th><th className="num">EN words</th><th className="num">Chapters</th></tr></thead>
+              <tbody>
+                {s.series.map((r) => (
+                  <tr key={r.series_id}><td>{r.series}</td><td className="num">{n(r.paragraphs)}</td><td className="num">{n(r.chars)}</td><td className="num">{n(r.en_words)}</td><td className="num">{r.chapters}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="muted panel-msg">No series data yet.</p>}
+      </section>
     </main>
   );
 }

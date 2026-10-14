@@ -1,0 +1,20 @@
+.stats { display: flex; flex-direction: column; gap: 24px; }
+.stats .page-head { margin-bottom: 0; }
+.seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px; background: color-mix(in oklch, var(--line) 60%, var(--bg)); }
+.seg button { min-height: 32px; border: 0; background: none; color: var(--muted); font-weight: 400; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: 0 1px 2px var(--shadow); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 16px; }
+.kpi { display: flex; flex-direction: column; gap: 2px; padding: 18px 20px; }
+.kpi b { font-family: var(--serif); font-weight: 500; font-size: 40px; line-height: 1.15; }
+.heat-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+.legend { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.swatch { display: inline-block; width: 13px; height: 13px; border-radius: 3px; }
+.heatmap text { fill: var(--muted); font-size: 9px; }
+.heatmap rect { rx: 2px; }
+.heat-0 { fill: var(--h0); background: var(--h0); }
+.heat-1 { fill: var(--h1); background: var(--h1); }
+.heat-2 { fill: var(--h2); background: var(--h2); }
+.heat-3 { fill: var(--h3); background: var(--h3); }
+.heat-4 { fill: var(--h4); background: var(--h4); }
+.up { color: var(--ok); }
+.down { color: var(--danger); }
