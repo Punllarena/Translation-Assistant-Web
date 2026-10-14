@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useBlocker } from "react-router";
 import { api, call, type Schemas } from "../api/client";
+import PageHeader from "../ui/PageHeader";
 import GlossaryTable from "./GlossaryTable";
 
 /** Profiles (name, parse characters) and the selected profile's glossary. */
@@ -44,35 +45,56 @@ export default function ProfilesPage() {
     onSuccess: () => { setChosen(null); refresh(); },
   });
   const error = profiles.error?.message ?? create.error?.message ?? patch.error?.message ?? remove.error?.message;
+  const newProfile = () => {
+    if (!discardOk()) return;
+    const name = window.prompt("Profile name");
+    if (name?.trim()) create.mutate(name.trim());
+  };
   return (
-    <main>
-      <h1>Profiles</h1>
-      {error && <p className="error" role="alert">{error}</p>}
-      {current && (
-        <>
-          <div className="toolbar">
-            <select aria-label="Profile" value={current.id} onChange={(e) => { if (discardOk()) setChosen(Number(e.target.value)); }}>
-              {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-            <button onClick={() => { if (!discardOk()) return; const n = window.prompt("Profile name"); if (n?.trim()) create.mutate(n.trim()); }}>New profile</button>
-            <button onClick={() => { const n = window.prompt("New name", current.name); if (n?.trim()) patch.mutate({ name: n.trim() }); }}>Rename</button>
-            <button onClick={() => { if (window.confirm(`Delete profile "${current.name}"?`) && discardOk()) remove.mutate(); }}>Delete</button>
-          </div>
-          <form
-            key={`${current.id}:${current.parse_chars}`}
-            className="toolbar"
-            onSubmit={(e) => {
-              e.preventDefault();
-              patch.mutate({ parse_chars: new FormData(e.currentTarget).get("parse_chars") as string });
-            }}
-          >
-            <label>Parse characters <input name="parse_chars" defaultValue={current.parse_chars} /></label>
-            <button type="submit" disabled={patch.isPending}>Save</button>
-          </form>
-          <h2>Glossary</h2>
-          <GlossaryTable pid={current.id} onDirty={setDirty} />
-        </>
-      )}
+    <main className="with-rail">
+      <aside className="rail" aria-label="Profiles">
+        <div className="rail-head">
+          <h2 className="label">Profiles</h2>
+          <button type="button" onClick={newProfile}>New profile</button>
+        </div>
+        <ul>
+          {list.map((p) => (
+            <li key={p.id}>
+              <button type="button" className="rail-item" aria-current={current?.id === p.id ? "true" : undefined}
+                onClick={() => { if (p.id !== current?.id && discardOk()) setChosen(p.id); }}>
+                <span>{p.name}</span>{p.is_default && <span className="pill">Default</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </aside>
+      <div className="rail-main">
+        {error && <p className="error" role="alert">{error}</p>}
+        {current && (
+          <>
+            <PageHeader title={current.name} actions={<>
+              <button type="button" onClick={() => { const name = window.prompt("New name", current.name); if (name?.trim()) patch.mutate({ name: name.trim() }); }}>Rename</button>
+              <button type="button" className="danger" onClick={() => { if (window.confirm(`Delete profile "${current.name}"?`) && discardOk()) remove.mutate(); }}>Delete</button>
+            </>} />
+            <form
+              key={`${current.id}:${current.parse_chars}`}
+              className="panel sec parse-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                patch.mutate({ parse_chars: new FormData(e.currentTarget).get("parse_chars") as string });
+              }}
+            >
+              <label className="field">
+                <span>Parse characters</span>
+                <input name="parse_chars" className="mono" defaultValue={current.parse_chars} aria-describedby="parse-hint" />
+              </label>
+              <button type="submit" disabled={patch.isPending}>Save</button>
+              <p id="parse-hint" className="hint">Characters that end a phrase for Next phrase and Previous phrase.</p>
+            </form>
+            <GlossaryTable pid={current.id} onDirty={setDirty} />
+          </>
+        )}
+      </div>
     </main>
   );
 }

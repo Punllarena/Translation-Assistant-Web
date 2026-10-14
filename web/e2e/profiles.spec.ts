@@ -40,3 +40,28 @@ test("glossary: add, reorder, save, import with BOM and duplicate", async ({ pag
   await expect(page).toHaveURL(/\/settings\/profiles/);
   await expect(page.getByLabel("Phrase 4")).toHaveValue("unsaved");
 });
+
+test("Discard puts the glossary back after a confirm", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("e2e@example.com");
+  await page.getByLabel("Password").fill("e2e-password-123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"));
+  await page.goto("/settings/profiles");
+  await expect(page.getByRole("button", { name: "Add row" })).toBeVisible(); // the glossary has loaded
+  const phrases = page.getByRole("textbox", { name: /^Phrase \d+$/ });
+  const before = await phrases.count();
+  await page.getByRole("button", { name: "Add row" }).click();
+  const added = page.getByLabel(`Phrase ${before + 1}`, { exact: true });
+  await added.fill("to be discarded");
+  await expect(page.getByText("1 unsaved change", { exact: true })).toBeVisible();
+
+  page.once("dialog", (d) => void d.dismiss());
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(added).toHaveValue("to be discarded");
+
+  page.once("dialog", (d) => void d.accept());
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(phrases).toHaveCount(before);
+  await expect(page.getByText(/unsaved change/)).toHaveCount(0);
+});

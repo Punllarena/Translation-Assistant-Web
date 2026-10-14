@@ -1,0 +1,27 @@
+/* Profiles, Machine translation, WordPress, Shortcuts. */
+.settings { display: flex; flex-direction: column; gap: 24px; }
+.settings .page-head { margin-bottom: 0; }
+.cols { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.cols > * { flex: 1 1 440px; min-width: 0; }
+.sec-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+.inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.inline-form .grow { flex: 1 1 280px; }
+.row-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px; }
+.panel-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 16px; border-top: 1px solid var(--line); }
+.file-btn { position: relative; }
+.file-btn:focus-within { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+
+.parse-form { flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 8px 16px; }
+.parse-form .field { flex: 1 1 280px; }
+.parse-form .hint { flex-basis: 100%; }
+.glossary .title-row { display: flex; align-items: baseline; gap: 12px; }
+.unsaved { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.glossary-table { min-width: 640px; }
+.glossary-table th, .glossary-table td { padding: 6px 8px; }
+.glossary-table th:first-child, .glossary-table td:first-child { padding-left: 16px; }
+.glossary-table input { width: 100%; border-color: transparent; background: none; }
+.glossary-table input:hover { border-color: var(--line); }
+.glossary-table input.jp { font-family: var(--jp); }
+.glossary-table input.en { font-family: var(--serif); font-size: 17px; }
+.glossary-table tr.changed td:first-child { box-shadow: inset 3px 0 0 var(--seal); }
+.row-actions { width: 1%; white-space: nowrap; }
