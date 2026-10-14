@@ -15,7 +15,7 @@ td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: midd
 tr.selected td { background: color-mix(in oklch, var(--accent-soft) 60%, var(--surface)); }
 td.num, th.num { text-align: right; }
 td.num { font-family: var(--mono); font-size: 14px; }
-.table-scroll { overflow-x: auto; max-width: 100%; }
+.table-scroll { position: relative; overflow-x: auto; max-width: 100%; }
 .muted { color: var(--muted); }
 .error { color: var(--danger); }
 .mono { font-family: var(--mono); }

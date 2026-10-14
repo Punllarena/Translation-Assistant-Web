@@ -1,5 +1,5 @@
 .import-cols > :last-child { flex-grow: 1.4; }
-.drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 132px;
+.drop { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 132px;
   padding: 20px; border: 1.5px dashed var(--line); border-radius: 8px; background: var(--raised); text-align: center; cursor: pointer; }
 .drop:hover, .drop.over { border-color: var(--accent-text); }
 .drop:focus-within { outline: 2px solid var(--accent-text); outline-offset: 2px; }

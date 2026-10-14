@@ -49,6 +49,13 @@ messages show only the plugin's JSON `error`/`message` field; a non-JSON or othe
 IANA zone. The SPA's publish dialogs open with native `showModal()` (non-modal `<dialog open>` inside table cells
 got covered by rows).
 
+Phase 7a: visual system. Colours, fonts and spacing are tokens in `web/src/styles/tokens.css` (light and
+`:root[data-theme="dark"]`); every other stylesheet under `web/src/styles/` (pulled in by `index.css`) uses
+tokens, never literal colours. Fonts are self-hosted through `@fontsource` (`web/src/fonts.ts`). The theme
+preference is the user setting `ui_theme` (`system`/`light`/`dark`), mirrored in `localStorage` `ta.theme`;
+an inline script in `web/index.html` paints it before the bundle loads, `web/src/theme/` owns the rules, and
+the account's value wins once `/settings` arrives. Spec: `docs/superpowers/specs/2026-10-14-web-redesign-design.md`.
+
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
 
