@@ -23,3 +23,17 @@ test("restyled pages fit a phone without sideways scrolling", async ({ page }) =
     expect(await overflow(page), path).toBeLessThanOrEqual(0);
   }
 });
+
+test("the heatmap shows today on a phone and scrolls inside its box", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("e2e@example.com");
+  await page.getByLabel("Password").fill("e2e-password-123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"));
+  await page.goto("/stats");
+  const today = page.locator("svg.heatmap rect").last();
+  await expect(today).toBeVisible();
+  const box = await today.boundingBox();
+  expect(box!.x + box!.width).toBeLessThanOrEqual(390); // today's cell is on screen, not clipped away
+  expect(await overflow(page)).toBeLessThanOrEqual(0);
+});

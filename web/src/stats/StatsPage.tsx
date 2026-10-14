@@ -68,7 +68,7 @@ export default function StatsPage() {
           <h2 id="heat-h" className="label">Translated per day, last 52 weeks</h2>
           <span className="legend" aria-hidden="true">Less {LEVELS.map((l) => <i key={l} className={`swatch heat-${l}`} />)} More</span>
         </div>
-        <div className="table-scroll"><Heatmap today={s.today} daily={s.daily} metric={metric} onPick={setPicked} /></div>
+        <Heatmap today={s.today} daily={s.daily} metric={metric} onPick={setPicked} />
       </section>
 
       <section className="panel" aria-labelledby="period-h">
