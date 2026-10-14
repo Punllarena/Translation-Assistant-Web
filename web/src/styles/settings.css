@@ -25,3 +25,13 @@
 .glossary-table input.en { font-family: var(--serif); font-size: 17px; }
 .glossary-table tr.changed td:first-child { box-shadow: inset 3px 0 0 var(--seal); }
 .row-actions { width: 1%; white-space: nowrap; }
+.cols > .mt-order { flex: 1 1 360px; max-width: 460px; }
+.cols > .stack-col { flex: 2 1 560px; }
+.stack-col { display: flex; flex-direction: column; gap: 24px; }
+.key-state { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.order-list { list-style: none; margin: 0; padding: 0; }
+.order-list li { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid var(--line); }
+.order-list li:first-child { border-top: 0; }
+.order-list .check { flex: 1; align-items: center; min-height: 36px; font-weight: 500; }
+.order-list .check input { margin-top: 0; }
+.saved-note { font-size: 14px; color: var(--ok); }
