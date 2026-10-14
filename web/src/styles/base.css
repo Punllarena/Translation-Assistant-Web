@@ -13,7 +13,8 @@ th { padding: 8px 12px; text-align: left; font-size: 12px; font-weight: 600; let
   text-transform: uppercase; color: var(--muted); }
 td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: middle; }
 tr.selected td { background: color-mix(in oklch, var(--accent-soft) 60%, var(--surface)); }
-td.num, th.num { text-align: right; font-family: var(--mono); font-size: 14px; }
+td.num, th.num { text-align: right; }
+td.num { font-family: var(--mono); font-size: 14px; }
 .table-scroll { overflow-x: auto; max-width: 100%; }
 .muted { color: var(--muted); }
 .error { color: var(--danger); }

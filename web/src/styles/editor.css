@@ -17,6 +17,7 @@
 .translation { margin: 0; white-space: pre-wrap; font-family: var(--serif); }
 .code-editor { font-family: var(--serif); }
 .code-editor .cm-editor.cm-focused { outline: none; }
+.code-editor .cm-scroller { font-family: inherit; line-height: inherit; }
 .code-editor .cm-content { font: inherit; padding: 0; caret-color: var(--accent-text); }
 .code-editor .cm-cursor { border-left-color: var(--accent-text); }
 .jp-katakana { color: var(--kata); }
