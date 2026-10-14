@@ -55,24 +55,26 @@ export default function WpSettingsPage() {
         actions={note ? <span role="status" className="saved-note">{note}</span> : undefined} />
       {error && <p className="error" role="alert">{error.message}</p>}
       <div className="cols">
-        <form className="panel sec" key={cred?.endpoint_url ?? ""} onSubmit={submitCred} aria-labelledby="wp-conn-h">
-          <div className="sec-head">
-            <h2 id="wp-conn-h">Connection</h2>
-            <KeyState text={keyState} ok={Boolean(cred?.has_secret && !cred.secret_unreadable)} />
-          </div>
-          <label className="field"><span>Endpoint URL</span>
-            <input name="url" className="mono" aria-label="WordPress endpoint URL" required
-              placeholder="https://yoursite.com/wp-json/ta-publisher/v1/publish" defaultValue={cred?.endpoint_url ?? ""} /></label>
-          <label className="field"><span>API key</span>
-            <input name="key" type="password" aria-label="WordPress API key" autoComplete="off"
-              required={!cred} aria-describedby="wp-key-hint" /></label>
-          <p id="wp-key-hint" className="hint">WP Admin → Settings → TA Publisher</p>
-          <div className="toolbar">
-            <button type="submit" className="primary" disabled={saveCred.isPending}>Save connection</button>
-            <button type="button" disabled={!cred || test.isPending} onClick={() => test.mutate()}>Test connection</button>
-          </div>
-          {test.data && <p role="status" className={test.data.ok ? "box ok" : "box danger"}>{test.data.message}</p>}
-        </form>
+        {creds.data && ( // not before it loads: a late remount would wipe what the user typed
+          <form className="panel sec" key={cred?.endpoint_url ?? ""} onSubmit={submitCred} aria-labelledby="wp-conn-h">
+            <div className="sec-head">
+              <h2 id="wp-conn-h">Connection</h2>
+              <KeyState text={keyState} ok={Boolean(cred?.has_secret && !cred.secret_unreadable)} />
+            </div>
+            <label className="field"><span>Endpoint URL</span>
+              <input name="url" className="mono" aria-label="WordPress endpoint URL" required
+                placeholder="https://yoursite.com/wp-json/ta-publisher/v1/publish" defaultValue={cred?.endpoint_url ?? ""} /></label>
+            <label className="field"><span>API key</span>
+              <input name="key" type="password" aria-label="WordPress API key" autoComplete="off"
+                required={!cred} aria-describedby="wp-key-hint" /></label>
+            <p id="wp-key-hint" className="hint">WP Admin → Settings → TA Publisher</p>
+            <div className="toolbar">
+              <button type="submit" className="primary" disabled={saveCred.isPending}>Save connection</button>
+              <button type="button" disabled={!cred || test.isPending} onClick={() => test.mutate()}>Test connection</button>
+            </div>
+            {test.data && <p role="status" className={test.data.ok ? "box ok" : "box danger"}>{test.data.message}</p>}
+          </form>
+        )}
 
         {p && (
           <form className="panel sec" key={JSON.stringify(p)} onSubmit={submitPrefs} aria-labelledby="wp-def-h">
