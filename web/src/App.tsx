@@ -12,6 +12,7 @@ import MtSettingsPage from "./settings/MtSettingsPage";
 import WpSettingsPage from "./settings/WpSettingsPage";
 import ShortcutsPage from "./settings/ShortcutsPage";
 import StatsPage from "./stats/StatsPage";
+import AdminPage from "./admin/AdminPage";
 import SetupPage from "./setup/SetupPage";
 import Shell from "./Shell";
 
@@ -24,6 +25,7 @@ export const router = createBrowserRouter(
         <Route path="/invite" element={<AcceptInvite />} />
         <Route element={<RequireAuth><Shell /></RequireAuth>}>
           <Route index element={<Picker />} />
+          <Route path="admin" element={<AdminPage />} />
           <Route path="import" element={<ImportPage />} />
           <Route path="stats" element={<StatsPage />} />
           <Route path="series/:id" element={<SeriesPage />} />
