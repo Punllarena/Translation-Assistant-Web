@@ -1,11 +1,11 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from api.config import get_settings
+from api.accounts import start_session
 from api.deps import COOKIE_NAME, current_user, db_session
 from api.models import Invite, Profile, User
 from api.models import Session as SessionRow
@@ -16,7 +16,6 @@ from api.security import (
     address_limiter,
     email_limiter,
     hash_password,
-    new_token,
     token_hash,
     verify_password,
 )
@@ -61,27 +60,9 @@ def login(
         email_limiter.record_failure(email_key)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid credentials")
 
-    settings = get_settings()
-    token = new_token()
-    db.add(
-        SessionRow(
-            token_hash=token_hash(token),
-            user_id=user.id,
-            expires_at=datetime.now(UTC) + timedelta(days=settings.session_ttl_days),
-        )
-    )
-    db.flush()
+    start_session(db, response, user)
     address_limiter.reset(addr_key)
     email_limiter.reset(email_key)
-    response.set_cookie(
-        COOKIE_NAME,
-        token,
-        httponly=True,
-        samesite="lax",
-        secure=settings.cookie_secure,
-        max_age=settings.session_ttl_days * 86400,
-        path="/",
-    )
     return user
 
 

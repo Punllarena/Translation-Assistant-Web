@@ -2,11 +2,11 @@
 
 import functools
 import json
+import os
 import re
 import threading
 from typing import NamedTuple
 
-from api.config import get_settings
 from api.mt.base import NeedsSetup
 
 Entry = dict
@@ -307,18 +307,29 @@ def _read_index(path: str) -> dict[str, DictEntry] | None:
 
 
 @functools.lru_cache(maxsize=2)
-def _load_index_locked(path: str) -> dict[str, DictEntry] | None:
+def _load_index_locked(path: str, mtime_ns: int) -> dict[str, DictEntry] | None:
     return _read_index(path)
 
 
+def _mtime(path: str) -> int | None:
+    try:
+        return os.stat(path).st_mtime_ns
+    except OSError:
+        return None
+
+
 def load_index(path: str) -> dict[str, DictEntry] | None:
-    """Load (and cache per path) the edict2 index. Thread-safe; None when there is no file."""
+    """Load the edict2 index, cached per (path, mtime) so a replaced file is reloaded.
+    Thread-safe; None when there is no file."""
+    mtime = _mtime(path) if path else None
+    if mtime is None:
+        return None
     with _load_lock:
-        return _load_index_locked(path)
+        return _load_index_locked(path, mtime)
 
 
 @functools.lru_cache(maxsize=2)
-def _load_rules_cached(path: str) -> list[DeconjRule]:
+def _load_rules_cached(path: str, mtime_ns: int) -> list[DeconjRule]:
     try:
         return _load_conj_rules(path)
     except (OSError, ValueError, KeyError):
@@ -326,8 +337,11 @@ def _load_rules_cached(path: str) -> list[DeconjRule]:
 
 
 def load_rules(path: str) -> list[DeconjRule]:
+    mtime = _mtime(path) if path else None
+    if mtime is None:
+        return []
     with _load_lock:
-        return _load_rules_cached(path) if path else []
+        return _load_rules_cached(path, mtime)
 
 
 def analyze(text: str, index: dict[str, DictEntry], rules: list[DeconjRule]) -> list[Entry]:
@@ -395,18 +409,21 @@ def analyze(text: str, index: dict[str, DictEntry], rules: list[DeconjRule]) -> 
 
 
 def _edict_path() -> str:
-    return get_settings().edict_path
+    from api import dictionary
+
+    return dictionary.path("edict")
 
 
 def _conj_path() -> str:
-    return get_settings().conjugations_path
+    from api import dictionary
+
+    return dictionary.path("conjugations")
 
 
 def run(text: str) -> list[Entry]:
     index = load_index(_edict_path())
     if index is None:
         raise NeedsSetup(
-            "JParser needs an edict2 dictionary: download edict2 from edrdg.org "
-            "and set TA_EDICT_PATH to it."
+            "JParser needs the EDICT2 dictionary. An admin can download it from Admin → Dictionary."
         )
     return analyze(text, index, load_rules(_conj_path()))

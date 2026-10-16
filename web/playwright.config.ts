@@ -16,6 +16,7 @@ export default defineConfig({
       command: "cd .. && python -m alembic upgrade head && python -m uvicorn api.main:app --port 8001",
       url: `${API}/healthz`,
       env: { ...process.env, TA_DATABASE_URL: E2E_DB, TA_SECRET_KEY: SECRET, TA_COOKIE_SECURE: "false", TA_WP_ALLOW_PRIVATE_URLS: "true",
+        TA_DATA_DIR: path.resolve(import.meta.dirname, ".e2e-data"),
         TA_EDICT_PATH: path.resolve(import.meta.dirname, "../tests/fixtures/mt/edict2_sample") } as Record<string, string>,
     },
     {

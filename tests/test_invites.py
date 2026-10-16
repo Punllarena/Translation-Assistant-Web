@@ -224,3 +224,29 @@ def test_claim_rowcount_rejects_when_row_was_claimed_after_the_pre_check(
     assert r.json() == reference.json()
     assert db.query(User).filter_by(email="racer@example.com").count() == 0
     assert db.query(Profile).count() == profiles_before
+
+
+def test_admin_revokes_a_pending_invite(app_client, db, make_user):
+    make_user(email="admin@example.com", is_admin=True)
+    _login(app_client, "admin@example.com")
+    app_client.post("/invites", json={})
+    invite_id = app_client.get("/invites").json()[0]["id"]
+    assert app_client.delete(f"/invites/{invite_id}").status_code == 204
+    assert app_client.get("/invites").json() == []
+    assert app_client.delete(f"/invites/{invite_id}").status_code == 404
+
+
+def test_a_used_invite_cannot_be_revoked(app_client, db, make_user):
+    make_user(email="admin@example.com", is_admin=True)
+    _login(app_client, "admin@example.com")
+    token = app_client.post("/invites", json={}).json()["token"]
+    app_client.post("/auth/accept-invite",
+                    json={"token": token, "email": "new@example.com", "password": "pw-new-123456"})
+    invite_id = app_client.get("/invites").json()[0]["id"]
+    assert app_client.delete(f"/invites/{invite_id}").status_code == 409
+
+
+def test_non_admin_cannot_revoke(app_client, make_user):
+    make_user(email="u@example.com")
+    _login(app_client, "u@example.com")
+    assert app_client.delete("/invites/1").status_code == 403

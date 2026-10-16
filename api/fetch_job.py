@@ -6,7 +6,7 @@ resumes an interrupted fetch (ruling 10)."""
 
 from sqlalchemy import select
 
-from api.config import get_settings
+from api import server_settings
 from api.core import scrape
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.jobs import JobContext, JobError, handler
@@ -26,7 +26,7 @@ def fetch_series(ctx: JobContext) -> dict:
     if series is None or series.user_id != ctx.job.user_id:
         raise JobError("the series no longer exists")
     wanted = set(ctx.params["nums"])
-    delay = get_settings().syosetu_delay_seconds
+    delay = server_settings.effective(ctx.db).syosetu_delay_seconds
     ctx.progress(0, len(wanted), "Reading the chapter list")
     added, skipped, errors = 0, 0, []
     with http_client() as c:

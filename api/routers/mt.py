@@ -15,7 +15,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from api.config import get_settings
+from api import server_settings
 from api.db import SessionLocal
 from api.deps import current_user, db_session, scoped
 from api.models import ApiCredential, Document, Line, User, UserSetting
@@ -67,7 +67,7 @@ def _configure(db: Session, user_id: int, backend: str, p: Prefs) -> Job:
     job = Job(backend=backend)
     if backend in ANALYZERS:
         return job
-    settings = get_settings()
+    settings = server_settings.effective(db)
     cred_url = db.scalar(
         select(ApiCredential.endpoint_url).where(
             ApiCredential.user_id == user_id,

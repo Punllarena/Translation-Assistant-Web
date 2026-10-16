@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     libretranslate_url: str = ""  # empty: LibreTranslate is not configured unless a user sets one
     edict_path: str = ""  # edict2 file for JParser and MeCab glosses (edrdg.org)
     conjugations_path: str = ""  # desktop Conjugations.txt; optional, enables JParser deconjugation
+    # Dictionary files and pending uploads (spec §5, §6). Compose mounts a volume at /data.
+    data_dir: str = "./data"
     # A user's own LibreTranslate/Ollama URL may not resolve to a private or local address
     # (SSRF) unless this is set, e.g. on a single-user install next to a local Ollama.
     mt_allow_private_urls: bool = False

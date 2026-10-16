@@ -8,7 +8,7 @@ from datetime import UTC, datetime, tzinfo
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from api.config import get_settings
+from api import server_settings
 from api.core import wp
 from api.core.images import shrink_image
 from api.models import ApiCredential, Document, DocumentImage, Line, Series, Volume
@@ -37,7 +37,8 @@ def wp_config(db: Session, user_id: int) -> tuple[str, str]:
         raise NotReady(
             f"Your saved WordPress API key cannot be read; enter it again {WHERE}."
         ) from None
-    problem = check_user_url(row.endpoint_url, get_settings().wp_allow_private_urls, "WordPress")
+    allow = server_settings.effective(db).wp_allow_private_urls
+    problem = check_user_url(row.endpoint_url, allow, "WordPress")
     if problem:
         raise NotReady(problem)
     return row.endpoint_url, key

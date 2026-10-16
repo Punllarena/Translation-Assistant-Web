@@ -12,3 +12,6 @@ web/openapi.json
 web/test-results/
 web/playwright-report/
 *.tsbuildinfo
+data/
+web/e2e/.generated/
+web/.e2e-data/

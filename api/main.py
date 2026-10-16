@@ -4,11 +4,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.concurrency import run_in_threadpool
 
-from api import jobs
+from api import jobs, tadb_uploads
 from api.config import get_settings
 from api.routers import (
+    admin,
     auth,
     credentials,
+    dictionary,
     documents,
     epub,
     glossary,
@@ -21,8 +23,10 @@ from api.routers import (
     scrape,
     series,
     settings,
+    setup,
     spell,
     stats,
+    tadb,
     transfer,
     volumes,
     wp,
@@ -39,6 +43,7 @@ async def lifespan(app: FastAPI):
         yield
         return
     await run_in_threadpool(jobs.fail_interrupted)
+    await run_in_threadpool(tadb_uploads.sweep)
     jobs.stopping.clear()
     stop = asyncio.Event()
     task = asyncio.create_task(jobs.worker(stop))
@@ -58,11 +63,15 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(auth.router)
+    app.include_router(setup.router)
+    app.include_router(admin.router)
+    app.include_router(dictionary.router)
     app.include_router(invites.router)
     app.include_router(profiles.router)
     app.include_router(glossary.router)
     app.include_router(series.router)
     app.include_router(scrape.router)  # literal paths under /documents/{id}
+    app.include_router(tadb.router)
     app.include_router(transfer.router)  # before documents: literal POST path
     app.include_router(documents.router)
     app.include_router(volumes.router)
