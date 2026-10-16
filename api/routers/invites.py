@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import Depends, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -39,3 +39,16 @@ def list_invites(
     admin: User = Depends(require_admin), db: Session = Depends(db_session)
 ) -> list[Invite]:
     return list(db.scalars(select(Invite).order_by(Invite.created_at.desc())))
+
+
+@router.delete("/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_invite(
+    invite_id: int, _: User = Depends(require_admin), db: Session = Depends(db_session)
+) -> None:
+    invite = db.get(Invite, invite_id)
+    if invite is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "invite not found")
+    if invite.accepted_at is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "this invite was already used")
+    db.delete(invite)
+    db.flush()
