@@ -2,7 +2,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate } from "react-router";
 import { api, ApiError, call } from "../api/client";
+import DictionaryPanel from "../admin/DictionaryPanel";
+import ServerSettingsForm from "../admin/ServerSettingsForm";
 import { useMe, useSetupStatus } from "../auth/session";
+import ImportTadb from "../library/ImportTadb";
 
 const STEPS = ["Create admin", "Server settings", "Dictionary", "Desktop library", "Done"] as const;
 
@@ -21,9 +24,13 @@ export default function SetupPage() {
         {STEPS.map((s, i) => <li key={s} aria-current={i === step ? "step" : undefined}>{s}</li>)}
       </ol>
       {step === 0 && <CreateAdmin onDone={next} />}
-      {step === 1 && <Step title="Server settings" onNext={next}>{null}</Step>}
-      {step === 2 && <Step title="Dictionary" onNext={next}>{null}</Step>}
-      {step === 3 && <Step title="Desktop library" onNext={next}>{null}</Step>}
+      {step === 1 && (
+        <Step title="Server settings" onNext={next}>
+          <ServerSettingsForm onSaved={next} />
+        </Step>
+      )}
+      {step === 2 && <Step title="Dictionary" onNext={next}><DictionaryPanel /></Step>}
+      {step === 3 && <Step title="Desktop library" onNext={next}><ImportTadb /></Step>}
       {step === 4 && (
         <section className="panel sec" aria-labelledby="done-h">
           <h2 id="done-h">Done</h2>

@@ -1,6 +1,7 @@
 import PageHeader from "../ui/PageHeader";
 import { useMe } from "../auth/session";
 import InvitesPanel from "./InvitesPanel";
+import DictionaryPanel from "./DictionaryPanel";
 import ServerSettingsForm from "./ServerSettingsForm";
 
 export default function AdminPage() {
@@ -15,6 +16,7 @@ export default function AdminPage() {
           <ServerSettingsForm />
         </section>
         <InvitesPanel />
+        <DictionaryPanel />
       </div>
     </main>
   );

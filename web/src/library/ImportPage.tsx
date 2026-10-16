@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import PageHeader from "../ui/PageHeader";
 import ImportEpub from "./ImportEpub";
 import ImportFiles from "./ImportFiles";
+import ImportTadb from "./ImportTadb";
 import { useSeriesList } from "./queries";
 
 export default function ImportPage() {
@@ -14,6 +15,7 @@ export default function ImportPage() {
       <div className="cols import-cols">
         <ImportFiles series={series.data} />
         <ImportEpub series={series.data} />
+        <ImportTadb />
       </div>
     </main>
   );
