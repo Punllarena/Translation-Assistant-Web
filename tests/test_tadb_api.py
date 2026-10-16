@@ -168,3 +168,30 @@ def test_sweep_removes_only_old_uploads(env):
     os.utime(old, (past, past))
     assert tadb_uploads.sweep() == 1
     assert not old.exists() and new.exists()
+
+
+def test_job_result_messages_are_capped(app_client, me, env, monkeypatch):
+    from api import tadb_job
+
+    monkeypatch.setattr(tadb_job, "MAX_MESSAGES", 1)
+    src = desktop_db(env / "src")
+    sqlite3.connect(src).executescript(
+        "INSERT INTO lines (document_id, line_number, prefix, raw_text) VALUES (99, 0, '%', 'a');"
+        "INSERT INTO lines (document_id, line_number, prefix, raw_text) VALUES (99, 1, '%', 'b');"
+    )
+    r = upload(app_client, src)
+    messages = job(app_client, r.json()["job_id"])["result"]["messages"]
+    assert len(messages) == 2 and messages[-1] == "…and 1 more"
+
+
+def test_job_result_messages_are_truncated(app_client, me, env, monkeypatch):
+    from api import tadb_job
+
+    monkeypatch.setattr(tadb_job, "MAX_MESSAGE_CHARS", 10)
+    src = desktop_db(env / "src")
+    sqlite3.connect(src).executescript(
+        "INSERT INTO lines (document_id, line_number, prefix, raw_text) VALUES (99, 0, '%', 'a');"
+    )
+    r = upload(app_client, src)
+    messages = job(app_client, r.json()["job_id"])["result"]["messages"]
+    assert messages and all(len(m) <= 11 for m in messages)
