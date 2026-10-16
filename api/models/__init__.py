@@ -19,9 +19,10 @@ from api.models.identity import (
     UserSetting,
 )
 from api.models.jobs import Job
+from api.models.server import ServerSetting
 
 __all__ = [
     "ApiCredential", "CustomWord", "Document", "DocumentImage", "GlossaryEntry",
-    "Invite", "Job", "Line", "MtCache", "Profile", "Series", "Session", "Shortcut",
+    "Invite", "Job", "Line", "MtCache", "Profile", "Series", "ServerSetting", "Session", "Shortcut",
     "User", "UserSetting", "Volume", "WorkSession",
 ]

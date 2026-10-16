@@ -7,6 +7,7 @@ from fastapi.concurrency import run_in_threadpool
 from api import jobs
 from api.config import get_settings
 from api.routers import (
+    admin,
     auth,
     credentials,
     documents,
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(setup.router)
+    app.include_router(admin.router)
     app.include_router(invites.router)
     app.include_router(profiles.router)
     app.include_router(glossary.router)
