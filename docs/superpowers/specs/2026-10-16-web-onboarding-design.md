@@ -194,7 +194,7 @@ can download it from Admin → Dictionary."
 - `DELETE /admin/dictionary/{edict|conjugations}` removes the data-dir file, idempotent
   `204`. An env-pointed file is shown read-only with no remove button.
 
-The Dictionary tab credits EDRDG (CC BY-SA 4.0) next to the download button; so does the
+The Dictionary panel credits EDRDG (CC BY-SA 4.0) next to the download button; so does the
 README.
 
 ## 6. Desktop `ta.db` import

@@ -20,17 +20,15 @@ port are in place:
 
 ## Deploy (homelab)
 
-1. Create `.env` with a generated `TA_SECRET_KEY` and `TA_SITE_ADDRESS` (the example uses `:80`, see step 2):
+1. Create `.env` with a generated `TA_SECRET_KEY` and `TA_SITE_ADDRESS` (the `:80` shown is for Cloudflare Tunnel / `tailscale serve`; for Tailscale direct or LAN, put your hostname or address instead, see step 2):
 
    ```bash
    cat > .env <<EOF
    TA_SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')
    TA_SITE_ADDRESS=:80
    EOF
-   docker compose up -d
    ```
 
-   Edit `.env` per steps 2 and 3 before the `up` if they apply to you; otherwise the block starts the stack.
 2. Choose the address mode:
    - **Cloudflare Tunnel or `tailscale serve`:** `TA_SITE_ADDRESS=:80` (plain http inside; the tunnel
      terminates TLS). Point the tunnel at `http://<host>:<TA_HTTP_PORT>`.
@@ -131,6 +129,8 @@ with `pg_restore`):
 docker compose exec -T postgres pg_dump -U ta -Fc ta > ta-$(date +%F).dump
 docker compose exec -T postgres pg_restore -U ta -d ta --clean --if-exists < ta-2026-10-10.dump
 ```
+
+For a deployed stack also back up the `ta_data` volume (dictionary files) and keep `TA_SECRET_KEY` (see Deploy step 7).
 
 Back up `TA_SECRET_KEY` alongside it: without the key, the stored credentials in a restored
 dump cannot be decrypted.
