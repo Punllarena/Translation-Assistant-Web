@@ -18,6 +18,35 @@ port are in place:
 - Spec: [`docs/superpowers/specs/2026-10-10-web-app-port-design.md`](docs/superpowers/specs/2026-10-10-web-app-port-design.md)
 - Plans, one per phase: [`docs/superpowers/plans/`](docs/superpowers/plans/)
 
+## Deploy (homelab)
+
+1. Create `.env` with a generated `TA_SECRET_KEY` and `TA_SITE_ADDRESS` (the example uses `:80`, see step 2):
+
+   ```bash
+   cat > .env <<EOF
+   TA_SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')
+   TA_SITE_ADDRESS=:80
+   EOF
+   docker compose up -d
+   ```
+
+   Edit `.env` per steps 2 and 3 before the `up` if they apply to you; otherwise the block starts the stack.
+2. Choose the address mode:
+   - **Cloudflare Tunnel or `tailscale serve`:** `TA_SITE_ADDRESS=:80` (plain http inside; the tunnel
+     terminates TLS). Point the tunnel at `http://<host>:<TA_HTTP_PORT>`.
+   - **Tailscale direct / LAN:** `TA_SITE_ADDRESS=<machine>.<tailnet>.ts.net` or the LAN address.
+3. Set `TA_HTTP_PORT` / `TA_HTTPS_PORT` in `.env` if ports 80/443 are taken.
+4. `docker compose up -d`.
+5. **Open the site on your network and create the admin account before enabling Cloudflare Tunnel.**
+   Until then, anyone who reaches the site can become admin.
+6. Follow the setup wizard.
+7. Backups: the `pgdata` and `ta_data` volumes, plus `TA_SECRET_KEY` (without it, saved API keys cannot
+   be decrypted; everything else survives).
+
+**Known limitation.** Behind Cloudflare Tunnel every request reaches Caddy from `cloudflared`, so the
+per-address login limiter is effectively global: repeated failures lock everyone out for the window. A
+later fix is an opt-in trust of `CF-Connecting-IP`.
+
 ## Prerequisites
 
 Python 3.12+, Docker (with Compose), and a shell.
@@ -64,6 +93,9 @@ CI (`.github/workflows/ci.yml`) runs lint and pytest against a `ta_test` databas
 
 ## Importing a desktop `ta.db`
 
+In the browser, use **Import → Desktop library** (dry run first, then the real run). The command line
+below remains available.
+
 Work on a copy of the file. Do a dry run first (reports counts, writes nothing), then the real run:
 
 ```bash
@@ -80,7 +112,7 @@ already present are then skipped (reported as "already present"), so only new ch
 existing document count and exactly which chapters would be added or skipped.
 
 Before writing anything the importer checks the source's columns against the desktop schema it was
-written for (`SOURCE_COLUMNS` in `tools/import_tadb.py`, transcribed from the desktop
+written for (`SOURCE_COLUMNS` in `api/core/tadb_schema.py`, transcribed from the desktop
 `translation_assistant/db.py`): a column no released desktop version has is an error, while the
 columns later desktop builds added by `ALTER TABLE` (`OPTIONAL_COLUMNS`) are tolerated as missing
 in an older file. Each row is written in its own savepoint; rows the schema rejects are skipped and
@@ -169,9 +201,14 @@ Each user sets up backends at Settings → Machine translation.
   overrides it.
 - **Ollama** uses the server default `TA_OLLAMA_URL`, a per-user URL override, and a model name.
 - **MeCab** needs the `mecab` extra (`pip install -e '.[mecab]'`).
-- **JParser** needs `edict2` from <https://www.edrdg.org/jmdict/edict.html>, at `TA_EDICT_PATH`.
-- `TA_CONJUGATIONS_PATH` (optional) points at the desktop's `Conjugations.txt` and enables
-  deconjugation in JParser.
+- **JParser** needs the EDICT2 dictionary. Download it (or upload `edict2` and `Conjugations.txt`) under
+  **Admin → Dictionary**; files are kept in `TA_DATA_DIR`. The dictionary is © the Electronic
+  Dictionary Research and Development Group (<https://www.edrdg.org/>), used under CC BY-SA 4.0.
+  `TA_EDICT_PATH` and `TA_CONJUGATIONS_PATH` (optional, enables deconjugation) still win when set.
+
+The server defaults (LibreTranslate and Ollama URLs) and the private-address switches
+(`TA_MT_ALLOW_PRIVATE_URLS`, `TA_WP_ALLOW_PRIVATE_URLS`) are set under **Admin → Server**; the
+environment variables are fallbacks for when no value is saved there.
 
 User-supplied LibreTranslate and Ollama URLs are checked before the server calls them: a host
 that resolves to a private, loopback, link-local, or CGNAT (100.64.0.0/10) address is refused.

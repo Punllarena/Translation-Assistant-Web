@@ -132,7 +132,7 @@ objects, so any admin may revoke any invite.
 
 ### 4.6 SPA (`/admin`)
 
-Three tabs:
+Three panels on one page:
 
 - **Server:** the §4.2 form; each field shows a source badge ("from env" / "default") and
   a **Reset** button when the source is `db`. Shared with wizard step 2.
@@ -201,9 +201,9 @@ README.
 
 ### 6.1 Code move
 
-The logic of `tools/import_tadb.py` (620 lines) moves to `api/core/tadb_import.py` (row
-mapping and schema checks) and `api/core/tadb_run.py` (`import_tadb`, fingerprints, report),
-each under ~400 lines. `tools/import_tadb.py` becomes a thin CLI; its tests keep passing
+The logic of `tools/import_tadb.py` (620 lines) moves to `api/core/tadb_schema.py` (schema
+checks), `api/core/tadb_rows.py` (row mapping) and `api/core/tadb_import.py` (`import_tadb`,
+fingerprints, report), each under ~400 lines. `tools/import_tadb.py` becomes a thin CLI; its tests keep passing
 unchanged apart from import paths.
 
 ### 6.2 Flow
