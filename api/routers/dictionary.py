@@ -1,12 +1,16 @@
 """Admin → Dictionary (spec §5): status, upload, remove. Download is a job (api/dict_job.py)."""
 
 from fastapi import Depends, File, HTTPException, UploadFile, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from api import dictionary
-from api.deps import require_admin
-from api.models import User
+import api.dict_job  # noqa: F401  registers the dict_download handler
+from api import dictionary, jobs
+from api.deps import db_session, require_admin
+from api.models import Job, User
 from api.routing import api_router
 from api.schemas.dictionary import DictFileOut, DictionaryOut
+from api.schemas.jobs import JobOut
 from api.uploads import read_capped
 
 router = api_router(prefix="/admin/dictionary", tags=["admin"])
@@ -23,6 +27,15 @@ def not_env(kind: dictionary.Kind) -> None:
 def get_dictionary(_: User = Depends(require_admin)) -> dict:
     # sync def: FastAPI runs it in the threadpool, so the first (slow) index load is off the loop
     return {k: dictionary.status(k) for k in ("edict", "conjugations")}
+
+
+@router.post("/edict/download", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
+def download(admin: User = Depends(require_admin), db: Session = Depends(db_session)) -> Job:
+    not_env("edict")
+    if db.scalar(select(Job.id).where(
+        Job.kind == "dict_download", Job.state.in_(("queued", "running"))).limit(1)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "a dictionary download is already running")
+    return jobs.enqueue(db, admin.id, "dict_download", {})
 
 
 @router.post("/{kind}", response_model=DictFileOut)
