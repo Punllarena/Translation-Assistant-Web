@@ -25,9 +25,10 @@ export default function ImportTadb() {
   const [dry, setDry] = useState<Report | null>(null);
   const [runJob, setRunJob] = useState<number | null>(null);
   const [done, setDone] = useState<Report | null>(null);
+  const [failure, setFailure] = useState("");
   const send = useMutation({
     mutationFn: (file: File) => { const form = new FormData(); form.append("file", file); return postForm<Schemas["TadbUploadOut"]>("/import/tadb", form); },
-    onSuccess: (u) => { setUpload(u); setDry(null); setDone(null); setRunJob(null); },
+    onSuccess: (u) => { setFailure(""); setUpload(u); setDry(null); setDone(null); setRunJob(null); },
   });
   const run = useMutation({
     mutationFn: (force: boolean) => call(api.POST("/import/tadb/{upload_id}/run", { params: { path: { upload_id: upload!.upload_id } }, body: { force } })),
@@ -48,7 +49,8 @@ export default function ImportTadb() {
           disabled={send.isPending || (upload !== null && !done)} onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) send.mutate(f); }} /></label>
       {send.isPending && <p className="muted">Uploading…</p>}
       {error && <p className="error" role="alert">{error}</p>}
-      {upload && !dry && <JobProgress jobId={upload.job_id} outcome={() => null} onDone={(j) => { const r = report(j); if (r) setDry(r); else setUpload(null); }} />}
+      {failure && <p className="error" role="alert">{failure}</p>}
+      {upload && !dry && <JobProgress jobId={upload.job_id} outcome={() => null} onDone={(j) => { const r = report(j); if (r) setDry(r); else { setFailure(j.state === "cancelled" ? "Cancelled" : j.message || "The import check failed"); setUpload(null); } }} />}
       {dry && !runJob && (
         <>
           {dry.refused ? <p className="box danger" role="status">{dry.refused}</p> : <Counts r={dry} />}

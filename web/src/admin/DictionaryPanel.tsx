@@ -10,11 +10,12 @@ const LABEL: Record<Kind, string> = { edict: "EDICT2", conjugations: "Conjugatio
 export default function DictionaryPanel() {
   const queryClient = useQueryClient();
   const [jobId, setJobId] = useState<number | null>(null);
+  const [failure, setFailure] = useState("");
   const q = useQuery({ queryKey: ["admin", "dictionary"], queryFn: () => call(api.GET("/admin/dictionary")) });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["admin", "dictionary"] });
   const download = useMutation({
     mutationFn: () => call(api.POST("/admin/dictionary/edict/download")),
-    onSuccess: (job) => setJobId(job.id),
+    onSuccess: (job) => { setFailure(""); setJobId(job.id); },
   });
   const upload = useMutation({
     mutationFn: ({ kind, file }: { kind: Kind; file: File }) => {
@@ -34,6 +35,7 @@ export default function DictionaryPanel() {
       <div className="sec-head"><h2 id="dict-h">Dictionary</h2></div>
       <p className="hint">JParser and MeCab glosses use EDICT2 by the Electronic Dictionary Research and Development Group (EDRDG), licensed CC BY-SA 4.0.</p>
       {error && <p className="error" role="alert">{error.message.replace(/^File too large$/, "File too large (64 MB max)")}</p>}
+      {failure && <p className="error" role="alert">{failure}</p>}
       {q.data && (["edict", "conjugations"] as const).map((kind) => {
         const s = q.data[kind];
         const fromEnv = s.source === "env";
@@ -55,7 +57,7 @@ export default function DictionaryPanel() {
           </div>
         );
       })}
-      {jobId !== null && <JobProgress jobId={jobId} outcome={() => null} onDone={() => { setJobId(null); void refresh(); }} />}
+      {jobId !== null && <JobProgress jobId={jobId} outcome={() => null} onDone={(j) => { if (j.state !== "done") setFailure(j.state === "cancelled" ? "Cancelled" : j.message || "The download failed"); setJobId(null); void refresh(); }} />}
     </section>
   );
 }
