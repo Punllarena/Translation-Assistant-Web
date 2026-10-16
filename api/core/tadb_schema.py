@@ -98,6 +98,9 @@ class ImportReport:
     # failure, so these never make the command exit non-zero.
     already_present: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     messages: list[str] = field(default_factory=list)
+    # Documents the account had before this run: a non-zero count means a real run
+    # without force=True would be refused.
+    existing_documents: int = 0
 
     def summary(self) -> str:
         parts = [f"{k}: {v} written" for k, v in sorted(self.written.items())]

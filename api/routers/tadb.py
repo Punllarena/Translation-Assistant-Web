@@ -33,6 +33,7 @@ def _path(user_id: int, upload_id: str):
 def upload(file: UploadFile = File(...), user: User = Depends(current_user),
            db: Session = Depends(db_session)) -> TadbUploadOut:
     _not_busy(db, user.id)
+    tadb_uploads.sweep()  # abandoned uploads of any user, not only at startup
     upload_id = tadb_uploads.save(user.id, file)
     job = jobs.enqueue(db, user.id, "tadb_import",
                        {"upload_id": upload_id, "dry_run": True, "force": False})

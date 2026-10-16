@@ -34,12 +34,14 @@ export default function ImportTadb() {
     mutationFn: (force: boolean) => call(api.POST("/import/tadb/{upload_id}/run", { params: { path: { upload_id: upload!.upload_id } }, body: { force } })),
     onSuccess: (job) => setRunJob(job.id),
   });
+  // Resets the card from any unfinished state (also after a lost connection). Once the
+  // real run is queued its job deletes the file itself, so only an unstarted upload is deleted here.
   const discard = () => {
-    if (upload) void call(api.DELETE("/import/tadb/{upload_id}", { params: { path: { upload_id: upload.upload_id } } }));
-    setUpload(null); setDry(null);
+    if (upload && !runJob) void call(api.DELETE("/import/tadb/{upload_id}", { params: { path: { upload_id: upload.upload_id } } }));
+    setUpload(null); setDry(null); setRunJob(null); setFailure("");
   };
   const report = (job: Job) => (job.state === "done" ? (job.result as unknown as Report) : null);
-  const error = (send.error ?? run.error)?.message.replace(/^File too large$/, "File too large (1 GB max)");
+  const error = (send.error ?? run.error)?.message.replace(/^File too large$/, "File too large (1 GB max; 100 MB through Cloudflare Tunnel)");
   return (
     <section className="panel sec" aria-labelledby="tadb-h">
       <div className="sec-head"><h2 id="tadb-h">Desktop library (ta.db)</h2></div>
@@ -50,20 +52,23 @@ export default function ImportTadb() {
       {send.isPending && <p className="muted">Uploading…</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {failure && <p className="error" role="alert">{failure}</p>}
-      {upload && !dry && <JobProgress jobId={upload.job_id} outcome={() => null} onDone={(j) => { const r = report(j); if (r) setDry(r); else { setFailure(j.state === "cancelled" ? "Cancelled" : j.message || "The import check failed"); setUpload(null); } }} />}
+      {upload && !dry && <JobProgress jobId={upload.job_id} cancellable={false} outcome={() => null} onDone={(j) => { const r = report(j); if (r) setDry(r); else { setFailure(j.state === "cancelled" ? "Cancelled" : j.message || "The import check failed"); setUpload(null); } }} />}
       {dry && !runJob && (
         <>
-          {dry.refused ? <p className="box danger" role="status">{dry.refused}</p> : <Counts r={dry} />}
+          {dry.refused && <p className="box danger" role="status">{dry.refused}</p>}
+          <Counts r={dry} />
           {dry.messages.map((m) => <p key={m} className="hint">{m}</p>)}
-          <div className="toolbar">
-            {dry.refused
-              ? <button type="button" className="primary" onClick={() => run.mutate(true)}>Import anyway</button>
-              : <button type="button" className="primary" onClick={() => run.mutate(false)}>Import</button>}
-            <button type="button" onClick={discard}>Discard</button>
-          </div>
         </>
       )}
-      {runJob && !done && <JobProgress jobId={runJob} outcome={() => null} onDone={(j) => { const r = report(j); if (r) { setDone(r); void invalidateLibrary(queryClient); } setUpload(null); }} />}
+      {runJob && !done && <JobProgress jobId={runJob} cancellable={false} outcome={() => null} onDone={(j) => { const r = report(j); if (r) { setDone(r); void invalidateLibrary(queryClient); } setUpload(null); }} />}
+      {upload && !done && (
+        <div className="toolbar">
+          {dry && !runJob && (dry.refused
+            ? <button type="button" className="primary" onClick={() => run.mutate(true)}>Import anyway</button>
+            : <button type="button" className="primary" onClick={() => run.mutate(false)}>Import</button>)}
+          <button type="button" onClick={discard}>Discard</button>
+        </div>
+      )}
       {done && <><p className="box ok" role="status">Imported.</p><Counts r={done} /></>}
     </section>
   );

@@ -9,8 +9,8 @@ interface FetchResult {
   errors?: { num: number; message: string }[];
 }
 
-/** Follows one job over SSE: a progress bar, Cancel, then the outcome. */
-export default function JobProgress({ jobId, onDone, outcome }: { jobId: number; onDone?: (job: Job) => void; outcome?: (job: Job) => ReactNode }) {
+/** Follows one job over SSE: a progress bar, Cancel (unless cancellable is false), then the outcome. */
+export default function JobProgress({ jobId, onDone, outcome, cancellable = true }: { jobId: number; onDone?: (job: Job) => void; outcome?: (job: Job) => ReactNode; cancellable?: boolean }) {
   const [job, setJob] = useState<Job | null>(null);
   const [cancelError, setCancelError] = useState("");
   const [cancelling, setCancelling] = useState(false);
@@ -51,7 +51,7 @@ export default function JobProgress({ jobId, onDone, outcome }: { jobId: number;
           {job.message || "Working…"}{" "}
           <progress max={job.total || undefined} value={job.progress} />
         </label>
-        <div className="toolbar"><button type="button" disabled={cancelling} onClick={cancel}>Cancel</button></div>
+        {cancellable && <div className="toolbar"><button type="button" disabled={cancelling} onClick={cancel}>Cancel</button></div>}
         {cancelError && <p className="error" role="alert">{cancelError}</p>}
       </div>
     );

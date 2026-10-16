@@ -48,6 +48,8 @@ def gunzip_capped(data: bytes) -> bytes:
         except zlib.error as exc:
             raise ValueError(f"the file is not valid gzip: {exc}") from exc
         more = bool(d.unconsumed_tail)
+        if not more and len(out) <= MAX_EDICT_BYTES and not d.eof:
+            raise ValueError("the file is not valid gzip: truncated")
     if more or len(out) > MAX_EDICT_BYTES:
         raise ValueError(f"the dictionary is larger than {MAX_EDICT_BYTES >> 20} MiB unpacked")
     return out
@@ -70,6 +72,14 @@ def _count(kind: Kind, p: Path) -> int:
     return n
 
 
+def _drop_cached() -> None:
+    """Free a replaced or removed index now instead of when the LRU evicts it."""
+    from api.mt import jparser
+
+    jparser._load_index_locked.cache_clear()
+    jparser._load_rules_cached.cache_clear()
+
+
 def install(kind: Kind, data: bytes) -> int:
     """Validate, then atomically replace the data-dir file. Returns the entry/rule count."""
     d = dict_dir()
@@ -83,6 +93,7 @@ def install(kind: Kind, data: bytes) -> int:
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
+    _drop_cached()
     return n
 
 
@@ -105,3 +116,4 @@ def status(kind: Kind) -> dict:
 
 def remove(kind: Kind) -> None:
     (dict_dir() / FILENAMES[kind]).unlink(missing_ok=True)
+    _drop_cached()

@@ -24,9 +24,16 @@ def path_for(user_id: int, upload_id: str) -> Path:
 
 
 def save(user_id: int, upload: UploadFile) -> str:
+    """Copy the upload to disk and return its id. Call only once the user has no active
+    import: the user's other pending uploads are deleted first (one per user).
+
+    Starlette has already spooled the multipart body before the handler runs, so the cap
+    bounds what is kept here, not what crossed the network (Caddy caps that at 1 GiB)."""
     upload_id = uuid4().hex
     dest = path_for(user_id, upload_id)
     dest.parent.mkdir(parents=True, exist_ok=True)
+    for old in dest.parent.glob("*.db"):
+        old.unlink(missing_ok=True)
     total = 0
     try:
         with dest.open("wb") as out:

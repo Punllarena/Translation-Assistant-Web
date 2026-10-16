@@ -8,7 +8,7 @@ import pytest
 from api import jobs, tadb_uploads
 from api.config import get_settings
 from api.models import Document
-from tests.fixtures.tadb import desktop_db
+from tests.fixtures.tadb import add_chapter, desktop_db
 
 
 @pytest.fixture
@@ -66,6 +66,45 @@ def test_refusal_is_reported_and_force_overrides(app_client, me, env, db):
     job(app_client, again.json()["job_id"])
     forced = app_client.post(f"/import/tadb/{again.json()['upload_id']}/run", json={"force": True})
     assert job(app_client, forced.json()["id"])["state"] == "done"
+
+
+def test_non_empty_account_dry_run_offers_import_anyway(app_client, me, env, db):
+    first = upload(app_client, desktop_db(env / "first"))
+    job(app_client, first.json()["job_id"])
+    app_client.post(f"/import/tadb/{first.json()['upload_id']}/run", json={"force": False})
+    jobs.run_next()
+    changed = desktop_db(env / "changed")
+    add_chapter(changed, "Chapter 2")
+    r = upload(app_client, changed)
+    dry = job(app_client, r.json()["job_id"])["result"]
+    assert dry["refused"].startswith("Your account already has 1 chapter(s)")
+    assert dry["written"]["documents"] == 1 and dry["already_present"]["documents"] == 1
+    assert not any("force" in m for m in [dry["refused"], *dry["messages"]])
+    assert str(env) not in dry["refused"]
+    forced = app_client.post(f"/import/tadb/{r.json()['upload_id']}/run", json={"force": True})
+    assert job(app_client, forced.json()["id"])["state"] == "done"
+    titles = sorted(d.title for d in db.query(Document).filter_by(user_id=me.id))
+    assert titles == ["Chapter 1", "Chapter 2"]
+
+
+def test_already_imported_refusal_has_counts_and_no_server_path(app_client, me, env):
+    src = desktop_db(env / "src")
+    r = upload(app_client, src)
+    job(app_client, r.json()["job_id"])
+    app_client.post(f"/import/tadb/{r.json()['upload_id']}/run", json={})
+    jobs.run_next()
+    again = upload(app_client, src)
+    dry = job(app_client, again.json()["job_id"])["result"]
+    assert dry["refused"] == "This library was already imported into your account."
+    assert dry["already_present"]["documents"] == 1
+
+
+def test_a_new_upload_replaces_the_pending_one(app_client, me, env):
+    first = upload(app_client, desktop_db(env / "a"))
+    jobs.run_next()
+    second = upload(app_client, desktop_db(env / "b"))
+    assert [p.stem for p in uploads(env)] == [second.json()["upload_id"]]
+    assert first.json()["upload_id"] != second.json()["upload_id"]
 
 
 def test_not_sqlite_is_422_and_nothing_is_kept(app_client, me, env):

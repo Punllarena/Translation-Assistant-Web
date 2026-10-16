@@ -1,7 +1,7 @@
 import pytest
 
 from api import publish, server_settings
-from api.config import get_settings
+from api.config import Settings, get_settings
 from api.routers import mt
 
 
@@ -19,6 +19,8 @@ def entry(client, key):
 def test_listing_reports_env_and_default_sources(app_client, admin, monkeypatch):
     monkeypatch.setenv("TA_LIBRETRANSLATE_URL", "http://lt.env")
     monkeypatch.delenv("TA_OLLAMA_URL", raising=False)
+    # Hermetic: a developer's .env (e.g. TA_OLLAMA_URL) must not leak into the sources.
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
     get_settings.cache_clear()
     try:
         assert entry(app_client, "libretranslate_url") == {

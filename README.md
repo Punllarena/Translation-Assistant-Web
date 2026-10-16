@@ -35,11 +35,20 @@ port are in place:
    - **Tailscale direct / LAN:** `TA_SITE_ADDRESS=<machine>.<tailnet>.ts.net` or the LAN address.
 3. Set `TA_HTTP_PORT` / `TA_HTTPS_PORT` in `.env` if ports 80/443 are taken.
 4. `docker compose up -d`.
-5. **Open the site on your network and create the admin account before enabling Cloudflare Tunnel.**
-   Until then, anyone who reaches the site can become admin.
+5. **Create the admin account right after `docker compose up -d`, before enabling Cloudflare Tunnel.**
+   Until then, anyone who reaches the site can become admin. The session cookie is `Secure`, which
+   browsers store over plain http only on `localhost`, so with `TA_SITE_ADDRESS=:80` open the site from
+   the host itself at `http://localhost:<TA_HTTP_PORT>`, or from another machine through
+   `ssh -L 8080:localhost:<TA_HTTP_PORT> <host>` and then `http://localhost:8080`, or through
+   `tailscale serve` (https). Opening `http://<host>` from another LAN machine creates the account but
+   the browser drops the cookie, so the next wizard steps fail with 401.
 6. Follow the setup wizard.
 7. Backups: the `pgdata` and `ta_data` volumes, plus `TA_SECRET_KEY` (without it, saved API keys cannot
    be decrypted; everything else survives).
+
+**Large `ta.db` imports.** Cloudflare caps proxied request bodies at 100 MB (Free and Pro plans,
+Tunnel included), so import a bigger desktop library over the LAN, `localhost` or Tailscale, not
+through the tunnel. The server accepts up to 1 GB.
 
 **Known limitation.** Behind Cloudflare Tunnel every request reaches Caddy from `cloudflared`, so the
 per-address login limiter is effectively global: repeated failures lock everyone out for the window. A

@@ -26,8 +26,21 @@ FINGERPRINT_KEY = "imported_tadb_fingerprints"
 
 
 class Refused(RuntimeError):
-    """A refusal force=True overrides: the file was imported before, or the account
-    already has documents."""
+    """A refusal force=True overrides: the file was imported before (existing == 0), or
+    the account already has `existing` documents."""
+
+    def __init__(self, message: str, *, existing: int = 0) -> None:
+        super().__init__(message)
+        self.existing = existing
+
+
+def not_empty_preview(existing: int) -> str:
+    """The message a dry run into a non-empty account adds (CLI wording)."""
+    return (
+        f"this account already has {existing} document(s); a real import needs "
+        "force=True (--force), and the chapters listed below as already present "
+        "would be skipped"
+    )
 
 
 def source_fingerprint(sqlite_path: Path) -> str:
@@ -71,16 +84,14 @@ def import_tadb(
         raise Refused(
             f"this account already has {existing} document(s); importing would duplicate "
             "the library. Pass force=True (--force) to import anyway: documents matching "
-            "an existing series and title are then skipped, so only new chapters are added"
+            "an existing series and title are then skipped, so only new chapters are added",
+            existing=existing,
         )
+    report.existing_documents = existing
     if existing and dry_run:
         # A dry run writes nothing, so it previews instead of refusing: that is the whole
         # point of the flag before committing to a second import.
-        report.messages.append(
-            f"this account already has {existing} document(s); a real import needs "
-            "force=True (--force), and the chapters listed below as already present "
-            "would be skipped"
-        )
+        report.messages.append(not_empty_preview(existing))
 
     conn = sqlite3.connect(sqlite_path.resolve().as_uri() + "?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row

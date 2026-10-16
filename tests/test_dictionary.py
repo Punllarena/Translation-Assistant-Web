@@ -57,6 +57,26 @@ def test_gzip_bomb_is_refused(data_dir, monkeypatch):
         dictionary.gunzip_capped(gzip.compress(b"a" * 4096))
 
 
+def test_truncated_gzip_is_refused(app_client, admin, data_dir):
+    cut = gzip.compress(EDICT)[: len(EDICT) // 4]  # the stream ends early, no trailer
+    with pytest.raises(ValueError, match="truncated"):
+        dictionary.gunzip_capped(cut)
+    r = app_client.post("/admin/dictionary/edict", files={"file": ("edict2.gz", cut)})
+    assert r.status_code == 422
+    assert not (data_dir / "dict" / "edict2").exists()
+
+
+def test_install_and_remove_drop_the_cached_index(data_dir):
+    dictionary.install("edict", EDICT)
+    jparser.load_index(dictionary.path("edict"))
+    assert jparser._load_index_locked.cache_info().currsize > 0
+    dictionary.install("edict", EDICT)
+    assert jparser._load_index_locked.cache_info().currsize == 0
+    jparser.load_index(dictionary.path("edict"))
+    dictionary.remove("edict")
+    assert jparser._load_index_locked.cache_info().currsize == 0
+
+
 def test_conjugations_upload_is_validated(app_client, admin, data_dir):
     assert app_client.post("/admin/dictionary/conjugations",
                            files={"file": ("c.txt", b"[]")}).status_code == 422
