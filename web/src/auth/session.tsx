@@ -1,6 +1,6 @@
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { Navigate, useLocation } from "react-router";
+import { Navigate, Outlet, useLocation } from "react-router";
 import { api, ApiError, call, type Schemas } from "../api/client";
 
 export function useMe() {
@@ -39,4 +39,22 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate to={`/login?next=${next}`} replace />;
   }
   return children;
+}
+
+export function useSetupStatus() {
+  return useQuery({
+    queryKey: ["setup"],
+    queryFn: () => call(api.GET("/setup/status")),
+    staleTime: Infinity,
+  });
+}
+
+/** While no account exists, every page is the setup wizard. */
+export function SetupGate() {
+  const setup = useSetupStatus();
+  const here = useLocation();
+  if (setup.isPending) return <p className="muted">Loading…</p>;
+  if (setup.isError) return <p className="error">{setup.error.message}</p>;
+  if (setup.data.needs_setup && here.pathname !== "/setup") return <Navigate to="/setup" replace />;
+  return <Outlet />;
 }

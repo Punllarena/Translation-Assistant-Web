@@ -31,6 +31,7 @@ export default function Shell() {
           <NavLink to="/settings/mt">Machine translation</NavLink>
           <NavLink to="/settings/wp">WordPress</NavLink>
           <NavLink to="/settings/shortcuts">Shortcuts</NavLink>
+          {me.data?.is_admin && <NavLink to="/admin">Admin</NavLink>}
         </nav>
         <div className="who">
           <ThemeMenu />
