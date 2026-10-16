@@ -24,9 +24,9 @@ export function signedOutOn401(queryClient: QueryClient, error: unknown) {
   if (error instanceof ApiError && error.status === 401) queryClient.setQueryData(["me"], null);
 }
 
-/** Drop every cached query except ["me"], whose observer (RequireAuth) must stay attached. */
+/** Drop every cached query except ["me"] and ["setup"], whose observers (RequireAuth, SetupGate) must stay attached. */
 export function forgetUserData(queryClient: QueryClient) {
-  queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "me" });
+  queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "me" && q.queryKey[0] !== "setup" });
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {

@@ -55,6 +55,10 @@ function CreateAdmin({ onDone }: { onDone: () => void }) {
       queryClient.setQueryData(["setup"], { needs_setup: false });
       onDone();
     },
+    // Someone else claimed it: let /login stop redirecting back here.
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 409) queryClient.setQueryData(["setup"], { needs_setup: false });
+    },
   });
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
