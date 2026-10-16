@@ -1,7 +1,7 @@
 import pytest
 
+from api.accounts import create_admin
 from api.models import Profile
-from tools.seed_admin import create_admin
 
 
 def test_create_admin_makes_an_admin_with_a_default_profile(db):

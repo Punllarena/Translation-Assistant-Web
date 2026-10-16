@@ -11,7 +11,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
-from tools.seed_admin import create_admin
+from api.accounts import create_admin
 
 EMAIL, PASSWORD = "e2e@example.com", "e2e-password-123"
 TM_LINE = "記憶語です。"

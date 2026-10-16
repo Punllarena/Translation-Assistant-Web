@@ -21,6 +21,7 @@ from api.routers import (
     scrape,
     series,
     settings,
+    setup,
     spell,
     stats,
     transfer,
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(auth.router)
+    app.include_router(setup.router)
     app.include_router(invites.router)
     app.include_router(profiles.router)
     app.include_router(glossary.router)
