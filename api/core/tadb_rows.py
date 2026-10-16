@@ -2,7 +2,7 @@
 
 import sqlite3
 
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import Session
 
@@ -30,6 +30,9 @@ from api.models import (
 # in api/routers/volumes.py): a browser upload is user input now, not an operator's CLI file.
 MAX_LINES = 50_000
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
+# Per text field (titles, lines, glossary, paths): every column is unbounded Text, and a
+# desktop value is a sentence or a name, never this long.
+MAX_TEXT_CHARS = 100_000
 
 
 def _import_all(
@@ -42,6 +45,11 @@ def _import_all(
 
 def _add(db: Session, obj: object, table: str, label: str, report: ImportReport) -> bool:
     """Insert one row in a SAVEPOINT; on a schema rejection skip and report it."""
+    for attr in inspect(obj).mapper.column_attrs:
+        value = getattr(obj, attr.key)
+        if isinstance(value, str) and len(value) > MAX_TEXT_CHARS:
+            _skip(report, table, label, f"{attr.key} longer than {MAX_TEXT_CHARS} characters")
+            return False
     try:
         with db.begin_nested():
             db.add(obj)

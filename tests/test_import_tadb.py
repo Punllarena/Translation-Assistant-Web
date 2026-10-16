@@ -408,3 +408,18 @@ def test_oversized_images_are_skipped_and_reported(db, make_user, tmp_path, monk
     assert db.query(DocumentImage).count() == 0
     assert report.skipped["document_images"] == 1
     assert any("larger than 2 bytes" in m for m in report.messages)
+
+
+def test_oversized_text_fields_are_skipped_in_every_table(db, make_user, tmp_path, monkeypatch):
+    import api.core.tadb_rows as rows
+
+    monkeypatch.setattr(rows, "MAX_TEXT_CHARS", 5)
+    path = _desktop_db(tmp_path)
+    _tweak(path, "UPDATE lines SET raw_text = 'abcdefgh' WHERE line_number = 0")
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    doc = db.query(Document).filter_by(user_id=user.id).one_or_none()
+    # "Chapter 1" is 9 chars: the document itself is skipped, so are its lines
+    assert doc is None
+    assert report.skipped["documents"] == 1
+    assert any("longer than 5 characters" in m for m in report.messages)

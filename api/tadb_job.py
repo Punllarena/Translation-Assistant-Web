@@ -9,6 +9,7 @@ from api.jobs import JobContext, JobError, handler
 # Messages are stored in the job row; a crafted file with millions of orphan rows must not
 # make that row (or the SSE payload) millions of lines long.
 MAX_MESSAGES = 200
+MAX_MESSAGE_CHARS = 500  # messages quote titles, which come from the uploaded file
 ALREADY_IMPORTED = "This library was already imported into your account."
 
 
@@ -35,7 +36,9 @@ def _result(dry: bool, report, refused: str | None) -> dict:
 
 def _capped(messages: list[str]) -> list[str]:
     extra = len(messages) - MAX_MESSAGES
-    return messages[:MAX_MESSAGES] + [f"…and {extra} more"] if extra > 0 else messages
+    kept = [m if len(m) <= MAX_MESSAGE_CHARS else m[:MAX_MESSAGE_CHARS] + "…"
+            for m in messages[:MAX_MESSAGES]]
+    return kept + [f"…and {extra} more"] if extra > 0 else kept
 
 
 def _dry_run(ctx: JobContext, path, user_id: int, force: bool) -> dict:
