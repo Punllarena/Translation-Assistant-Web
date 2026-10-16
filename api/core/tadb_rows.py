@@ -26,6 +26,11 @@ from api.models import (
     Volume,
 )
 
+# The same caps every other import path enforces (api/library.py MAX_LINES, image uploads
+# in api/routers/volumes.py): a browser upload is user input now, not an operator's CLI file.
+MAX_LINES = 50_000
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
 
 def _import_all(
     conn: sqlite3.Connection, db: Session, user_id: int, report: ImportReport
@@ -264,10 +269,19 @@ def _import_documents(
         if _add(db, doc, "documents", f"row {row['id']}", report):
             id_map[row["id"]] = doc
 
+    line_counts: dict[int, int] = {}
     for row in conn.execute("SELECT * FROM lines ORDER BY document_id, line_number"):
         doc = id_map.get(row["document_id"])
         if doc is None:
             _orphan(report, "lines", row, f"document_id {row['document_id']}")
+            continue
+        n = line_counts[doc.id] = line_counts.get(doc.id, 0) + 1
+        if n > MAX_LINES:
+            report.skipped["lines"] += 1
+            if n == MAX_LINES + 1:  # one message per document, not one per skipped line
+                report.messages.append(
+                    f"documents {doc.title!r}: more than {MAX_LINES} lines; the rest were skipped"
+                )
             continue
         prefix = _get(row, "lines", "prefix", "%")
         if not prefix:
@@ -289,6 +303,10 @@ def _import_documents(
         doc = id_map.get(row["document_id"])
         if doc is None:
             _orphan(report, "document_images", row, f"document_id {row['document_id']}")
+            continue
+        if row["data"] is not None and len(row["data"]) > MAX_IMAGE_BYTES:
+            _skip(report, "document_images", f"row {row['id']}",
+                  f"image larger than {MAX_IMAGE_BYTES} bytes")
             continue
         image = DocumentImage(
             document_id=doc.id,

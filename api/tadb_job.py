@@ -6,6 +6,9 @@ from api import tadb_uploads
 from api.core.tadb_import import Refused, import_tadb, not_empty_preview
 from api.jobs import JobContext, JobError, handler
 
+# Messages are stored in the job row; a crafted file with millions of orphan rows must not
+# make that row (or the SSE payload) millions of lines long.
+MAX_MESSAGES = 200
 ALREADY_IMPORTED = "This library was already imported into your account."
 
 
@@ -26,8 +29,13 @@ def _result(dry: bool, report, refused: str | None) -> dict:
         "written": dict(report.written),
         "skipped": dict(report.skipped),
         "already_present": dict(report.already_present),
-        "messages": [m for m in report.messages if m != preview],
+        "messages": _capped([m for m in report.messages if m != preview]),
     }
+
+
+def _capped(messages: list[str]) -> list[str]:
+    extra = len(messages) - MAX_MESSAGES
+    return messages[:MAX_MESSAGES] + [f"…and {extra} more"] if extra > 0 else messages
 
 
 def _dry_run(ctx: JobContext, path, user_id: int, force: bool) -> dict:

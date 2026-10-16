@@ -383,3 +383,28 @@ def test_refusals_are_the_refused_subclass(db, make_user, tmp_path):
     import_tadb(db, path, user.id)
     with pytest.raises(Refused, match="already imported"):
         import_tadb(db, path, user.id)
+
+
+def test_lines_beyond_the_per_document_cap_are_skipped_and_reported(
+    db, make_user, tmp_path, monkeypatch
+):
+    import api.core.tadb_rows as rows
+
+    monkeypatch.setattr(rows, "MAX_LINES", 1)  # the fixture chapter has two lines
+    user = make_user()
+    report = import_tadb(db, _desktop_db(tmp_path), user.id)
+    doc = db.query(Document).filter_by(user_id=user.id).one()
+    assert db.query(Line).filter_by(document_id=doc.id).count() == 1
+    assert report.skipped["lines"] == 1
+    assert sum("more than 1 lines" in m for m in report.messages) == 1
+
+
+def test_oversized_images_are_skipped_and_reported(db, make_user, tmp_path, monkeypatch):
+    import api.core.tadb_rows as rows
+
+    monkeypatch.setattr(rows, "MAX_IMAGE_BYTES", 2)  # the fixture cover is 3 bytes
+    user = make_user()
+    report = import_tadb(db, _desktop_db(tmp_path), user.id)
+    assert db.query(DocumentImage).count() == 0
+    assert report.skipped["document_images"] == 1
+    assert any("larger than 2 bytes" in m for m in report.messages)
