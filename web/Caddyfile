@@ -1,15 +1,19 @@
 {$TA_SITE_ADDRESS:localhost} {
 	encode zstd gzip
 
-	# Uploads are capped again in the API (10 MiB images, 5 MiB text, 64 MiB EPUB) after the body
-	# is received; this stops a larger body before it reaches uvicorn at all.
-	# EPUB uploads may be up to 64 MiB (plan ruling 3); everything else stays at 12 MB.
-	@epub path /api/epub/*
-	request_body @epub {
+	# Uploads are capped again in the API after the body is received; these stop a larger
+	# body before it reaches uvicorn. EPUB and dictionary files: 64 MiB. A desktop ta.db:
+	# 1 GiB (spec §6.5). Everything else: 12 MB.
+	@big path /api/epub/* /api/admin/dictionary/*
+	request_body @big {
 		max_size 64MiB
 	}
-	@not_epub not path /api/epub/*
-	request_body @not_epub {
+	@tadb path /api/import/tadb
+	request_body @tadb {
+		max_size 1GiB
+	}
+	@small not path /api/epub/* /api/admin/dictionary/* /api/import/tadb
+	request_body @small {
 		max_size 12MB
 	}
 

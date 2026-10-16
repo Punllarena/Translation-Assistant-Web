@@ -10,6 +10,7 @@ from api.routers import (
     admin,
     auth,
     credentials,
+    dictionary,
     documents,
     epub,
     glossary,
@@ -62,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(setup.router)
     app.include_router(admin.router)
+    app.include_router(dictionary.router)
     app.include_router(invites.router)
     app.include_router(profiles.router)
     app.include_router(glossary.router)
