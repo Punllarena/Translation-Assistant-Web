@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate } from "react-router";
 import { api, ApiError, call } from "../api/client";
@@ -29,8 +29,8 @@ export default function SetupPage() {
           <ServerSettingsForm onSaved={next} />
         </Step>
       )}
-      {step === 2 && <Step title="Dictionary" onNext={next}><DictionaryPanel /></Step>}
-      {step === 3 && <Step title="Desktop library" onNext={next}><ImportTadb /></Step>}
+      {step === 2 && <DictionaryStep onNext={next} />}
+      {step === 3 && <Step onNext={next}><ImportTadb /></Step>}
       {step === 4 && (
         <section className="panel sec" aria-labelledby="done-h">
           <h2 id="done-h">Done</h2>
@@ -42,14 +42,23 @@ export default function SetupPage() {
   );
 }
 
-export function Step({ title, onNext, children }: { title: string; onNext: () => void; children: ReactNode }) {
+// Without a title the child is a panel with its own heading, so it isn't wrapped in another.
+export function Step({ title, onNext, done = false, children }: { title?: string; onNext: () => void; done?: boolean; children: ReactNode }) {
+  const toolbar = <div className="toolbar"><button type="button" className={done ? "primary" : undefined} onClick={onNext}>{done ? "Next" : "Skip"}</button></div>;
+  if (!title) return <>{children}{toolbar}</>;
   return (
     <section className="panel sec" aria-labelledby="step-h">
       <div className="sec-head"><h2 id="step-h">{title}</h2></div>
       {children}
-      <div className="toolbar"><button type="button" onClick={onNext}>Skip</button></div>
+      {toolbar}
     </section>
   );
+}
+
+function DictionaryStep({ onNext }: { onNext: () => void }) {
+  // Same query key as DictionaryPanel, so this reads its cache.
+  const q = useQuery({ queryKey: ["admin", "dictionary"], queryFn: () => call(api.GET("/admin/dictionary")) });
+  return <Step onNext={onNext} done={!!q.data?.edict.present}><DictionaryPanel /></Step>;
 }
 
 function CreateAdmin({ onDone }: { onDone: () => void }) {

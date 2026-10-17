@@ -43,7 +43,7 @@ export default function DictionaryPanel() {
           <div key={kind} className="field" role="group" aria-label={LABEL[kind]}>
             <strong>{LABEL[kind]}</strong>{" "}
             <span className="muted" role="status">
-              {s.present ? `${s.entries ?? 0} ${kind === "edict" ? "entries" : "rules"}` : "Not installed"}
+              {s.present ? `Installed · ${s.entries ?? 0} ${kind === "edict" ? "entries" : "rules"}` : "Not installed"}
               {fromEnv && " · set by the server's environment"}
             </span>
             {!fromEnv && (
