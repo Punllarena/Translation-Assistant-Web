@@ -168,3 +168,53 @@ def test_a_successful_login_clears_the_account_counter(app_client, make_user):
     r = app_client.post("/auth/login", json={"login": "clear", "password": "pw-correct"})
     assert r.status_code == 200
     assert account_limiter.check(f"user:{user.id}")
+
+
+def test_concurrent_logins_get_no_more_guesses_than_the_cap(monkeypatch):
+    """Call the handler from many threads at once with a slow verify: before the limiters
+    charged up front, every request passed the check before any failure was recorded."""
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException, Response
+
+    from api.routers import auth
+    from api.schemas.auth import LoginRequest
+
+    verifies = []
+    lock = threading.Lock()
+
+    def slow_verify(password, hashed):
+        time.sleep(0.05)
+        with lock:
+            verifies.append(password)
+        return False
+
+    monkeypatch.setattr(auth, "verify_password", slow_verify)
+    monkeypatch.setattr(auth, "find_by_username", lambda db, name: None)  # no DB from threads
+
+    def attempt(i):
+        request = SimpleNamespace(client=SimpleNamespace(host=f"10.0.0.{i}"))  # many addresses
+        try:
+            auth.login(LoginRequest(login="victim", password="guess"), request, Response(), None)
+        except HTTPException as exc:
+            return exc.status_code
+
+    with ThreadPoolExecutor(max_workers=40) as pool:
+        codes = list(pool.map(attempt, range(40)))
+    cap = email_limiter.max_attempts
+    assert len(verifies) == cap
+    assert codes.count(401) == cap and codes.count(429) == 40 - cap
+
+
+def test_a_full_account_bucket_takes_no_further_charge(app_client, make_user):
+    user = make_user(email="full@example.com", password="pw-correct")
+    key = f"user:{user.id}"
+    for _ in range(account_limiter.max_attempts):
+        account_limiter.record_failure(key)
+    before = list(account_limiter._failures[key])
+    r = app_client.post("/auth/login", json={"login": "full", "password": "pw-correct"})
+    assert r.status_code == 401
+    assert list(account_limiter._failures[key]) == before

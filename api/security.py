@@ -91,21 +91,44 @@ class LoginLimiter:
             q = self._live(key, time.monotonic())
             return q is None or len(q) < self.max_attempts
 
+    def try_acquire(self, key: str) -> bool:
+        """Count one attempt unless the key is full, in one step under the lock.
+
+        Charging before the slow password verify (and resetting on success) keeps a burst
+        of concurrent requests from all passing a check made before any failure lands."""
+        with self._lock:
+            q = self._live(key, time.monotonic())
+            if q is not None and len(q) >= self.max_attempts:
+                return False
+            self._append(key, q)
+            return True
+
+    def release(self, key: str) -> None:
+        """Give back the newest slot (an attempt rejected by another bucket before it ran)."""
+        with self._lock:
+            q = self._failures.get(key)
+            if q:
+                q.pop()
+                if not q:
+                    del self._failures[key]
+
     def record_failure(self, key: str) -> None:
         with self._lock:
-            now = time.monotonic()
-            q = self._live(key, now)
-            if q is None:
-                q = deque()
-                self._failures[key] = q
-            q.append(now)
-            excess = len(self._failures) - MAX_TRACKED_KEYS
-            if excess > 0:
-                stalest = heapq.nsmallest(
-                    excess, self._failures, key=lambda k: self._failures[k][-1]
-                )
-                for k in stalest:
-                    del self._failures[k]
+            self._append(key, self._live(key, time.monotonic()))
+
+    def _append(self, key: str, q: deque[float] | None) -> None:
+        """Lock held by caller; q is the key's live deque from _live()."""
+        if q is None:
+            q = deque()
+            self._failures[key] = q
+        q.append(time.monotonic())
+        excess = len(self._failures) - MAX_TRACKED_KEYS
+        if excess > 0:
+            stalest = heapq.nsmallest(
+                excess, self._failures, key=lambda k: self._failures[k][-1]
+            )
+            for k in stalest:
+                del self._failures[k]
 
     def reset(self, key: str) -> None:
         with self._lock:
