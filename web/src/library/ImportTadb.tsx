@@ -1,5 +1,5 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { api, call, type Schemas } from "../api/client";
 import JobProgress from "../jobs/JobProgress";
 import type { Job } from "../jobs/follow";
@@ -26,6 +26,19 @@ export default function ImportTadb() {
   const [runJob, setRunJob] = useState<number | null>(null);
   const [done, setDone] = useState<Report | null>(null);
   const [failure, setFailure] = useState("");
+  // Coming back to the page: the server says which ta.db job (if any) this card was showing.
+  const pending = useQuery({
+    queryKey: ["import", "tadb", "pending"], gcTime: 0,
+    queryFn: async () => (await api.GET("/import/tadb/pending")).data ?? null,
+  });
+  useEffect(() => {
+    const p = pending.data;
+    if (!p) return;
+    const dryRun = p.job.params.dry_run === true;
+    setUpload({ upload_id: p.upload_id, job_id: p.job.id });
+    if (dryRun && p.job.state === "done") setDry(p.job.result as unknown as Report);
+    if (!dryRun) setRunJob(p.job.id);
+  }, [pending.data]);
   const send = useMutation({
     mutationFn: (file: File) => { const form = new FormData(); form.append("file", file); return postForm<Schemas["TadbUploadOut"]>("/import/tadb", form); },
     onSuccess: (u) => { setFailure(""); setUpload(u); setDry(null); setDone(null); setRunJob(null); },
@@ -52,7 +65,7 @@ export default function ImportTadb() {
       {send.isPending && <p className="muted">Uploading…</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {failure && <p className="error" role="alert">{failure}</p>}
-      {upload && !dry && <JobProgress jobId={upload.job_id} cancellable={false} outcome={() => null} onDone={(j) => { const r = report(j); if (r) setDry(r); else { setFailure(j.state === "cancelled" ? "Cancelled" : j.message || "The import check failed"); setUpload(null); } }} />}
+      {upload && !dry && <JobProgress jobId={upload.job_id} outcome={() => null} onDone={(j) => { const r = report(j); if (r) setDry(r); else { setFailure(j.state === "cancelled" ? "Cancelled" : j.message || "The import check failed"); setUpload(null); } }} />}
       {dry && !runJob && (
         <>
           {dry.refused && <p className="box danger" role="status">{dry.refused}</p>}
@@ -60,7 +73,7 @@ export default function ImportTadb() {
           {dry.messages.map((m) => <p key={m} className="hint">{m}</p>)}
         </>
       )}
-      {runJob && !done && <JobProgress jobId={runJob} cancellable={false} outcome={() => null} onDone={(j) => { const r = report(j); if (r) { setDone(r); void invalidateLibrary(queryClient); } setUpload(null); }} />}
+      {runJob && !done && <JobProgress jobId={runJob} outcome={() => null} onDone={(j) => { const r = report(j); if (r) { setDone(r); void invalidateLibrary(queryClient); } else setFailure(j.state === "cancelled" ? "Cancelled. Upload the file again to import." : j.message || "The import failed"); setUpload(null); setRunJob(null); }} />}
       {upload && !done && (
         <div className="toolbar">
           {dry && !runJob && (dry.refused
