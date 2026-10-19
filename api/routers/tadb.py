@@ -52,13 +52,15 @@ def pending(user: User = Depends(current_user), db: Session = Depends(db_session
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     upload_id = job.params_json.get("upload_id", "")
     active = job.state in ("queued", "running")
-    if not active:
-        try:
-            present = tadb_uploads.path_for(user.id, upload_id).is_file()
-        except ValueError:
-            present = False
-        if not (job.state == "done" and job.params_json.get("dry_run") and present):
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
+    dry = bool(job.params_json.get("dry_run"))
+    try:
+        present = tadb_uploads.path_for(user.id, upload_id).is_file()
+    except ValueError:
+        present = False
+    # A dry run is only worth showing while its file is here to import from (Discard deletes
+    # it, even mid-run); a real run deletes its own file when it ends.
+    if not ((active and (present or not dry)) or (job.state == "done" and dry and present)):
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     return TadbPendingOut(job=JobOut.model_validate(job), upload_id=upload_id)
 
 

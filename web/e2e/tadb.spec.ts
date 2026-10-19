@@ -41,8 +41,7 @@ test("the import card restores a finished dry run", async ({ page }) => {
   await expect(card.getByRole("button", { name: "Import", exact: true })).toBeVisible();
 });
 
-test("the import card follows a running import with counts and Cancel", async ({ page }) => {
-  const job = pendingJob("running", true);
+async function openStream(page: import("@playwright/test").Page, job: object) {
   await page.addInitScript((j) => {
     // One running update, then the stream stays open (a fulfilled route would close it).
     class OpenSource {
@@ -54,6 +53,11 @@ test("the import card follows a running import with counts and Cancel", async ({
     }
     (window as unknown as { EventSource: unknown }).EventSource = OpenSource;
   }, job);
+}
+
+test("the import card follows a running import with counts and Cancel", async ({ page }) => {
+  const job = pendingJob("running", true);
+  await openStream(page, job);
   await page.route("**/api/import/tadb/pending", (r) => r.fulfill({ json: { job, upload_id: job.params.upload_id } }));
   await signIn(page);
   await page.goto("/import");
@@ -62,4 +66,30 @@ test("the import card follows a running import with counts and Cancel", async ({
   await expect(card.getByText(/7 min elapsed/)).toBeVisible();
   await expect(card.getByText("Runs on the server — you can leave this page and come back.")).toBeVisible();
   await expect(card.getByRole("button", { name: "Cancel" })).toBeVisible();
+});
+
+test("a resumed real import shows its progress once", async ({ page }) => {
+  const job = { ...pendingJob("running", false), message: "Importing lines" };
+  await openStream(page, job);
+  await page.route("**/api/import/tadb/pending", (r) => r.fulfill({ json: { job, upload_id: job.params.upload_id } }));
+  await signIn(page);
+  await page.goto("/import");
+  const card = page.getByRole("region", { name: "Desktop library (ta.db)" });
+  await expect(card.getByText("Importing lines · 71,330 of 482,456 (15%)")).toHaveCount(1);
+  await expect(card.getByRole("button", { name: "Cancel" })).toHaveCount(1);
+});
+
+test("discarding a running dry run cancels its job", async ({ page }) => {
+  const job = pendingJob("running", true);
+  await openStream(page, job);
+  await page.route("**/api/import/tadb/pending", (r) => r.fulfill({ json: { job, upload_id: job.params.upload_id } }));
+  await page.route(`**/api/import/tadb/${job.params.upload_id}`, (r) => r.fulfill({ status: 204 }));
+  let cancelled = false;
+  await page.route(`**/api/jobs/${job.id}/cancel`, (r) => { cancelled = true; return r.fulfill({ json: { ...job, state: "cancelled" } }); });
+  await signIn(page);
+  await page.goto("/import");
+  const card = page.getByRole("region", { name: "Desktop library (ta.db)" });
+  await expect(card.getByText(/Checking lines/)).toBeVisible();
+  await card.getByRole("button", { name: "Discard" }).click();
+  await expect.poll(() => cancelled).toBe(true);
 });

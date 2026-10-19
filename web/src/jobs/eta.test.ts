@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countLine, estimateLeft, formatDuration, leftText } from "./eta";
+import { countLine, estimateLeft, formatDuration, leftText, nextSamples } from "./eta";
 
 describe("countLine", () => {
   it("is just the message while nothing is counted (total 0)", () => {
@@ -45,5 +45,27 @@ describe("leftText", () => {
     expect(leftText(30_000)).toBe("under a minute left");
     expect(leftText(45 * 60_000)).toBe("about 45 min left");
     expect(leftText(null)).toBeNull();
+  });
+});
+
+describe("nextSamples", () => {
+  const queued = { state: "queued", progress: 0, total: 0 };
+  const running = { state: "running", progress: 0, total: 100 };
+  it("restarts when a long-queued job starts, so its wait is not counted as no progress", () => {
+    const waited = nextSamples(nextSamples(null, queued, 0), queued, 180_000);
+    const started = nextSamples(waited, running, 180_500);
+    expect(started.first).toEqual({ at: 180_500, done: 0 });
+    expect(started.last).toEqual({ at: 180_500, done: 0 });
+  });
+  it("moves only the last sample while counting", () => {
+    const a = nextSamples(null, running, 0);
+    const b = nextSamples(a, { ...running, progress: 10 }, 5_000);
+    expect(b.first).toEqual({ at: 0, done: 0 });
+    expect(b.last).toEqual({ at: 5_000, done: 10 });
+    expect(nextSamples(b, { ...running, progress: 10 }, 9_000)).toBe(b);
+  });
+  it("restarts when the total changes (a refused dry run starts over)", () => {
+    const a = nextSamples(nextSamples(null, running, 0), { ...running, progress: 50 }, 5_000);
+    expect(nextSamples(a, { ...running, progress: 0, total: 200 }, 6_000).first).toEqual({ at: 6_000, done: 0 });
   });
 });

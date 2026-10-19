@@ -51,6 +51,8 @@ export default function ImportTadb() {
   // real run is queued its job deletes the file itself, so only an unstarted upload is deleted here.
   const discard = () => {
     if (upload && !runJob) void call(api.DELETE("/import/tadb/{upload_id}", { params: { path: { upload_id: upload.upload_id } } }));
+    // A dry run still working would otherwise run on, block new uploads, and come back on reload.
+    if (upload && !runJob && !dry) void call(api.POST("/jobs/{job_id}/cancel", { params: { path: { job_id: upload.job_id } } })).catch(() => {});
     setUpload(null); setDry(null); setRunJob(null); setFailure("");
   };
   const report = (job: Job) => (job.state === "done" ? (job.result as unknown as Report) : null);
@@ -65,7 +67,7 @@ export default function ImportTadb() {
       {send.isPending && <p className="muted">Uploading…</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {failure && <p className="error" role="alert">{failure}</p>}
-      {upload && !dry && <JobProgress jobId={upload.job_id} outcome={() => null} onDone={(j) => { const r = report(j); if (r) setDry(r); else { setFailure(j.state === "cancelled" ? "Cancelled" : j.message || "The import check failed"); setUpload(null); } }} />}
+      {upload && !dry && !runJob && <JobProgress jobId={upload.job_id} outcome={() => null} onDone={(j) => { const r = report(j); if (r) setDry(r); else { setFailure(j.state === "cancelled" ? "Cancelled" : j.message || "The import check failed"); setUpload(null); } }} />}
       {dry && !runJob && (
         <>
           {dry.refused && <p className="box danger" role="status">{dry.refused}</p>}

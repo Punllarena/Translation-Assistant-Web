@@ -282,3 +282,9 @@ def test_pending_never_returns_another_users_job(app_client, make_user, login, e
     app_client.post("/auth/logout")
     login(app_client, "b@example.com")
     assert pending(app_client).status_code == 204
+
+
+def test_pending_is_empty_for_a_running_dry_run_whose_upload_is_gone(app_client, me, env):
+    r = upload(app_client, desktop_db(env / "src"))  # queued dry run
+    app_client.delete(f"/import/tadb/{r.json()['upload_id']}")
+    assert pending(app_client).status_code == 204

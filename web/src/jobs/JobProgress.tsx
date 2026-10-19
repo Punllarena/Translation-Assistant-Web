@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, call } from "../api/client";
-import { countLine, estimateLeft, formatDuration, leftText, type Sample } from "./eta";
+import { countLine, estimateLeft, formatDuration, leftText, nextSamples, type Samples } from "./eta";
 import { followJob, isTerminal, type Job } from "./follow";
 
 interface FetchResult {
@@ -16,8 +16,7 @@ const QUIET_MS = 60_000; // no progress change this long: say so, without callin
  * is false), then the outcome. `background` adds the "runs on the server" line. */
 export default function JobProgress({ jobId, onDone, outcome, cancellable = true, background = true }: { jobId: number; onDone?: (job: Job) => void; outcome?: (job: Job) => ReactNode; cancellable?: boolean; background?: boolean }) {
   const [job, setJob] = useState<Job | null>(null);
-  const first = useRef<Sample | null>(null);
-  const last = useRef<Sample | null>(null);
+  const samples = useRef<Samples | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [cancelError, setCancelError] = useState("");
   const [cancelling, setCancelling] = useState(false);
@@ -28,12 +27,10 @@ export default function JobProgress({ jobId, onDone, outcome, cancellable = true
     let finished = false;
     setJob(null);
     setLost(false);
-    first.current = last.current = null;
+    samples.current = null;
     return followJob(jobId, (j) => {
       setJob(j);
-      const at = Date.now();
-      if (!last.current || last.current.done !== j.progress) last.current = { at, done: j.progress };
-      first.current ??= last.current;
+      samples.current = nextSamples(samples.current, j, Date.now());
       if (isTerminal(j) && !finished) {
         finished = true;
         done.current?.(j);
@@ -64,9 +61,10 @@ export default function JobProgress({ jobId, onDone, outcome, cancellable = true
   if (!isTerminal(job)) {
     const counted = job.total > 1;
     const elapsed = job.started_at ? formatDuration(now - Date.parse(job.started_at)) : null;
-    const left = first.current && last.current ? leftText(estimateLeft(first.current, last.current, job.total)) : null;
-    const quiet = job.state === "running" && last.current && now - last.current.at >= QUIET_MS
-      ? Math.floor((now - last.current.at) / 60_000) : 0;
+    const s = samples.current;
+    const left = s ? leftText(estimateLeft(s.first, s.last, job.total)) : null;
+    const quiet = job.state === "running" && s && now - s.last.at >= QUIET_MS
+      ? Math.floor((now - s.last.at) / 60_000) : 0;
     return (
       <div className="stack job-progress">
         <label>
