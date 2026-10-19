@@ -18,6 +18,11 @@ export function useMe() {
   });
 }
 
+/** Whether the server still needs its first admin (/setup). */
+export function useSetupStatus() {
+  return useQuery({ queryKey: ["setup"], queryFn: () => call(api.GET("/setup")), staleTime: Infinity });
+}
+
 /** An expired session surfaces as a 401 on whatever request comes next. Marking the user
  *  signed out makes RequireAuth redirect to /login?next=<this page>. */
 export function signedOutOn401(queryClient: QueryClient, error: unknown) {

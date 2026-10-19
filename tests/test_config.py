@@ -58,3 +58,19 @@ def test_wp_private_urls_default_off(monkeypatch):
     monkeypatch.setenv("TA_SECRET_KEY", "x" * 32)
     monkeypatch.delenv("TA_WP_ALLOW_PRIVATE_URLS", raising=False)
     assert Settings(_env_file=None).wp_allow_private_urls is False
+
+
+def test_settings_read_the_key_file_when_no_key_is_set(monkeypatch, tmp_path):
+    key = tmp_path / "secret_key"
+    key.write_text("k" * 48 + "\n", encoding="utf-8")
+    monkeypatch.setenv("TA_SECRET_KEY", "")
+    monkeypatch.setenv("TA_SECRET_KEY_FILE", str(key))
+    assert Settings(_env_file=None).secret_key == "k" * 48
+
+
+def test_settings_prefer_an_explicit_key_over_the_file(monkeypatch, tmp_path):
+    key = tmp_path / "secret_key"
+    key.write_text("k" * 48, encoding="utf-8")
+    monkeypatch.setenv("TA_SECRET_KEY", "x" * 32)
+    monkeypatch.setenv("TA_SECRET_KEY_FILE", str(key))
+    assert Settings(_env_file=None).secret_key == "x" * 32

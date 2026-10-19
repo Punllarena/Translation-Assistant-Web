@@ -1,11 +1,14 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.concurrency import run_in_threadpool
 
 from api import jobs
+from api.accounts import has_users, setup_token
 from api.config import get_settings
+from api.db import SessionLocal
 from api.routers import (
     auth,
     credentials,
@@ -21,6 +24,7 @@ from api.routers import (
     scrape,
     series,
     settings,
+    setup,
     spell,
     stats,
     transfer,
@@ -32,9 +36,27 @@ from api.routers import (
 )
 from api.routing import CommitOnResponseRoute
 
+# uvicorn configures this logger, so the line shows in `docker compose logs api`.
+log = logging.getLogger("uvicorn.error")
+
+
+def announce_setup() -> None:
+    """On a server with no accounts, log the link that creates the first admin."""
+    with SessionLocal() as db:
+        if has_users(db):
+            return
+    s = get_settings()
+    # Insecure cookies mean plain http: the dev stack (Vite) has no TLS, Caddy always does.
+    scheme = "https" if s.cookie_secure else "http"
+    log.warning(
+        "First-run setup: no accounts exist. Create the admin at %s://%s/setup?token=%s",
+        scheme, s.site_address, setup_token(),
+    )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await run_in_threadpool(announce_setup)
     if not get_settings().run_jobs_worker:
         yield
         return
@@ -58,6 +80,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(auth.router)
+    app.include_router(setup.router)
     app.include_router(invites.router)
     app.include_router(profiles.router)
     app.include_router(glossary.router)

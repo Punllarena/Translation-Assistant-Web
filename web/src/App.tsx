@@ -2,6 +2,7 @@ import { createBrowserRouter, createRoutesFromElements, Route } from "react-rout
 import AcceptInvite from "./auth/AcceptInvite";
 import Login from "./auth/Login";
 import { RequireAuth } from "./auth/session";
+import Setup from "./auth/Setup";
 import EditorPage from "./editor/EditorPage";
 import SourcePage from "./editor/SourcePage";
 import ImportPage from "./library/ImportPage";
@@ -19,6 +20,7 @@ export const router = createBrowserRouter(
     <>
       <Route path="/login" element={<Login />} />
       <Route path="/invite" element={<AcceptInvite />} />
+      <Route path="/setup" element={<Setup />} />
       <Route element={<RequireAuth><Shell /></RequireAuth>}>
         <Route index element={<Picker />} />
         <Route path="import" element={<ImportPage />} />

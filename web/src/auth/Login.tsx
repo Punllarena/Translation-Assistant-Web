@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { Navigate, useSearchParams } from "react-router";
+import { Link, Navigate, useSearchParams } from "react-router";
 import { api, call } from "../api/client";
 import { safeNext } from "./next";
-import { forgetUserData, useMe } from "./session";
+import { forgetUserData, useMe, useSetupStatus } from "./session";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -13,6 +13,7 @@ export default function Login() {
   const [target, setTarget] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const me = useMe();
+  const setup = useSetupStatus();
   const login = useMutation({
     mutationFn: () => call(api.POST("/auth/login", { body: { email, password } })),
     onSuccess: async (user) => {
@@ -40,6 +41,12 @@ export default function Login() {
       <form className="auth-card" onSubmit={submit}>
         <span className="brand"><span className="mark" aria-hidden="true">訳</span>Translation Assistant</span>
         <h1>Sign in</h1>
+        {setup.data?.needed && (
+          <p className="box warn" role="status">
+            <span>This server has no accounts yet. Open the setup link printed in the server log
+              (<code>docker compose logs api</code>), or go to <Link to="/setup">setup</Link> and paste its token.</span>
+          </p>
+        )}
         <label className="field"><span>Email</span>
           <input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
         <label className="field"><span>Password</span>

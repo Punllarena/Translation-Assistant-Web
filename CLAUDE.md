@@ -62,6 +62,11 @@ the account's value wins once `/settings` arrives. Spec: `docs/superpowers/specs
 ## Commands
 
 ```bash
+docker compose up -d --build           # whole app at https://localhost; first-admin link in `docker compose logs api`
+docker compose --profile dev up        # hot reload: SPA :5173, API :8000 (dev image, source bind-mounted)
+docker compose run --rm tools pytest   # also: ruff check ., sh -c "cd web && npm test|npm run e2e|npm run gen:api"
+
+# Without Docker:
 docker compose up -d postgres          # Postgres on 127.0.0.1:5432
 pip install -e ".[dev]"                # in .venv
 pip install -e ".[dev,mecab]"          # full dev install (adds fugashi + unidic-lite)

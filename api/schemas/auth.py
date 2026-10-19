@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
@@ -12,3 +12,13 @@ class UserOut(BaseModel):
     id: int
     email: str
     is_admin: bool
+
+
+class SetupStatus(BaseModel):
+    needed: bool
+
+
+class SetupRequest(BaseModel):
+    token: str
+    email: EmailStr
+    password: str = Field(min_length=12)
