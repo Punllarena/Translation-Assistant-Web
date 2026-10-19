@@ -117,3 +117,6 @@ _settings = get_settings()
 # address-keyed state that constrains that attacker.
 address_limiter = LoginLimiter(_settings.login_max_attempts, _settings.login_window_seconds)
 email_limiter = LoginLimiter(_settings.login_max_attempts, _settings.login_window_seconds)
+# Keyed "user:<id>" and never answered with 429: an exhausted account fails like a wrong
+# password, so it caps guesses across email and username without linking the two.
+account_limiter = LoginLimiter(_settings.login_max_attempts, _settings.login_window_seconds)

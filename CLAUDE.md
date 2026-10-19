@@ -63,7 +63,8 @@ override `TA_OLLAMA_URL`, `TA_LIBRETRANSLATE_URL`, `TA_MT_ALLOW_PRIVATE_URLS`, `
 `get_settings()` for those keys). Accounts have a `username` (3–32 of `A-Za-z0-9_.-`, unique ignoring
 case, shown instead of the email); `/auth/login` takes `login`, an email when it contains `@`, otherwise a
 username; the account rate bucket is keyed by that normalised string, never by the matched account (a
-shared bucket would link a username to its email). `TA_DATA_DIR` holds `dict/` (EDICT2 and Conjugations; `TA_EDICT_PATH` /
+shared 429 would link a username to its email); a hidden `account_limiter` (`user:<id>`) caps the account
+itself, and an exhausted account answers like a wrong password (401, dummy hash paid). `TA_DATA_DIR` holds `dict/` (EDICT2 and Conjugations; `TA_EDICT_PATH` /
 `TA_CONJUGATIONS_PATH` still win) and `uploads/` (pending `ta.db` imports, swept after 24 h). EDICT2 download is
 the `dict_download` job (`api/dict_job.py`); `ta.db` import is the `tadb_import` job (`api/tadb_job.py`, dry run
 then run). The importer lives in `api/core/tadb_*.py`; `tools/import_tadb.py` is its CLI.
