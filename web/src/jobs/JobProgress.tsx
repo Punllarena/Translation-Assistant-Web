@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, call } from "../api/client";
+import { countLine, estimateLeft, formatDuration, leftText, type Sample } from "./eta";
 import { followJob, isTerminal, type Job } from "./follow";
 
 interface FetchResult {
@@ -9,9 +10,15 @@ interface FetchResult {
   errors?: { num: number; message: string }[];
 }
 
-/** Follows one job over SSE: a progress bar, Cancel (unless cancellable is false), then the outcome. */
-export default function JobProgress({ jobId, onDone, outcome, cancellable = true }: { jobId: number; onDone?: (job: Job) => void; outcome?: (job: Job) => ReactNode; cancellable?: boolean }) {
+const QUIET_MS = 60_000; // no progress change this long: say so, without calling it stuck
+
+/** Follows one job over SSE: counts, elapsed time and an estimate, Cancel (unless cancellable
+ * is false), then the outcome. `background` adds the "runs on the server" line. */
+export default function JobProgress({ jobId, onDone, outcome, cancellable = true, background = true }: { jobId: number; onDone?: (job: Job) => void; outcome?: (job: Job) => ReactNode; cancellable?: boolean; background?: boolean }) {
   const [job, setJob] = useState<Job | null>(null);
+  const first = useRef<Sample | null>(null);
+  const last = useRef<Sample | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [cancelError, setCancelError] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [lost, setLost] = useState(false);
@@ -21,14 +28,24 @@ export default function JobProgress({ jobId, onDone, outcome, cancellable = true
     let finished = false;
     setJob(null);
     setLost(false);
+    first.current = last.current = null;
     return followJob(jobId, (j) => {
       setJob(j);
+      const at = Date.now();
+      if (!last.current || last.current.done !== j.progress) last.current = { at, done: j.progress };
+      first.current ??= last.current;
       if (isTerminal(j) && !finished) {
         finished = true;
         done.current?.(j);
       }
     }, EventSource, () => setLost(true));
   }, [jobId]);
+  const running = job !== null && !isTerminal(job);
+  useEffect(() => {
+    if (!running) return;
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, [running]);
   const cancel = async () => {
     setCancelError("");
     setCancelling(true);
@@ -45,12 +62,20 @@ export default function JobProgress({ jobId, onDone, outcome, cancellable = true
   }
   if (!job) return <p className="muted">Starting…</p>;
   if (!isTerminal(job)) {
+    const counted = job.total > 1;
+    const elapsed = job.started_at ? formatDuration(now - Date.parse(job.started_at)) : null;
+    const left = first.current && last.current ? leftText(estimateLeft(first.current, last.current, job.total)) : null;
+    const quiet = job.state === "running" && last.current && now - last.current.at >= QUIET_MS
+      ? Math.floor((now - last.current.at) / 60_000) : 0;
     return (
-      <div className="stack">
+      <div className="stack job-progress">
         <label>
-          {job.message || "Working…"}{" "}
-          <progress max={job.total || undefined} value={job.progress} />
+          {job.state === "queued" ? "Waiting for another job to finish" : countLine({ ...job, message: job.message || "Working…" })}
+          {counted ? <progress max={job.total} value={job.progress} /> : <progress />}
         </label>
+        {job.state === "running" && elapsed && <p className="hint">{elapsed} elapsed{left && ` · ${left}`}</p>}
+        {quiet > 0 && <p className="hint">No progress for {quiet} min. It may still be working; large steps can take a while.</p>}
+        {background && <p className="hint">Runs on the server — you can leave this page and come back.</p>}
         {cancellable && <div className="toolbar"><button type="button" disabled={cancelling} onClick={cancel}>Cancel</button></div>}
         {cancelError && <p className="error" role="alert">{cancelError}</p>}
       </div>
