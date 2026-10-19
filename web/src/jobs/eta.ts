@@ -33,16 +33,23 @@ export function leftText(ms: number | null): string | null {
   return ms < 60_000 ? "under a minute left" : `about ${formatDuration(ms)} left`;
 }
 
-/** The first and latest progress the page saw, for the estimate and the quiet warning. */
-export interface Samples { first: Sample; last: Sample; key: string }
+/** Recent progress the page saw, for the estimate and the quiet warning. `first` is the
+ * oldest point in the last WINDOW_MS, so the estimate follows the current phase's rate. */
+export interface Samples { first: Sample; last: Sample; key: string; points: Sample[] }
+
+const WINDOW_MS = 30_000;
 
 /** Starts over when the job's state or total changes (a long wait in the queue is not slow
- * progress); otherwise moves `last` only when the count moves. */
+ * progress); otherwise records a point when the count moves and drops points older than the
+ * window, keeping one at or before its start. */
 export function nextSamples(prev: Samples | null, job: Pick<Job, "state" | "progress" | "total">, at: number): Samples {
   const key = `${job.state}/${job.total}`;
   if (!prev || prev.key !== key) {
     const s = { at, done: job.progress };
-    return { first: s, last: s, key };
+    return { first: s, last: s, key, points: [s] };
   }
-  return prev.last.done === job.progress ? prev : { ...prev, last: { at, done: job.progress } };
+  if (prev.last.done === job.progress) return prev;
+  const points = [...prev.points, { at, done: job.progress }];
+  while (points.length > 2 && points[1].at <= at - WINDOW_MS) points.shift();
+  return { first: points[0], last: points[points.length - 1], key, points };
 }

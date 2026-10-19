@@ -69,3 +69,17 @@ describe("nextSamples", () => {
     expect(nextSamples(a, { ...running, progress: 0, total: 200 }, 6_000).first).toEqual({ at: 6_000, done: 0 });
   });
 });
+
+describe("estimate window", () => {
+  it("follows the recent rate after a slow phase, not the average since the start", () => {
+    const job = { state: "running", total: 100_000 };
+    let s = nextSamples(null, { ...job, progress: 0 }, 0);
+    s = nextSamples(s, { ...job, progress: 1_600 }, 25_000);   // slow phase: 64 rows/s
+    s = nextSamples(s, { ...job, progress: 31_600 }, 35_000);  // fast phase: 3,000 rows/s
+    s = nextSamples(s, { ...job, progress: 61_600 }, 45_000);
+    s = nextSamples(s, { ...job, progress: 91_600 }, 55_000);
+    // the window holds the last 30 s (the 25 s point onwards): 90,000 rows in 30 s
+    expect(s.first).toEqual({ at: 25_000, done: 1_600 });
+    expect(estimateLeft(s.first, s.last, job.total)).toBeCloseTo(2_800, -1);
+  });
+});
