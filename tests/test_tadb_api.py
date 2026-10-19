@@ -237,3 +237,48 @@ def test_cancel_during_a_real_import_leaves_nothing(app_client, me, env, db, mon
     assert job(app_client, run.json()["id"])["state"] == "cancelled"
     assert db.query(Document).filter_by(user_id=me.id).count() == 0
     assert db.query(Line).count() == 0
+
+
+def pending(client):
+    return client.get("/import/tadb/pending")
+
+
+def test_pending_returns_the_running_job(app_client, me, env):
+    r = upload(app_client, desktop_db(env / "src"))
+    got = pending(app_client)
+    assert got.status_code == 200
+    assert got.json()["job"]["id"] == r.json()["job_id"]
+    assert got.json()["upload_id"] == r.json()["upload_id"]
+
+
+def test_pending_returns_a_finished_dry_run_while_its_upload_exists(app_client, me, env):
+    r = upload(app_client, desktop_db(env / "src"))
+    jobs.run_next()
+    got = pending(app_client).json()
+    assert got["job"]["state"] == "done" and got["job"]["result"]["dry_run"] is True
+    assert got["upload_id"] == r.json()["upload_id"]
+
+
+def test_pending_is_empty_once_the_upload_is_discarded(app_client, me, env):
+    r = upload(app_client, desktop_db(env / "src"))
+    jobs.run_next()
+    app_client.delete(f"/import/tadb/{r.json()['upload_id']}")
+    assert pending(app_client).status_code == 204
+
+
+def test_pending_is_empty_after_a_real_run(app_client, me, env):
+    r = upload(app_client, desktop_db(env / "src"))
+    jobs.run_next()
+    app_client.post(f"/import/tadb/{r.json()['upload_id']}/run", json={})
+    jobs.run_next()
+    assert pending(app_client).status_code == 204
+
+
+def test_pending_never_returns_another_users_job(app_client, make_user, login, env):
+    make_user(email="a@example.com")
+    make_user(email="b@example.com")
+    login(app_client, "a@example.com")
+    upload(app_client, desktop_db(env / "src"))
+    app_client.post("/auth/logout")
+    login(app_client, "b@example.com")
+    assert pending(app_client).status_code == 204
