@@ -7,7 +7,7 @@ __pycache__/
 dist/
 *.egg-info/
 *.db
-node_modules/
+node_modules
 web/openapi.json
 web/test-results/
 web/playwright-report/
