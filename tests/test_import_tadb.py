@@ -435,3 +435,16 @@ def test_a_bad_line_skips_only_itself_in_its_batch(db, make_user, tmp_path):
     doc = db.query(Document).filter_by(user_id=user.id).one()
     assert db.query(Line).filter_by(document_id=doc.id).count() == 1
     assert report.written["lines"] == 1
+
+
+def test_progress_counts_every_document_line_and_image(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    conn = sqlite3.connect(path)
+    total = sum(conn.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
+                for t in ("documents", "lines", "document_images"))
+    conn.close()
+    calls = []
+    import_tadb(db, path, make_user().id, on_progress=lambda *c: calls.append(c))
+    assert calls[-1] == (total, total, "Importing images")
+    assert [c[0] for c in calls] == sorted(c[0] for c in calls)
+    assert {c[2] for c in calls} <= {"Importing chapters", "Importing lines", "Importing images"}

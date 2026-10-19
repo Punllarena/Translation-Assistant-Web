@@ -1,6 +1,7 @@
 """Row importers: desktop ta.db tables -> ORM objects, one SAVEPOINT per row."""
 
 import sqlite3
+from collections.abc import Callable
 
 from sqlalchemy import func, inspect, select
 from sqlalchemy.exc import DataError, IntegrityError
@@ -35,12 +36,25 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_TEXT_CHARS = 100_000
 
 
+class Progress:
+    """Cumulative count over documents, lines and images, so one rate covers the run."""
+
+    def __init__(self, total: int, verb: str, cb: Callable[[int, int, str], None] | None):
+        self.done, self.total, self.verb, self.cb = 0, total, verb, cb
+
+    def step(self, n: int, phase: str) -> None:
+        self.done += n
+        if self.cb:
+            self.cb(self.done, self.total, f"{self.verb} {phase}")
+
+
 def _import_all(
-    conn: sqlite3.Connection, db: Session, user_id: int, report: ImportReport
+    conn: sqlite3.Connection, db: Session, user_id: int, report: ImportReport,
+    progress: Progress,
 ) -> None:
     profiles_by_name = _import_profiles(conn, db, user_id, report)
     series_by_title = _import_series(conn, db, user_id, report, profiles_by_name)
-    _import_documents(conn, db, user_id, report, series_by_title)
+    _import_documents(conn, db, user_id, report, series_by_title, progress)
 
 
 def _too_long(values: dict, table: str, label: str, report: ImportReport) -> bool:
@@ -227,11 +241,13 @@ def _import_documents(
     user_id: int,
     report: ImportReport,
     series_by_title: dict[str, Series],
+    progress: Progress,
 ) -> None:
     volumes: dict[tuple[int, str], Volume | None] = {}
     id_map: dict[int, Document] = {}
 
     for row in conn.execute("SELECT * FROM documents"):
+        progress.step(1, "chapters")
         label = f"row {row['id']}"
         series_title = _get(row, "documents", "series_title", "")
         vol_title = _get(row, "documents", "volume_title", "")
@@ -286,6 +302,7 @@ def _import_documents(
     line_counts: dict[int, int] = {}
     batch: list[tuple[str, dict]] = []
     for row in conn.execute("SELECT * FROM lines ORDER BY document_id, line_number"):
+        progress.step(1, "lines")  # report() throttles, so per row is cheap
         doc = id_map.get(row["document_id"])
         if doc is None:
             _orphan(report, "lines", row, f"document_id {row['document_id']}")
@@ -322,6 +339,7 @@ def _import_documents(
     insert_lines(db, batch, report)
 
     for row in conn.execute("SELECT * FROM document_images"):
+        progress.step(1, "images")
         doc = id_map.get(row["document_id"])
         if doc is None:
             _orphan(report, "document_images", row, f"document_id {row['document_id']}")
@@ -339,3 +357,4 @@ def _import_documents(
             exclude_export=bool(_get(row, "document_images", "exclude_export", 0)),
         )
         _add(db, image, "document_images", f"row {row['id']}", report)
+    progress.step(0, "images")  # the final count lands even with no images
