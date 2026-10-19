@@ -125,6 +125,7 @@ that database each run; conftest refuses any database name not ending in `_test`
 - MT backends take an injected `httpx.AsyncClient`; tests use `httpx.MockTransport` fixtures
   (`tests/fixtures/mt/`), never live endpoints. The `/mt/stream` cache write runs in its own session
   (`_put_sync` in `api/routers/mt.py`), one of two sanctioned commits outside the route boundary; the other is the
-  job worker (`JobContext.progress` and `run_next` in `api/jobs.py`). WordPress calls take an injected `httpx.Client`
+  job worker (`JobContext.progress`, `JobContext.report` (job row only, its own session, throttled)
+  and `run_next` in `api/jobs.py`). WordPress calls take an injected `httpx.Client`
   the same way (`http_client` seams in `api/routers/wp.py` and `api/publish_job.py`).
 - Tests set `TA_RUN_JOBS_WORKER=false` and drive jobs with `jobs.run_next()`, swapping `api.jobs.SessionLocal` for the test session.
