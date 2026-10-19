@@ -27,3 +27,9 @@ export function followJob(id: number, onJob: (job: Job) => void, Source = EventS
   };
   return () => { closed = true; source.close(); };
 }
+
+/** True for a mutation result that started a job: a JobOut, or a ta.db upload ({ job_id }). */
+export function startsJob(data: unknown): boolean {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  return "job_id" in data || ("kind" in data && "state" in data);
+}
