@@ -195,3 +195,96 @@ def test_job_result_messages_are_truncated(app_client, me, env, monkeypatch):
     r = upload(app_client, src)
     messages = job(app_client, r.json()["job_id"])["result"]["messages"]
     assert messages and all(len(m) <= 11 for m in messages)
+
+
+def _spy_report(monkeypatch, before=None):
+    calls = []
+    real = jobs.JobContext.report
+
+    def spy(self, done, total, message=""):
+        if before and not calls:
+            before(self)
+        calls.append((done, total, message))
+        return real(self, done, total, message)
+
+    monkeypatch.setattr(jobs.JobContext, "report", spy)
+    return calls
+
+
+def test_dry_run_with_progress_reports_writes_nothing(app_client, me, env, db, monkeypatch):
+    calls = _spy_report(monkeypatch)
+    r = upload(app_client, desktop_db(env / "src"))
+    assert job(app_client, r.json()["job_id"])["state"] == "done"
+    assert db.query(Document).filter_by(user_id=me.id).count() == 0
+    done, total, message = calls[-1]
+    assert done == total and total > 0 and message == "Checking images"
+
+
+def test_cancel_during_a_real_import_leaves_nothing(app_client, me, env, db, monkeypatch):
+    from sqlalchemy import update
+
+    from api.models import Job, Line
+    r = upload(app_client, desktop_db(env / "src"))
+    job(app_client, r.json()["job_id"])
+    run = app_client.post(f"/import/tadb/{r.json()['upload_id']}/run", json={"force": False})
+
+    def cancel(ctx):  # what POST /jobs/{id}/cancel does, from another session
+        with jobs.progress_session() as s:
+            s.execute(update(Job).where(Job.id == ctx.job.id).values(cancel_requested=True))
+            s.commit()
+
+    _spy_report(monkeypatch, before=cancel)
+    assert job(app_client, run.json()["id"])["state"] == "cancelled"
+    assert db.query(Document).filter_by(user_id=me.id).count() == 0
+    assert db.query(Line).count() == 0
+
+
+def pending(client):
+    return client.get("/import/tadb/pending")
+
+
+def test_pending_returns_the_running_job(app_client, me, env):
+    r = upload(app_client, desktop_db(env / "src"))
+    got = pending(app_client)
+    assert got.status_code == 200
+    assert got.json()["job"]["id"] == r.json()["job_id"]
+    assert got.json()["upload_id"] == r.json()["upload_id"]
+
+
+def test_pending_returns_a_finished_dry_run_while_its_upload_exists(app_client, me, env):
+    r = upload(app_client, desktop_db(env / "src"))
+    jobs.run_next()
+    got = pending(app_client).json()
+    assert got["job"]["state"] == "done" and got["job"]["result"]["dry_run"] is True
+    assert got["upload_id"] == r.json()["upload_id"]
+
+
+def test_pending_is_empty_once_the_upload_is_discarded(app_client, me, env):
+    r = upload(app_client, desktop_db(env / "src"))
+    jobs.run_next()
+    app_client.delete(f"/import/tadb/{r.json()['upload_id']}")
+    assert pending(app_client).status_code == 204
+
+
+def test_pending_is_empty_after_a_real_run(app_client, me, env):
+    r = upload(app_client, desktop_db(env / "src"))
+    jobs.run_next()
+    app_client.post(f"/import/tadb/{r.json()['upload_id']}/run", json={})
+    jobs.run_next()
+    assert pending(app_client).status_code == 204
+
+
+def test_pending_never_returns_another_users_job(app_client, make_user, login, env):
+    make_user(email="a@example.com")
+    make_user(email="b@example.com")
+    login(app_client, "a@example.com")
+    upload(app_client, desktop_db(env / "src"))
+    app_client.post("/auth/logout")
+    login(app_client, "b@example.com")
+    assert pending(app_client).status_code == 204
+
+
+def test_pending_is_empty_for_a_running_dry_run_whose_upload_is_gone(app_client, me, env):
+    r = upload(app_client, desktop_db(env / "src"))  # queued dry run
+    app_client.delete(f"/import/tadb/{r.json()['upload_id']}")
+    assert pending(app_client).status_code == 204

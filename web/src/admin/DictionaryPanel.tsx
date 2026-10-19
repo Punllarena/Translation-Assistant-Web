@@ -11,6 +11,12 @@ export default function DictionaryPanel() {
   const queryClient = useQueryClient();
   const [jobId, setJobId] = useState<number | null>(null);
   const [failure, setFailure] = useState("");
+  // A download started earlier (or in another tab) is picked up again on return.
+  const active = useQuery({
+    queryKey: ["jobs", "active", "dict_download"], gcTime: 0,
+    queryFn: () => call(api.GET("/jobs", { params: { query: { active: true } } })),
+  });
+  const running = jobId ?? active.data?.find((j) => j.kind === "dict_download")?.id ?? null;
   const q = useQuery({ queryKey: ["admin", "dictionary"], queryFn: () => call(api.GET("/admin/dictionary")) });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["admin", "dictionary"] });
   const download = useMutation({
@@ -48,7 +54,7 @@ export default function DictionaryPanel() {
             </span>
             {!fromEnv && (
               <div className="toolbar">
-                {kind === "edict" && <button type="button" className="primary" disabled={download.isPending || jobId !== null} onClick={() => download.mutate()}>Download from EDRDG</button>}
+                {kind === "edict" && <button type="button" className="primary" disabled={download.isPending || running !== null} onClick={() => download.mutate()}>Download from EDRDG</button>}
                 <input type="file" aria-label={`Upload ${LABEL[kind]}`}
                   onChange={(e) => { const file = e.currentTarget.files?.[0]; if (file) upload.mutate({ kind, file }); e.currentTarget.value = ""; }} />
                 {s.present && <button type="button" onClick={() => remove.mutate(kind)}>Remove</button>}
@@ -57,7 +63,7 @@ export default function DictionaryPanel() {
           </div>
         );
       })}
-      {jobId !== null && <JobProgress jobId={jobId} outcome={() => null} onDone={(j) => { if (j.state !== "done") setFailure(j.state === "cancelled" ? "Cancelled" : j.message || "The download failed"); setJobId(null); void refresh(); }} />}
+      {running !== null && <JobProgress jobId={running} outcome={() => null} onDone={(j) => { if (j.state !== "done") setFailure(j.state === "cancelled" ? "Cancelled" : j.message || "The download failed"); setJobId(null); queryClient.removeQueries({ queryKey: ["jobs", "active", "dict_download"] }); void active.refetch(); void refresh(); }} />}
     </section>
   );
 }

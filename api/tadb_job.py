@@ -45,9 +45,11 @@ def _dry_run(ctx: JobContext, path, user_id: int, force: bool) -> dict:
     """Counts always; `refused` when a real run without force would be refused, so the
     SPA can offer Import anyway next to the numbers it is decided on."""
     try:
-        report = import_tadb(ctx.db, path, user_id, dry_run=True, force=force)
+        report = import_tadb(ctx.db, path, user_id, dry_run=True, force=force,
+                             on_progress=ctx.report)
     except Refused as exc:
-        report = import_tadb(ctx.db, path, user_id, dry_run=True, force=True)
+        report = import_tadb(ctx.db, path, user_id, dry_run=True, force=True,
+                             on_progress=ctx.report)
         return _result(True, report, _user_text(exc))
     refused = None if force or not report.existing_documents else _not_empty(
         report.existing_documents)
@@ -69,7 +71,8 @@ def run_import(ctx: JobContext) -> dict:
                 result = _dry_run(ctx, path, user_id, force)
                 keep = True
                 return result
-            return _result(False, import_tadb(ctx.db, path, user_id, force=force), None)
+            return _result(False, import_tadb(ctx.db, path, user_id, force=force,
+                                              on_progress=ctx.report), None)
         except Refused as exc:
             raise JobError(_user_text(exc)) from exc
         except RuntimeError as exc:  # schema checks: "... not a desktop ta.db"

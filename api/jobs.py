@@ -3,7 +3,9 @@
 One asyncio task, started in the app lifespan, runs one job at a time in the
 threadpool. A handler gets a JobContext: its own session (committed at each
 progress point, so the work so far and the progress land together) and the job row.
-This and the /mt/stream cache write are the only commits outside the request
+``report()`` is the other progress path: it writes only the job row, from its own
+session, for work that must not be committed mid-way (the ta.db import's SAVEPOINT).
+These and the /mt/stream cache write are the only commits outside the request
 boundary (CLAUDE.md).
 
 # ponytail: in-process worker, single replica. Swap for arq + Redis when the
@@ -13,6 +15,7 @@ boundary (CLAUDE.md).
 import asyncio
 import logging
 import threading
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 
@@ -35,6 +38,9 @@ TERMINAL = {"done", "failed", "cancelled"}
 INTERRUPTED = "interrupted by a server restart; start it again to resume"
 HANDLERS: dict[str, Callable[["JobContext"], dict]] = {}
 stopping = threading.Event()  # set by the lifespan on shutdown
+progress_session = SessionLocal  # report()'s own session; tests swap it
+_clock = time.monotonic
+REPORT_EVERY = 1.0  # seconds between report() writes
 
 
 class JobError(Exception):
@@ -60,6 +66,7 @@ class JobContext:
     def __init__(self, db: Session, job: Job) -> None:
         self.db = db
         self.job = job
+        self._reported_at: float | None = None
 
     @property
     def params(self) -> dict:
@@ -73,6 +80,26 @@ class JobContext:
         if stopping.is_set():
             raise _Interrupted
         if self.job.cancel_requested:
+            raise Cancelled
+
+    def report(self, done: int, total: int, message: str = "") -> None:
+        """Write progress to the job row only, from its own session, at most once a second
+        (the final count always lands). Never commits the work session."""
+        now = _clock()
+        if (self._reported_at is not None and done < total
+                and now - self._reported_at < REPORT_EVERY):
+            return
+        with progress_session() as s:
+            cancel = s.scalar(
+                update(Job).where(Job.id == self.job.id)
+                .values(progress=done, total=total, message=message)
+                .returning(Job.cancel_requested)
+            )
+            s.commit()
+        self._reported_at = now
+        if stopping.is_set():
+            raise _Interrupted
+        if cancel:
             raise Cancelled
 
 

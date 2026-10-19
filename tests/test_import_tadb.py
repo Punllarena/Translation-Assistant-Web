@@ -331,17 +331,17 @@ def test_transient_database_errors_abort_instead_of_being_skipped(
 
     user = make_user()
     path = _desktop_db(tmp_path)
-    real_add = db.add
+    real_execute = db.execute
 
-    def flaky(obj, *a, **kw):
-        if isinstance(obj, Line):
+    def flaky(stmt, *a, **kw):
+        if getattr(getattr(stmt, "table", None), "name", None) == "lines":  # the line INSERT
             raise OperationalError("stmt", {}, Exception("statement timeout"))
-        return real_add(obj, *a, **kw)
+        return real_execute(stmt, *a, **kw)
 
-    monkeypatch.setattr(db, "add", flaky)
+    monkeypatch.setattr(db, "execute", flaky)
     with pytest.raises(OperationalError):
         import_tadb(db, path, user.id)
-    monkeypatch.setattr(db, "add", real_add)
+    monkeypatch.setattr(db, "execute", real_execute)
     assert db.query(Document).filter_by(user_id=user.id).count() == 0
     assert db.query(UserSetting).filter_by(user_id=user.id).count() == 0
     import_tadb(db, path, user.id)  # not refused: nothing was recorded
@@ -423,3 +423,28 @@ def test_oversized_text_fields_are_skipped_in_every_table(db, make_user, tmp_pat
     assert doc is None
     assert report.skipped["documents"] == 1
     assert any("longer than 5 characters" in m for m in report.messages)
+
+
+def test_a_bad_line_skips_only_itself_in_its_batch(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "UPDATE lines SET raw_text = 'a' || char(0) || 'b' WHERE id = 1")
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    assert report.skipped["lines"] == 1
+    assert [m for m in report.messages if m.startswith("lines row 1:")]
+    doc = db.query(Document).filter_by(user_id=user.id).one()
+    assert db.query(Line).filter_by(document_id=doc.id).count() == 1
+    assert report.written["lines"] == 1
+
+
+def test_progress_counts_every_document_line_and_image(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    conn = sqlite3.connect(path)
+    total = sum(conn.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
+                for t in ("documents", "lines", "document_images"))
+    conn.close()
+    calls = []
+    import_tadb(db, path, make_user().id, on_progress=lambda *c: calls.append(c))
+    assert calls[-1] == (total, total, "Importing images")
+    assert [c[0] for c in calls] == sorted(c[0] for c in calls)
+    assert {c[2] for c in calls} <= {"Importing chapters", "Importing lines", "Importing images"}

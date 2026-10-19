@@ -69,7 +69,11 @@ Each bucket is charged before the password verify with `LoginLimiter.try_acquire
 and cleared on success, so concurrent requests cannot outrun the cap; `record_failure` is only a test seam. `TA_DATA_DIR` holds `dict/` (EDICT2 and Conjugations; `TA_EDICT_PATH` /
 `TA_CONJUGATIONS_PATH` still win) and `uploads/` (pending `ta.db` imports, swept after 24 h). EDICT2 download is
 the `dict_download` job (`api/dict_job.py`); `ta.db` import is the `tadb_import` job (`api/tadb_job.py`, dry run
-then run). The importer lives in `api/core/tadb_*.py`; `tools/import_tadb.py` is its CLI.
+then run). The importer lives in `api/core/tadb_*.py`; `tools/import_tadb.py` is its CLI. It reports
+progress through `JobContext.report` (job row only, so a dry run still writes nothing; Cancel rolls the whole
+import back) and inserts lines in Core batches of 1,000 (`api/core/tadb_lines.py`), retrying a rejected batch row
+by row. `GET /import/tadb/pending` lets the import card resume; the header's running-jobs button polls
+`GET /jobs?active=true`.
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
@@ -128,6 +132,7 @@ that database each run; conftest refuses any database name not ending in `_test`
 - MT backends take an injected `httpx.AsyncClient`; tests use `httpx.MockTransport` fixtures
   (`tests/fixtures/mt/`), never live endpoints. The `/mt/stream` cache write runs in its own session
   (`_put_sync` in `api/routers/mt.py`), one of two sanctioned commits outside the route boundary; the other is the
-  job worker (`JobContext.progress` and `run_next` in `api/jobs.py`). WordPress calls take an injected `httpx.Client`
+  job worker (`JobContext.progress`, `JobContext.report` (job row only, its own session, throttled)
+  and `run_next` in `api/jobs.py`). WordPress calls take an injected `httpx.Client`
   the same way (`http_client` seams in `api/routers/wp.py` and `api/publish_job.py`).
 - Tests set `TA_RUN_JOBS_WORKER=false` and drive jobs with `jobs.run_next()`, swapping `api.jobs.SessionLocal` for the test session.

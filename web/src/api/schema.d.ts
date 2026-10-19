@@ -573,6 +573,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/import/tadb/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pending
+         * @description What the import card should show on return: the newest ta.db job when it is still
+         *     going, or when it is a finished dry run whose upload is still here (Discard deletes it,
+         *     the sweeper removes it after 24 h).
+         */
+        get: operations["pending_import_tadb_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/import/tadb/{upload_id}": {
         parameters: {
             query?: never;
@@ -2406,6 +2428,12 @@ export interface components {
             /** Terms */
             terms: components["schemas"]["Term"][];
         };
+        /** TadbPendingOut */
+        TadbPendingOut: {
+            job: components["schemas"]["JobOut"];
+            /** Upload Id */
+            upload_id: string;
+        };
         /** TadbRunIn */
         TadbRunIn: {
             /**
@@ -3816,6 +3844,33 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    pending_import_tadb_pending_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TadbPendingOut"];
+                };
+            };
+            /** @description Nothing to resume */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
