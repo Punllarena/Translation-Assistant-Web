@@ -20,8 +20,13 @@ export default function SetupPage() {
   return (
     <main className="settings">
       <h1>Set up Translation Assistant</h1>
-      <ol className="muted" aria-label="Setup steps">
-        {STEPS.map((s, i) => <li key={s} aria-current={i === step ? "step" : undefined}>{s}</li>)}
+      <ol className="wizard-steps" aria-label="Setup steps">
+        {STEPS.map((s, i) => (
+          <li key={s} className={i < step ? "done" : undefined} aria-current={i === step ? "step" : undefined}>
+            <span className="dot" aria-hidden="true">{i < step ? "✓" : i + 1}</span>
+            <span className="step-name">{s}</span>
+          </li>
+        ))}
       </ol>
       {step === 0 && <CreateAdmin onDone={next} />}
       {step === 1 && (
@@ -65,7 +70,7 @@ function CreateAdmin({ onDone }: { onDone: () => void }) {
   const queryClient = useQueryClient();
   const [mismatch, setMismatch] = useState(false);
   const claim = useMutation({
-    mutationFn: (body: { email: string; password: string }) => call(api.POST("/setup/admin", { body })),
+    mutationFn: (body: { email: string; username: string; password: string }) => call(api.POST("/setup/admin", { body })),
     onSuccess: (user) => {
       queryClient.setQueryData(["me"], user);
       queryClient.setQueryData(["setup"], { needs_setup: false });
@@ -81,14 +86,16 @@ function CreateAdmin({ onDone }: { onDone: () => void }) {
     const f = new FormData(e.currentTarget);
     const password = String(f.get("password"));
     setMismatch(password !== String(f.get("repeat")));
-    if (password === String(f.get("repeat"))) claim.mutate({ email: String(f.get("email")), password });
+    if (password === String(f.get("repeat"))) claim.mutate({ email: String(f.get("email")), username: String(f.get("username")), password });
   };
   const taken = claim.error instanceof ApiError && claim.error.status === 409;
   return (
     <form className="panel sec" aria-labelledby="admin-h" onSubmit={submit}>
       <div className="sec-head"><h2 id="admin-h">Create the admin account</h2></div>
       <p className="hint">The first account is the administrator. Create it before you expose this site through Cloudflare Tunnel.</p>
-      <label className="field"><span>Email</span><input name="email" type="email" required autoComplete="username" /></label>
+      <label className="field"><span>Email</span><input name="email" type="email" required autoComplete="email" /></label>
+      <label className="field"><span>Username</span><input name="username" required minLength={3} maxLength={32} pattern="[A-Za-z0-9_.\-]+" autoComplete="nickname" aria-describedby="username-hint" /></label>
+      <p id="username-hint" className="hint">Shown instead of your email. Letters, numbers, <code>_</code> <code>-</code> <code>.</code></p>
       <label className="field"><span>Password</span><input name="password" type="password" required minLength={12} autoComplete="new-password" /></label>
       <label className="field"><span>Repeat password</span><input name="repeat" type="password" required minLength={12} autoComplete="new-password" /></label>
       {mismatch && <p className="error" role="alert">The passwords do not match.</p>}

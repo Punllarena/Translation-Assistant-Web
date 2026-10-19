@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from api.accounts import USERNAME_PATTERN
+
 
 class InviteCreate(BaseModel):
     email: EmailStr | None = None
@@ -26,4 +28,5 @@ class InviteOut(BaseModel):
 class AcceptInvite(BaseModel):
     token: str
     email: EmailStr
+    username: str = Field(pattern=USERNAME_PATTERN)
     password: str = Field(min_length=12)

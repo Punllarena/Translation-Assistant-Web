@@ -5,7 +5,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from api.accounts import start_session
+from api.accounts import find_by_username, start_session
 from api.deps import COOKIE_NAME, current_user, db_session
 from api.models import Invite, Profile, User
 from api.models import Session as SessionRow
@@ -28,13 +28,13 @@ router = api_router(prefix="/auth", tags=["auth"])
 _DUMMY_HASH = hash_password("dummy-password-for-timing-equalisation")
 
 
-def _rate_keys(request: Request, email: str) -> tuple[str, str]:
+def _rate_keys(request: Request, account: str) -> tuple[str, str]:
     # Address bucket plus per-account bucket. Never derive these from client-supplied
     # headers (X-Forwarded-For): the attacker would choose their own bucket. Behind a
     # reverse proxy, run uvicorn with --proxy-headers (and a trusted --forwarded-allow-ips)
     # or request.client.host will be the proxy's address for everyone (Task 11 / Caddy).
     host = request.client.host if request.client else "unknown"
-    return host, email
+    return host, account
 
 
 @router.post("/login", response_model=UserOut)
@@ -44,12 +44,18 @@ def login(
     response: Response,
     db: Session = Depends(db_session),
 ) -> User:
-    email = body.email.strip().lower()
-    addr_key, email_key = _rate_keys(request, email)
+    login = body.login.strip().lower()
+    # Keyed by the login string, never by whether it matched an account: a shared per-account
+    # bucket would reveal which username and email belong together. The address bucket caps
+    # the doubled per-account budget (email and username each get one).
+    addr_key, email_key = _rate_keys(request, login)
     if not (address_limiter.check(addr_key) and email_limiter.check(email_key)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many attempts")
 
-    user = db.scalar(select(User).where(User.email == email))
+    if "@" in login:
+        user = db.scalar(select(User).where(User.email == login))
+    else:
+        user = find_by_username(db, login)
     if user is None:
         verify_password(body.password, _DUMMY_HASH)
         password_ok = False
@@ -99,8 +105,14 @@ def accept_invite(body: AcceptInvite, db: Session = Depends(db_session)) -> User
         raise rejected
     if db.scalar(select(User).where(User.email == email)) is not None:
         raise rejected
+    # Only reached with a live invite, so this does not let strangers probe usernames.
+    if find_by_username(db, body.username) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "That username is taken.")
 
-    user = User(email=email, password_hash=hash_password(body.password), is_admin=False)
+    user = User(
+        email=email, username=body.username,
+        password_hash=hash_password(body.password), is_admin=False,
+    )
     try:
         # Savepoint: a rejected claim or a lost email race rolls back both, so a failed
         # accept never consumes the invite or leaves a user behind.
@@ -114,7 +126,7 @@ def accept_invite(body: AcceptInvite, db: Session = Depends(db_session)) -> User
             if claimed.rowcount != 1:
                 raise rejected
             db.add(user)
-            db.flush()  # only this flush may raise IntegrityError (users.email unique)
+            db.flush()  # only this flush may raise IntegrityError (email/username unique)
     except IntegrityError:
         raise rejected from None
     db.add(Profile(user_id=user.id, name="default", is_default=True))

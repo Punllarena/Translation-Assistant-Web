@@ -4,7 +4,7 @@ from api.models import Invite, Profile, User
 
 
 def _login(client, email, password="pw-correct"):
-    return client.post("/auth/login", json={"email": email, "password": password})
+    return client.post("/auth/login", json={"login": email, "password": password})
 
 
 def test_non_admin_cannot_create_invites(app_client, make_user):
@@ -44,7 +44,8 @@ def test_accept_invite_creates_user_with_default_profile(app_client, db, make_us
 
     r = app_client.post(
         "/auth/accept-invite",
-        json={"token": token, "email": "fresh@example.com", "password": "pw-fresh-123"},
+        json={"token": token, "email": "fresh@example.com", "username": "fresh_user",
+              "password": "pw-fresh-123"},
     )
     assert r.status_code == 201
     assert _login(app_client, "fresh@example.com", "pw-fresh-123").status_code == 200
@@ -59,7 +60,8 @@ def test_accept_invite_normalises_email_so_user_can_log_in(app_client, make_user
     app_client.post("/auth/logout")
     r = app_client.post(
         "/auth/accept-invite",
-        json={"token": token, "email": " Mixed@Case.COM ", "password": "pw-mixed-1234"},
+        json={"token": token, "email": " Mixed@Case.COM ", "username": "mixed",
+              "password": "pw-mixed-1234"},
     )
     assert r.status_code == 201
     assert r.json()["email"] == "mixed@case.com"
@@ -73,7 +75,8 @@ def test_invite_bound_to_another_email_is_rejected(app_client, make_user):
     app_client.post("/auth/logout")
     r = app_client.post(
         "/auth/accept-invite",
-        json={"token": token, "email": "b@example.com", "password": "pw-other-1234"},
+        json={"token": token, "email": "b@example.com", "username": "b_user",
+              "password": "pw-other-1234"},
     )
     assert r.status_code == 400
 
@@ -83,16 +86,19 @@ def test_an_invite_cannot_be_used_twice(app_client, make_user):
     _login(app_client, "admin3@example.com")
     token = app_client.post("/invites", json={}).json()["token"]
     app_client.post("/auth/logout")
-    body = {"token": token, "email": "one@example.com", "password": "pw-one-12345"}
+    body = {"token": token, "email": "one@example.com", "username": "one_user",
+            "password": "pw-one-12345"}
     assert app_client.post("/auth/accept-invite", json=body).status_code == 201
-    body2 = {"token": token, "email": "two@example.com", "password": "pw-two-12345"}
+    body2 = {"token": token, "email": "two@example.com", "username": "two_user",
+             "password": "pw-two-12345"}
     assert app_client.post("/auth/accept-invite", json=body2).status_code == 400
 
 
 def test_unknown_invite_token_is_rejected(app_client):
     r = app_client.post(
         "/auth/accept-invite",
-        json={"token": "nonsense", "email": "x@example.com", "password": "pw-x-1234567"},
+        json={"token": "nonsense", "email": "x@example.com", "username": "x_user",
+              "password": "pw-x-1234567"},
     )
     assert r.status_code == 400
 
@@ -106,7 +112,8 @@ def test_expired_invite_is_rejected(app_client, db, make_user):
     app_client.post("/auth/logout")
     r = app_client.post(
         "/auth/accept-invite",
-        json={"token": token, "email": "late@example.com", "password": "pw-late-1234"},
+        json={"token": token, "email": "late@example.com", "username": "late_user",
+              "password": "pw-late-1234"},
     )
     assert r.status_code == 400
 
@@ -120,8 +127,10 @@ def _mint(client, make_user, admin_email, **body):
 
 
 def _accept(client, token, email, password="pw-accept-1234"):
+    username = email.split("@")[0] + "_user"
     return client.post(
-        "/auth/accept-invite", json={"token": token, "email": email, "password": password}
+        "/auth/accept-invite",
+        json={"token": token, "email": email, "username": username, "password": password},
     )
 
 
@@ -168,7 +177,7 @@ def test_email_unique_race_becomes_generic_400_and_releases_invite(
     monkeypatch.setattr(db, "scalar", scalar_skipping_user_lookup)
     r = _accept(app_client, token, "raced@example.com")
     monkeypatch.undo()
-    assert calls["n"] == 1
+    assert calls["n"] == 2  # email and username pre-checks
     assert r.status_code == 400
     assert db.query(Invite).one().accepted_at is None  # claim rolled back with the savepoint
 
@@ -241,7 +250,8 @@ def test_a_used_invite_cannot_be_revoked(app_client, db, make_user):
     _login(app_client, "admin@example.com")
     token = app_client.post("/invites", json={}).json()["token"]
     app_client.post("/auth/accept-invite",
-                    json={"token": token, "email": "new@example.com", "password": "pw-new-123456"})
+                    json={"token": token, "email": "new@example.com", "username": "new_user",
+                          "password": "pw-new-123456"})
     invite_id = app_client.get("/invites").json()[0]["id"]
     assert app_client.delete(f"/invites/{invite_id}").status_code == 409
 
@@ -250,3 +260,19 @@ def test_non_admin_cannot_revoke(app_client, make_user):
     make_user(email="u@example.com")
     _login(app_client, "u@example.com")
     assert app_client.delete("/invites/1").status_code == 403
+
+
+def test_accept_invite_refuses_a_taken_username_without_using_the_invite(app_client, make_user):
+    token = _mint(app_client, make_user, "admin9@example.com")  # username "admin9"
+    body = {"token": token, "email": "n@example.com", "username": "ADMIN9",
+            "password": "pw-n-1234567"}
+    assert app_client.post("/auth/accept-invite", json=body).status_code == 409
+    body["username"] = "fresh_name"
+    r = app_client.post("/auth/accept-invite", json=body)
+    assert r.status_code == 201 and r.json()["username"] == "fresh_name"
+
+
+def test_accept_invite_rejects_a_username_with_at(app_client, make_user):
+    token = _mint(app_client, make_user, "admin10@example.com")
+    body = {"token": token, "email": "m@example.com", "username": "m@x", "password": "pw-m-1234567"}
+    assert app_client.post("/auth/accept-invite", json=body).status_code == 422

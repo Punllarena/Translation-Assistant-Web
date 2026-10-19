@@ -1,8 +1,8 @@
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    login: str = Field(max_length=320)  # email or username
     password: str
 
 
@@ -11,4 +11,5 @@ class UserOut(BaseModel):
 
     id: int
     email: str
+    username: str
     is_admin: bool

@@ -123,7 +123,7 @@ def login():
     """Return login(client, email, password) -> response."""
 
     def _login(client, email, password="pw-correct"):
-        return client.post("/auth/login", json={"email": email, "password": password})
+        return client.post("/auth/login", json={"login": email, "password": password})
 
     return _login
 

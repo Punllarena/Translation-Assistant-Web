@@ -21,7 +21,7 @@ def setup_status(db: Session = Depends(db_session)) -> SetupStatus:
 @router.post("/admin", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def claim_admin(body: SetupAdmin, response: Response, db: Session = Depends(db_session)) -> User:
     try:
-        user = claim_first_admin(db, body.email, body.password)
+        user = claim_first_admin(db, body.email, body.password, body.username)
     except AlreadySetUp:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Setup is already complete; sign in instead."
