@@ -13,6 +13,7 @@ from api.routing import api_router
 from api.schemas.auth import LoginRequest, UserOut
 from api.schemas.invites import AcceptInvite
 from api.security import (
+    account_limiter,
     address_limiter,
     email_limiter,
     hash_password,
@@ -46,29 +47,34 @@ def login(
 ) -> User:
     login = body.login.strip().lower()
     # Keyed by the login string, never by whether it matched an account: a shared per-account
-    # bucket would reveal which username and email belong together. The address bucket caps
-    # the doubled per-account budget (email and username each get one).
+    # 429 would reveal which username and email belong together. account_limiter caps the
+    # account itself, silently (below). Every bucket is charged up front, atomically, and
+    # cleared on success, so concurrent requests cannot all slip past one check.
     addr_key, email_key = _rate_keys(request, login)
-    if not (address_limiter.check(addr_key) and email_limiter.check(email_key)):
+    if not address_limiter.try_acquire(addr_key):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many attempts")
+    if not email_limiter.try_acquire(email_key):
+        address_limiter.release(addr_key)  # a 429 never charges a bucket
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many attempts")
 
     if "@" in login:
         user = db.scalar(select(User).where(User.email == login))
     else:
         user = find_by_username(db, login)
-    if user is None:
+    # A full account bucket takes no further charge, so guesses cannot extend its window.
+    if user is None or not account_limiter.try_acquire(f"user:{user.id}"):
+        # Unknown account and exhausted account look the same: one argon2id verify, then 401.
         verify_password(body.password, _DUMMY_HASH)
         password_ok = False
     else:
         password_ok = verify_password(body.password, user.password_hash)
     if not password_ok:
-        address_limiter.record_failure(addr_key)
-        email_limiter.record_failure(email_key)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid credentials")
 
     start_session(db, response, user)
     address_limiter.reset(addr_key)
     email_limiter.reset(email_key)
+    account_limiter.reset(f"user:{user.id}")
     return user
 
 

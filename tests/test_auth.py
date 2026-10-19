@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from api.models import Session as SessionRow
-from api.security import address_limiter, email_limiter
+from api.security import account_limiter, address_limiter, email_limiter
 
 
 def test_login_sets_cookie_and_returns_user(app_client, make_user):
@@ -144,6 +144,77 @@ def test_username_bucket_behaves_the_same_whether_or_not_the_account_exists(
             address_limiter.reset("testclient")  # isolate the account bucket
         r = app_client.post("/auth/login", json={"login": login, "password": "bad"})
         assert r.status_code == 429
-    # The email bucket is separate, so the username's full bucket says nothing about it.
-    r = app_client.post("/auth/login", json={"login": "both@example.com", "password": "pw-correct"})
+
+
+def test_an_exhausted_account_fails_like_a_wrong_password_from_either_login(
+    app_client, make_user
+):
+    make_user(email="capped@example.com", password="pw-correct")
+    for i in range(account_limiter.max_attempts):
+        login = "capped@example.com" if i % 2 else "capped"
+        r = app_client.post("/auth/login", json={"login": login, "password": "bad"})
+        assert r.status_code == 401
+        address_limiter.reset("testclient")
+    # Neither login-string bucket is full, so no 429; the right password still gets the same 401.
+    for login in ("capped", "capped@example.com"):
+        r = app_client.post("/auth/login", json={"login": login, "password": "pw-correct"})
+        assert r.status_code == 401 and r.json()["detail"] == "invalid credentials"
+
+
+def test_a_successful_login_clears_the_account_counter(app_client, make_user):
+    user = make_user(email="clear@example.com", password="pw-correct")
+    for _ in range(account_limiter.max_attempts - 1):
+        account_limiter.record_failure(f"user:{user.id}")
+    r = app_client.post("/auth/login", json={"login": "clear", "password": "pw-correct"})
     assert r.status_code == 200
+    assert account_limiter.check(f"user:{user.id}")
+
+
+def test_concurrent_logins_get_no_more_guesses_than_the_cap(monkeypatch):
+    """Call the handler from many threads at once with a slow verify: before the limiters
+    charged up front, every request passed the check before any failure was recorded."""
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException, Response
+
+    from api.routers import auth
+    from api.schemas.auth import LoginRequest
+
+    verifies = []
+    lock = threading.Lock()
+
+    def slow_verify(password, hashed):
+        time.sleep(0.05)
+        with lock:
+            verifies.append(password)
+        return False
+
+    monkeypatch.setattr(auth, "verify_password", slow_verify)
+    monkeypatch.setattr(auth, "find_by_username", lambda db, name: None)  # no DB from threads
+
+    def attempt(i):
+        request = SimpleNamespace(client=SimpleNamespace(host=f"10.0.0.{i}"))  # many addresses
+        try:
+            auth.login(LoginRequest(login="victim", password="guess"), request, Response(), None)
+        except HTTPException as exc:
+            return exc.status_code
+
+    with ThreadPoolExecutor(max_workers=40) as pool:
+        codes = list(pool.map(attempt, range(40)))
+    cap = email_limiter.max_attempts
+    assert len(verifies) == cap
+    assert codes.count(401) == cap and codes.count(429) == 40 - cap
+
+
+def test_a_full_account_bucket_takes_no_further_charge(app_client, make_user):
+    user = make_user(email="full@example.com", password="pw-correct")
+    key = f"user:{user.id}"
+    for _ in range(account_limiter.max_attempts):
+        account_limiter.record_failure(key)
+    before = list(account_limiter._failures[key])
+    r = app_client.post("/auth/login", json={"login": "full", "password": "pw-correct"})
+    assert r.status_code == 401
+    assert list(account_limiter._failures[key]) == before
