@@ -35,7 +35,7 @@ export default function Shell() {
         </nav>
         <div className="who">
           <ThemeMenu />
-          <span className="email">{me.data?.email}</span>
+          <span className="email" title={me.data?.email}>{me.data?.username}</span>
           <button type="button" className="quiet" onClick={() => logout.mutate()}>Sign out</button>
         </div>
       </header>

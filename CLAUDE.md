@@ -60,7 +60,9 @@ Onboarding: with no users, the SPA sends every page to `/setup` (`GET /setup/sta
 which takes a Postgres advisory lock; `api/accounts.py`). Admin-only `/admin/settings` rows in `server_settings`
 override `TA_OLLAMA_URL`, `TA_LIBRETRANSLATE_URL`, `TA_MT_ALLOW_PRIVATE_URLS`, `TA_WP_ALLOW_PRIVATE_URLS` and
 `TA_SYOSETU_DELAY_SECONDS` (DB row > env > default; read through `api.server_settings.effective(db)`, never
-`get_settings()` for those keys). `TA_DATA_DIR` holds `dict/` (EDICT2 and Conjugations; `TA_EDICT_PATH` /
+`get_settings()` for those keys). Accounts have a `username` (3–32 of `A-Za-z0-9_.-`, unique ignoring
+case, shown instead of the email); `/auth/login` takes `login`, an email when it contains `@`, otherwise a
+username, and the account rate bucket is keyed `user:<id>` once one matches. `TA_DATA_DIR` holds `dict/` (EDICT2 and Conjugations; `TA_EDICT_PATH` /
 `TA_CONJUGATIONS_PATH` still win) and `uploads/` (pending `ta.db` imports, swept after 24 h). EDICT2 download is
 the `dict_download` job (`api/dict_job.py`); `ta.db` import is the `tadb_import` job (`api/tadb_job.py`, dry run
 then run). The importer lives in `api/core/tadb_*.py`; `tools/import_tadb.py` is its CLI.

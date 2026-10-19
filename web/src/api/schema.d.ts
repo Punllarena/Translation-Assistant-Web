@@ -1407,6 +1407,8 @@ export interface components {
             password: string;
             /** Token */
             token: string;
+            /** Username */
+            username: string;
         };
         /** BackendStatus */
         BackendStatus: {
@@ -2075,11 +2077,8 @@ export interface components {
         };
         /** LoginRequest */
         LoginRequest: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
+            /** Login */
+            login: string;
             /** Password */
             password: string;
         };
@@ -2309,6 +2308,8 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+            /** Username */
+            username: string;
         };
         /** SetupStatus */
         SetupStatus: {
@@ -2458,6 +2459,8 @@ export interface components {
             id: number;
             /** Is Admin */
             is_admin: boolean;
+            /** Username */
+            username: string;
         };
         /** ValidationError */
         ValidationError: {
