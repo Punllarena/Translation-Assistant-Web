@@ -45,15 +45,17 @@ def login(
     db: Session = Depends(db_session),
 ) -> User:
     login = body.login.strip().lower()
+    # Keyed by the login string, never by whether it matched an account: a shared per-account
+    # bucket would reveal which username and email belong together. The address bucket caps
+    # the doubled per-account budget (email and username each get one).
+    addr_key, email_key = _rate_keys(request, login)
+    if not (address_limiter.check(addr_key) and email_limiter.check(email_key)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many attempts")
+
     if "@" in login:
         user = db.scalar(select(User).where(User.email == login))
     else:
         user = find_by_username(db, login)
-    # Keyed by account when one matches, so mixing email and username shares one bucket.
-    addr_key, email_key = _rate_keys(request, f"user:{user.id}" if user else login)
-    if not (address_limiter.check(addr_key) and email_limiter.check(email_key)):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many attempts")
-
     if user is None:
         verify_password(body.password, _DUMMY_HASH)
         password_ok = False

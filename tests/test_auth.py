@@ -97,9 +97,9 @@ def test_repeated_failures_are_rate_limited(app_client, make_user):
 
 
 def test_account_bucket_limits_across_addresses(app_client, make_user):
-    user = make_user(email="f@example.com", password="pw-correct")
+    make_user(email="f@example.com", password="pw-correct")
     for _ in range(email_limiter.max_attempts):
-        email_limiter.record_failure(f"user:{user.id}")
+        email_limiter.record_failure("f@example.com")
     good = {"login": " F@Example.com ", "password": "pw-correct"}
     assert app_client.post("/auth/login", json=good).status_code == 429
     other = {"login": "other@example.com", "password": "x"}
@@ -134,11 +134,16 @@ def test_login_by_username_ignores_case(app_client, make_user):
     assert r.status_code == 200 and r.json()["username"] == "named"
 
 
-def test_email_and_username_share_one_rate_bucket(app_client, make_user):
+def test_username_bucket_behaves_the_same_whether_or_not_the_account_exists(
+    app_client, make_user
+):
     make_user(email="both@example.com", password="pw-correct")
-    for i in range(email_limiter.max_attempts):
-        login = "both@example.com" if i % 2 else "both"
-        app_client.post("/auth/login", json={"login": login, "password": "bad"})
-        address_limiter.reset("testclient")  # isolate the account bucket
-    r = app_client.post("/auth/login", json={"login": "both", "password": "pw-correct"})
-    assert r.status_code == 429
+    for login in ("both", "nobody"):
+        for _ in range(email_limiter.max_attempts):
+            app_client.post("/auth/login", json={"login": login, "password": "bad"})
+            address_limiter.reset("testclient")  # isolate the account bucket
+        r = app_client.post("/auth/login", json={"login": login, "password": "bad"})
+        assert r.status_code == 429
+    # The email bucket is separate, so the username's full bucket says nothing about it.
+    r = app_client.post("/auth/login", json={"login": "both@example.com", "password": "pw-correct"})
+    assert r.status_code == 200
