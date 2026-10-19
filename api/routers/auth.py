@@ -13,6 +13,7 @@ from api.routing import api_router
 from api.schemas.auth import LoginRequest, UserOut
 from api.schemas.invites import AcceptInvite
 from api.security import (
+    account_limiter,
     address_limiter,
     email_limiter,
     hash_password,
@@ -46,8 +47,8 @@ def login(
 ) -> User:
     login = body.login.strip().lower()
     # Keyed by the login string, never by whether it matched an account: a shared per-account
-    # bucket would reveal which username and email belong together. The address bucket caps
-    # the doubled per-account budget (email and username each get one).
+    # 429 would reveal which username and email belong together. account_limiter caps the
+    # account itself, silently (below).
     addr_key, email_key = _rate_keys(request, login)
     if not (address_limiter.check(addr_key) and email_limiter.check(email_key)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many attempts")
@@ -56,7 +57,9 @@ def login(
         user = db.scalar(select(User).where(User.email == login))
     else:
         user = find_by_username(db, login)
-    if user is None:
+    account_key = f"user:{user.id}" if user else None
+    if user is None or not account_limiter.check(account_key):
+        # Unknown account and exhausted account look the same: one argon2id verify, then 401.
         verify_password(body.password, _DUMMY_HASH)
         password_ok = False
     else:
@@ -64,11 +67,14 @@ def login(
     if not password_ok:
         address_limiter.record_failure(addr_key)
         email_limiter.record_failure(email_key)
+        if account_key:
+            account_limiter.record_failure(account_key)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid credentials")
 
     start_session(db, response, user)
     address_limiter.reset(addr_key)
     email_limiter.reset(email_key)
+    account_limiter.reset(account_key)
     return user
 
 
