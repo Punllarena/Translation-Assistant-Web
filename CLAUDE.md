@@ -66,7 +66,11 @@ username; the account rate bucket is keyed by that normalised string, never by t
 shared bucket would link a username to its email). `TA_DATA_DIR` holds `dict/` (EDICT2 and Conjugations; `TA_EDICT_PATH` /
 `TA_CONJUGATIONS_PATH` still win) and `uploads/` (pending `ta.db` imports, swept after 24 h). EDICT2 download is
 the `dict_download` job (`api/dict_job.py`); `ta.db` import is the `tadb_import` job (`api/tadb_job.py`, dry run
-then run). The importer lives in `api/core/tadb_*.py`; `tools/import_tadb.py` is its CLI.
+then run). The importer lives in `api/core/tadb_*.py`; `tools/import_tadb.py` is its CLI. It reports
+progress through `JobContext.report` (job row only, so a dry run still writes nothing; Cancel rolls the whole
+import back) and inserts lines in Core batches of 1,000 (`api/core/tadb_lines.py`), retrying a rejected batch row
+by row. `GET /import/tadb/pending` lets the import card resume; the header's running-jobs button polls
+`GET /jobs?active=true`.
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
