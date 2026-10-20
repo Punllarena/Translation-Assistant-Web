@@ -10,7 +10,7 @@ export default function SeriesChoice({ series, value, onChange }: {
     <div className="row-fields">
       <label className="field"><span>Series</span>
         <select value={value.id} onChange={(e) => onChange({ id: e.target.value, title: "" })}>
-          <option value="">Unsorted</option>
+          <option value="">Choose a series…</option>
           {series.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
         </select>
       </label>
@@ -19,6 +19,11 @@ export default function SeriesChoice({ series, value, onChange }: {
       </label>
     </div>
   );
+}
+
+/** True once an existing series or a non-blank new title is chosen. */
+export function seriesChosen(c: Choice): boolean {
+  return c.id !== "" || c.title.trim() !== "";
 }
 
 /** Form fields for whichever of the two is set. */

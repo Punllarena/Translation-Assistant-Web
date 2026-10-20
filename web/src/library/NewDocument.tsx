@@ -4,6 +4,7 @@ import { api, call } from "../api/client";
 import { Modal } from "../ui/Dialog";
 import type { Doc } from "./shelf";
 import { invalidateLibrary, useSeriesList } from "./queries";
+import SeriesChoice, { seriesChosen, type Choice } from "./SeriesChoice";
 import { postForm } from "./upload";
 
 /** New chapter from pasted text, or import a desktop ---SEPERATOR--- TXT file, in a dialog. The
@@ -14,7 +15,7 @@ export default function NewDocument({ seriesId: presetSeries, volumeId, onClose 
   const queryClient = useQueryClient();
   const series = useSeriesList();
   const [title, setTitle] = useState("");
-  const [seriesId, setSeriesId] = useState(String(presetSeries));
+  const [choice, setChoice] = useState<Choice>({ id: String(presetSeries), title: "" });
   const [rawText, setRawText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState("");
@@ -43,7 +44,12 @@ export default function NewDocument({ seriesId: presetSeries, volumeId, onClose 
     mutationFn: async () => {
       let doc = created;
       if (doc === null) {
-        const series_id = Number(seriesId);
+        let series_id = Number(choice.id);
+        if (choice.id === "") {
+          const made = await call(api.POST("/series", { body: { title: choice.title.trim(), syosetu_url: "" } }));
+          series_id = made.id;
+          setChoice({ id: String(made.id), title: "" }); // a retry reuses it
+        }
         doc = { id: (await createDoc(series_id)).id, seriesId: series_id };
         setCreated(doc);
       }
@@ -70,11 +76,7 @@ export default function NewDocument({ seriesId: presetSeries, volumeId, onClose 
         <label className="field"><span>Title</span>
           <input value={title} required={!file} onChange={(e) => setTitle(e.target.value)} />
         </label>
-        <label className="field"><span>Series</span>
-          <select value={seriesId} required onChange={(e) => setSeriesId(e.target.value)}>
-            {(series.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
-          </select>
-        </label>
+        <SeriesChoice series={series.data ?? []} value={choice} onChange={setChoice} />
         <div className="toolbar">
           <label className="field"><span>Fetch from URL</span>
             <input type="url" aria-label="Syosetu URL" value={url} disabled={!!file} onChange={(e) => setUrl(e.target.value)} />
@@ -93,7 +95,7 @@ export default function NewDocument({ seriesId: presetSeries, volumeId, onClose 
       </div>
       <div className="dlg-foot">
         <button type="button" disabled={create.isPending} onClick={onClose}>Cancel</button>
-        <button type="submit" className="primary" disabled={create.isPending}>
+        <button type="submit" className="primary" disabled={create.isPending || !seriesChosen(choice)}>
           {created !== null ? "Retry adding to volume" : file ? "Import" : "Create"}</button>
       </div>
     </Modal>

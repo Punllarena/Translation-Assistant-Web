@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import type { Schemas } from "../api/client";
 import type { SeriesRow } from "./shelf";
 import { invalidateLibrary } from "./queries";
-import SeriesChoice, { appendSeries, type Choice } from "./SeriesChoice";
+import SeriesChoice, { appendSeries, seriesChosen, type Choice } from "./SeriesChoice";
 import { postForm } from "./upload";
 
 const CHECK_THRESHOLD = 500; // desktop _DEFAULT_CHECK_THRESHOLD
@@ -109,7 +109,7 @@ export default function ImportEpub({ series }: { series: SeriesRow[] }) {
             ))}
           </fieldset>
           <div className="inline-form">
-            <button className="primary" disabled={!checked.size || run.isPending}>Import</button>
+            <button className="primary" disabled={!seriesChosen(choice) || !checked.size || run.isPending}>Import</button>
             <span className="muted">{checked.size} chapters selected · {book.chapters.length - checked.size} unchecked</span>
           </div>
         </>
