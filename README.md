@@ -44,7 +44,8 @@ port are in place:
    the browser drops the cookie, so the next wizard steps fail with 401.
 6. Follow the setup wizard.
 7. Backups: the `pgdata` and `ta_data` volumes, plus `TA_SECRET_KEY` (without it, saved API keys cannot
-   be decrypted; everything else survives).
+   be decrypted; everything else survives). If you left it unset, the generated key is
+   `/data/secret_key` in the `ta_data` volume.
 
 **Large `ta.db` imports.** Cloudflare caps proxied request bodies at 100 MB (Free and Pro plans,
 Tunnel included), so import a bigger desktop library over the LAN, `localhost` or Tailscale, not
@@ -54,32 +55,58 @@ through the tunnel. The server accepts up to 1 GB.
 per-address login limiter is effectively global: repeated failures lock everyone out for the window. A
 later fix is an opt-in trust of `CF-Connecting-IP`.
 
-## Prerequisites
-
-Python 3.12+, Docker (with Compose), and a shell.
-
 ## Quick start
 
-```bash
-# 1. Postgres (bound to 127.0.0.1:5432)
-docker compose up -d postgres
+Only Docker (with Compose) is needed.
 
-# 2. Virtualenv + dependencies
+```bash
+docker compose up -d --build
+```
+
+Open `https://localhost` and the setup wizard creates the first (admin) account. Caddy uses its
+internal CA for `localhost`, so the browser warns once. Set `TA_SITE_ADDRESS` (in `.env` or the
+environment) to a public hostname and Caddy obtains a real certificate for it; see Deploy above
+before exposing a fresh install. `python -m tools.seed_admin`
+(`docker compose run --rm api python -m tools.seed_admin --email you@example.com`) still works too.
+
+**`TA_SECRET_KEY`** is optional. Without it the API generates a key on first boot and keeps it in
+the `ta_data` volume (`/data/secret_key`); set it explicitly to use your own.
+`docker compose down -v` deletes that volume along with the database.
+
+## Development and tests in containers
+
+```bash
+docker compose --profile dev up                                  # SPA http://localhost:5173, API http://127.0.0.1:8000/docs
+docker compose run --rm tools ruff check .
+docker compose run --rm tools pytest
+docker compose run --rm tools sh -c "cd web && npm test"
+docker compose run --rm tools sh -c "cd web && npm run build"
+docker compose run --rm tools sh -c "cd web && npm run e2e"
+docker compose run --rm tools sh -c "cd web && npm run gen:api"
+```
+
+The `dev` image (Python with the dev and mecab extras, Node 24, Playwright's Chromium) bind-mounts
+the checkout, so edits reload live (file watching polls, because bind mounts from Windows and macOS
+deliver no events). `web/node_modules` lives in a Linux-only named volume and is reinstalled when
+`package-lock.json` changes. `api-dev` uses the same database and key as `api`; `tools` uses
+`ta_test` and `ta_e2e` (both reset by their suites) with a fixed test key. Stop `api`
+(`docker compose stop api caddy`) before starting the dev profile: each API process runs the job
+worker, and a starting one fails the jobs the other is running.
+
+## Without Docker
+
+Python 3.12+, Postgres (`docker compose up -d postgres` binds it to 127.0.0.1:5432), and a shell.
+
+```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# 3. Config (the app reads .env itself). The app deliberately refuses the .env.example placeholder key,
-#    so copying the file unchanged will not boot -- generate a real one:
+# The app reads .env itself. It refuses the .env.example placeholder key, so generate a real one:
 cp .env.example .env
 sed -i "s|^TA_SECRET_KEY=.*|TA_SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(48))')|" .env
 
-# 4. Schema
 alembic upgrade head
-
-# 5. First admin (prompts for a password)
-python -m tools.seed_admin --email you@example.com
-
-# 6. Run
+python -m tools.seed_admin --email you@example.com   # or use the setup wizard at /setup
 uvicorn api.main:app --reload     # http://127.0.0.1:8000/docs
 ```
 
@@ -106,6 +133,8 @@ below remains available.
 Work on a copy of the file. Do a dry run first (reports counts, writes nothing), then the real run:
 
 ```bash
+docker compose run --rm -v ./ta.db:/import/ta.db:ro api python -m tools.import_tadb --db /import/ta.db --user you@example.com --dry-run
+# or, without Docker:
 python -m tools.import_tadb --db /path/to/ta.db --user you@example.com --dry-run
 python -m tools.import_tadb --db /path/to/ta.db --user you@example.com
 ```
@@ -141,13 +170,14 @@ docker compose exec -T postgres pg_restore -U ta -d ta --clean --if-exists < ta-
 
 For a deployed stack also back up the `ta_data` volume (dictionary files) and keep `TA_SECRET_KEY` (see Deploy step 7).
 
-Back up `TA_SECRET_KEY` alongside it: without the key, the stored credentials in a restored
-dump cannot be decrypted.
+Back up `TA_SECRET_KEY` alongside it (with compose and no explicit key:
+`docker compose exec api cat /data/secret_key`). Without the key, the stored credentials in a
+restored dump cannot be decrypted.
 
 ## Container
 
 ```bash
-docker compose up --build        # needs TA_SECRET_KEY in .env or the environment
+docker compose up --build
 ```
 
 Caddy serves the SPA and proxies `/api/*` to the API (prefix stripped) at

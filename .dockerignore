@@ -8,3 +8,10 @@ __pycache__
 tests
 docs
 .superpowers
+.claude
+.env.*
+!.env.example
+web/node_modules
+web/dist
+web/test-results
+web/playwright-report

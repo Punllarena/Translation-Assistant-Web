@@ -1,3 +1,29 @@
+# docker compose up -d                 the app at https://$TA_SITE_ADDRESS (default localhost)
+# docker compose --profile dev up      hot reload: SPA on :5173, API on :8000
+# docker compose run --rm tools CMD    pytest, ruff, npm test, npm run e2e, gen:api (see README)
+#
+# Nothing needs to be installed on the host besides Docker. TA_SECRET_KEY is optional: without
+# it the api generates one on first boot and keeps it in the ta_data volume.
+
+x-dev: &dev
+  build:
+    context: .
+    target: dev
+  image: ta-web-dev
+  profiles: ["dev"]
+  depends_on:
+    postgres:
+      condition: service_healthy
+  volumes:
+    - .:/app
+    - web_node_modules:/app/web/node_modules
+  environment: &dev-env
+    TA_COOKIE_SECURE: "false"
+    TA_DATABASE_URL: postgresql+psycopg://ta:ta@postgres:5432/ta
+    # Bind mounts from a Windows or macOS host deliver no file events; poll instead.
+    WATCHFILES_FORCE_POLLING: "true"
+    TA_WATCH_POLL: "1"
+
 services:
   postgres:
     image: postgres:16
@@ -14,17 +40,20 @@ services:
       retries: 10
 
   api:
-    build: .
+    build:
+      context: .
+      target: runtime
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      TA_SECRET_KEY: ${TA_SECRET_KEY:?set TA_SECRET_KEY in .env}
+      TA_SECRET_KEY: ${TA_SECRET_KEY:-}
+      TA_SECRET_KEY_FILE: /data/secret_key
       TA_DATABASE_URL: postgresql+psycopg://ta:ta@postgres:5432/ta
       TA_DATA_DIR: /data
     volumes: ["ta_data:/data"]
     # Not published: only Caddy reaches it, which is what makes trusting
-    # X-Forwarded-For (--forwarded-allow-ips in the Dockerfile) safe.
+    # X-Forwarded-For (--forwarded-allow-ips in docker/entrypoint.sh) safe.
     expose: ["8000"]
 
   caddy:
@@ -35,7 +64,46 @@ services:
     ports: ["${TA_HTTP_PORT:-80}:80", "${TA_HTTPS_PORT:-443}:443"]
     volumes: ["caddy_data:/data"]
 
+  api-dev:
+    <<: *dev
+    command: ["serve-dev"]
+    environment:
+      <<: *dev-env
+      TA_SECRET_KEY: ${TA_SECRET_KEY:-}
+      TA_SECRET_KEY_FILE: /data/secret_key
+      TA_DATA_DIR: /data
+      TA_NPM_ENSURE: "0"
+    # Shares the database with `api`, so it shares the key that encrypts its credentials.
+    volumes:
+      - .:/app
+      - web_node_modules:/app/web/node_modules
+      - ta_data:/data
+    ports: ["127.0.0.1:8000:8000"]
+
+  web-dev:
+    <<: *dev
+    depends_on: [api-dev]
+    working_dir: /app/web
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173", "--strictPort"]
+    environment:
+      <<: *dev-env
+      TA_API_URL: http://api-dev:8000
+    ports: ["127.0.0.1:5173:5173"]
+
+  tools:
+    <<: *dev
+    profiles: ["tools"]
+    command: ["sh"]
+    environment:
+      <<: *dev-env
+      # Fixed key: the test and e2e databases hold nothing worth protecting.
+      TA_SECRET_KEY: tools-secret-key-at-least-32-characters-long
+      # Must end in _test: the suite drops and recreates it.
+      TA_DATABASE_URL: postgresql+psycopg://ta:ta@postgres:5432/ta_test
+      TA_E2E_DATABASE_URL: postgresql+psycopg://ta:ta@postgres:5432/ta_e2e
+
 volumes:
   pgdata:
   caddy_data:
   ta_data:
+  web_node_modules:

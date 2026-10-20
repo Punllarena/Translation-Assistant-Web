@@ -1,2 +1,3 @@
 tests/fixtures/mt/edict2_sample binary
 tests/fixtures/mt/conjugations_sample.json binary
+*.sh text eol=lf

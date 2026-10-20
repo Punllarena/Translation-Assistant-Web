@@ -1,6 +1,7 @@
 from functools import lru_cache
+from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Must match the TA_SECRET_KEY value in .env.example. A deployment that copies the
@@ -16,6 +17,10 @@ class Settings(BaseSettings):
     )
 
     secret_key: str = Field(min_length=32)
+    # Read when TA_SECRET_KEY is unset. Compose points it at /data/secret_key, which
+    # docker/entrypoint.sh generates on first boot; reading it here (not exporting it from the
+    # entrypoint) means `docker compose exec api ...` sees the same key.
+    secret_key_file: str = ""
     database_url: str = "postgresql+psycopg://ta:ta@localhost:5432/ta"
     # Reserved and inert: nothing reads it yet. Registration is invite-only in phase 1
     # by construction (only /auth/accept-invite creates accounts); the spec asks for the
@@ -39,6 +44,13 @@ class Settings(BaseSettings):
     # The same guard for the user's WordPress endpoint. Separate on purpose: allowing a
     # private Ollama must not also allow a private WordPress.
     wp_allow_private_urls: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _key_from_file(cls, data: object) -> object:
+        if isinstance(data, dict) and not data.get("secret_key") and data.get("secret_key_file"):
+            data["secret_key"] = Path(data["secret_key_file"]).read_text(encoding="utf-8").strip()
+        return data
 
     @field_validator("secret_key")
     @classmethod
