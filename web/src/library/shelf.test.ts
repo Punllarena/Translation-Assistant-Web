@@ -30,6 +30,16 @@ describe("seriesCards", () => {
     expect(seriesCards([series(1, "A")], D, V, "")[0].coverImageId).toBe(400);
   });
 
+  it("checks only the first volume, then the first chapter in series order", () => {
+    const V = [volume(10, 1, 1), volume(20, 1, 2)];
+    const D = [
+      doc(1, 1, null, { series_order: 1, cover_image_id: 11 }),
+      doc(2, 1, 20, { series_order: 5, cover_image_id: 22 }),
+      doc(3, 1, 10, { series_order: 6 }),
+    ];
+    expect(seriesCards([series(1, "A")], D, V, "")[0].coverImageId).toBe(11);
+  });
+
   it("falls back to a loose chapter cover, else null", () => {
     const D = [doc(1, 1, 10), doc(2, 1, null, { cover_image_id: 7 })];
     expect(seriesCards([series(1, "A")], D, [volume(10, 1, 1)], "")[0].coverImageId).toBe(7);

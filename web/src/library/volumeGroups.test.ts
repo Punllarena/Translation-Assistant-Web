@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chapterNumber, pickVolume, volumeGroups } from "./volumes";
+import { chapterNumber, pickVolume, volumeGroups } from "./volumeGroups";
 import type { Doc, Volume } from "./shelf";
 
 const volume = (id: number, series_id: number, volume_order: number) => ({ id, series_id, volume_order }) as Volume;

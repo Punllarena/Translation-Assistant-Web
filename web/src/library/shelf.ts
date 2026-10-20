@@ -39,12 +39,8 @@ export function seriesCards(series: SeriesRow[], docs: Doc[], volumes: Volume[],
     .map((s) => {
       const own = docs.filter((d) => d.series_id === s.id).sort(bySeriesOrder);
       const vols = volumes.filter((v) => v.series_id === s.id).sort(byVolumeOrder);
-      let cover: number | null = null;
-      for (const v of vols) {
-        cover = firstCover(own.filter((d) => d.volume_id === v.id));
-        if (cover != null) break;
-      }
-      cover ??= firstCover(own);
+      const first = vols[0];
+      const cover = (first && firstCover(own.filter((d) => d.volume_id === first.id))) ?? firstCover(own);
       let editedAt: string | null = null;
       for (const d of own) if (editedAt === null || d.updated_at > editedAt) editedAt = d.updated_at;
       return {
