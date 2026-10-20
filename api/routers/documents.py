@@ -28,15 +28,14 @@ def progress(line_count: int, translated_count: int, image_count: int) -> int:
 
 
 def check_placement(
-    db: Session, user_id: int, series_id: int | None, volume_id: int | None
+    db: Session, user_id: int, series_id: int, volume_id: int | None
 ) -> None:
     """A (series, volume) pair named in a request body must be the caller's and agree."""
-    if series_id is not None:
-        owned_ref(db, Series, series_id, user_id, "series_id")
+    owned_ref(db, Series, series_id, user_id, "series_id")
     if volume_id is None:
         return
     volume = db.get(Volume, volume_id)
-    if series_id is None or volume is None or volume.series_id != series_id:
+    if volume is None or volume.series_id != series_id:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "volume_id: not a volume of that series"
         )

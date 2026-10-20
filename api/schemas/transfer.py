@@ -7,7 +7,7 @@ class BatchError(BaseModel):
 
 
 class BatchImportOut(BaseModel):
-    series_id: int | None
+    series_id: int
     profile_id: int | None
     imported: list[str]
     skipped: list[str]

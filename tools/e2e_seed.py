@@ -39,7 +39,12 @@ def main() -> None:
 
     with SessionLocal() as db:
         user = create_admin(db, EMAIL, PASSWORD)
-        doc = Document(user_id=user.id, title="E2E chapter")
+        editor_series = Series(user_id=user.id, title="E2E editor series")
+        tm_series = Series(user_id=user.id, title="E2E tm series")
+        mt_series = Series(user_id=user.id, title="E2E mt series")
+        db.add_all([editor_series, tm_series, mt_series])
+        db.flush()
+        doc = Document(user_id=user.id, title="E2E chapter", series_id=editor_series.id)
         db.add(doc)
         db.flush()
         write_lines(db, doc.id, [
@@ -49,7 +54,7 @@ def main() -> None:
         # tm.spec's own chapter pair: they share TM_LINE, and 記憶語 occurs nowhere else, so the
         # profile-wide glossary entry that spec adds cannot change any other spec's text
         for title, translated in (("Memory source", "Remembered translation."), ("TM target", "")):
-            other = Document(user_id=user.id, title=title)
+            other = Document(user_id=user.id, title=title, series_id=tm_series.id)
             db.add(other)
             db.flush()
             write_lines(db, other.id, [
@@ -71,7 +76,7 @@ def main() -> None:
                 {"line_number": 0, "prefix": "%", "raw_text": raw, "translated_text": translated},
             ])
         # mt spec: 猫 occurs only here (JParser's sample dictionary has it)
-        mt = Document(user_id=user.id, title="MT target")
+        mt = Document(user_id=user.id, title="MT target", series_id=mt_series.id)
         db.add(mt)
         db.flush()
         write_lines(db, mt.id, [

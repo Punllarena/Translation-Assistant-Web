@@ -83,8 +83,7 @@ def merge_documents(
     db.execute(delete(Document).where(Document.id.in_([doc.id for doc in others])))
 
     target.chapter_title = merged_title
-    if target.series_id is not None:
-        renumber(chapters(db, target.series_id))
+    renumber(chapters(db, target.series_id))
     db.flush()
     db.expire_all()  # loaded line/image collections are stale after the moves
     return target
@@ -116,7 +115,7 @@ def split_document(
     if starts[0] < 1 or starts[-1] > _line_end(db, doc.id) - 1:
         raise RestructureError("cut points out of range")
 
-    siblings = chapters(db, doc.series_id) if doc.series_id is not None else []
+    siblings = chapters(db, doc.series_id)
     base_name = doc.chapter_title or doc.title
     ends: list[int | None] = [*starts[1:], None]  # None: through the end of the chapter
     new_docs: list[Document] = []
@@ -153,9 +152,8 @@ def split_document(
         )
         new_docs.append(new)
 
-    if doc.series_id is not None:
-        at = siblings.index(doc) + 1
-        renumber([*siblings[:at], *new_docs, *siblings[at:]])
+    at = siblings.index(doc) + 1
+    renumber([*siblings[:at], *new_docs, *siblings[at:]])
     doc.updated_at = func.now()
     db.flush()
     db.expire_all()

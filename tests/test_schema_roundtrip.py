@@ -1,6 +1,6 @@
 from sqlalchemy import inspect, text
 
-from api.models import Document, Line, Profile, User
+from api.models import Document, Line, Profile, Series, User
 
 
 def test_migration_created_every_table(db):
@@ -13,7 +13,10 @@ def test_insert_and_read_back_a_document_tree(db):
     db.add(user)
     db.flush()
     db.add(Profile(user_id=user.id, name="default", is_default=True))
-    doc = Document(user_id=user.id, title="Chapter 1")
+    series = Series(user_id=user.id, title="S1")
+    db.add(series)
+    db.flush()
+    doc = Document(user_id=user.id, series_id=series.id, title="Chapter 1")
     db.add(doc)
     db.flush()
     db.add_all([
@@ -30,7 +33,10 @@ def test_deleting_a_document_cascades_to_lines(db):
     user = User(email="b@example.com", password_hash="x")
     db.add(user)
     db.flush()
-    doc = Document(user_id=user.id, title="Chapter 2")
+    series = Series(user_id=user.id, title="S2")
+    db.add(series)
+    db.flush()
+    doc = Document(user_id=user.id, series_id=series.id, title="Chapter 2")
     db.add(doc)
     db.flush()
     db.add(Line(document_id=doc.id, line_number=0, prefix="%", raw_text="x"))

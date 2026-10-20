@@ -235,6 +235,26 @@ def _volume(
     return cache[key]
 
 
+def _own_series(
+    db: Session, user_id: int, title: str, cache: dict[str, Series | None],
+    report: ImportReport, label: str,
+) -> Series | None:
+    """The series a desktop chapter with no series_title lives in: one titled like the
+    chapter, reused when the account has it, else created."""
+    if title not in cache:
+        series = db.scalar(select(Series).where(Series.user_id == user_id, Series.title == title))
+        if series is None:
+            series = Series(user_id=user_id, title=title)
+            if _add(db, series, "series", repr(title), report):
+                report.messages.append(
+                    f"documents {label}: no series; created series {title!r}"
+                )
+            else:
+                series = None
+        cache[title] = series
+    return cache[title]
+
+
 def _import_documents(
     conn: sqlite3.Connection,
     db: Session,
@@ -245,6 +265,7 @@ def _import_documents(
 ) -> None:
     volumes: dict[tuple[int, str], Volume | None] = {}
     id_map: dict[int, Document] = {}
+    oneshots: dict[str, Series | None] = {}
 
     for row in conn.execute("SELECT * FROM documents"):
         progress.step(1, "chapters")
@@ -255,15 +276,18 @@ def _import_documents(
         if series_title and series is None:
             _skip(report, "documents", label, f"series {series_title!r} was not imported")
             continue
+        if series is None:
+            series = _own_series(db, user_id, row["title"], oneshots, report, label)
+            if series is None:
+                _skip(report, "documents", label, "its own series was not created")
+                continue
         volume = None
-        if series and vol_title:
+        if vol_title:
             volume = _volume(db, series, vol_title, volumes, report, _volume_meta(row))
             if volume is None:
                 _skip(report, "documents", label, f"volume {vol_title!r} was not imported")
                 continue
-        elif vol_title:
-            report.messages.append(f"documents {label}: volume_title {vol_title!r} has no series")
-        series_id = series.id if series else None
+        series_id = series.id
         existing = db.scalar(
             select(Document).where(
                 Document.user_id == user_id,

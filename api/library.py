@@ -8,10 +8,8 @@ from api.core.text import db_rows_to_arrays, lines_to_db_rows
 from api.models import Document, Line
 
 
-def next_series_order(db: Session, series_id: int | None) -> int:
-    """The slot after the series' last chapter; 0 for a document outside any series."""
-    if series_id is None:
-        return 0
+def next_series_order(db: Session, series_id: int) -> int:
+    """The slot after the series' last chapter."""
     return db.scalar(
         select(func.coalesce(func.max(Document.series_order), 0) + 1).where(
             Document.series_id == series_id

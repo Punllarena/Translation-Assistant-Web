@@ -14,14 +14,16 @@ def test_documents_require_authentication(app_client):
     assert app_client.get("/documents").status_code == 401
 
 
-def test_create_empty_document(app_client, me):
-    r = app_client.post("/documents", json={"title": "Notes"})
+def test_create_empty_document(app_client, me, make_series):
+    series = make_series(me)
+    r = app_client.post("/documents", json={"title": "Notes", "series_id": series.id})
     assert r.status_code == 201
-    assert (r.json()["series_id"], r.json()["series_order"]) == (None, 0)
+    assert (r.json()["series_id"], r.json()["series_order"]) == (series.id, 1)
 
 
-def test_create_from_raw_text_splits_sentences(app_client, db, me):
-    r = app_client.post("/documents", json={"title": "Ch1", "raw_text": "一文目。二文目。\n\n次"})
+def test_create_from_raw_text_splits_sentences(app_client, db, me, make_series):
+    body = {"title": "Ch1", "series_id": make_series(me).id, "raw_text": "一文目。二文目。\n\n次"}
+    r = app_client.post("/documents", json=body)
     assert _lines(db, r.json()["id"]) == [
         ("%", "一文目。"), ("$", "二文目。"), ("%", ""), ("%", "次"),
     ]
@@ -109,11 +111,12 @@ def test_another_users_document_is_404(app_client, me, make_user, make_doc, meth
     assert getattr(app_client, method)(f"/documents/{theirs.id}", **kwargs).status_code == 404
 
 
-def test_create_line_count_is_capped(app_client, me, monkeypatch):
+def test_create_line_count_is_capped(app_client, me, make_series, monkeypatch):
     from api import library
 
     monkeypatch.setattr(library, "MAX_LINES", 2)
-    r = app_client.post("/documents", json={"title": "Big", "raw_text": "a\nb\nc"})
+    body = {"title": "Big", "series_id": make_series(me).id, "raw_text": "a\nb\nc"}
+    r = app_client.post("/documents", json=body)
     assert (r.status_code, r.json()["detail"]) == (422, "too many lines (max 2)")
     assert app_client.get("/documents").json() == []
 

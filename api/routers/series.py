@@ -72,8 +72,7 @@ def update_series(
 def delete_series(
     series_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
 ) -> None:
-    """Chapters survive: the ORM nulls their series_id, and the database's
-    ON DELETE SET NULL clears volume_id as the series' volumes are deleted."""
+    """The series' chapters are deleted with it (lines and images by their cascades)."""
     db.delete(scoped(db, Series, series_id, user.id))
     db.flush()
 

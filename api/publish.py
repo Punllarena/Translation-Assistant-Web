@@ -164,7 +164,7 @@ def wp_dates(db: Session, user_id: int, series_id: int | None) -> list[str]:
 def suggested_slot(db: Session, doc: Document, prefs: WpPrefs,
                    tz: tzinfo) -> tuple[bool, datetime | None]:
     """The confirm dialog's logic: (previous chapter still scheduled, the auto slot)."""
-    if doc.series_id is None or doc.series_order <= 0:
+    if doc.series_order <= 0:
         return False, None
     prev = db.scalar(select(Document).where(
         Document.user_id == doc.user_id, Document.series_id == doc.series_id,

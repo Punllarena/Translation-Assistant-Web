@@ -83,15 +83,14 @@ def attachment(filename: str) -> dict[str, str]:
 def import_txt(
     file: UploadFile = File(...),
     title: str | None = Form(None),
-    series_id: int | None = Form(None),
+    series_id: int = Form(...),
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
 ) -> Document:
     """A desktop ---SEPERATOR--- file becomes a document (the desktop import_txt). The
     title defaults to the file name without its extension."""
     raw, translated = _txt_lines(read_capped(file, MAX_TEXT_BYTES))
-    if series_id is not None:
-        owned_ref(db, Series, series_id, user.id, "series_id")
+    owned_ref(db, Series, series_id, user.id, "series_id")
     name = (title or "").strip() or PureWindowsPath(file.filename or "").stem or "Untitled"
     doc = Document(
         user_id=user.id,
@@ -105,7 +104,7 @@ def import_txt(
     return doc
 
 
-def _series_for(db: Session, user: User, series_id: int | None, title: str) -> Series | None:
+def _series_for(db: Session, user: User, series_id: int | None, title: str) -> Series:
     reject_nul(title)
     title = title.strip()
     if series_id is not None and title:
@@ -113,7 +112,7 @@ def _series_for(db: Session, user: User, series_id: int | None, title: str) -> S
     if series_id is not None:
         return owned_ref(db, Series, series_id, user.id, "series_id")
     if not title:
-        return None
+        raise _unprocessable("give series_id or series_title")
     series = db.scalar(select(Series).where(Series.user_id == user.id, Series.title == title))
     if series is None:
         series = Series(user_id=user.id, title=title)
@@ -167,8 +166,7 @@ def _batch_glossary(db, user, csv_file, series, errors, budget) -> int | None:
     except HTTPException as exc:
         errors.append({"name": csv_file.filename, "message": str(exc.detail)})
         return None
-    if series is not None:
-        series.profile_id = profile.id
+    series.profile_id = profile.id
     return profile.id
 
 
@@ -210,7 +208,7 @@ def import_batch(
     elif csvs:
         warnings.append(f"{len(csvs)} CSV files found; glossary import skipped.")
     existing = set(db.scalars(select(Document.title).where(Document.user_id == user.id)))
-    first = next_series_order(db, series.id if series else None)
+    first = next_series_order(db, series.id)
     imported: list[str] = []
     skipped: list[str] = []
     for stem, f in sorted(texts, key=lambda t: natural_key(t[0])):
@@ -231,8 +229,8 @@ def import_batch(
                 doc = Document(
                     user_id=user.id,
                     title=title,
-                    series_id=series.id if series else None,
-                    series_order=first + len(imported) if series else 0,
+                    series_id=series.id,
+                    series_order=first + len(imported),
                 )
                 db.add(doc)
                 db.flush()
@@ -243,7 +241,7 @@ def import_batch(
         existing.add(title)
         imported.append(title)
     return {
-        "series_id": series.id if series else None,
+        "series_id": series.id,
         "profile_id": profile_id,
         "imported": imported,
         "skipped": skipped,

@@ -38,7 +38,9 @@ class Series(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    documents: Mapped[list["Document"]] = relationship(back_populates="series")
+    documents: Mapped[list["Document"]] = relationship(
+        back_populates="series", cascade="all, delete-orphan", passive_deletes=True
+    )
     volumes: Mapped[list["Volume"]] = relationship(
         back_populates="series", cascade="all, delete-orphan"
     )
@@ -74,8 +76,8 @@ class Document(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    series_id: Mapped[int | None] = mapped_column(
-        ForeignKey("series.id", ondelete="SET NULL"), index=True
+    series_id: Mapped[int] = mapped_column(
+        ForeignKey("series.id", ondelete="CASCADE"), nullable=False, index=True
     )
     volume_id: Mapped[int | None] = mapped_column(
         ForeignKey("volumes.id", ondelete="SET NULL"), index=True
@@ -105,7 +107,7 @@ class Document(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    series: Mapped[Series | None] = relationship(back_populates="documents")
+    series: Mapped[Series] = relationship(back_populates="documents")
     lines: Mapped[list["Line"]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
     )

@@ -27,6 +27,7 @@ def test_imports_in_natural_order_after_existing_chapters(
 def test_bad_files_are_reported_and_the_rest_imported(app_client, me, db):
     out = app_client.post(
         "/documents/import/batch",
+        data={"series_title": "S"},
         files=[
             txt("good.txt"),
             ("files", ("nosep.txt", b"just text", "text/plain")),
@@ -54,6 +55,7 @@ def test_one_csv_becomes_a_profile_for_the_new_series(app_client, me, db):
 def test_two_csvs_warn_and_import_no_glossary(app_client, me, db):
     out = app_client.post(
         "/documents/import/batch",
+        data={"series_title": "S"},
         files=[
             txt("a.txt"),
             ("files", ("x.csv", b"a,b\n", "text/csv")),
@@ -91,10 +93,12 @@ def test_nul_in_series_title_is_422(app_client, me):
 def test_batch_total_cap_is_413_and_rolls_back(app_client, me, db, monkeypatch):
     one = len(txt("a.txt")[1][1])
     monkeypatch.setattr("api.routers.transfer.MAX_BATCH_BYTES", one + 1)
-    r = app_client.post("/documents/import/batch", files=[txt("a.txt"), txt("b.txt")])
+    r = app_client.post(
+        "/documents/import/batch", data={"series_title": "S"}, files=[txt("a.txt"), txt("b.txt")]
+    )
     assert r.status_code == 413
     db.rollback()
-    assert db.query(Document).count() == 0
+    assert db.query(Document).count() == 0 and db.query(Series).count() == 0
 
 
 def test_a_long_series_title_is_422(app_client, me, db):
