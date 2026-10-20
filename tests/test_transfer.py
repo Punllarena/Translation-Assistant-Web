@@ -1,5 +1,3 @@
-import io
-import zipfile
 from urllib.parse import quote
 
 import pytest
@@ -109,29 +107,10 @@ def test_unknown_format_is_422(app_client, me, make_doc):
     assert r.status_code == 422
 
 
-def test_series_markdown_zip_skips_incomplete_chapters(app_client, me, make_series, make_doc):
-    s = make_series(me, "シリーズ")
-    make_doc(me, ["a"], series=s, order=1, title="A")
-    make_doc(me, ["b"], series=s, order=2, title="B")
-    make_doc(me, ["c"], series=s, order=3, title="C", translated=False)
-    make_doc(me, ["d"], series=s, order=2, title="B")  # same order and title as B
-    r = app_client.get(f"/series/{s.id}/export/markdown", params={"variant": "plain"})
-    assert r.status_code == 200
-    assert r.headers["x-ta-skipped-incomplete"] == "1"
-    assert quote("シリーズ.zip") in r.headers["content-disposition"]
-    names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
-    assert names[:2] == ["001 - A.md", "002 - B.md"]
-    assert len(names) == 3 and names[2].startswith("002 - B (")
-
-
-@pytest.mark.parametrize(
-    "path", ["/documents/{doc}/export", "/series/{series}/export/markdown"]
-)
-def test_another_users_exports_are_404(app_client, me, make_user, make_series, make_doc, path):
+def test_another_users_document_export_is_404(app_client, me, make_user, make_series, make_doc):
     other = make_user(email="other@example.com")
-    series = make_series(other)
-    doc = make_doc(other, ["x"], series=series, order=1)
-    assert app_client.get(path.format(doc=doc.id, series=series.id)).status_code == 404
+    doc = make_doc(other, ["x"], series=make_series(other), order=1)
+    assert app_client.get(f"/documents/{doc.id}/export").status_code == 404
 
 
 def test_import_txt_line_count_is_capped(app_client, db, me, monkeypatch, sid):

@@ -13,6 +13,7 @@ from api.routers import (
     dictionary,
     documents,
     epub,
+    exports,
     glossary,
     images,
     invites,
@@ -73,6 +74,7 @@ def create_app() -> FastAPI:
     app.include_router(scrape.router)  # literal paths under /documents/{id}
     app.include_router(tadb.router)
     app.include_router(transfer.router)  # before documents: literal POST path
+    app.include_router(exports.router)  # before documents: literal POST path
     app.include_router(documents.router)
     app.include_router(volumes.router)
     app.include_router(lines.router)

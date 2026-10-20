@@ -1,8 +1,6 @@
 """File-shaped operations: TXT import and the TXT / Markdown downloads that replace the
 desktop's save dialogs."""
 
-import io
-import zipfile
 from pathlib import PureWindowsPath
 from typing import Literal
 from urllib.parse import quote
@@ -15,7 +13,6 @@ from api.core.text import (
     SEPARATOR,
     build_markdown_ruby,
     build_markdown_translation,
-    calculate_progress,
     lines_to_db_rows,
     natural_key,
     parse_file_content,
@@ -23,7 +20,6 @@ from api.core.text import (
 )
 from api.deps import current_user, db_session, owned_ref, scoped
 from api.library import (
-    chapters,
     check_line_count,
     line_arrays,
     next_series_order,
@@ -250,6 +246,11 @@ def import_batch(
     }
 
 
+def txt_body(raw: list[str], translated: list[str]) -> str:
+    """The desktop export_txt layout, which parse_file_content reads back."""
+    return "\n".join(raw) + "\n" + SEPARATOR + "\n" + "".join(t + "\n" for t in translated)
+
+
 @router.get("/documents/{document_id}/export")
 def export_document(
     document_id: int,
@@ -272,36 +273,3 @@ def export_document(
         media_type="text/markdown; charset=utf-8",
         headers=attachment(f"{stem}.md"),
     )
-
-
-@router.get("/series/{series_id}/export/markdown")
-def export_series_markdown(
-    series_id: int,
-    variant: Literal["plain", "ruby"] = "plain",
-    user: User = Depends(current_user),
-    db: Session = Depends(db_session),
-) -> Response:
-    """Every fully translated chapter as ``NNN - title.md`` in one ZIP (the desktop
-    wrote a folder). Incomplete chapters are skipped, as the desktop does; the count
-    is in the X-TA-Skipped-Incomplete header."""
-    # ponytail: built in memory; stream it if a series' Markdown outgrows a few MB
-    series = scoped(db, Series, series_id, user.id)
-    build = build_markdown_ruby if variant == "ruby" else build_markdown_translation
-    buf = io.BytesIO()
-    skipped = 0
-    names: set[str] = set()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for doc in chapters(db, series.id):
-            raw, translated = line_arrays(db, doc.id)
-            if calculate_progress(raw, translated)[0] < 100:
-                skipped += 1
-                continue
-            stem = sanitize_filename(doc.title) or f"doc_{doc.id}"
-            name = f"{doc.series_order:03d} - {stem}.md"
-            if name in names:  # a duplicate entry would shadow the first in most unzippers
-                name = f"{doc.series_order:03d} - {stem} ({doc.id}).md"
-            names.add(name)
-            zf.writestr(name, build(raw, translated, doc.chapter_title or doc.title))
-    folder = sanitize_filename(series.title) or "series"
-    headers = attachment(f"{folder}.zip") | {"X-TA-Skipped-Incomplete": str(skipped)}
-    return Response(buf.getvalue(), media_type="application/zip", headers=headers)
