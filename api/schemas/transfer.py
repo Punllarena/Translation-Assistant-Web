@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 class BatchError(BaseModel):
@@ -7,9 +9,14 @@ class BatchError(BaseModel):
 
 
 class BatchImportOut(BaseModel):
-    series_id: int | None
+    series_id: int
     profile_id: int | None
     imported: list[str]
     skipped: list[str]
     errors: list[BatchError]
     warnings: list[str]
+
+
+class ExportZipRequest(BaseModel):
+    document_ids: list[int] = Field(min_length=1, max_length=500)
+    format: Literal["txt", "md", "md-ruby"]

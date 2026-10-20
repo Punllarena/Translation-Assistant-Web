@@ -1,24 +1,29 @@
-import type { SeriesRow } from "./group";
+import type { SeriesRow } from "./shelf";
 
 export type Choice = { id: string; title: string };
 
 /** An existing series, or a new series title; setting one clears the other (both is a 422). */
-export default function SeriesChoice({ series, value, onChange }: {
-  series: SeriesRow[]; value: Choice; onChange: (c: Choice) => void;
+export default function SeriesChoice({ series, value, onChange, disabled }: {
+  series: SeriesRow[]; value: Choice; onChange: (c: Choice) => void; disabled?: boolean;
 }) {
   return (
     <div className="row-fields">
       <label className="field"><span>Series</span>
-        <select value={value.id} onChange={(e) => onChange({ id: e.target.value, title: "" })}>
-          <option value="">Unsorted</option>
+        <select value={value.id} disabled={disabled} onChange={(e) => onChange({ id: e.target.value, title: "" })}>
+          <option value="">Choose a series…</option>
           {series.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
         </select>
       </label>
       <label className="field"><span>New series title</span>
-        <input value={value.title} onChange={(e) => onChange({ id: "", title: e.target.value })} />
+        <input value={value.title} disabled={disabled} onChange={(e) => onChange({ id: "", title: e.target.value })} />
       </label>
     </div>
   );
+}
+
+/** True once an existing series or a non-blank new title is chosen. */
+export function seriesChosen(c: Choice): boolean {
+  return c.id !== "" || c.title.trim() !== "";
 }
 
 /** Form fields for whichever of the two is set. */

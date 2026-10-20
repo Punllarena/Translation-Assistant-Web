@@ -51,11 +51,10 @@ def test_today_streaks_summary_and_comparisons(app_client, me, make_doc, db):
     assert set(body["comparisons"]) == {"paragraphs", "chars", "en_words"}
 
 
-def test_series_breakdown_skips_unsorted_chapters(app_client, me, make_doc, make_series, db):
+def test_series_breakdown_counts_a_series_chapters(app_client, me, make_doc, make_series, db):
     s = make_series(me, "Sword")
     stamp(db, make_doc(me, ["一", "二"], series=s, order=1), datetime(2026, 1, 1, tzinfo=UTC))
     stamp(db, make_doc(me, ["三"], series=s, order=2), datetime(2026, 1, 2, tzinfo=UTC))
-    stamp(db, make_doc(me, ["四"]), datetime(2026, 1, 2, tzinfo=UTC))
     assert app_client.get("/stats").json()["series"] == [{
         "series_id": s.id, "series": "Sword", "paragraphs": 3, "chars": 3,
         "en_words": 3, "chapters": 2}]

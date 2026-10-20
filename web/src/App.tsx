@@ -5,7 +5,7 @@ import { RequireAuth, SetupGate } from "./auth/session";
 import EditorPage from "./editor/EditorPage";
 import SourcePage from "./editor/SourcePage";
 import ImportPage from "./library/ImportPage";
-import Picker from "./library/Picker";
+import Library from "./library/Library";
 import SeriesPage from "./library/SeriesPage";
 import ProfilesPage from "./settings/ProfilesPage";
 import MtSettingsPage from "./settings/MtSettingsPage";
@@ -24,7 +24,7 @@ export const router = createBrowserRouter(
         <Route path="/login" element={<Login />} />
         <Route path="/invite" element={<AcceptInvite />} />
         <Route element={<RequireAuth><Shell /></RequireAuth>}>
-          <Route index element={<Picker />} />
+          <Route index element={<Library />} />
           <Route path="admin" element={<AdminPage />} />
           <Route path="import" element={<ImportPage />} />
           <Route path="stats" element={<StatsPage />} />

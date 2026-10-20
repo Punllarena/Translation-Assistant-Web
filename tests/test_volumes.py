@@ -140,3 +140,14 @@ def theirs(db, me, make_user, make_series, make_doc):
 )
 def test_another_users_objects_are_404(app_client, theirs, method, path, kwargs):
     assert app_client.request(method, path.format(**theirs), **kwargs).status_code == 404
+
+
+def test_list_all_volumes_is_mine_only(app_client, db, me, make_user, make_series):
+    s1, s2 = make_series(me, "A"), make_series(me, "B")
+    theirs = make_series(make_user(email="other@example.com"), "Theirs")
+    for s, title, order in [(s2, "B1", 1), (s1, "A2", 2), (s1, "A1", 1), (theirs, "X", 1)]:
+        db.add(Volume(series_id=s.id, title=title, volume_order=order))
+    db.flush()
+    r = app_client.get("/volumes")
+    assert r.status_code == 200
+    assert [v["title"] for v in r.json()] == ["A1", "A2", "B1"]

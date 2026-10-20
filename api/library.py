@@ -1,17 +1,15 @@
 """Queries shared by the documents, series, restructure, and transfer code."""
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import bindparam, func, inspect, select, update
+from sqlalchemy.orm import Session, attributes, object_session
 
 from api.core.text import db_rows_to_arrays, lines_to_db_rows
-from api.models import Document, Line
+from api.models import Document, Line, Series, Volume
 
 
-def next_series_order(db: Session, series_id: int | None) -> int:
-    """The slot after the series' last chapter; 0 for a document outside any series."""
-    if series_id is None:
-        return 0
+def next_series_order(db: Session, series_id: int) -> int:
+    """The slot after the series' last chapter."""
     return db.scalar(
         select(func.coalesce(func.max(Document.series_order), 0) + 1).where(
             Document.series_id == series_id
@@ -80,10 +78,68 @@ def chapters(db: Session, series_id: int) -> list[Document]:
     )
 
 
+_QUIET_ORDER = (
+    update(Document.__table__)
+    .where(Document.__table__.c.id == bindparam("b_id"))
+    # An explicit SET of updated_at keeps its onupdate=now() from firing.
+    .values(series_order=bindparam("b_order"), updated_at=Document.__table__.c.updated_at)
+)
+
+
 def renumber(docs: list[Document]) -> None:
-    """Give ``docs`` series_order 1..N in list order (the caller flushes)."""
+    """Give ``docs`` series_order 1..N in list order (the caller flushes).
+
+    A new number alone is not an edit: a stored chapter with no other pending change is
+    renumbered in SQL with its updated_at kept, and its object updated to match."""
+    quiet: list[dict] = []
     for order, doc in enumerate(docs, start=1):
-        doc.series_order = order
+        if doc.series_order == order:
+            continue
+        state = inspect(doc)
+        if state.persistent and not state.modified:
+            quiet.append({"b_id": doc.id, "b_order": order})
+            attributes.set_committed_value(doc, "series_order", order)
+        else:
+            doc.series_order = order
+    if quiet:
+        object_session(docs[0]).execute(_QUIET_ORDER, quiet)
+
+
+def arrange(db: Session, series: Series) -> list[Document]:
+    """Keep each volume a contiguous run of series_order, in volume_order (chapters with no
+    volume come last), numbered 1..N. A syosetu series keeps its own numbering. The caller
+    flushes. Returns the chapters in final order."""
+    docs = chapters(db, series.id)
+    if series.syosetu_url:
+        return docs
+    rank = {
+        vid: i
+        for i, vid in enumerate(
+            db.scalars(
+                select(Volume.id)
+                .where(Volume.series_id == series.id)
+                .order_by(Volume.volume_order, Volume.id)
+            )
+        )
+    }
+    docs.sort(key=lambda d: rank.get(d.volume_id, len(rank)))  # stable
+    renumber(docs)
+    return docs
+
+
+def send_to_volume_end(
+    db: Session, series: Series, docs: list[Document], volume_id: int | None
+) -> None:
+    """Put ``docs`` at the end of a volume, in the caller's list order (assign_documents
+    passes them in reading order); a syosetu series changes only volume_id. The caller
+    flushes."""
+    if not series.syosetu_url:
+        top = next_series_order(db, series.id)
+        for offset, doc in enumerate(docs):
+            doc.series_order = top + offset
+    for doc in docs:
+        doc.volume_id = volume_id
+    arrange(db, series)
 
 
 def replace_raw_lines(db: Session, doc: Document, raw: list[str], force: bool) -> None:

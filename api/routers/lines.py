@@ -24,10 +24,9 @@ def editor_profile(
     default, else the oldest, else none."""
     if profile_id is not None:
         return owned_ref(db, Profile, profile_id, user_id, "profile_id")
-    if doc.series_id is not None:
-        series = db.get(Series, doc.series_id)
-        if series.profile_id is not None:
-            return db.get(Profile, series.profile_id)
+    series = db.get(Series, doc.series_id)
+    if series.profile_id is not None:
+        return db.get(Profile, series.profile_id)
     used = db.scalar(
         select(UserSetting.value_json).where(
             UserSetting.user_id == user_id, UserSetting.key == "profile_used"

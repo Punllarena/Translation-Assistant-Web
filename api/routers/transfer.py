@@ -1,8 +1,6 @@
 """File-shaped operations: TXT import and the TXT / Markdown downloads that replace the
 desktop's save dialogs."""
 
-import io
-import zipfile
 from pathlib import PureWindowsPath
 from typing import Literal
 from urllib.parse import quote
@@ -15,7 +13,6 @@ from api.core.text import (
     SEPARATOR,
     build_markdown_ruby,
     build_markdown_translation,
-    calculate_progress,
     lines_to_db_rows,
     natural_key,
     parse_file_content,
@@ -23,7 +20,6 @@ from api.core.text import (
 )
 from api.deps import current_user, db_session, owned_ref, scoped
 from api.library import (
-    chapters,
     check_line_count,
     line_arrays,
     next_series_order,
@@ -83,15 +79,14 @@ def attachment(filename: str) -> dict[str, str]:
 def import_txt(
     file: UploadFile = File(...),
     title: str | None = Form(None),
-    series_id: int | None = Form(None),
+    series_id: int = Form(...),
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
 ) -> Document:
     """A desktop ---SEPERATOR--- file becomes a document (the desktop import_txt). The
     title defaults to the file name without its extension."""
     raw, translated = _txt_lines(read_capped(file, MAX_TEXT_BYTES))
-    if series_id is not None:
-        owned_ref(db, Series, series_id, user.id, "series_id")
+    owned_ref(db, Series, series_id, user.id, "series_id")
     name = (title or "").strip() or PureWindowsPath(file.filename or "").stem or "Untitled"
     doc = Document(
         user_id=user.id,
@@ -105,7 +100,7 @@ def import_txt(
     return doc
 
 
-def _series_for(db: Session, user: User, series_id: int | None, title: str) -> Series | None:
+def _series_for(db: Session, user: User, series_id: int | None, title: str) -> Series:
     reject_nul(title)
     title = title.strip()
     if series_id is not None and title:
@@ -113,7 +108,7 @@ def _series_for(db: Session, user: User, series_id: int | None, title: str) -> S
     if series_id is not None:
         return owned_ref(db, Series, series_id, user.id, "series_id")
     if not title:
-        return None
+        raise _unprocessable("give series_id or series_title")
     series = db.scalar(select(Series).where(Series.user_id == user.id, Series.title == title))
     if series is None:
         series = Series(user_id=user.id, title=title)
@@ -167,8 +162,7 @@ def _batch_glossary(db, user, csv_file, series, errors, budget) -> int | None:
     except HTTPException as exc:
         errors.append({"name": csv_file.filename, "message": str(exc.detail)})
         return None
-    if series is not None:
-        series.profile_id = profile.id
+    series.profile_id = profile.id
     return profile.id
 
 
@@ -210,7 +204,7 @@ def import_batch(
     elif csvs:
         warnings.append(f"{len(csvs)} CSV files found; glossary import skipped.")
     existing = set(db.scalars(select(Document.title).where(Document.user_id == user.id)))
-    first = next_series_order(db, series.id if series else None)
+    first = next_series_order(db, series.id)
     imported: list[str] = []
     skipped: list[str] = []
     for stem, f in sorted(texts, key=lambda t: natural_key(t[0])):
@@ -231,8 +225,8 @@ def import_batch(
                 doc = Document(
                     user_id=user.id,
                     title=title,
-                    series_id=series.id if series else None,
-                    series_order=first + len(imported) if series else 0,
+                    series_id=series.id,
+                    series_order=first + len(imported),
                 )
                 db.add(doc)
                 db.flush()
@@ -243,13 +237,18 @@ def import_batch(
         existing.add(title)
         imported.append(title)
     return {
-        "series_id": series.id if series else None,
+        "series_id": series.id,
         "profile_id": profile_id,
         "imported": imported,
         "skipped": skipped,
         "errors": errors,
         "warnings": warnings,
     }
+
+
+def txt_body(raw: list[str], translated: list[str]) -> str:
+    """The desktop export_txt layout, which parse_file_content reads back."""
+    return "\n".join(raw) + "\n" + SEPARATOR + "\n" + "".join(t + "\n" for t in translated)
 
 
 @router.get("/documents/{document_id}/export")
@@ -274,36 +273,3 @@ def export_document(
         media_type="text/markdown; charset=utf-8",
         headers=attachment(f"{stem}.md"),
     )
-
-
-@router.get("/series/{series_id}/export/markdown")
-def export_series_markdown(
-    series_id: int,
-    variant: Literal["plain", "ruby"] = "plain",
-    user: User = Depends(current_user),
-    db: Session = Depends(db_session),
-) -> Response:
-    """Every fully translated chapter as ``NNN - title.md`` in one ZIP (the desktop
-    wrote a folder). Incomplete chapters are skipped, as the desktop does; the count
-    is in the X-TA-Skipped-Incomplete header."""
-    # ponytail: built in memory; stream it if a series' Markdown outgrows a few MB
-    series = scoped(db, Series, series_id, user.id)
-    build = build_markdown_ruby if variant == "ruby" else build_markdown_translation
-    buf = io.BytesIO()
-    skipped = 0
-    names: set[str] = set()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for doc in chapters(db, series.id):
-            raw, translated = line_arrays(db, doc.id)
-            if calculate_progress(raw, translated)[0] < 100:
-                skipped += 1
-                continue
-            stem = sanitize_filename(doc.title) or f"doc_{doc.id}"
-            name = f"{doc.series_order:03d} - {stem}.md"
-            if name in names:  # a duplicate entry would shadow the first in most unzippers
-                name = f"{doc.series_order:03d} - {stem} ({doc.id}).md"
-            names.add(name)
-            zf.writestr(name, build(raw, translated, doc.chapter_title or doc.title))
-    folder = sanitize_filename(series.title) or "series"
-    headers = attachment(f"{folder}.zip") | {"X-TA-Skipped-Incomplete": str(skipped)}
-    return Response(buf.getvalue(), media_type="application/zip", headers=headers)

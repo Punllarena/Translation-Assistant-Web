@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session
 
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.deps import current_user, db_session, owned_ref, scoped
-from api.library import check_line_count, next_series_order, write_lines
+from api.library import (
+    arrange,
+    check_line_count,
+    next_series_order,
+    send_to_volume_end,
+    write_lines,
+)
 from api.models import Document, DocumentImage, Line, Series, User, Volume
 from api.restructure import NotOwned, RestructureError, merge_documents, split_document
 from api.routing import api_router
@@ -28,15 +34,14 @@ def progress(line_count: int, translated_count: int, image_count: int) -> int:
 
 
 def check_placement(
-    db: Session, user_id: int, series_id: int | None, volume_id: int | None
+    db: Session, user_id: int, series_id: int, volume_id: int | None
 ) -> None:
     """A (series, volume) pair named in a request body must be the caller's and agree."""
-    if series_id is not None:
-        owned_ref(db, Series, series_id, user_id, "series_id")
+    owned_ref(db, Series, series_id, user_id, "series_id")
     if volume_id is None:
         return
     volume = db.get(Volume, volume_id)
-    if series_id is None or volume is None or volume.series_id != series_id:
+    if volume is None or volume.series_id != series_id:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "volume_id: not a volume of that series"
         )
@@ -64,6 +69,7 @@ def list_documents(
             DocumentImage.document_id,
             func.count().label("image_count"),
             func.bool_or(DocumentImage.is_cover).label("has_cover"),
+            func.min(DocumentImage.id).filter(DocumentImage.is_cover).label("cover_image_id"),
         )
         .group_by(DocumentImage.document_id)
         .subquery()
@@ -75,6 +81,7 @@ def list_documents(
             func.coalesce(lines.c.translated_count, 0),
             func.coalesce(images.c.image_count, 0),
             func.coalesce(images.c.has_cover, False),
+            images.c.cover_image_id,
         )
         .outerjoin(lines, lines.c.document_id == Document.id)
         .outerjoin(images, images.c.document_id == Document.id)
@@ -88,9 +95,10 @@ def list_documents(
             translated_count=tc,
             image_count=ic,
             has_cover=hc,
+            cover_image_id=cid,
             progress=progress(lc, tc, ic),
         )
-        for doc, lc, tc, ic, hc in rows
+        for doc, lc, tc, ic, hc, cid in rows
     ]
 
 
@@ -122,6 +130,8 @@ def create_document(
     if parsed:
         raw, translated, _ = parsed
         write_lines(db, doc.id, lines_to_db_rows(raw, translated))
+    arrange(db, db.get(Series, doc.series_id))
+    db.flush()
     return doc
 
 
@@ -134,6 +144,7 @@ def update_document(
 ) -> Document:
     doc = scoped(db, Document, document_id, user.id)
     changes = body.model_dump(exclude_unset=True)
+    old_series_id = doc.series_id
     series_id = changes.get("series_id", doc.series_id)
     moving = series_id != doc.series_id
     if moving:
@@ -142,8 +153,15 @@ def update_document(
     check_placement(db, user.id, series_id, changes.get("volume_id", doc.volume_id))
     if moving:
         changes["series_order"] = next_series_order(db, series_id)
+    volume_changed = "volume_id" in changes and changes["volume_id"] != doc.volume_id
     for field, value in changes.items():
         setattr(doc, field, value)
+    db.flush()
+    if moving:
+        arrange(db, db.get(Series, old_series_id))
+        arrange(db, db.get(Series, series_id))
+    elif volume_changed:
+        send_to_volume_end(db, db.get(Series, series_id), [doc], doc.volume_id)
     db.flush()
     return doc
 
@@ -152,7 +170,11 @@ def update_document(
 def delete_document(
     document_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
 ) -> None:
-    db.delete(scoped(db, Document, document_id, user.id))
+    doc = scoped(db, Document, document_id, user.id)
+    series = db.get(Series, doc.series_id)
+    db.delete(doc)
+    db.flush()
+    arrange(db, series)
     db.flush()
 
 

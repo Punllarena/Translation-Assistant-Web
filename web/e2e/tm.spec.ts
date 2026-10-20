@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openChapter as openIn } from "./fixtures/library";
 
 async function openChapter(page: import("@playwright/test").Page) {
   await page.goto("/login");
@@ -6,8 +7,7 @@ async function openChapter(page: import("@playwright/test").Page) {
   await page.getByLabel("Password").fill("e2e-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
-  await page.goto("/");
-  await page.getByRole("link", { name: "Open TM target" }).click();
+  await openIn(page, "E2E tm series", "TM target");
 }
 
 test("translation memory offers another chapter's translation and a click fills it", async ({ page }) => {

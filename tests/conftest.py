@@ -182,14 +182,24 @@ def make_doc(db):
 
     With translated=True each line's translation is 'tr:<raw>'; otherwise empty.
     chapter_title is set to `title`, as the desktop does for chapters."""
-    from api.models import Document, Line
+    from sqlalchemy import select
+
+    from api.models import Document, Line, Series
 
     def _make(user, raws=(), *, series=None, order=0, title="Ch", volume=None, translated=True):
+        if series is None:  # every document belongs to a series
+            series = db.scalar(
+                select(Series).where(Series.user_id == user.id, Series.title == "Default series")
+            )
+            if series is None:
+                series = Series(user_id=user.id, title="Default series")
+                db.add(series)
+                db.flush()
         doc = Document(
             user_id=user.id,
             title=title,
             chapter_title=title,
-            series_id=series.id if series else None,
+            series_id=series.id,
             volume_id=volume.id if volume else None,
             series_order=order,
         )

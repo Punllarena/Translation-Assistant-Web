@@ -12,7 +12,7 @@ MAX_RAW_CHARS = 1_000_000
 class DocumentCreate(BaseModel):
     title: Title
     chapter_title: str = ""
-    series_id: int | None = None
+    series_id: int
     volume_id: int | None = None
     source_url: str = ""
     source_language: str = Field(default="ja", min_length=2, max_length=16)
@@ -20,7 +20,7 @@ class DocumentCreate(BaseModel):
 
 
 class DocumentUpdate(Patch):
-    NULLABLE: ClassVar[frozenset[str]] = frozenset({"series_id", "volume_id"})
+    NULLABLE: ClassVar[frozenset[str]] = frozenset({"volume_id"})
 
     title: Title | None = None
     chapter_title: str | None = None
@@ -37,7 +37,7 @@ class DocumentOut(BaseModel):
     id: int
     title: str
     chapter_title: str
-    series_id: int | None
+    series_id: int
     volume_id: int | None
     series_order: int
     source_language: str
@@ -58,6 +58,7 @@ class DocumentListItem(DocumentOut):
     translated_count: int
     image_count: int
     has_cover: bool
+    cover_image_id: int | None = None
     progress: int
 
 

@@ -1,83 +1,54 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useParams, useSearchParams } from "react-router";
 import { api, call } from "../api/client";
-import Chapters from "./Chapters";
-import FindReplace from "./FindReplace";
-import { invalidateLibrary, useDocuments, useSeriesList } from "./queries";
-import PhraseSuggestions from "./PhraseSuggestions";
-import SeriesWp from "./SeriesWp";
-import SyosetuFetch from "./SyosetuFetch";
-import Volumes from "./Volumes";
+import PageHeader from "../ui/PageHeader";
+import { useDocuments, useSeriesList } from "./queries";
+import SeriesSettings from "./SeriesSettings";
+import SeriesTools from "./SeriesTools";
+import VolumesTab from "./VolumesTab";
+
+const TABS = [
+  { id: "volumes", label: "Volumes" },
+  { id: "tools", label: "Tools" },
+  { id: "settings", label: "Settings" },
+] as const;
 
 export default function SeriesPage() {
   const seriesId = Number(useParams().id);
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const [params, setParams] = useSearchParams();
   const all = useSeriesList();
   const docs = useDocuments();
   const profiles = useQuery({ queryKey: ["profiles"], queryFn: () => call(api.GET("/profiles")) });
-  const save = useMutation({
-    mutationFn: (body: { title: string; syosetu_url: string; profile_id: number | null }) =>
-      call(api.PATCH("/series/{series_id}", { params: { path: { series_id: seriesId } }, body })),
-    onSuccess: () => invalidateLibrary(queryClient),
-  });
-  const remove = useMutation({
-    mutationFn: () => call(api.DELETE("/series/{series_id}", { params: { path: { series_id: seriesId } } })),
-    onSuccess: async () => {
-      await invalidateLibrary(queryClient);
-      navigate("/");
-    },
-  });
-  if (all.isPending || docs.isPending || profiles.isPending) return <main><p className="muted">Loading…</p></main>;
+  if (all.isPending || docs.isPending) return <main><p className="muted">Loading…</p></main>;
   const loadError = all.error ?? docs.error;
   if (loadError) return <main><p className="error" role="alert">{loadError.message}</p></main>;
   const series = all.data?.find((s) => s.id === seriesId);
   if (!series) return <main><p>No such series. <Link to="/">Back to the library</Link></p></main>;
-  const chapters = (docs.data ?? [])
-    .filter((d) => d.series_id === seriesId)
-    .sort((a, b) => a.series_order - b.series_order || a.id - b.id);
-  const submit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const profile = String(form.get("profile_id") ?? "");
-    save.mutate({
-      title: String(form.get("title")),
-      syosetu_url: String(form.get("syosetu_url")),
-      profile_id: profile ? Number(profile) : null,
-    });
+  const chapters = (docs.data ?? []).filter((d) => d.series_id === seriesId);
+  const tab = TABS.find((t) => t.id === params.get("tab"))?.id ?? "volumes";
+  const select = (id: string) => {
+    const next = new URLSearchParams(params);
+    next.set("tab", id);
+    setParams(next, { replace: true });
   };
   return (
     <main>
-      <p><Link to="/">← Library</Link></p>
-      <form className="stack" onSubmit={submit} key={series.id}>
-        <label>Title <input name="title" defaultValue={series.title} required /></label>
-        <label>Series URL <input name="syosetu_url" type="url" defaultValue={series.syosetu_url} /></label>
-        <label>
-          Profile{" "}
-          <select name="profile_id" defaultValue={series.profile_id ?? ""}>
-            <option value="">Default profile</option>
-            {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </label>
-        {profiles.isError && <p className="error" role="alert">{profiles.error.message}</p>}
-        <div className="toolbar">
-          <button disabled={save.isPending || !profiles.isSuccess}>Save</button>
-          <a href={`/api/series/${seriesId}/export/markdown?variant=plain`} download>Markdown ZIP (complete chapters only)</a>
-          <a href={`/api/series/${seriesId}/export/markdown?variant=ruby`} download>Ruby Markdown ZIP (complete chapters only)</a>
-          <button type="button" disabled={remove.isPending} onClick={() => {
-            if (window.confirm(`Delete series "${series.title}"? Its chapters are kept, unsorted.`)) remove.mutate();
-          }}>Delete series</button>
-        </div>
-        {(save.error ?? remove.error) && <p className="error" role="alert">{(save.error ?? remove.error)!.message}</p>}
-      </form>
-      <SeriesWp series={series} />
-      <Chapters seriesId={seriesId} docs={chapters} />
-      {series.syosetu_url && <SyosetuFetch key={`fetch-${seriesId}`} seriesId={seriesId} />}
-      <Volumes seriesId={seriesId} docs={chapters} />
-      <FindReplace key={`find-${seriesId}`} seriesId={seriesId} />
-      <PhraseSuggestions key={`suggest-${seriesId}`} seriesId={seriesId}
-        defaultProfileId={series.profile_id ?? profiles.data?.find((p) => p.is_default)?.id ?? null} />
+      <PageHeader title={series.title}
+        crumbs={<><Link to="/">Library</Link><span aria-hidden="true">/</span><span>{series.title}</span></>} />
+      <div className="tabs" role="tablist" aria-label="Series sections">
+        {TABS.map((t) => (
+          <button key={t.id} type="button" role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id}
+            aria-controls={`panel-${t.id}`} onClick={() => select(t.id)}>{t.label}</button>
+        ))}
+      </div>
+      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+        {tab === "volumes" && <VolumesTab series={series} docs={chapters} />}
+        {tab === "tools" && (
+          <SeriesTools series={series}
+            defaultProfileId={series.profile_id ?? profiles.data?.find((p) => p.is_default)?.id ?? null} />
+        )}
+        {tab === "settings" && <SeriesSettings series={series} chapterCount={chapters.length} />}
+      </div>
     </main>
   );
 }

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import { openSeries } from "./fixtures/library";
 
 const received: Record<string, unknown>[] = [];
 let server: http.Server;
@@ -50,24 +51,25 @@ async function signInAndConnect(page: Page) {
 
 test("configure WordPress, publish a chapter, see the badge", async ({ page }) => {
   await signInAndConnect(page);
-  await page.getByRole("link", { name: "Library" }).click();
+  await openSeries(page, "E2E publish series");
   const row = page.getByRole("row").filter({ hasText: "Publish one" });
-  await row.getByRole("button", { name: "Publish…" }).click();
+  await row.getByRole("button", { name: "Actions for Publish one" }).click();
+  await page.getByRole("menuitem", { name: "Publish…" }).click();
   const dialog = page.getByRole("dialog", { name: "Publish to WordPress" });
   await expect(dialog.getByText("WP status: Not published")).toBeVisible();
   await dialog.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(dialog.getByText("Published!")).toBeVisible();
   await dialog.getByRole("button", { name: "Close" }).click();
-  await expect(row.getByText(/^pub /)).toBeVisible();
+  await expect(row.getByText("Published", { exact: true })).toBeVisible();
   expect(received.at(-1)).toMatchObject({ series_slug: "e2e-publish", chapter_title: "E2EP Publish one", chapter_index: 1 });
 });
 
 test("batch publish: closing and reopening the dialog never errors, and the chapter ends up published", async ({ page }) => {
   await signInAndConnect(page);
-  await page.getByRole("link", { name: "Library" }).click();
+  await openSeries(page, "E2E publish series");
   const row = page.getByRole("row").filter({ hasText: "Batch target" });
   await row.getByLabel("Select Batch target").check();
-  const open = () => page.getByRole("button", { name: "Publish 1", exact: true }).click();
+  const open = () => page.getByRole("button", { name: "Publish…", exact: true }).click();
   let release = () => {};
   hold = new Promise<void>((resolve) => (release = resolve));
   try {
@@ -90,5 +92,5 @@ test("batch publish: closing and reopening the dialog never errors, and the chap
     release();
   }
   // The job finishes after the dialog is gone; the row still has to pick that up.
-  await expect(row.getByText(/^pub /)).toBeVisible();
+  await expect(row.getByText("Published", { exact: true })).toBeVisible();
 });

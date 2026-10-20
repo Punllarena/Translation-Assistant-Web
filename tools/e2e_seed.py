@@ -34,12 +34,17 @@ def main() -> None:
 
     from api.db import SessionLocal
     from api.library import write_lines
-    from api.models import Document, Line, Profile, Series, User
+    from api.models import Document, Line, Profile, Series, User, Volume
     from api.security import hash_password
 
     with SessionLocal() as db:
         user = create_admin(db, EMAIL, PASSWORD)
-        doc = Document(user_id=user.id, title="E2E chapter")
+        editor_series = Series(user_id=user.id, title="E2E editor series")
+        tm_series = Series(user_id=user.id, title="E2E tm series")
+        mt_series = Series(user_id=user.id, title="E2E mt series")
+        db.add_all([editor_series, tm_series, mt_series])
+        db.flush()
+        doc = Document(user_id=user.id, title="E2E chapter", series_id=editor_series.id)
         db.add(doc)
         db.flush()
         write_lines(db, doc.id, [
@@ -49,7 +54,7 @@ def main() -> None:
         # tm.spec's own chapter pair: they share TM_LINE, and 記憶語 occurs nowhere else, so the
         # profile-wide glossary entry that spec adds cannot change any other spec's text
         for title, translated in (("Memory source", "Remembered translation."), ("TM target", "")):
-            other = Document(user_id=user.id, title=title)
+            other = Document(user_id=user.id, title=title, series_id=tm_series.id)
             db.add(other)
             db.flush()
             write_lines(db, other.id, [
@@ -71,7 +76,7 @@ def main() -> None:
                 {"line_number": 0, "prefix": "%", "raw_text": raw, "translated_text": translated},
             ])
         # mt spec: 猫 occurs only here (JParser's sample dictionary has it)
-        mt = Document(user_id=user.id, title="MT target")
+        mt = Document(user_id=user.id, title="MT target", series_id=mt_series.id)
         db.add(mt)
         db.flush()
         write_lines(db, mt.id, [
@@ -105,6 +110,22 @@ def main() -> None:
                                         "translated_text": "Stats."}])
         db.execute(update(Line).where(Line.document_id == stats_doc.id)
                    .values(translated_at=func.now()))
+        # library.spec: a volume with two chapters and one loose chapter; nothing else opens it
+        lib = Series(user_id=user.id, title="E2E library series")
+        db.add(lib)
+        db.flush()
+        vol_a = Volume(series_id=lib.id, title="Vol A", volume_order=1)
+        db.add(vol_a)
+        db.flush()
+        for order, (title, volume_id) in enumerate((
+            ("Lib one", vol_a.id), ("Lib two", vol_a.id), ("Lib loose", None),
+        )):
+            ch = Document(user_id=user.id, title=title, series_id=lib.id, volume_id=volume_id,
+                          series_order=order)
+            db.add(ch)
+            db.flush()
+            write_lines(db, ch.id, [{"line_number": 0, "prefix": "%", "raw_text": "図書です。",
+                                     "translated_text": ""}])
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)

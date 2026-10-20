@@ -221,6 +221,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/export/zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Selection Zip
+         * @description The chosen chapters in one ZIP, in series reading order; nothing is skipped.
+         */
+        post: operations["export_selection_zip_documents_export_zip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/import/batch": {
         parameters: {
             query?: never;
@@ -935,8 +955,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Series
-         * @description Chapters survive: the ORM nulls their series_id, and the database's
-         *     ON DELETE SET NULL clears volume_id as the series' volumes are deleted.
+         * @description The series' chapters are deleted with it (lines and images by their cascades).
          */
         delete: operations["delete_series_series__series_id__delete"];
         options?: never;
@@ -954,9 +973,9 @@ export interface paths {
         };
         /**
          * Export Series Markdown
-         * @description Every fully translated chapter as ``NNN - title.md`` in one ZIP (the desktop
-         *     wrote a folder). Incomplete chapters are skipped, as the desktop does; the count
-         *     is in the X-TA-Skipped-Incomplete header.
+         * @description Every fully translated chapter (of one volume, with ``volume_id``) as
+         *     ``NNN - title.md`` in one ZIP (the desktop wrote a folder). Incomplete chapters are
+         *     skipped, as the desktop does; the count is in the X-TA-Skipped-Incomplete header.
          */
         get: operations["export_series_markdown_series__series_id__export_markdown_get"];
         put?: never;
@@ -1281,6 +1300,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/volumes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List All Volumes */
+        get: operations["list_all_volumes_volumes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/volumes/{volume_id}": {
         parameters: {
             query?: never;
@@ -1475,7 +1511,7 @@ export interface components {
             /** Profile Id */
             profile_id: number | null;
             /** Series Id */
-            series_id: number | null;
+            series_id: number;
             /** Skipped */
             skipped: string[];
             /** Warnings */
@@ -1566,7 +1602,7 @@ export interface components {
             /** File */
             file: string;
             /** Series Id */
-            series_id?: number | null;
+            series_id: number;
             /** Title */
             title?: string | null;
         };
@@ -1736,7 +1772,7 @@ export interface components {
              */
             raw_text: string;
             /** Series Id */
-            series_id?: number | null;
+            series_id: number;
             /**
              * Source Language
              * @default ja
@@ -1771,6 +1807,8 @@ export interface components {
         DocumentListItem: {
             /** Chapter Title */
             chapter_title: string;
+            /** Cover Image Id */
+            cover_image_id?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -1789,7 +1827,7 @@ export interface components {
             /** Progress */
             progress: number;
             /** Series Id */
-            series_id: number | null;
+            series_id: number;
             /** Series Order */
             series_order: number;
             /** Source Language */
@@ -1830,7 +1868,7 @@ export interface components {
             /** Last Position */
             last_position: number;
             /** Series Id */
-            series_id: number | null;
+            series_id: number;
             /** Series Order */
             series_order: number;
             /** Source Language */
@@ -1886,6 +1924,16 @@ export interface components {
             skipped: string[];
             /** Volume Id */
             volume_id: number;
+        };
+        /** ExportZipRequest */
+        ExportZipRequest: {
+            /** Document Ids */
+            document_ids: number[];
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "txt" | "md" | "md-ruby";
         };
         /** FetchChapters */
         FetchChapters: {
@@ -3086,6 +3134,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_selection_zip_documents_export_zip_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportZipRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -4757,6 +4838,7 @@ export interface operations {
         parameters: {
             query?: {
                 variant?: "plain" | "ruby";
+                volume_id?: number | null;
             };
             header?: never;
             path: {
@@ -5410,6 +5492,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_all_volumes_volumes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeOut"][];
                 };
             };
         };

@@ -64,17 +64,17 @@ def test_rename_onto_existing_title_is_409(app_client, me, make_series):
     assert app_client.patch(f"/series/{b.id}", json={"title": "A"}).status_code == 409
 
 
-def test_delete_keeps_chapters_unsorted(app_client, db, me, make_series, make_doc):
+def test_delete_removes_the_chapters_and_volumes(app_client, db, me, make_series, make_doc):
     series = make_series(me)
     volume = Volume(series_id=series.id, title="V1")
     db.add(volume)
     db.flush()
     doc = make_doc(me, ["a"], series=series, order=1, volume=volume)
+    doc_id, volume_id = doc.id, volume.id
     assert app_client.delete(f"/series/{series.id}").status_code == 204
     db.expire_all()
-    kept = db.get(Document, doc.id)
-    assert kept is not None
-    assert (kept.series_id, kept.volume_id) == (None, None)
+    assert db.get(Document, doc_id) is None
+    assert db.get(Volume, volume_id) is None
 
 
 @pytest.mark.parametrize(

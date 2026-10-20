@@ -302,13 +302,39 @@ def test_document_of_a_skipped_series_is_skipped_not_detached(
     assert any("documents" in m and "not imported" in m for m in report.messages)
 
 
-def test_document_without_a_series_title_still_imports_standalone(db, make_user, tmp_path):
+def test_a_seriesless_desktop_chapter_becomes_its_own_series(db, make_user, tmp_path):
     path = _desktop_db(tmp_path)
-    _tweak(path, "UPDATE documents SET series_title = '', volume_title = ''")
+    _tweak(path, "UPDATE documents SET series_title = '', volume_title = '', title = 'Oneshot'")
     user = make_user()
     report = import_tadb(db, path, user.id)
     assert report.written["documents"] == 1 and not report.skipped.get("documents")
-    assert db.query(Document).filter_by(user_id=user.id).one().series_id is None
+    assert report.written["series"] == 2  # 'My Series' plus 'Oneshot'
+    series = db.query(Series).filter_by(user_id=user.id, title="Oneshot").one()
+    doc = db.query(Document).filter_by(user_id=user.id).one()
+    assert doc.series_id == series.id
+    assert doc.series_order == 1  # the desktop's 7 would leave a gap in a one-chapter series
+    assert any("no series" in m and "Oneshot" in m for m in report.messages)
+
+
+def test_a_chapter_joining_an_existing_series_keeps_its_desktop_order(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "UPDATE documents SET series_title = '', volume_title = '', title = 'Oneshot'")
+    user = make_user()
+    db.add(Series(user_id=user.id, title="Oneshot"))
+    db.flush()
+    import_tadb(db, path, user.id)
+    assert db.query(Document).filter_by(user_id=user.id).one().series_order == 7
+
+
+def test_a_reimported_oneshot_joins_its_existing_series(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "UPDATE documents SET series_title = '', volume_title = '', title = 'Oneshot'")
+    user = make_user()
+    import_tadb(db, path, user.id)
+    report = import_tadb(db, path, user.id, force=True)
+    assert db.query(Series).filter_by(user_id=user.id, title="Oneshot").count() == 1
+    assert db.query(Document).filter_by(user_id=user.id).count() == 1
+    assert report.already_present["documents"] == 1
 
 
 def test_skipped_profile_skips_its_series_and_chapters(db, make_user, tmp_path):

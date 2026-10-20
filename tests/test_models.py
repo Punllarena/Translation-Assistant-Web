@@ -61,7 +61,7 @@ def test_user_referencing_foreign_keys_cascade_on_delete():
             assert fk.ondelete == "CASCADE", f"{table}.{fk.parent.name} ondelete={fk.ondelete}"
 
 
-def test_set_null_foreign_keys_are_exactly_the_expected_four():
+def test_set_null_foreign_keys_are_exactly_the_expected_three():
     set_null = {
         (table.name, fk.parent.name)
         for table in Base.metadata.tables.values()
@@ -70,7 +70,6 @@ def test_set_null_foreign_keys_are_exactly_the_expected_four():
     }
     assert set_null == {
         ("series", "profile_id"),
-        ("documents", "series_id"),
         ("documents", "volume_id"),
         ("server_settings", "updated_by"),
     }

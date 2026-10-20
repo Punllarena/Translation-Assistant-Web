@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import type { Schemas } from "../api/client";
-import type { SeriesRow } from "./group";
+import type { SeriesRow } from "./shelf";
 import { invalidateLibrary } from "./queries";
-import SeriesChoice, { appendSeries, type Choice } from "./SeriesChoice";
+import SeriesChoice, { appendSeries, seriesChosen, type Choice } from "./SeriesChoice";
 import { postForm } from "./upload";
 import { acceptFiles } from "./drop";
 
@@ -57,7 +57,7 @@ export default function ImportFiles({ series }: { series: SeriesRow[] }) {
       )}
       <SeriesChoice series={series} value={choice} onChange={setChoice} />
       <div className="inline-form">
-        <button className="primary" disabled={!files.length || run.isPending}>Import</button>
+        <button className="primary" disabled={!seriesChosen(choice) || !files.length || run.isPending}>Import</button>
         {files.length > 0 && <span className="muted">{files.length} {files.length === 1 ? "file" : "files"} chosen</span>}
       </div>
       {run.isError && <p className="error" role="alert">{run.error.message}</p>}
