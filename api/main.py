@@ -1,17 +1,16 @@
 import asyncio
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.concurrency import run_in_threadpool
 
-from api import jobs
-from api.accounts import has_users, setup_token
+from api import jobs, tadb_uploads
 from api.config import get_settings
-from api.db import SessionLocal
 from api.routers import (
+    admin,
     auth,
     credentials,
+    dictionary,
     documents,
     epub,
     glossary,
@@ -27,6 +26,7 @@ from api.routers import (
     setup,
     spell,
     stats,
+    tadb,
     transfer,
     volumes,
     wp,
@@ -36,31 +36,14 @@ from api.routers import (
 )
 from api.routing import CommitOnResponseRoute
 
-# uvicorn configures this logger, so the line shows in `docker compose logs api`.
-log = logging.getLogger("uvicorn.error")
-
-
-def announce_setup() -> None:
-    """On a server with no accounts, log the link that creates the first admin."""
-    with SessionLocal() as db:
-        if has_users(db):
-            return
-    s = get_settings()
-    # Insecure cookies mean plain http: the dev stack (Vite) has no TLS, Caddy always does.
-    scheme = "https" if s.cookie_secure else "http"
-    log.warning(
-        "First-run setup: no accounts exist. Create the admin at %s://%s/setup?token=%s",
-        scheme, s.site_address, setup_token(),
-    )
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await run_in_threadpool(announce_setup)
     if not get_settings().run_jobs_worker:
         yield
         return
     await run_in_threadpool(jobs.fail_interrupted)
+    await run_in_threadpool(tadb_uploads.sweep)
     jobs.stopping.clear()
     stop = asyncio.Event()
     task = asyncio.create_task(jobs.worker(stop))
@@ -81,11 +64,14 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(setup.router)
+    app.include_router(admin.router)
+    app.include_router(dictionary.router)
     app.include_router(invites.router)
     app.include_router(profiles.router)
     app.include_router(glossary.router)
     app.include_router(series.router)
     app.include_router(scrape.router)  # literal paths under /documents/{id}
+    app.include_router(tadb.router)
     app.include_router(transfer.router)  # before documents: literal POST path
     app.include_router(documents.router)
     app.include_router(volumes.router)

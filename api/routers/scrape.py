@@ -9,8 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import api.fetch_job  # noqa: F401  registers the syosetu_fetch handler
-from api import jobs
-from api.config import get_settings
+from api import jobs, server_settings
 from api.core import scrape
 from api.core.text import build_new_file, parse_file_content
 from api.deps import current_user, db_session, scoped
@@ -42,10 +41,10 @@ def _slot():
         syosetu_slots.release()
 
 
-def _fetch(url: str) -> tuple[str, str]:
+def _fetch(url: str, delay: float) -> tuple[str, str]:
     try:
         with _slot(), http_client() as c:
-            return scrape.fetch_syosetu(c, url, delay=get_settings().syosetu_delay_seconds)
+            return scrape.fetch_syosetu(c, url, delay=delay)
     except scrape.ScrapeError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     except ValueError as exc:
@@ -53,9 +52,11 @@ def _fetch(url: str) -> tuple[str, str]:
 
 
 @router.post("/scrape/syosetu", response_model=Fetched)
-def fetch_one(body: FetchUrl, user: User = Depends(current_user)) -> Fetched:
+def fetch_one(
+    body: FetchUrl, user: User = Depends(current_user), db: Session = Depends(db_session)
+) -> Fetched:
     """The desktop New document → Fetch from URL tab: returns the text for the form."""
-    title, content = _fetch(body.url)
+    title, content = _fetch(body.url, server_settings.effective(db).syosetu_delay_seconds)
     return Fetched(title=title, content=content)
 
 
@@ -113,7 +114,7 @@ def refetch(
     doc = scoped(db, Document, document_id, user.id)
     if not doc.source_url:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "this chapter has no source URL")
-    title, content = _fetch(doc.source_url)
+    title, content = _fetch(doc.source_url, server_settings.effective(db).syosetu_delay_seconds)
     raw, _, _ = parse_file_content(build_new_file(f"{title}\n\n{content}" if title else content))
     replace_raw_lines(db, doc, raw, body.force)
     return doc

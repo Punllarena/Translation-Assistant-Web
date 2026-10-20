@@ -11,7 +11,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
-from tools.seed_admin import create_admin
+from api.accounts import create_admin
 
 EMAIL, PASSWORD = "e2e@example.com", "e2e-password-123"
 TM_LINE = "記憶語です。"
@@ -34,7 +34,8 @@ def main() -> None:
 
     from api.db import SessionLocal
     from api.library import write_lines
-    from api.models import Document, Line, Series
+    from api.models import Document, Line, Profile, Series, User
+    from api.security import hash_password
 
     with SessionLocal() as db:
         user = create_admin(db, EMAIL, PASSWORD)
@@ -104,7 +105,18 @@ def main() -> None:
                                         "translated_text": "Stats."}])
         db.execute(update(Line).where(Line.document_id == stats_doc.id)
                    .values(translated_at=func.now()))
+        # tadb.spec: an empty account, so the dry run is not refused for existing documents
+        tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
+        db.add(tadb)
+        db.flush()
+        db.add(Profile(user_id=tadb.id, name="default", is_default=True))
         db.commit()
+
+    from tests.fixtures.tadb import desktop_db
+
+    generated = root / "web" / "e2e" / ".generated"
+    (generated / "ta.db").unlink(missing_ok=True)  # desktop_db appends to an existing file
+    desktop_db(generated)  # tadb.spec uploads this
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ set -eu
 
 # TA_SECRET_KEY: an explicit value wins. Otherwise the app reads TA_SECRET_KEY_FILE
 # (api/config.py), which is generated here on first boot. The key encrypts stored
-# credentials: back up the file (the api_data volume) with the database.
+# credentials: back up the file (the ta_data volume) with the database.
 if [ -z "${TA_SECRET_KEY:-}" ] && [ -n "${TA_SECRET_KEY_FILE:-}" ] && [ ! -s "$TA_SECRET_KEY_FILE" ]; then
 	(umask 077 && python -c 'import secrets; print(secrets.token_urlsafe(48))' > "$TA_SECRET_KEY_FILE")
 	echo "ta: generated a new TA_SECRET_KEY in $TA_SECRET_KEY_FILE" >&2

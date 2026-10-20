@@ -4,6 +4,93 @@
  */
 
 export interface paths {
+    "/admin/dictionary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Dictionary */
+        get: operations["get_dictionary_admin_dictionary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/dictionary/edict/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Download */
+        post: operations["download_admin_dictionary_edict_download_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/dictionary/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload */
+        post: operations["upload_admin_dictionary__kind__post"];
+        /** Remove */
+        delete: operations["remove_admin_dictionary__kind__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Settings */
+        get: operations["list_settings_admin_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/settings/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Setting */
+        put: operations["put_setting_admin_settings__key__put"];
+        post?: never;
+        /** Reset Setting */
+        delete: operations["reset_setting_admin_settings__key__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/accept-invite": {
         parameters: {
             query?: never;
@@ -469,6 +556,79 @@ export interface paths {
         patch: operations["update_image_images__image_id__patch"];
         trace?: never;
     };
+    "/import/tadb": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload */
+        post: operations["upload_import_tadb_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/import/tadb/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pending
+         * @description What the import card should show on return: the newest ta.db job when it is still
+         *     going, or when it is a finished dry run whose upload is still here (Discard deletes it,
+         *     the sweeper removes it after 24 h).
+         */
+        get: operations["pending_import_tadb_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/import/tadb/{upload_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Discard */
+        delete: operations["discard_import_tadb__upload_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/import/tadb/{upload_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run */
+        post: operations["run_import_tadb__upload_id__run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/invites": {
         parameters: {
             query?: never;
@@ -482,6 +642,23 @@ export interface paths {
         /** Create Invite */
         post: operations["create_invite_invites_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invites/{invite_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Invite */
+        delete: operations["revoke_invite_invites__invite_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -980,7 +1157,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/setup": {
+    "/setup/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim Admin */
+        post: operations["claim_admin_setup_admin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/setup/status": {
         parameters: {
             query?: never;
             header?: never;
@@ -988,10 +1182,9 @@ export interface paths {
             cookie?: never;
         };
         /** Setup Status */
-        get: operations["setup_status_setup_get"];
+        get: operations["setup_status_setup_status_get"];
         put?: never;
-        /** Run Setup */
-        post: operations["run_setup_setup_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1236,6 +1429,8 @@ export interface components {
             password: string;
             /** Token */
             token: string;
+            /** Username */
+            username: string;
         };
         /** BackendStatus */
         BackendStatus: {
@@ -1385,6 +1580,16 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_upload_admin_dictionary__kind__post */
+        Body_upload_admin_dictionary__kind__post: {
+            /** File */
+            file: string;
+        };
+        /** Body_upload_import_tadb_post */
+        Body_upload_import_tadb_post: {
+            /** File */
+            file: string;
+        };
         /** BookChapter */
         BookChapter: {
             /** Char Count */
@@ -1499,6 +1704,24 @@ export interface components {
             en_words: number;
             /** Paragraphs */
             paragraphs: number;
+        };
+        /** DictFileOut */
+        DictFileOut: {
+            /** Entries */
+            entries: number | null;
+            /** Present */
+            present: boolean;
+            /** Size */
+            size: number | null;
+            /** Source */
+            source: ("env" | "data_dir") | null;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /** DictionaryOut */
+        DictionaryOut: {
+            conjugations: components["schemas"]["DictFileOut"];
+            edict: components["schemas"]["DictFileOut"];
         };
         /** DocumentCreate */
         DocumentCreate: {
@@ -1876,11 +2099,8 @@ export interface components {
         };
         /** LoginRequest */
         LoginRequest: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
+            /** Login */
+            login: string;
             /** Password */
             password: string;
         };
@@ -2084,8 +2304,25 @@ export interface components {
             /** Wp Unlock After */
             wp_unlock_after?: number | null;
         };
-        /** SetupRequest */
-        SetupRequest: {
+        /** ServerSettingOut */
+        ServerSettingOut: {
+            /** Key */
+            key: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "db" | "env" | "default";
+            /** Value */
+            value: unknown;
+        };
+        /** SettingValue */
+        SettingValue: {
+            /** Value */
+            value: unknown;
+        };
+        /** SetupAdmin */
+        SetupAdmin: {
             /**
              * Email
              * Format: email
@@ -2093,13 +2330,13 @@ export interface components {
             email: string;
             /** Password */
             password: string;
-            /** Token */
-            token: string;
+            /** Username */
+            username: string;
         };
         /** SetupStatus */
         SetupStatus: {
-            /** Needed */
-            needed: boolean;
+            /** Needs Setup */
+            needs_setup: boolean;
         };
         /** SourceUpdate */
         SourceUpdate: {
@@ -2191,6 +2428,27 @@ export interface components {
             /** Terms */
             terms: components["schemas"]["Term"][];
         };
+        /** TadbPendingOut */
+        TadbPendingOut: {
+            job: components["schemas"]["JobOut"];
+            /** Upload Id */
+            upload_id: string;
+        };
+        /** TadbRunIn */
+        TadbRunIn: {
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+        };
+        /** TadbUploadOut */
+        TadbUploadOut: {
+            /** Job Id */
+            job_id: number;
+            /** Upload Id */
+            upload_id: string;
+        };
         /** Term */
         Term: {
             /** Count */
@@ -2229,6 +2487,8 @@ export interface components {
             id: number;
             /** Is Admin */
             is_admin: boolean;
+            /** Username */
+            username: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -2377,6 +2637,194 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_dictionary_admin_dictionary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictionaryOut"];
+                };
+            };
+        };
+    };
+    download_admin_dictionary_edict_download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+        };
+    };
+    upload_admin_dictionary__kind__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "edict" | "conjugations";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_admin_dictionary__kind__post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictFileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_admin_dictionary__kind__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "edict" | "conjugations";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_settings_admin_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerSettingOut"][];
+                };
+            };
+        };
+    };
+    put_setting_admin_settings__key__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingValue"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerSettingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_setting_admin_settings__key__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     accept_invite_auth_accept_invite_post: {
         parameters: {
             query?: never;
@@ -3366,6 +3814,130 @@ export interface operations {
             };
         };
     };
+    upload_import_tadb_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_import_tadb_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TadbUploadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pending_import_tadb_pending_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TadbPendingOut"];
+                };
+            };
+            /** @description Nothing to resume */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    discard_import_tadb__upload_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_import_tadb__upload_id__run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TadbRunIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_invites_invites_get: {
         parameters: {
             query?: never;
@@ -3407,6 +3979,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["InviteCreated"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_invite_invites__invite_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invite_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -4576,27 +5177,7 @@ export interface operations {
             };
         };
     };
-    setup_status_setup_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SetupStatus"];
-                };
-            };
-        };
-    };
-    run_setup_setup_post: {
+    claim_admin_setup_admin_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4605,7 +5186,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SetupRequest"];
+                "application/json": components["schemas"]["SetupAdmin"];
             };
         };
         responses: {
@@ -4625,6 +5206,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setup_status_setup_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupStatus"];
                 };
             };
         };

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { api, call } from "./api/client";
 import { forgetUserData, useMe } from "./auth/session";
+import RunningJobs from "./jobs/RunningJobs";
 import ThemeMenu from "./theme/ThemeMenu";
 import { useThemeSync } from "./theme/useThemeSync";
 
@@ -31,10 +32,12 @@ export default function Shell() {
           <NavLink to="/settings/mt">Machine translation</NavLink>
           <NavLink to="/settings/wp">WordPress</NavLink>
           <NavLink to="/settings/shortcuts">Shortcuts</NavLink>
+          {me.data?.is_admin && <NavLink to="/admin">Admin</NavLink>}
         </nav>
         <div className="who">
+          <RunningJobs />
           <ThemeMenu />
-          <span className="email">{me.data?.email}</span>
+          <span className="email" title={me.data?.email}>{me.data?.username}</span>
           <button type="button" className="quiet" onClick={() => logout.mutate()}>Sign out</button>
         </div>
       </header>

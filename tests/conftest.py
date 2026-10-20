@@ -104,12 +104,27 @@ def make_user(db):
 
 
 @pytest.fixture(autouse=True)
+def _progress_session(request, monkeypatch):
+    """JobContext.report() writes the job row from its own session. Point it at a separate
+    Session on the test connection, created only when a test that uses db reports."""
+    from api import jobs
+
+    def factory():
+        db = request.getfixturevalue("db")
+        return Session(
+            bind=db.connection(), expire_on_commit=False, join_transaction_mode="create_savepoint"
+        )
+
+    monkeypatch.setattr(jobs, "progress_session", factory)
+
+
+@pytest.fixture(autouse=True)
 def _reset_login_limiters():
     """Login limiters are process-global; clear them around every test."""
-    from api.security import address_limiter, email_limiter
+    from api.security import account_limiter, address_limiter, email_limiter
 
     def clear():
-        for limiter in (address_limiter, email_limiter):
+        for limiter in (address_limiter, email_limiter, account_limiter):
             with limiter._lock:
                 limiter._failures.clear()
 
@@ -123,7 +138,7 @@ def login():
     """Return login(client, email, password) -> response."""
 
     def _login(client, email, password="pw-correct"):
-        return client.post("/auth/login", json={"email": email, "password": password})
+        return client.post("/auth/login", json={"login": email, "password": password})
 
     return _login
 

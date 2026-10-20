@@ -56,13 +56,32 @@ preference is the user setting `ui_theme` (`system`/`light`/`dark`), mirrored in
 an inline script in `web/index.html` paints it before the bundle loads, `web/src/theme/` owns the rules, and
 the account's value wins once `/settings` arrives. Spec: `docs/superpowers/specs/2026-10-14-web-redesign-design.md`.
 
+Onboarding: with no users, the SPA sends every page to `/setup` (`GET /setup/status`, `POST /setup/admin`,
+which takes a Postgres advisory lock; `api/accounts.py`). Admin-only `/admin/settings` rows in `server_settings`
+override `TA_OLLAMA_URL`, `TA_LIBRETRANSLATE_URL`, `TA_MT_ALLOW_PRIVATE_URLS`, `TA_WP_ALLOW_PRIVATE_URLS` and
+`TA_SYOSETU_DELAY_SECONDS` (DB row > env > default; read through `api.server_settings.effective(db)`, never
+`get_settings()` for those keys). Accounts have a `username` (3–32 of `A-Za-z0-9_.-`, unique ignoring
+case, shown instead of the email); `/auth/login` takes `login`, an email when it contains `@`, otherwise a
+username; the account rate bucket is keyed by that normalised string, never by the matched account (a
+shared 429 would link a username to its email); a hidden `account_limiter` (`user:<id>`) caps the account
+itself, and an exhausted account answers like a wrong password (401, dummy hash paid, no further charge).
+Each bucket is charged before the password verify with `LoginLimiter.try_acquire` (atomic check-and-count)
+and cleared on success, so concurrent requests cannot outrun the cap; `record_failure` is only a test seam. `TA_DATA_DIR` holds `dict/` (EDICT2 and Conjugations; `TA_EDICT_PATH` /
+`TA_CONJUGATIONS_PATH` still win) and `uploads/` (pending `ta.db` imports, swept after 24 h). EDICT2 download is
+the `dict_download` job (`api/dict_job.py`); `ta.db` import is the `tadb_import` job (`api/tadb_job.py`, dry run
+then run). The importer lives in `api/core/tadb_*.py`; `tools/import_tadb.py` is its CLI. It reports
+progress through `JobContext.report` (job row only, so a dry run still writes nothing; Cancel rolls the whole
+import back) and inserts lines in Core batches of 1,000 (`api/core/tadb_lines.py`), retrying a rejected batch row
+by row. `GET /import/tadb/pending` lets the import card resume; the header's running-jobs button polls
+`GET /jobs?active=true`.
+
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
 
 ## Commands
 
 ```bash
-docker compose up -d --build           # whole app at https://localhost; first-admin link in `docker compose logs api`
+docker compose up -d --build           # whole app at https://localhost; the setup wizard creates the first admin
 docker compose --profile dev up        # hot reload: SPA :5173, API :8000 (dev image, source bind-mounted)
 docker compose run --rm tools pytest   # also: ruff check ., sh -c "cd web && npm test|npm run e2e|npm run gen:api"
 
@@ -118,6 +137,7 @@ that database each run; conftest refuses any database name not ending in `_test`
 - MT backends take an injected `httpx.AsyncClient`; tests use `httpx.MockTransport` fixtures
   (`tests/fixtures/mt/`), never live endpoints. The `/mt/stream` cache write runs in its own session
   (`_put_sync` in `api/routers/mt.py`), one of two sanctioned commits outside the route boundary; the other is the
-  job worker (`JobContext.progress` and `run_next` in `api/jobs.py`). WordPress calls take an injected `httpx.Client`
+  job worker (`JobContext.progress`, `JobContext.report` (job row only, its own session, throttled)
+  and `run_next` in `api/jobs.py`). WordPress calls take an injected `httpx.Client`
   the same way (`http_client` seams in `api/routers/wp.py` and `api/publish_job.py`).
 - Tests set `TA_RUN_JOBS_WORKER=false` and drive jobs with `jobs.run_next()`, swapping `api.jobs.SessionLocal` for the test session.

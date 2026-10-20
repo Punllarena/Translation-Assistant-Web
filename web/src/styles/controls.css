@@ -70,3 +70,12 @@ kbd { display: inline-block; min-width: 28px; padding: 2px 8px; border: 1px soli
 .menu [role^="menuitem"]:hover, .menu [role^="menuitem"]:focus-visible { background: var(--raised); outline: none; }
 .menu [role="menuitemradio"]::before { content: ""; width: 16px; flex: none; }
 .menu [role="menuitemradio"][aria-checked="true"]::before { content: "✓"; color: var(--accent-text); }
+
+/* A bar with no value (nothing counted yet) sweeps instead of sitting empty. */
+progress:indeterminate { background: linear-gradient(90deg, var(--line) 0 35%, var(--accent-text) 35% 65%, var(--line) 65%) 0 0 / 300% 100%;
+  animation: progress-sweep 1.4s linear infinite; }
+progress:indeterminate::-webkit-progress-bar { background: transparent; }
+progress:indeterminate::-moz-progress-bar { background: transparent; }
+@keyframes progress-sweep { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { progress:indeterminate { animation: none; } }
+.job-progress label { display: flex; flex-direction: column; gap: 8px; }

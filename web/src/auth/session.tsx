@@ -1,6 +1,6 @@
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { Navigate, useLocation } from "react-router";
+import { Navigate, Outlet, useLocation } from "react-router";
 import { api, ApiError, call, type Schemas } from "../api/client";
 
 export function useMe() {
@@ -18,20 +18,15 @@ export function useMe() {
   });
 }
 
-/** Whether the server still needs its first admin (/setup). */
-export function useSetupStatus() {
-  return useQuery({ queryKey: ["setup"], queryFn: () => call(api.GET("/setup")), staleTime: Infinity });
-}
-
 /** An expired session surfaces as a 401 on whatever request comes next. Marking the user
  *  signed out makes RequireAuth redirect to /login?next=<this page>. */
 export function signedOutOn401(queryClient: QueryClient, error: unknown) {
   if (error instanceof ApiError && error.status === 401) queryClient.setQueryData(["me"], null);
 }
 
-/** Drop every cached query except ["me"], whose observer (RequireAuth) must stay attached. */
+/** Drop every cached query except ["me"] and ["setup"], whose observers (RequireAuth, SetupGate) must stay attached. */
 export function forgetUserData(queryClient: QueryClient) {
-  queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "me" });
+  queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "me" && q.queryKey[0] !== "setup" });
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {
@@ -44,4 +39,22 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate to={`/login?next=${next}`} replace />;
   }
   return children;
+}
+
+export function useSetupStatus() {
+  return useQuery({
+    queryKey: ["setup"],
+    queryFn: () => call(api.GET("/setup/status")),
+    staleTime: Infinity,
+  });
+}
+
+/** While no account exists, every page is the setup wizard. */
+export function SetupGate() {
+  const setup = useSetupStatus();
+  const here = useLocation();
+  if (setup.isPending) return <p className="muted">Loading…</p>;
+  if (setup.isError) return <p className="error">{setup.error.message}</p>;
+  if (setup.data.needs_setup && here.pathname !== "/setup") return <Navigate to="/setup" replace />;
+  return <Outlet />;
 }

@@ -3,7 +3,7 @@
 # docker compose run --rm tools CMD    pytest, ruff, npm test, npm run e2e, gen:api (see README)
 #
 # Nothing needs to be installed on the host besides Docker. TA_SECRET_KEY is optional: without
-# it the api generates one on first boot and keeps it in the api_data volume.
+# it the api generates one on first boot and keeps it in the ta_data volume.
 
 x-dev: &dev
   build:
@@ -50,8 +50,8 @@ services:
       TA_SECRET_KEY: ${TA_SECRET_KEY:-}
       TA_SECRET_KEY_FILE: /data/secret_key
       TA_DATABASE_URL: postgresql+psycopg://ta:ta@postgres:5432/ta
-      TA_SITE_ADDRESS: ${TA_SITE_ADDRESS:-localhost}
-    volumes: ["api_data:/data"]
+      TA_DATA_DIR: /data
+    volumes: ["ta_data:/data"]
     # Not published: only Caddy reaches it, which is what makes trusting
     # X-Forwarded-For (--forwarded-allow-ips in docker/entrypoint.sh) safe.
     expose: ["8000"]
@@ -61,7 +61,7 @@ services:
     depends_on: [api]
     environment:
       TA_SITE_ADDRESS: ${TA_SITE_ADDRESS:-localhost}
-    ports: ["80:80", "443:443"]
+    ports: ["${TA_HTTP_PORT:-80}:80", "${TA_HTTPS_PORT:-443}:443"]
     volumes: ["caddy_data:/data"]
 
   api-dev:
@@ -71,13 +71,13 @@ services:
       <<: *dev-env
       TA_SECRET_KEY: ${TA_SECRET_KEY:-}
       TA_SECRET_KEY_FILE: /data/secret_key
-      TA_SITE_ADDRESS: localhost:5173
+      TA_DATA_DIR: /data
       TA_NPM_ENSURE: "0"
     # Shares the database with `api`, so it shares the key that encrypts its credentials.
     volumes:
       - .:/app
       - web_node_modules:/app/web/node_modules
-      - api_data:/data
+      - ta_data:/data
     ports: ["127.0.0.1:8000:8000"]
 
   web-dev:
@@ -105,5 +105,5 @@ services:
 volumes:
   pgdata:
   caddy_data:
-  api_data:
+  ta_data:
   web_node_modules:

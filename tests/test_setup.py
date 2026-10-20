@@ -1,92 +1,71 @@
-import logging
+import threading
 
-from api.accounts import setup_token
-from api.main import announce_setup
+from sqlalchemy import delete
+from sqlalchemy.orm import Session
+
+from api.accounts import AlreadySetUp, claim_first_admin
 from api.models import Profile, User
 
-
-def _body(**over):
-    body = {"token": setup_token(), "email": "Root@Example.com", "password": "pw-root-123456"}
-    return body | over
+PW = "pw-setup-123456"
 
 
-def test_setup_is_needed_only_without_users(app_client, make_user):
-    assert app_client.get("/setup").json() == {"needed": True}
+def test_status_needs_setup_until_a_user_exists(app_client, make_user):
+    assert app_client.get("/setup/status").json() == {"needs_setup": True}
     make_user()
-    assert app_client.get("/setup").json() == {"needed": False}
+    assert app_client.get("/setup/status").json() == {"needs_setup": False}
 
 
-def test_setup_creates_an_admin_with_a_default_profile(app_client, db):
-    r = app_client.post("/setup", json=_body())
+def test_claim_creates_an_admin_and_signs_in(app_client):
+    r = app_client.post("/setup/admin", json={"email": " Root@Example.com ", "username": "root",
+                                              "password": PW})
     assert r.status_code == 201
-    assert r.json()["email"] == "root@example.com"
-    assert r.json()["is_admin"] is True
-    user = db.query(User).one()
-    assert [p.name for p in db.query(Profile).filter_by(user_id=user.id)] == ["default"]
-    assert app_client.get("/setup").json() == {"needed": False}
+    assert r.json()["email"] == "root@example.com" and r.json()["is_admin"] is True
+    assert app_client.get("/auth/me").json()["email"] == "root@example.com"
+    assert app_client.get("/setup/status").json() == {"needs_setup": False}
 
 
-def test_setup_refuses_a_wrong_token(app_client, db):
-    r = app_client.post("/setup", json=_body(token="nope"))
-    assert r.status_code == 403
-    assert db.query(User).count() == 0
-
-
-def test_setup_refuses_once_an_account_exists(app_client, make_user):
+def test_claim_after_setup_is_409_with_a_sign_in_hint(app_client, make_user):
     make_user()
-    r = app_client.post("/setup", json=_body(email="other@example.com"))
+    r = app_client.post("/setup/admin", json={"email": "late@example.com", "username": "root",
+                                              "password": PW})
     assert r.status_code == 409
+    assert r.json()["detail"] == "Setup is already complete; sign in instead."
 
 
-def test_setup_refuses_a_short_password(app_client):
-    assert app_client.post("/setup", json=_body(password="tiny")).status_code == 422
+def test_short_password_is_422(app_client):
+    r = app_client.post("/setup/admin", json={"email": "a@example.com", "username": "root",
+                                              "password": "short"})
+    assert r.status_code == 422
 
 
-def test_setup_token_is_stable_and_not_the_secret():
-    from api.config import get_settings
+def test_two_concurrent_claims_create_exactly_one_admin(engine):
+    a, b = Session(engine), Session(engine)
+    outcome = {}
+    try:
+        claim_first_admin(a, "a@example.com", PW, "aa_admin")  # holds the lock, not committed yet
 
-    assert setup_token() == setup_token()
-    assert len(setup_token()) == 32
-    assert setup_token() not in get_settings().secret_key
+        def second():
+            try:
+                claim_first_admin(b, "b@example.com", PW, "bb_admin")
+                outcome["b"] = "created"
+            except AlreadySetUp:
+                outcome["b"] = "refused"
+            finally:
+                b.rollback()
 
-
-def test_announce_logs_the_link_when_no_users(caplog, monkeypatch, db):
-    from api.config import get_settings
-
-    monkeypatch.setenv("TA_COOKIE_SECURE", "true")  # the tools container sets it false
-    monkeypatch.setenv("TA_SITE_ADDRESS", "localhost")
-    get_settings.cache_clear()
-    monkeypatch.setattr("api.main.SessionLocal", lambda: _NoClose(db))
-    with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
-        announce_setup()
-    assert f"https://localhost/setup?token={setup_token()}" in caplog.text
-
-
-def test_announce_uses_http_when_cookies_are_insecure(caplog, monkeypatch, db, insecure_cookies):
-    """The dev stack (Vite on :5173) speaks plain http and sets TA_COOKIE_SECURE=false."""
-    monkeypatch.setenv("TA_SITE_ADDRESS", "localhost:5173")
-    monkeypatch.setattr("api.main.SessionLocal", lambda: _NoClose(db))
-    with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
-        announce_setup()
-    assert f"http://localhost:5173/setup?token={setup_token()}" in caplog.text
-
-
-def test_announce_is_silent_once_a_user_exists(caplog, monkeypatch, db, make_user):
-    make_user()
-    monkeypatch.setattr("api.main.SessionLocal", lambda: _NoClose(db))
-    with caplog.at_level(logging.WARNING, logger="uvicorn.error"):
-        announce_setup()
-    assert "setup" not in caplog.text
-
-
-class _NoClose:
-    """Context manager over the test session that leaves it open (the db fixture owns it)."""
-
-    def __init__(self, db):
-        self.db = db
-
-    def __enter__(self):
-        return self.db
-
-    def __exit__(self, *exc):
-        return False
+        t = threading.Thread(target=second)
+        t.start()
+        t.join(0.5)
+        assert t.is_alive(), "the second claim must wait for the first one's lock"
+        a.commit()
+        t.join(5)
+        assert outcome == {"b": "refused"}
+    finally:
+        a.rollback()
+        emails = ["a@example.com", "b@example.com"]
+        ids = [u.id for u in a.query(User).filter(User.email.in_(emails))]
+        a.execute(delete(Profile).where(Profile.user_id.in_(ids)))
+        a.execute(delete(User).where(User.id.in_(ids)))
+        a.commit()
+        a.close()
+        b.close()

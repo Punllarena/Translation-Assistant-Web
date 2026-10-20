@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { followJob, isTerminal, type Job } from "./follow";
+import { followJob, isTerminal, startsJob, type Job } from "./follow";
 
 class FakeSource {
   static last: FakeSource;
@@ -64,5 +64,18 @@ describe("followJob", () => {
   it("knows the terminal states", () => {
     expect(["done", "failed", "cancelled", "running"].map((s) => isTerminal(job(s))))
       .toEqual([true, true, true, false]);
+  });
+});
+
+describe("startsJob", () => {
+  it("recognises a queued job and a ta.db upload", () => {
+    expect(startsJob({ id: 1, kind: "dict_download", state: "queued" })).toBe(true);
+    expect(startsJob({ upload_id: "x", job_id: 3 })).toBe(true);
+  });
+  it("ignores other results", () => {
+    expect(startsJob({ kind: "deepl", name: "default" })).toBe(false);
+    expect(startsJob(undefined)).toBe(false);
+    expect(startsJob(null)).toBe(false);
+    expect(startsJob([])).toBe(false);
   });
 });

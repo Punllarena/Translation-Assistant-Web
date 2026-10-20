@@ -177,3 +177,29 @@ def test_db_session_parks_the_session_and_discards_uncommitted_work(
     with pytest.raises(RuntimeError):
         gen.throw(RuntimeError("boom"))
     assert count() == 1  # rollback discarded the third insert
+
+
+def test_login_limiter_try_acquire_counts_and_stops_at_max():
+    limiter = LoginLimiter(max_attempts=2, window_seconds=300)
+    assert limiter.try_acquire("k") and limiter.try_acquire("k")
+    assert not limiter.try_acquire("k")
+    assert len(limiter._failures["k"]) == 2  # a refused acquire charges nothing
+    limiter.release("k")
+    assert limiter.try_acquire("k")
+
+
+def test_login_limiter_release_drops_an_emptied_key():
+    limiter = LoginLimiter(max_attempts=2, window_seconds=300)
+    limiter.try_acquire("k")
+    limiter.release("k")
+    limiter.release("unseen")  # no-op
+    assert limiter._failures == {}
+
+
+def test_login_limiter_try_acquire_is_atomic_under_threads():
+    from concurrent.futures import ThreadPoolExecutor
+
+    limiter = LoginLimiter(max_attempts=10, window_seconds=300)
+    with ThreadPoolExecutor(max_workers=32) as pool:
+        granted = list(pool.map(lambda _: limiter.try_acquire("k"), range(200)))
+    assert granted.count(True) == 10

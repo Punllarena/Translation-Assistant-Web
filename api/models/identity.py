@@ -19,11 +19,19 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from api.db import Base
 
 
+def _username_from_email(context) -> str:
+    # ponytail: only rows built without a username (tests, seeds) land here; forms always send one.
+    return context.get_current_parameters()["email"].split("@")[0][:32]
+
+
 class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
+    username: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=_username_from_email
+    )
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -33,6 +41,10 @@ class User(Base):
     profiles: Mapped[list["Profile"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+
+
+# Usernames are shown as typed but unique regardless of case.
+Index("uq_users_username_lower", func.lower(User.username), unique=True)
 
 
 class Session(Base):

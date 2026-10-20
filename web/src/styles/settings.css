@@ -51,3 +51,20 @@
 .shortcut-list .dot { margin-left: 8px; vertical-align: 2px; }
 .dot.accent { background: var(--accent-text); }
 .sc-actions { display: flex; justify-content: flex-end; gap: 4px; }
+
+/* Setup wizard progress: numbered dots joined by a line; done steps tick, the current one fills. */
+.wizard-steps { display: flex; list-style: none; margin: 0; padding: 0; }
+.wizard-steps li { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  position: relative; color: var(--muted); font-size: 13px; text-align: center; }
+.wizard-steps li + li::before { content: ""; position: absolute; top: 14px; right: calc(50% + 18px);
+  left: calc(-50% + 18px); height: 2px; background: var(--line); border-radius: 1px; }
+.wizard-steps li.done + li::before { background: var(--accent); }
+.wizard-steps .dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  border: 2px solid var(--line); background: var(--surface); font-weight: 600; font-size: 13px; }
+.wizard-steps li.done .dot { border-color: var(--accent); color: var(--accent-text); }
+.wizard-steps li[aria-current="step"] { color: var(--ink); font-weight: 600; }
+.wizard-steps li[aria-current="step"] .dot { background: var(--accent); border-color: var(--accent); color: #fff; }  /* as button.primary */
+@media (max-width: 560px) {
+  .wizard-steps .step-name { display: none; }
+  .wizard-steps li[aria-current="step"] .step-name { display: block; }
+}

@@ -37,5 +37,5 @@ def test_deconjugation_reports_base_form_and_tense(index):
 
 def test_run_without_an_edict_path_needs_setup(monkeypatch):
     monkeypatch.setattr(jparser, "_edict_path", lambda: "")
-    with pytest.raises(NeedsSetup, match="edict2"):
+    with pytest.raises(NeedsSetup, match="EDICT2"):
         jparser.run("猫")

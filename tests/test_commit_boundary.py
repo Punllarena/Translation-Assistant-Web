@@ -106,7 +106,7 @@ def test_a_real_request_persists_although_no_handler_commits(
     try:
         with TestClient(create_app()) as client:
             login = client.post(
-                "/auth/login", json={"email": "real@example.com", "password": "pw-correct"}
+                "/auth/login", json={"login": "real@example.com", "password": "pw-correct"}
             )
             assert login.status_code == 200
             assert client.post("/profiles", json={"name": "persisted"}).status_code == 201
