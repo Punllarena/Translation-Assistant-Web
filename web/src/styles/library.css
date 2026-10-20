@@ -34,3 +34,8 @@
   .row-head { display: none; }
   .page-actions input[type="search"] { flex: 1 1 100%; }
 }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 16px 0 20px; }
+.tabs [role="tab"] { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); }
+.tabs [role="tab"][aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.danger-zone { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--line); }

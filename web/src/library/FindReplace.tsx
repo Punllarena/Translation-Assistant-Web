@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
+import { ConfirmDialog } from "../ui/Dialog";
 import { api, call } from "../api/client";
 import { invalidateLibrary } from "./queries";
 
@@ -14,6 +15,7 @@ export default function FindReplace({ seriesId }: { seriesId: number }) {
   const [searched, setSearched] = useState<Params | null>(null); // what the shown results were made with
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [notice, setNotice] = useState("");
+  const [confirming, setConfirming] = useState(false);
   const search = useMutation({
     mutationFn: (p: Params) =>
       call(api.GET("/series/{series_id}/find", {
@@ -41,7 +43,8 @@ export default function FindReplace({ seriesId }: { seriesId: number }) {
   const matches = search.data?.matches ?? [];
   const k = checked.size;
   const apply = () => {
-    if (!searched || !window.confirm(`Replace ${k} line(s) across the series?`)) return;
+    setConfirming(false);
+    if (!searched) return;
     setNotice("");
     replace.mutate({
       find: searched.q,
@@ -99,10 +102,14 @@ export default function FindReplace({ seriesId }: { seriesId: number }) {
                   ))}
                 </tbody>
               </table>
-              <button onClick={apply} disabled={k === 0 || replace.isPending}>Replace selected ({k})</button>
+              <button onClick={() => setConfirming(true)} disabled={k === 0 || replace.isPending}>Replace selected ({k})</button>
             </>
           )}
         </>
+      )}
+      {confirming && (
+        <ConfirmDialog title="Replace lines" message={`Replace ${k} line(s) across the series?`}
+          confirmLabel="Replace" onConfirm={apply} onClose={() => setConfirming(false)} />
       )}
     </section>
   );
