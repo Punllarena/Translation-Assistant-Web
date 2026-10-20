@@ -7,10 +7,14 @@ export const useDocuments = () =>
 export const useSeriesList = () =>
   useQuery({ queryKey: ["series"], queryFn: () => call(api.GET("/series")) });
 
-/** After any library write: the picker's documents and series lists refetch. */
+export const useAllVolumes = () =>
+  useQuery({ queryKey: ["volumes"], queryFn: () => call(api.GET("/volumes")) });
+
+/** After any library write: the documents, series and volumes lists refetch. */
 export function invalidateLibrary(queryClient: QueryClient) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: ["documents"] }),
     queryClient.invalidateQueries({ queryKey: ["series"] }),
+    queryClient.invalidateQueries({ queryKey: ["volumes"] }),
   ]);
 }

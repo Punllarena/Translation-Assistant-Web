@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, call, type Schemas } from "../api/client";
-import type { Doc } from "../library/group";
+import type { Doc } from "../library/shelf";
 import { invalidateLibrary } from "../library/queries";
 import { browserZone, defaultSlot, fromLocalInput, toLocalInput } from "../time";
 import { confirmLabel, statusTone } from "./label";

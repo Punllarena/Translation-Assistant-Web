@@ -1,4 +1,4 @@
-import type { SeriesRow } from "./group";
+import type { SeriesRow } from "./shelf";
 
 export type Choice = { id: string; title: string };
 

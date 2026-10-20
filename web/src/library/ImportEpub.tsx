@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import type { Schemas } from "../api/client";
-import type { SeriesRow } from "./group";
+import type { SeriesRow } from "./shelf";
 import { invalidateLibrary } from "./queries";
 import SeriesChoice, { appendSeries, type Choice } from "./SeriesChoice";
 import { postForm } from "./upload";

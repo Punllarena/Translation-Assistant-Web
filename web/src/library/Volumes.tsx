@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { api, ApiError, call, errorMessage, type Schemas } from "../api/client";
 import JobProgress from "../jobs/JobProgress";
-import type { Doc } from "./group";
+import type { Doc } from "./shelf";
 import { invalidateLibrary } from "./queries";
 
 type Volume = Schemas["VolumeOut"];

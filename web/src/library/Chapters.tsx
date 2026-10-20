@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, ApiError, call, errorMessage } from "../api/client";
-import type { Doc } from "./group";
+import type { Doc } from "./shelf";
 import { moveItem } from "./order";
 import { invalidateLibrary } from "./queries";
 

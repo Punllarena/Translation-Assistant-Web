@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { api, call } from "../api/client";
-import type { SeriesRow } from "./group";
+import type { SeriesRow } from "./shelf";
 import { invalidateLibrary } from "./queries";
 import { postForm } from "./upload";
 
