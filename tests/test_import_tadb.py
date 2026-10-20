@@ -310,8 +310,20 @@ def test_a_seriesless_desktop_chapter_becomes_its_own_series(db, make_user, tmp_
     assert report.written["documents"] == 1 and not report.skipped.get("documents")
     assert report.written["series"] == 2  # 'My Series' plus 'Oneshot'
     series = db.query(Series).filter_by(user_id=user.id, title="Oneshot").one()
-    assert db.query(Document).filter_by(user_id=user.id).one().series_id == series.id
+    doc = db.query(Document).filter_by(user_id=user.id).one()
+    assert doc.series_id == series.id
+    assert doc.series_order == 1  # the desktop's 7 would leave a gap in a one-chapter series
     assert any("no series" in m and "Oneshot" in m for m in report.messages)
+
+
+def test_a_chapter_joining_an_existing_series_keeps_its_desktop_order(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "UPDATE documents SET series_title = '', volume_title = '', title = 'Oneshot'")
+    user = make_user()
+    db.add(Series(user_id=user.id, title="Oneshot"))
+    db.flush()
+    import_tadb(db, path, user.id)
+    assert db.query(Document).filter_by(user_id=user.id).one().series_order == 7
 
 
 def test_a_reimported_oneshot_joins_its_existing_series(db, make_user, tmp_path):

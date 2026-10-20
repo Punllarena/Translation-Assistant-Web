@@ -26,6 +26,7 @@ from api.core.text import (
 )
 from api.deps import current_user, db_session, owned_ref, scoped_volume
 from api.library import (
+    arrange,
     check_line_count,
     line_arrays,
     next_series_order,
@@ -216,6 +217,8 @@ def import_epub(
                 document_id=first_doc.id, anchor_position=0, is_cover=True,
                 src_path=cover_href, data=cover,
             ))
+    db.flush()
+    arrange(db, series)  # chapters added to an earlier volume move ahead of later ones
     db.flush()
     return EpubImportOut(
         series_id=series.id, volume_id=volume.id, imported=imported, skipped=skipped,

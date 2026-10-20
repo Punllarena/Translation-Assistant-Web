@@ -193,3 +193,35 @@ def test_long_form_fields_are_422(app_client, me, db, field):
     data = book()
     r = _import(app_client, data, _book_hrefs(app_client, data), **{field: "x" * 301})
     assert r.status_code == 422 and db.query(Document).count() == 0
+
+
+def test_import_into_an_earlier_volume_keeps_volumes_contiguous(
+    app_client, me, db, make_series, make_doc
+):
+    series = make_series(me, "Lib")
+    va = Volume(series_id=series.id, title="A", volume_order=1)
+    vb = Volume(series_id=series.id, title="B", volume_order=2)
+    db.add_all([va, vb])
+    db.flush()
+    make_doc(me, series=series, volume=va, order=1, title="a1")
+    make_doc(me, series=series, volume=vb, order=2, title="b1")
+    make_doc(me, series=series, order=3, title="loose")
+    r = _import(app_client, book(), _hrefs(app_client), series_id=series.id,
+                series_title="", volume_title="A")
+    assert r.status_code == 201
+    db.expire_all()
+    docs = db.query(Document).filter_by(series_id=series.id).order_by(Document.series_order)
+    assert [(d.chapter_title, d.series_order) for d in docs] == [
+        ("a1", 1), ("One", 2), ("Two", 3), ("b1", 4), ("loose", 5)]
+
+
+def test_import_into_a_syosetu_series_keeps_its_numbers(app_client, me, db, make_series, make_doc):
+    series = make_series(me, "Syo")
+    series.syosetu_url = "https://ncode.syosetu.com/n0000a/"
+    make_doc(me, series=series, order=5, title="x")
+    r = _import(app_client, book(), _hrefs(app_client), series_id=series.id,
+                series_title="", volume_title="A")
+    assert r.status_code == 201
+    db.expire_all()
+    docs = db.query(Document).filter_by(series_id=series.id).order_by(Document.series_order)
+    assert [(d.chapter_title, d.series_order) for d in docs] == [("x", 5), ("One", 6), ("Two", 7)]

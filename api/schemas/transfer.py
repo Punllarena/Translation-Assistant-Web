@@ -18,5 +18,5 @@ class BatchImportOut(BaseModel):
 
 
 class ExportZipRequest(BaseModel):
-    document_ids: list[int] = Field(min_length=1)
+    document_ids: list[int] = Field(min_length=1, max_length=500)
     format: Literal["txt", "md", "md-ruby"]

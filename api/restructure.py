@@ -103,7 +103,8 @@ def split_document(
     in; the last segment also takes any image anchored after the final line (a
     closing illustration), which the desktop left stranded on segment 0. The new
     chapters take the series slots right after the original, and the series is
-    renumbered 1..N. Returns ``[original, new, ...]`` in segment order.
+    renumbered 1..N; a syosetu series is not renumbered, so the new chapters share the
+    original's series_order. Returns ``[original, new, ...]`` in segment order.
     """
     doc = db.scalar(select(Document).where(Document.id == doc_id, Document.user_id == user_id))
     if doc is None:

@@ -170,7 +170,11 @@ def update_document(
 def delete_document(
     document_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
 ) -> None:
-    db.delete(scoped(db, Document, document_id, user.id))
+    doc = scoped(db, Document, document_id, user.id)
+    series = db.get(Series, doc.series_id)
+    db.delete(doc)
+    db.flush()
+    arrange(db, series)
     db.flush()
 
 

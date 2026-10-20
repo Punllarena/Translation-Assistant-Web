@@ -115,3 +115,11 @@ def test_selection_zip_foreign_id_reads_like_missing(
     assert f.status_code == m.status_code == 422
     assert f.json() == m.json()
     assert "document_ids: no such item" in str(f.json())
+
+
+def test_selection_zip_caps_the_id_list(app_client, me):
+    r = app_client.post(
+        "/documents/export/zip", json={"document_ids": list(range(1, 502)), "format": "txt"}
+    )
+    assert r.status_code == 422
+    assert r.json()["detail"][0]["type"] == "too_long"  # refused by the schema, not the lookup

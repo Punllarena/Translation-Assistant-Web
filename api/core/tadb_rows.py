@@ -237,10 +237,10 @@ def _volume(
 
 def _own_series(
     db: Session, user_id: int, title: str, cache: dict[str, Series | None],
-    report: ImportReport, label: str,
+    report: ImportReport, label: str, created: set[int],
 ) -> Series | None:
     """The series a desktop chapter with no series_title lives in: one titled like the
-    chapter, reused when the account has it, else created."""
+    chapter, reused when the account has it, else created (its id goes into ``created``)."""
     if title not in cache:
         series = db.scalar(select(Series).where(Series.user_id == user_id, Series.title == title))
         if series is None:
@@ -249,6 +249,7 @@ def _own_series(
                 report.messages.append(
                     f"documents {label}: no series; created series {title!r}"
                 )
+                created.add(series.id)
             else:
                 series = None
         cache[title] = series
@@ -266,6 +267,7 @@ def _import_documents(
     volumes: dict[tuple[int, str], Volume | None] = {}
     id_map: dict[int, Document] = {}
     oneshots: dict[str, Series | None] = {}
+    fresh: set[int] = set()  # oneshot series created by this import
 
     for row in conn.execute("SELECT * FROM documents"):
         progress.step(1, "chapters")
@@ -277,7 +279,7 @@ def _import_documents(
             _skip(report, "documents", label, f"series {series_title!r} was not imported")
             continue
         if series is None:
-            series = _own_series(db, user_id, row["title"], oneshots, report, label)
+            series = _own_series(db, user_id, row["title"], oneshots, report, label, fresh)
             if series is None:
                 _skip(report, "documents", label, "its own series was not created")
                 continue
@@ -310,7 +312,8 @@ def _import_documents(
             title=row["title"],
             chapter_title=_get(row, "documents", "chapter_title", ""),
             source_language=_get(row, "documents", "source_language", "ja"),
-            series_order=_get(row, "documents", "series_order", 0),
+            # Alone in a series made for it, a chapter is chapter 1.
+            series_order=1 if series_id in fresh else _get(row, "documents", "series_order", 0),
             source_url=_get(row, "documents", "source_url", ""),
             last_position=_get(row, "documents", "last_position", 0),
             wp_status=_get(row, "documents", "wp_status", ""),

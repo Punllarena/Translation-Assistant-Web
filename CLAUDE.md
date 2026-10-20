@@ -79,8 +79,11 @@ Library redesign: the Library (`/`) lists series only, as a bookshelf or a list 
 `web/src/library/viewPref.ts`). A series opens at `/series/:id?tab=volumes|tools|settings&volume=<id>|none`: Volumes is a
 two-pane view (volume list, then the selected volume's chapters with a selection bar and per-row ⋯ menu; "No volume" holds
 loose chapters), and its grouping and numbering helpers live in `web/src/library/volumeGroups.ts`. `documents.series_id` is
-`NOT NULL` and deleting a series cascades to its volumes and chapters. `arrange()` renumbers and reorders a series' chapters
-after moves, merges and deletes, except for syosetu-sourced series, which keep syosetu's chapter numbers. `POST /documents/export/zip`
+`NOT NULL` and deleting a series cascades to its volumes and chapters. `arrange()` (`api/library.py`) keeps each volume a
+contiguous run numbered 1..N (loose chapters last) and runs after: creating a chapter, a chapter PATCH that changes its series
+or volume, deleting a chapter, assigning chapters to a volume, a volume's order change or delete, reorder and renumber-by-title,
+merge, split, and EPUB import. Syosetu-sourced series keep syosetu's chapter numbers. Renumbering alone leaves
+`documents.updated_at` untouched (`renumber()` writes those rows in SQL). `POST /documents/export/zip`
 exports ticked chapters; `GET /volumes` feeds the Move-to dialogs. Library dialogs (`web/src/ui/Dialog.tsx`: `ConfirmDialog`,
 `PromptDialog`) replace native `prompt`/`confirm`, and none of them closes while its action is busy. Deferred work (WordPress
 volume indexing, the EPUB illustrations chapter) is tracked in `docs/TODO.md`.

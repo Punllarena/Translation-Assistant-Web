@@ -1,8 +1,8 @@
 """Queries shared by the documents, series, restructure, and transfer code."""
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import bindparam, func, inspect, select, update
+from sqlalchemy.orm import Session, attributes, object_session
 
 from api.core.text import db_rows_to_arrays, lines_to_db_rows
 from api.models import Document, Line, Series, Volume
@@ -78,10 +78,31 @@ def chapters(db: Session, series_id: int) -> list[Document]:
     )
 
 
+_QUIET_ORDER = (
+    update(Document.__table__)
+    .where(Document.__table__.c.id == bindparam("b_id"))
+    # An explicit SET of updated_at keeps its onupdate=now() from firing.
+    .values(series_order=bindparam("b_order"), updated_at=Document.__table__.c.updated_at)
+)
+
+
 def renumber(docs: list[Document]) -> None:
-    """Give ``docs`` series_order 1..N in list order (the caller flushes)."""
+    """Give ``docs`` series_order 1..N in list order (the caller flushes).
+
+    A new number alone is not an edit: a stored chapter with no other pending change is
+    renumbered in SQL with its updated_at kept, and its object updated to match."""
+    quiet: list[dict] = []
     for order, doc in enumerate(docs, start=1):
-        doc.series_order = order
+        if doc.series_order == order:
+            continue
+        state = inspect(doc)
+        if state.persistent and not state.modified:
+            quiet.append({"b_id": doc.id, "b_order": order})
+            attributes.set_committed_value(doc, "series_order", order)
+        else:
+            doc.series_order = order
+    if quiet:
+        object_session(docs[0]).execute(_QUIET_ORDER, quiet)
 
 
 def arrange(db: Session, series: Series) -> list[Document]:

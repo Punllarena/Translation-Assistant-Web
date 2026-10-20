@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy import select
 
@@ -166,3 +168,43 @@ def test_split_in_a_series_with_volumes_keeps_volumes_contiguous(
     order = {k: db.get(Document, v.id).series_order for k, v in d.items()}
     order["s2"] = db.get(Document, new_id).series_order
     assert order == {"s": 1, "s2": 2, "a1": 3, "a2": 4, "b1": 5}
+
+
+OLD = datetime(2020, 1, 1, tzinfo=UTC)
+
+
+def _age(db, d):
+    for doc in d.values():
+        doc.updated_at = OLD
+    db.flush()
+
+
+def _stamps(db, d):
+    db.expire_all()
+    return {k: db.get(Document, v.id).updated_at for k, v in d.items()}
+
+
+def test_renumbering_after_a_move_leaves_other_chapters_updated_at(app_client, db, lib):
+    series, va, vb, d = lib
+    _age(db, d)
+    r = app_client.patch(f"/documents/{d['a1'].id}", json={"volume_id": vb.id})
+    assert r.status_code == 200
+    assert _orders(db, d) == {"a2": 1, "b1": 2, "a1": 3}
+    stamps = _stamps(db, d)
+    assert stamps["a2"] == OLD and stamps["b1"] == OLD
+
+
+def test_renumber_by_title_leaves_updated_at(app_client, db, lib):
+    series, va, vb, d = lib
+    d["a1"].series_order, d["a2"].series_order = 2, 1
+    _age(db, d)
+    assert app_client.post(f"/series/{series.id}/renumber").status_code == 200
+    assert _orders(db, d) == {"a1": 1, "a2": 2, "b1": 3}
+    assert set(_stamps(db, d).values()) == {OLD}
+
+
+def test_deleting_a_chapter_renumbers_the_rest(app_client, db, lib):
+    series, va, vb, d = lib
+    assert app_client.delete(f"/documents/{d['a1'].id}").status_code == 204
+    del d["a1"]
+    assert _orders(db, d) == {"a2": 1, "b1": 2}

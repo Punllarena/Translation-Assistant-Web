@@ -19,9 +19,9 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-def _give_orphans_a_series() -> None:
-    """Each document with no series gets a series of its own, titled like it."""
-    bind = op.get_bind()
+def _give_orphans_a_series(bind: sa.Connection) -> None:
+    """Each document with no series gets a series of its own, titled like it, as its only
+    chapter (series_order 1, no volume)."""
     orphans = bind.execute(
         sa.text("SELECT id, user_id, title FROM documents WHERE series_id IS NULL ORDER BY id")
     ).all()
@@ -42,14 +42,15 @@ def _give_orphans_a_series() -> None:
             {"u": user_id, "t": name},
         ).scalar_one()
         bind.execute(
-            sa.text("UPDATE documents SET series_id = :s, series_order = 1 WHERE id = :d"),
+            sa.text("UPDATE documents SET series_id = :s, series_order = 1, volume_id = NULL "
+                    "WHERE id = :d"),
             {"s": series_id, "d": doc_id},
         )
 
 
 def upgrade() -> None:
     """Upgrade schema."""
-    _give_orphans_a_series()
+    _give_orphans_a_series(op.get_bind())
     op.alter_column('documents', 'series_id', existing_type=sa.INTEGER(), nullable=False)
     op.drop_constraint('documents_series_id_fkey', 'documents', type_='foreignkey')
     op.create_foreign_key(
