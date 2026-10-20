@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from api.deps import current_user, db_session, scoped, scoped_volume
 from api.errors import conflict
+from api.library import arrange, send_to_volume_end
 from api.models import Document, DocumentImage, Series, User, Volume
 from api.routing import api_router
 from api.schemas.documents import DocumentIds, DocumentOut
@@ -67,12 +68,17 @@ def update_volume(
     db: Session = Depends(db_session),
 ) -> Volume:
     volume = scoped_volume(db, volume_id, user.id)
+    changes = body.model_dump(exclude_unset=True)
     try:
         with db.begin_nested():
-            for field, value in body.model_dump(exclude_unset=True).items():
+            for field, value in changes.items():
                 setattr(volume, field, value)
     except IntegrityError as exc:
         raise conflict(exc, TITLE_TAKEN) from exc
+    if "volume_order" in changes:
+        db.flush()
+        arrange(db, volume.series)
+        db.flush()
     return volume
 
 
@@ -81,7 +87,12 @@ def delete_volume(
     volume_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
 ) -> None:
     """Chapters survive, unassigned: documents.volume_id is ON DELETE SET NULL."""
-    db.delete(scoped_volume(db, volume_id, user.id))
+    volume = scoped_volume(db, volume_id, user.id)
+    series = volume.series
+    db.delete(volume)
+    db.flush()
+    db.expire_all()
+    arrange(db, series)
     db.flush()
 
 
@@ -111,8 +122,7 @@ def assign_documents(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "document_ids: every chapter must be yours and in this volume's series",
         )
-    for doc in docs:
-        doc.volume_id = volume.id
+    send_to_volume_end(db, volume.series, docs, volume.id)
     db.flush()
     return docs
 

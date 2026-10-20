@@ -10,8 +10,8 @@ line_number) rather than deleted and re-inserted, so every line keeps its
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from api.library import chapters, renumber
-from api.models import Document, DocumentImage, Line
+from api.library import arrange, chapters, renumber
+from api.models import Document, DocumentImage, Line, Series
 
 
 class RestructureError(ValueError):
@@ -83,7 +83,8 @@ def merge_documents(
     db.execute(delete(Document).where(Document.id.in_([doc.id for doc in others])))
 
     target.chapter_title = merged_title
-    renumber(chapters(db, target.series_id))
+    db.flush()
+    arrange(db, db.get(Series, target.series_id))
     db.flush()
     db.expire_all()  # loaded line/image collections are stale after the moves
     return target
@@ -154,6 +155,8 @@ def split_document(
 
     at = siblings.index(doc) + 1
     renumber([*siblings[:at], *new_docs, *siblings[at:]])
+    db.flush()
+    arrange(db, db.get(Series, doc.series_id))
     doc.updated_at = func.now()
     db.flush()
     db.expire_all()

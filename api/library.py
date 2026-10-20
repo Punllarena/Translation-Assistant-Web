@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from api.core.text import db_rows_to_arrays, lines_to_db_rows
-from api.models import Document, Line
+from api.models import Document, Line, Series, Volume
 
 
 def next_series_order(db: Session, series_id: int) -> int:
@@ -82,6 +82,42 @@ def renumber(docs: list[Document]) -> None:
     """Give ``docs`` series_order 1..N in list order (the caller flushes)."""
     for order, doc in enumerate(docs, start=1):
         doc.series_order = order
+
+
+def arrange(db: Session, series: Series) -> list[Document]:
+    """Keep each volume a contiguous run of series_order, in volume_order (chapters with no
+    volume come last), numbered 1..N. A syosetu series keeps its own numbering. The caller
+    flushes. Returns the chapters in final order."""
+    docs = chapters(db, series.id)
+    if series.syosetu_url:
+        return docs
+    rank = {
+        vid: i
+        for i, vid in enumerate(
+            db.scalars(
+                select(Volume.id)
+                .where(Volume.series_id == series.id)
+                .order_by(Volume.volume_order, Volume.id)
+            )
+        )
+    }
+    docs.sort(key=lambda d: rank.get(d.volume_id, len(rank)))  # stable
+    renumber(docs)
+    return docs
+
+
+def send_to_volume_end(
+    db: Session, series: Series, docs: list[Document], volume_id: int | None
+) -> None:
+    """Put ``docs`` (in the given order) at the end of a volume; a syosetu series changes
+    only volume_id. The caller flushes."""
+    if not series.syosetu_url:
+        top = next_series_order(db, series.id)
+        for offset, doc in enumerate(docs):
+            doc.series_order = top + offset
+    for doc in docs:
+        doc.volume_id = volume_id
+    arrange(db, series)
 
 
 def replace_raw_lines(db: Session, doc: Document, raw: list[str], force: bool) -> None:

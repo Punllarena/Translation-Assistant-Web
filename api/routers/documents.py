@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session
 
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.deps import current_user, db_session, owned_ref, scoped
-from api.library import check_line_count, next_series_order, write_lines
+from api.library import (
+    arrange,
+    check_line_count,
+    next_series_order,
+    send_to_volume_end,
+    write_lines,
+)
 from api.models import Document, DocumentImage, Line, Series, User, Volume
 from api.restructure import NotOwned, RestructureError, merge_documents, split_document
 from api.routing import api_router
@@ -121,6 +127,8 @@ def create_document(
     if parsed:
         raw, translated, _ = parsed
         write_lines(db, doc.id, lines_to_db_rows(raw, translated))
+    arrange(db, db.get(Series, doc.series_id))
+    db.flush()
     return doc
 
 
@@ -133,6 +141,7 @@ def update_document(
 ) -> Document:
     doc = scoped(db, Document, document_id, user.id)
     changes = body.model_dump(exclude_unset=True)
+    old_series_id = doc.series_id
     series_id = changes.get("series_id", doc.series_id)
     moving = series_id != doc.series_id
     if moving:
@@ -141,8 +150,15 @@ def update_document(
     check_placement(db, user.id, series_id, changes.get("volume_id", doc.volume_id))
     if moving:
         changes["series_order"] = next_series_order(db, series_id)
+    volume_changed = "volume_id" in changes and changes["volume_id"] != doc.volume_id
     for field, value in changes.items():
         setattr(doc, field, value)
+    db.flush()
+    if moving:
+        arrange(db, db.get(Series, old_series_id))
+        arrange(db, db.get(Series, series_id))
+    elif volume_changed:
+        send_to_volume_end(db, db.get(Series, series_id), [doc], doc.volume_id)
     db.flush()
     return doc
 

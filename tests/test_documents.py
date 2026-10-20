@@ -33,7 +33,7 @@ def test_create_in_series_appends(app_client, me, make_series, make_doc):
     series = make_series(me)
     make_doc(me, series=series, order=3)
     r = app_client.post("/documents", json={"title": "Next", "series_id": series.id})
-    assert r.json()["series_order"] == 4
+    assert r.json()["series_order"] == 2  # the series is renumbered 1..N
 
 
 def test_volume_must_belong_to_the_named_series(app_client, db, me, make_series):
@@ -79,7 +79,7 @@ def test_moving_series_appends_and_leaves_volume(app_client, db, me, make_series
     make_doc(me, series=b, order=7)
     doc = make_doc(me, series=a, order=1, volume=vol)
     body = app_client.patch(f"/documents/{doc.id}", json={"series_id": b.id}).json()
-    assert (body["series_id"], body["series_order"], body["volume_id"]) == (b.id, 8, None)
+    assert (body["series_id"], body["series_order"], body["volume_id"]) == (b.id, 2, None)
 
 
 def test_patch_volume_of_another_series_is_422(app_client, db, me, make_series, make_doc):

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from api.core.text import natural_key
 from api.deps import current_user, db_session, owned_ref, scoped
 from api.errors import conflict
-from api.library import chapters, renumber
+from api.library import arrange, chapters, renumber
 from api.models import Document, Profile, Series, User
 from api.routing import api_router
 from api.schemas.documents import DocumentIds, DocumentOut
@@ -77,6 +77,13 @@ def delete_series(
     db.flush()
 
 
+def _refuse_syosetu(series: Series) -> None:
+    if series.syosetu_url:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "chapter order follows the syosetu numbering"
+        )
+
+
 @router.put("/{series_id}/order", response_model=list[DocumentOut])
 def reorder_chapters(
     series_id: int,
@@ -87,6 +94,7 @@ def reorder_chapters(
     """Drag-and-drop reorder: the body lists every chapter of the series once, in the
     new order. A stale list (a chapter added meanwhile) is refused, not half-applied."""
     series = scoped(db, Series, series_id, user.id)
+    _refuse_syosetu(series)
     by_id = {doc.id: doc for doc in chapters(db, series.id)}
     if sorted(body.document_ids) != sorted(by_id):
         raise HTTPException(
@@ -96,7 +104,9 @@ def reorder_chapters(
     ordered = [by_id[doc_id] for doc_id in body.document_ids]
     renumber(ordered)
     db.flush()
-    return ordered
+    result = arrange(db, series)
+    db.flush()
+    return result
 
 
 @router.post("/{series_id}/renumber", response_model=list[DocumentOut])
@@ -106,9 +116,12 @@ def renumber_by_title(
     """series_order 1..N by natural sort ("Ch 2" before "Ch 10") of the title the
     desktop displays: chapter_title, else title."""
     series = scoped(db, Series, series_id, user.id)
+    _refuse_syosetu(series)
     ordered = sorted(
         chapters(db, series.id), key=lambda d: natural_key(d.chapter_title or d.title)
     )
     renumber(ordered)
     db.flush()
-    return ordered
+    result = arrange(db, series)
+    db.flush()
+    return result
