@@ -109,8 +109,9 @@ def arrange(db: Session, series: Series) -> list[Document]:
 def send_to_volume_end(
     db: Session, series: Series, docs: list[Document], volume_id: int | None
 ) -> None:
-    """Put ``docs`` (in the given order) at the end of a volume; a syosetu series changes
-    only volume_id. The caller flushes."""
+    """Put ``docs`` at the end of a volume, in the caller's list order (assign_documents
+    passes them in reading order); a syosetu series changes only volume_id. The caller
+    flushes."""
     if not series.syosetu_url:
         top = next_series_order(db, series.id)
         for offset, doc in enumerate(docs):

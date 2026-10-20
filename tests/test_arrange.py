@@ -94,3 +94,75 @@ def test_syosetu_series_keeps_its_numbers(app_client, db, me, make_series, make_
     assert _orders(db, d) == {"x": 5, "y": 9}
     assert all(db.get(Document, v.id).volume_id == vol.id for v in d.values())
     assert db.scalar(select(Document.series_order).where(Document.id == d["x"].id)) == 5
+
+
+def test_volume_only_patch_sends_the_chapter_to_the_end_of_that_volume(app_client, db, lib):
+    series, va, vb, d = lib
+    r = app_client.patch(f"/documents/{d['a1'].id}", json={"volume_id": vb.id})
+    assert r.status_code == 200
+    assert _orders(db, d) == {"a2": 1, "b1": 2, "a1": 3}
+    assert db.get(Document, d["a1"].id).volume_id == vb.id
+
+
+def _syosetu(db, me, make_series, make_doc):
+    series = make_series(me, "Syo")
+    series.syosetu_url = "https://ncode.syosetu.com/n0000a/"
+    db.flush()
+    d = {
+        "x": make_doc(me, ["l1", "l2"], series=series, order=5, title="x"),
+        "y": make_doc(me, ["m1"], series=series, order=9, title="y"),
+        "z": make_doc(me, ["n1"], series=series, order=12, title="z"),
+    }
+    return series, d
+
+
+def test_syosetu_split_keeps_numbers_and_new_segment_shares_the_original(
+    app_client, db, me, make_series, make_doc
+):
+    series, d = _syosetu(db, me, make_series, make_doc)
+    cuts = {"cuts": [{"start": 1, "title": "x2"}]}
+    r = app_client.post(f"/documents/{d['x'].id}/split", json=cuts)
+    assert r.status_code == 200
+    new_id = r.json()[1]["id"]
+    assert _orders(db, d) == {"x": 5, "y": 9, "z": 12}
+    assert db.get(Document, new_id).series_order == 5
+
+
+def test_syosetu_merge_leaves_the_remaining_numbers(app_client, db, me, make_series, make_doc):
+    series, d = _syosetu(db, me, make_series, make_doc)
+    r = app_client.post(
+        "/documents/merge", json={"document_ids": [d["x"].id, d["y"].id], "title": "xy"}
+    )
+    assert r.status_code == 200
+    db.expire_all()
+    assert db.get(Document, d["x"].id).series_order == 5
+    assert db.get(Document, d["z"].id).series_order == 12
+
+
+def test_merge_in_a_series_with_volumes_keeps_volumes_contiguous(app_client, db, lib):
+    series, va, vb, d = lib
+    r = app_client.post(
+        "/documents/merge", json={"document_ids": [d["a1"].id, d["a2"].id], "title": "a"}
+    )
+    assert r.status_code == 200
+    db.expire_all()
+    assert db.get(Document, d["a1"].id).series_order == 1
+    assert db.get(Document, d["b1"].id).series_order == 2
+
+
+def test_split_in_a_series_with_volumes_keeps_volumes_contiguous(
+    app_client, db, me, make_doc, lib
+):
+    series, va, vb, d = lib
+    doc = make_doc(me, ["l1", "l2"], series=series, volume=va, order=1, title="s")
+    d["s"] = doc
+    for key, order in (("a1", 2), ("a2", 3), ("b1", 4)):
+        d[key].series_order = order
+    db.flush()
+    r = app_client.post(f"/documents/{doc.id}/split", json={"cuts": [{"start": 1, "title": "s2"}]})
+    assert r.status_code == 200
+    new_id = r.json()[1]["id"]
+    db.expire_all()
+    order = {k: db.get(Document, v.id).series_order for k, v in d.items()}
+    order["s2"] = db.get(Document, new_id).series_order
+    assert order == {"s": 1, "s2": 2, "a1": 3, "a2": 4, "b1": 5}

@@ -153,10 +153,12 @@ def split_document(
         )
         new_docs.append(new)
 
-    at = siblings.index(doc) + 1
-    renumber([*siblings[:at], *new_docs, *siblings[at:]])
-    db.flush()
-    arrange(db, db.get(Series, doc.series_id))
+    series = db.get(Series, doc.series_id)
+    if not series.syosetu_url:  # syosetu numbers are kept: the segments share the original's
+        at = siblings.index(doc) + 1
+        renumber([*siblings[:at], *new_docs, *siblings[at:]])
+        db.flush()
+        arrange(db, series)
     doc.updated_at = func.now()
     db.flush()
     db.expire_all()
