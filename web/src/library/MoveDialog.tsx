@@ -7,14 +7,16 @@ import { invalidateLibrary, useAllVolumes, useSeriesList } from "./queries";
 
 /** Move chapters to a volume of this series, or to another series (and optionally a volume there).
  *  Within the series the server appends them to the end of the volume. */
-export default function MoveDialog({ ids, currentSeriesId, onClose, onMoved }: {
-  ids: number[]; currentSeriesId: number; onClose: () => void; onMoved?: () => void;
+export default function MoveDialog({ ids, currentSeriesId, currentVolumeId, onClose, onMoved }: {
+  ids: number[]; currentSeriesId: number; currentVolumeId: number | null; onClose: () => void; onMoved?: () => void;
 }) {
   const queryClient = useQueryClient();
   const series = useSeriesList();
   const volumes = useAllVolumes();
   const [seriesId, setSeriesId] = useState(currentSeriesId);
-  const [volume, setVolume] = useState("none");
+  const here = currentVolumeId === null ? "none" : String(currentVolumeId);
+  const [volume, setVolume] = useState(here);
+  const unchanged = seriesId === currentSeriesId && volume === here;
   const options = (volumes.data ?? []).filter((v) => v.series_id === seriesId).sort(byVolumeOrder);
   const move = useMutation({
     mutationFn: async () => {
@@ -36,7 +38,7 @@ export default function MoveDialog({ ids, currentSeriesId, onClose, onMoved }: {
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!move.isPending) move.mutate();
+    if (!move.isPending && !unchanged) move.mutate();
   };
   const title = ids.length === 1 ? "Move chapter" : `Move ${ids.length} chapters`;
   const loadError = series.error ?? volumes.error;
@@ -60,7 +62,7 @@ export default function MoveDialog({ ids, currentSeriesId, onClose, onMoved }: {
       </div>
       <div className="dlg-foot">
         <button type="button" disabled={move.isPending} onClick={onClose}>Cancel</button>
-        <button type="submit" className="primary" disabled={move.isPending || !series.data}>Move</button>
+        <button type="submit" className="primary" disabled={move.isPending || unchanged || !series.data}>Move</button>
       </div>
     </Modal>
   );

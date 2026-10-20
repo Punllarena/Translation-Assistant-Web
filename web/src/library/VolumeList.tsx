@@ -14,8 +14,8 @@ export function VolumeCover({ group }: { group: VolumeGroup }) {
 
 export function Progress({ value }: { value: number }) {
   return (
-    <div className="prog" role="progressbar" aria-label="Translated" aria-valuemin={0} aria-valuemax={100}
-      aria-valuenow={value}><i style={{ width: `${value}%` }} /></div>
+    <span className="prog" role="progressbar" aria-label="Translated" aria-valuemin={0} aria-valuemax={100}
+      aria-valuenow={value}><i style={{ width: `${value}%` }} /></span>
   );
 }
 

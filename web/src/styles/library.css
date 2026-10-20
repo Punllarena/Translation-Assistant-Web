@@ -55,7 +55,7 @@
 .vol-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .vol-title { font-weight: 600; overflow-wrap: anywhere; }
 .vol-count { font-size: 12px; }
-.vol-info .prog { margin-top: 4px; }
+.vol-info .prog { display: block; margin-top: 4px; }
 .vol-add { width: 100%; border-style: dashed; color: var(--muted); background: none; }
 
 .vol-head { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 12px; }
@@ -77,7 +77,8 @@
 .ch-title .row-link { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
 .ch-title .row-link::after { content: ""; position: absolute; inset: 0; }
 .ch-title .row-link:hover { color: var(--accent-text); }
-.ch-grip > *, .ch-check > *, .ch-menu > * { position: relative; z-index: 1; }
+.ch-grip > .grip, .ch-check > input, .ch-menu > .menu-root { position: relative; z-index: 1; }
+.menu [role^="menuitem"].danger { color: var(--danger); }
 /* An open menu sits above the later rows' raised controls. */
 .chapters .menu-root:has(> [aria-expanded="true"]) { z-index: 30; }
 .selbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line);

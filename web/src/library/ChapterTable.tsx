@@ -49,8 +49,8 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
     mutationFn: async () => {
       for (const id of selected) await call(api.DELETE("/documents/{document_id}", { params: { path: { document_id: id } } }));
     },
-    onSettled: () => invalidateLibrary(queryClient),
-    onSuccess: done,
+    onSettled: () => invalidateLibrary(queryClient), // a partial failure still changed the list
+    onSuccess: () => { clear(); setOpen(null); },
   });
   const exportZip = useMutation({
     mutationFn: (format: string) => downloadBlob("/api/documents/export/zip", "chapters.zip", {
@@ -84,9 +84,9 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               <tr><th colSpan={8}>
                 <div className="selbar">
                   <b>{n} selected</b>
-                  <Menu label="Export ▾" align="start">
+                  <Menu label={exportZip.isPending ? "Exporting…" : "Export ▾"} align="start">
                     {(close) => FORMATS.map(([f, label]) => (
-                      <button key={f} type="button" role="menuitem" onClick={() => { close(); exportZip.mutate(f); }}>{label}</button>
+                      <button key={f} type="button" role="menuitem" disabled={exportZip.isPending} onClick={() => { close(); exportZip.mutate(f); }}>{label}</button>
                     ))}
                   </Menu>
                   <button type="button" className="small primary" onClick={() => setOpen("publish")}>Publish…</button>
@@ -151,7 +151,8 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
       )}
       {open === "publish" && <BatchPublish ids={selected} onClose={() => setOpen(null)} />}
       {open === "move" && (
-        <MoveDialog ids={selected} currentSeriesId={series.id} onMoved={clear} onClose={() => setOpen(null)} />
+        <MoveDialog ids={selected} currentSeriesId={series.id}
+          currentVolumeId={group.volume?.id ?? null} onMoved={clear} onClose={() => setOpen(null)} />
       )}
       {open === "merge" && (
         <PromptDialog title={`Merge ${n} chapters`} confirmLabel="Merge" busy={merge.isPending}

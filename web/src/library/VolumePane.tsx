@@ -8,7 +8,7 @@ import { downloadBlob } from "./download";
 import NewDocument from "./NewDocument";
 import type { SeriesRow } from "./shelf";
 import { invalidateLibrary } from "./queries";
-import VolumeDetails, { Illustrations } from "./VolumeDetails";
+import VolumeDetails, { Illustrations, useIllustrations } from "./VolumeDetails";
 import { groupTitle, VolumeCover } from "./VolumeList";
 import type { VolumeGroup } from "./volumeGroups";
 
@@ -29,6 +29,7 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
   const [open, setOpen] = useState<Open>(null);
   const volume = group.volume;
   const changed = () => invalidateLibrary(queryClient);
+  const illustrations = useIllustrations(volume);
   const epub = useMutation({
     mutationFn: () => downloadBlob(`/api/volumes/${volume!.id}/export/epub`, `${volume!.title}.epub`),
   });
@@ -66,8 +67,8 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
                   <>
                     <button type="button" role="menuitem" disabled={epub.isPending}
                       onClick={() => { close(); epub.mutate(); }}>{epub.isPending ? "Building EPUB…" : "EPUB"}</button>
-                    <a role="menuitem" className="btn" href={markdown("plain")} download onClick={close}>Markdown ZIP</a>
-                    <a role="menuitem" className="btn" href={markdown("ruby")} download onClick={close}>Ruby Markdown ZIP</a>
+                    <a role="menuitem" className="btn" href={markdown("plain")} download onClick={close}>Markdown ZIP (complete chapters only)</a>
+                    <a role="menuitem" className="btn" href={markdown("ruby")} download onClick={close}>Ruby Markdown ZIP (complete chapters only)</a>
                   </>
                 )}
               </Menu>
@@ -76,7 +77,8 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
                 {(close) => (
                   <>
                     <button type="button" role="menuitem" onClick={() => { close(); setOpen("details"); }}>Edit volume details</button>
-                    <button type="button" role="menuitem" onClick={() => { close(); setOpen("illustrations"); }}>Publish illustrations</button>
+                    <button type="button" role="menuitem" disabled={illustrations.running}
+                      onClick={() => { close(); setOpen("illustrations"); }}>Publish illustrations</button>
                     {!syosetu && (
                       <button type="button" role="menuitem" onClick={() => { close(); renumber.mutate(); }}>Renumber by title</button>
                     )}
@@ -95,7 +97,7 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
           )}
         </div>
         {error && <p className="error" role="alert">{error.message}</p>}
-        {volume && <Illustrations volume={volume} asking={open === "illustrations"} onAsked={() => setOpen(null)} />}
+        {volume && <Illustrations volume={volume} job={illustrations} asking={open === "illustrations"} onAsked={() => setOpen(null)} />}
       </div>
       {open === "publish" && <BatchPublish ids={group.docs.map((d) => d.id)} onClose={() => setOpen(null)} />}
       {open === "details" && volume && <VolumeDetails volume={volume} onClose={() => setOpen(null)} />}

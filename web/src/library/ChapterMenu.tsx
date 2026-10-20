@@ -108,7 +108,7 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
           message={conflict} error={refetch.error?.message} onConfirm={() => refetch.mutate(true)} onClose={closeAll} />
       ))}
       {open === "publish" && <PublishDialog doc={doc} onClose={closeAll} />}
-      {open === "move" && <MoveDialog ids={[doc.id]} currentSeriesId={doc.series_id} onClose={closeAll} />}
+      {open === "move" && <MoveDialog ids={[doc.id]} currentSeriesId={doc.series_id} currentVolumeId={doc.volume_id} onClose={closeAll} />}
       {open === "delete" && (
         <ConfirmDialog title="Delete chapter" confirmLabel="Delete" danger busy={remove.isPending}
           message={`Delete "${doc.title}"? This can't be undone.`} error={remove.error?.message}

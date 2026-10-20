@@ -27,23 +27,33 @@ export default function NewDocument({ seriesId: presetSeries, volumeId, onClose 
       setSourceUrl(url.trim());
     },
   });
+  // Set once the chapter exists: a retry after a failed volume step only repeats that step.
+  const [created, setCreated] = useState<{ id: number; seriesId: number } | null>(null);
+  const createDoc = async (series_id: number): Promise<{ id: number }> => {
+    if (!file) {
+      return call(api.POST("/documents", { body: { title, series_id, raw_text: rawText, chapter_title: "", source_language: "ja", source_url: sourceUrl } }));
+    }
+    const form = new FormData();
+    form.append("file", file);
+    if (title.trim()) form.append("title", title);
+    form.append("series_id", String(series_id));
+    return postForm<Doc>("/documents/import/txt", form);
+  };
   const create = useMutation({
     mutationFn: async () => {
-      const series_id = Number(seriesId);
-      let doc: { id: number };
-      if (!file) {
-        doc = await call(api.POST("/documents", { body: { title, series_id, raw_text: rawText, chapter_title: "", source_language: "ja", source_url: sourceUrl } }));
-      } else {
-        const form = new FormData();
-        form.append("file", file);
-        if (title.trim()) form.append("title", title);
-        form.append("series_id", String(series_id));
-        doc = await postForm<Doc>("/documents/import/txt", form);
+      let doc = created;
+      if (doc === null) {
+        const series_id = Number(seriesId);
+        doc = { id: (await createDoc(series_id)).id, seriesId: series_id };
+        setCreated(doc);
       }
-      if (volumeId !== null && series_id === presetSeries) {
+      if (volumeId === null || doc.seriesId !== presetSeries) return;
+      try {
         await call(api.POST("/volumes/{volume_id}/documents", {
           params: { path: { volume_id: volumeId } }, body: { document_ids: [doc.id] },
         }));
+      } catch (e) {
+        throw new Error(`Created, but couldn't add it to the volume: ${(e as Error).message}`);
       }
     },
     onSettled: () => invalidateLibrary(queryClient),
@@ -83,7 +93,8 @@ export default function NewDocument({ seriesId: presetSeries, volumeId, onClose 
       </div>
       <div className="dlg-foot">
         <button type="button" disabled={create.isPending} onClick={onClose}>Cancel</button>
-        <button type="submit" className="primary" disabled={create.isPending}>{file ? "Import" : "Create"}</button>
+        <button type="submit" className="primary" disabled={create.isPending}>
+          {created !== null ? "Retry adding to volume" : file ? "Import" : "Create"}</button>
       </div>
     </Modal>
   );

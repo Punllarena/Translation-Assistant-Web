@@ -45,34 +45,38 @@ export default function VolumeDetails({ volume, onClose }: { volume: Volume; onC
   );
 }
 
-/** Publishing the volume's illustrations page: the confirm (while `asking`) and the running job's
- *  progress, which is picked up again after a reload. */
-export function Illustrations({ volume, asking, onAsked }: { volume: Volume; asking: boolean; onAsked: () => void }) {
+/** The volume's illustrations job: a new one, or one still running from before a reload. */
+export function useIllustrations(volume: Volume | null) {
   const [newJob, setNewJob] = useState<number | null>(null);
   const [done, setDone] = useState(false);
   const active = useQuery({
-    queryKey: ["jobs", "active", "wp_illustrations", volume.id], gcTime: 0,
+    queryKey: ["jobs", "active", "wp_illustrations", volume?.id], gcTime: 0, enabled: volume !== null,
     queryFn: () => call(api.GET("/jobs", { params: { query: { active: true } } })),
   });
   const jobId = newJob ?? active.data?.find(
-    (j) => j.kind === "wp_illustrations" && (j.params as { volume_id?: number } | null)?.volume_id === volume.id)?.id ?? null;
+    (j) => j.kind === "wp_illustrations" && (j.params as { volume_id?: number } | null)?.volume_id === volume?.id)?.id ?? null;
   const start = useMutation({
-    mutationFn: () => call(api.POST("/volumes/{volume_id}/wp/illustrations", { params: { path: { volume_id: volume.id } } })),
-    onSuccess: (job) => { setDone(false); setNewJob(job.id); onAsked(); },
+    mutationFn: () => call(api.POST("/volumes/{volume_id}/wp/illustrations", { params: { path: { volume_id: volume!.id } } })),
+    onSuccess: (job) => { setDone(false); setNewJob(job.id); },
   });
-  const running = jobId !== null && !done;
+  return { jobId, running: jobId !== null && !done, start, markDone: () => setDone(true) };
+}
+
+/** Publishing the volume's illustrations page: the confirm (while `asking`) and the job's progress. */
+export function Illustrations({ volume, job, asking, onAsked }: {
+  volume: Volume; job: ReturnType<typeof useIllustrations>; asking: boolean; onAsked: () => void;
+}) {
+  const { jobId, running, start, markDone } = job;
   return (
     <>
-      {asking && (
+      {asking && !running && (
         <ConfirmDialog title="Publish illustrations" confirmLabel="Publish" busy={start.isPending}
-          message={running
-            ? "This volume's illustrations are already being published."
-            : `Publish the illustrations of "${volume.title}" to WordPress? An existing illustrations page for this volume will be overwritten.`}
+          message={`Publish the illustrations of "${volume.title}" to WordPress? An existing illustrations page for this volume will be overwritten.`}
           error={start.error?.message}
-          onConfirm={() => { if (!running) start.mutate(); }} onClose={() => { start.reset(); onAsked(); }} />
+          onConfirm={() => start.mutate(undefined, { onSuccess: onAsked })} onClose={() => { start.reset(); onAsked(); }} />
       )}
       {jobId !== null && (
-        <JobProgress jobId={jobId} onDone={() => setDone(true)} outcome={(j) => {
+        <JobProgress jobId={jobId} onDone={markDone} outcome={(j) => {
           const r = (j.result ?? {}) as { page_url?: string; created?: boolean };
           return <p>{j.state === "cancelled" ? "Cancelled" : `${r.created ? "Created" : "Updated"} the volume illustrations page`}{" "}
             {r.page_url && <a href={r.page_url} target="_blank" rel="noreferrer">{r.page_url}</a>}</p>;
