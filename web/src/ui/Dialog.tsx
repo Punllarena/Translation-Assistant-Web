@@ -1,13 +1,23 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
-/** A native modal <dialog>: opened with showModal() on mount; Escape or cancel calls onClose. */
+/** A native modal <dialog>: opened with showModal() on mount. Escape (the cancel event) calls
+ *  onClose, and is ignored while busy. A dialog the browser closes anyway (a second Escape
+ *  after a cancelled one) fires `close`, which also calls onClose; onClose runs once per close. */
 export function Modal({ title, onClose, onSubmit, busy, children }: {
   title: string; onClose: () => void; onSubmit?: (e: FormEvent) => void; busy?: boolean; children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const closing = useRef(false);
   useEffect(() => { const d = ref.current; if (d && !d.open) d.showModal(); }, []);
+  useEffect(() => { closing.current = false; }); // still mounted: the parent kept it open
+  const close = () => {
+    if (closing.current) return;
+    closing.current = true;
+    onClose();
+  };
   return (
-    <dialog ref={ref} aria-label={title} onCancel={(e) => { e.preventDefault(); if (!busy) onClose(); }}>
+    <dialog ref={ref} aria-label={title} onClose={close}
+      onCancel={(e) => { e.preventDefault(); if (!busy) close(); }}>
       {onSubmit ? <form onSubmit={onSubmit}>{children}</form> : children}
     </dialog>
   );

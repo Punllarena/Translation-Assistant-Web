@@ -28,11 +28,16 @@ export default function NewDocument({ seriesId: presetSeries, volumeId, onClose 
       setSourceUrl(url.trim());
     },
   });
-  // Set once the chapter exists: a retry after a failed volume step only repeats that step.
+  // Set once a TXT import exists: a retry after a failed volume step only repeats that step.
   const [created, setCreated] = useState<{ id: number; seriesId: number } | null>(null);
+  // The preset volume applies only while the chapter stays in the preset series.
+  const targetVolume = (series_id: number) => (series_id === presetSeries ? volumeId : null);
   const createDoc = async (series_id: number): Promise<{ id: number }> => {
     if (!file) {
-      return call(api.POST("/documents", { body: { title, series_id, raw_text: rawText, chapter_title: "", source_language: "ja", source_url: sourceUrl } }));
+      return call(api.POST("/documents", { body: {
+        title, series_id, volume_id: targetVolume(series_id), raw_text: rawText, chapter_title: "",
+        source_language: "ja", source_url: sourceUrl,
+      } }));
     }
     const form = new FormData();
     form.append("file", file);
@@ -51,12 +56,14 @@ export default function NewDocument({ seriesId: presetSeries, volumeId, onClose 
           setChoice({ id: String(made.id), title: "" }); // a retry reuses it
         }
         doc = { id: (await createDoc(series_id)).id, seriesId: series_id };
+        if (!file) return; // POST /documents placed it in the volume itself
         setCreated(doc);
       }
-      if (volumeId === null || doc.seriesId !== presetSeries) return;
+      const volume_id = targetVolume(doc.seriesId);
+      if (volume_id === null) return;
       try {
         await call(api.POST("/volumes/{volume_id}/documents", {
-          params: { path: { volume_id: volumeId } }, body: { document_ids: [doc.id] },
+          params: { path: { volume_id } }, body: { document_ids: [doc.id] },
         }));
       } catch (e) {
         throw new Error(`Created, but couldn't add it to the volume: ${(e as Error).message}`);
@@ -76,7 +83,8 @@ export default function NewDocument({ seriesId: presetSeries, volumeId, onClose 
         <label className="field"><span>Title</span>
           <input value={title} required={!file} onChange={(e) => setTitle(e.target.value)} />
         </label>
-        <SeriesChoice series={series.data ?? []} value={choice} onChange={setChoice} />
+        <SeriesChoice series={series.data ?? []} value={choice} onChange={setChoice}
+          disabled={created !== null} />
         <div className="toolbar">
           <label className="field"><span>Fetch from URL</span>
             <input type="url" aria-label="Syosetu URL" value={url} disabled={!!file} onChange={(e) => setUrl(e.target.value)} />

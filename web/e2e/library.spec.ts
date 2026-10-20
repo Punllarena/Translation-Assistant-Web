@@ -55,6 +55,18 @@ test("bulk delete and series delete ask first, and Cancel keeps everything", asy
   await page.getByRole("tab", { name: "Settings" }).click();
   await page.getByRole("button", { name: "Delete series" }).click();
   await expect(dialog.getByText('Delete "E2E library series" and its 3 chapters? This can\'t be undone.')).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Delete series and 3 chapters" })).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test("Publish volume opens the publish dialog with the volume's chapters, and Close publishes nothing", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, "E2E library series");
+  await expect(page.getByRole("button", { name: /^Vol A/ })).toHaveAttribute("aria-current", "true");
+  await page.getByRole("button", { name: "Publish volume…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Publish / Schedule Chapters" });
+  await expect(dialog.getByText("2 chapter(s) selected.")).toBeVisible();
+  await dialog.getByRole("button", { name: "Close" }).click();
   await expect(dialog).toBeHidden();
 });

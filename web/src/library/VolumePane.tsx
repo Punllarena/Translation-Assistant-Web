@@ -12,7 +12,7 @@ import VolumeDetails, { Illustrations, useIllustrations } from "./VolumeDetails"
 import { groupTitle, VolumeCover } from "./VolumeList";
 import type { VolumeGroup } from "./volumeGroups";
 
-type Open = null | "publish" | "details" | "illustrations" | "delete" | "chapter";
+type Open = null | "publish" | "details" | "illustrations" | "delete" | "chapter" | "renumber";
 
 function editedLabel(group: VolumeGroup): string | null {
   let at: string | null = null;
@@ -36,6 +36,7 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
   const renumber = useMutation({
     mutationFn: () => call(api.POST("/series/{series_id}/renumber", { params: { path: { series_id: series.id } } })),
     onSettled: changed,
+    onSuccess: () => setOpen((o) => (o === "renumber" ? null : o)),
   });
   const remove = useMutation({
     mutationFn: () => call(api.DELETE("/volumes/{volume_id}", { params: { path: { volume_id: volume!.id } } })),
@@ -51,7 +52,7 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
   const renumberButton = !syosetu && (
     <button type="button" disabled={renumber.isPending} onClick={() => renumber.mutate()}>Renumber by title</button>
   );
-  const error = epub.error ?? renumber.error;
+  const error = epub.error ?? (open === "renumber" ? null : renumber.error);
   return (
     <div className={volume ? "vol-head" : "vol-head loose"}>
       {volume && <VolumeCover group={group} />}
@@ -80,7 +81,8 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
                     <button type="button" role="menuitem" disabled={illustrations.running}
                       onClick={() => { close(); setOpen("illustrations"); }}>Publish illustrations</button>
                     {!syosetu && (
-                      <button type="button" role="menuitem" onClick={() => { close(); renumber.mutate(); }}>Renumber by title</button>
+                      <button type="button" role="menuitem"
+                        onClick={() => { close(); renumber.reset(); setOpen("renumber"); }}>Renumber all volumes by title</button>
                     )}
                     <button type="button" role="menuitem" className="danger"
                       onClick={() => { close(); remove.reset(); setOpen("delete"); }}>Delete volume</button>
@@ -105,6 +107,11 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
         <ConfirmDialog title="Delete volume" confirmLabel="Delete volume" danger busy={remove.isPending}
           message={`Delete volume "${volume.title}"? Its chapters stay in the series.`} error={remove.error?.message}
           onConfirm={() => remove.mutate()} onClose={() => setOpen(null)} />
+      )}
+      {open === "renumber" && (
+        <ConfirmDialog title="Renumber by title" confirmLabel="Renumber" busy={renumber.isPending}
+          message="Renumber every chapter in this series by title? Each volume is sorted by chapter title."
+          error={renumber.error?.message} onConfirm={() => renumber.mutate()} onClose={() => setOpen(null)} />
       )}
       {open === "chapter" && (
         <NewDocument seriesId={series.id} volumeId={volume?.id ?? null} onClose={() => setOpen(null)} />

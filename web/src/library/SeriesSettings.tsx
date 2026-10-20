@@ -12,6 +12,7 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
+  const chapters = `${chapterCount} ${chapterCount === 1 ? "chapter" : "chapters"}`;
   const profiles = useQuery({ queryKey: ["profiles"], queryFn: () => call(api.GET("/profiles")) });
   const save = useMutation({
     mutationFn: (body: { title: string; syosetu_url: string; profile_id: number | null }) =>
@@ -63,8 +64,8 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
       {confirming && (
         <ConfirmDialog
           title="Delete series"
-          message={`Delete "${series.title}" and its ${chapterCount} chapters? This can't be undone.`}
-          confirmLabel={`Delete series and ${chapterCount} chapters`}
+          message={`Delete "${series.title}" and its ${chapters}? This can't be undone.`}
+          confirmLabel={`Delete series and ${chapters}`}
           danger
           busy={remove.isPending}
           error={remove.error?.message}
