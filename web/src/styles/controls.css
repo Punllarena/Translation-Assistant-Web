@@ -8,6 +8,8 @@ button.primary, .btn.primary { background: var(--accent); border-color: var(--ac
 button.quiet, .btn.quiet { background: none; border-color: transparent; color: var(--muted); }
 button.quiet:hover:not(:disabled), .btn.quiet:hover { color: var(--ink); border-color: transparent; }
 button.danger { color: var(--danger); }
+button.primary.danger { background: var(--danger); border-color: var(--danger); color: var(--surface); }
+button.primary.danger:hover:not(:disabled) { border-color: var(--danger); filter: brightness(1.08); }
 button.icon { width: 36px; padding: 0; border-color: transparent; background: none; color: var(--muted); }
 button.icon:hover:not(:disabled) { background: var(--raised); color: var(--ink); border-color: transparent; }
 button.small, .btn.small { min-height: 30px; padding: 0 10px; font-size: 13px; }
