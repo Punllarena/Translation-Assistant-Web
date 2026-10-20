@@ -32,3 +32,9 @@ export function pickVolume(param: string | null, groups: VolumeGroup[]): VolumeK
   const hit = groups.find((g) => String(g.key) === param);
   return hit ? hit.key : (groups[0]?.key ?? null);
 }
+
+/** Every chapter id of the series in reading order, with group `key`'s chapters replaced by `docs`
+ *  (the body of `PUT /series/{id}/order` after a drag within one volume). */
+export function seriesOrder(groups: VolumeGroup[], key: VolumeKey, docs: Doc[]): number[] {
+  return groups.flatMap((g) => (g.key === key ? docs : g.docs)).map((d) => d.id);
+}

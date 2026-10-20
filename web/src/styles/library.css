@@ -39,3 +39,59 @@
 .tabs [role="tab"] { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); }
 .tabs [role="tab"][aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 .danger-zone { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--line); }
+
+/* Series page · Volumes tab: volumes ¼, the selected volume's chapters ¾. */
+.vol-panes { display: grid; grid-template-columns: minmax(240px, 1fr) 3fr; gap: 24px; align-items: start; }
+.vol-panes.single { grid-template-columns: minmax(0, 1fr); }
+.vol-pane { min-width: 0; }
+.vol-list { padding-right: 16px; border-right: 1px solid var(--line); }
+.vol-list ul { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.vol-item { display: flex; justify-content: flex-start; align-items: center; gap: 12px; width: 100%; min-height: 0;
+  padding: 8px; border-color: transparent; background: none; text-align: left; font-weight: 400; }
+.vol-item .cover { width: 52px; flex: none; }
+.vol-item .cover-tile { font-size: 0; padding: 0; }
+.vol-item[aria-current="true"] { background: var(--accent-soft); border-color: var(--line); }
+.vol-item.drop { border-color: var(--accent-text); border-style: dashed; }
+.vol-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.vol-title { font-weight: 600; overflow-wrap: anywhere; }
+.vol-count { font-size: 12px; }
+.vol-info .prog { margin-top: 4px; }
+.vol-add { width: 100%; border-style: dashed; color: var(--muted); background: none; }
+
+.vol-head { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 12px; }
+.vol-head > .cover { width: 72px; flex: none; }
+.vol-head .cover-tile { font-size: 0; padding: 0; }
+.vol-head-main { flex: 1; min-width: 0; }
+.vol-head-title { font-family: var(--serif); font-weight: 500; font-size: 22px; line-height: 1.25; overflow-wrap: anywhere; }
+.vol-head-main > p { margin: 2px 0 0; font-size: 13px; }
+
+.chapters th, .chapters td { padding: 8px 6px; }
+.chapters tbody tr { position: relative; }
+.chapters tbody tr:hover td { background: var(--raised); }
+.chapters tr.dragging td { opacity: .5; }
+.ch-grip, .ch-check, .ch-menu { width: 1%; white-space: nowrap; }
+.ch-grip .grip { cursor: grab; color: var(--muted); padding: 4px; user-select: none; }
+.ch-num { width: 1%; text-align: right; font-family: var(--mono); font-size: 13px; }
+.ch-prog, .ch-edited, .ch-wp { width: 1%; white-space: nowrap; }
+.ch-prog.ok { color: var(--ok); }
+.ch-title .row-link { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.ch-title .row-link::after { content: ""; position: absolute; inset: 0; }
+.ch-title .row-link:hover { color: var(--accent-text); }
+.ch-grip > *, .ch-check > *, .ch-menu > * { position: relative; z-index: 1; }
+/* An open menu sits above the later rows' raised controls. */
+.chapters .menu-root:has(> [aria-expanded="true"]) { z-index: 30; }
+.selbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--accent-soft); color: var(--ink); font-size: 14px; letter-spacing: normal;
+  text-transform: none; font-weight: 400; }
+.selbar .menu-root > button { min-height: 30px; padding: 0 10px; font-size: 13px; border-color: var(--line); color: var(--ink); background: var(--surface); }
+
+@media (max-width: 767px) {
+  .vol-panes { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .vol-list { padding: 0 0 8px; border-right: 0; border-bottom: 1px solid var(--line); display: flex; gap: 8px; overflow-x: auto; }
+  .vol-list ul { flex-direction: row; margin: 0; }
+  .vol-item { flex-direction: column; align-items: stretch; width: 96px; gap: 6px; }
+  .vol-item .cover { width: 100%; }
+  .vol-add { width: 96px; flex: none; }
+  .vol-head > .cover { width: 56px; }
+  .ch-grip, .ch-prog, .ch-edited, .ch-wp { display: none; }
+}

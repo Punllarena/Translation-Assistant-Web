@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 /** A native modal <dialog>: opened with showModal() on mount; Escape or cancel calls onClose. */
-function Modal({ title, onClose, onSubmit, busy, children }: {
+export function Modal({ title, onClose, onSubmit, busy, children }: {
   title: string; onClose: () => void; onSubmit?: (e: FormEvent) => void; busy?: boolean; children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);

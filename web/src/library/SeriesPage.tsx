@@ -5,6 +5,7 @@ import PageHeader from "../ui/PageHeader";
 import { useDocuments, useSeriesList } from "./queries";
 import SeriesSettings from "./SeriesSettings";
 import SeriesTools from "./SeriesTools";
+import VolumesTab from "./VolumesTab";
 
 const TABS = [
   { id: "volumes", label: "Volumes" },
@@ -41,7 +42,7 @@ export default function SeriesPage() {
         ))}
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === "volumes" && <p className="muted">Volumes are coming here.</p>}
+        {tab === "volumes" && <VolumesTab series={series} docs={chapters} />}
         {tab === "tools" && (
           <SeriesTools series={series}
             defaultProfileId={series.profile_id ?? profiles.data?.find((p) => p.is_default)?.id ?? null} />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chapterNumber, pickVolume, volumeGroups } from "./volumeGroups";
+import { chapterNumber, pickVolume, seriesOrder, volumeGroups } from "./volumeGroups";
 import type { Doc, Volume } from "./shelf";
 
 const volume = (id: number, series_id: number, volume_order: number) => ({ id, series_id, volume_order }) as Volume;
@@ -45,5 +45,14 @@ describe("pickVolume", () => {
     expect(pickVolume("77", groups)).toBe(3);
     expect(pickVolume(null, groups)).toBe(3);
     expect(pickVolume("1", [])).toBeNull();
+  });
+});
+
+describe("seriesOrder", () => {
+  it("keeps the other groups in place and swaps in the reordered group", () => {
+    const docs = [doc(1, 1, 10, { series_order: 1 }), doc(2, 1, 10, { series_order: 2 }), doc(3, 1, 20, { series_order: 3 }),
+      doc(4, 1, 20, { series_order: 4 }), doc(5, 1, null, { series_order: 5 })];
+    const groups = volumeGroups(1, docs, [volume(10, 1, 1), volume(20, 1, 2)]);
+    expect(seriesOrder(groups, 20, [docs[3], docs[2]])).toEqual([1, 2, 4, 3, 5]);
   });
 });
