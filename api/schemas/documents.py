@@ -58,6 +58,7 @@ class DocumentListItem(DocumentOut):
     translated_count: int
     image_count: int
     has_cover: bool
+    cover_image_id: int | None = None
     progress: int
 
 

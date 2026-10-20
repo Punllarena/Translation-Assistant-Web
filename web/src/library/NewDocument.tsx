@@ -24,14 +24,14 @@ export default function NewDocument({ series, onDone }: { series: SeriesRow[]; o
   });
   const create = useMutation({
     mutationFn: async () => {
-      const series_id = seriesId ? Number(seriesId) : null;
+      const series_id = Number(seriesId);
       if (!file) {
         return call(api.POST("/documents", { body: { title, series_id, raw_text: rawText, chapter_title: "", source_language: "ja", source_url: sourceUrl } }));
       }
       const form = new FormData();
       form.append("file", file);
       if (title.trim()) form.append("title", title);
-      if (series_id !== null) form.append("series_id", String(series_id));
+      form.append("series_id", String(series_id));
       return postForm("/documents/import/txt", form);
     },
     onSuccess: async () => {
@@ -50,8 +50,8 @@ export default function NewDocument({ series, onDone }: { series: SeriesRow[]; o
       </label>
       <label>
         Series{" "}
-        <select value={seriesId} onChange={(e) => setSeriesId(e.target.value)}>
-          <option value="">Unsorted</option>
+        <select value={seriesId} required onChange={(e) => setSeriesId(e.target.value)}>
+          <option value="" disabled>Choose a series…</option>
           {series.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
         </select>
       </label>

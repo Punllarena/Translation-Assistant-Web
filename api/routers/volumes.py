@@ -18,6 +18,20 @@ TITLE_TAKEN = "a volume with that title exists in this series"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 
+@router.get("/volumes", response_model=list[VolumeOut])
+def list_all_volumes(
+    user: User = Depends(current_user), db: Session = Depends(db_session)
+) -> list[Volume]:
+    return list(
+        db.scalars(
+            select(Volume)
+            .join(Series, Series.id == Volume.series_id)
+            .where(Series.user_id == user.id)
+            .order_by(Volume.series_id, Volume.volume_order, Volume.id)
+        )
+    )
+
+
 @router.get("/series/{series_id}/volumes", response_model=list[VolumeOut])
 def list_volumes(
     series_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)

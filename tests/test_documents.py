@@ -131,3 +131,16 @@ def test_create_line_count_is_capped(app_client, me, make_series, monkeypatch):
 )
 def test_integer_fields_are_bounded(app_client, me, method, path, body):
     assert getattr(app_client, method)(path, json=body).status_code == 422
+
+
+def test_list_reports_the_cover_image_id(app_client, db, me, make_doc):
+    plain = make_doc(me, [], title="Plain")
+    covered = make_doc(me, [], title="Covered")
+    db.add(DocumentImage(document_id=plain.id, src_path="i.png", data=b"x", is_cover=False))
+    first = DocumentImage(document_id=covered.id, src_path="c1.png", data=b"x", is_cover=True)
+    second = DocumentImage(document_id=covered.id, src_path="c2.png", data=b"x", is_cover=True)
+    db.add_all([first, second])
+    db.flush()
+    rows = {d["title"]: d for d in app_client.get("/documents").json()}
+    assert rows["Covered"]["cover_image_id"] == min(first.id, second.id)
+    assert rows["Plain"]["cover_image_id"] is None
