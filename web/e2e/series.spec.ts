@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openSeries as openIn, openChapter } from "./fixtures/library";
 
 async function openSeries(page: import("@playwright/test").Page) {
   await page.goto("/login");
@@ -6,8 +7,8 @@ async function openSeries(page: import("@playwright/test").Page) {
   await page.getByLabel("Password").fill("e2e-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
-  await page.goto("/");
-  await page.getByRole("link", { name: "E2E series", exact: true }).click();
+  await openIn(page, "E2E series");
+  await page.getByRole("tab", { name: "Tools" }).click();
 }
 
 test("find and replace across a series", async ({ page }) => {
@@ -16,15 +17,13 @@ test("find and replace across a series", async ({ page }) => {
   await page.getByLabel("Replace with").fill("Taro");
   await page.getByRole("button", { name: "Search" }).click();
   await expect(page.getByText("2 matches")).toBeVisible();
-  // the click only resolves once the dialog is handled, so don't await it before accepting
-  const dialog = page.waitForEvent("dialog");
-  const click = page.getByRole("button", { name: /Replace selected/ }).click();
-  await (await dialog).accept();
-  await click;
+  await page.getByRole("button", { name: /Replace selected/ }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Replace 2 line(s) across the series?")).toBeVisible();
+  await dialog.getByRole("button", { name: "Replace", exact: true }).click();
   await expect(page.getByText("Replaced 2")).toBeVisible();
   // the match list clears after a replace, so check the result in the editor
-  await page.goto("/");
-  await page.getByRole("link", { name: "Open Series one" }).click();
+  await openChapter(page, "E2E series", "Series one");
   await expect(page.getByRole("textbox", { name: "Translation" })).toHaveText("Taro came.");
 });
 

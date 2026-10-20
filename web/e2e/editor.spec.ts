@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openChapter as openIn } from "./fixtures/library";
 
 async function openChapter(page: Page) {
   await page.goto("/login");
@@ -6,8 +7,7 @@ async function openChapter(page: Page) {
   await page.getByLabel("Password").fill("e2e-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
-  await page.goto("/");
-  await page.getByRole("link", { name: "Open E2E chapter" }).click();
+  await openIn(page, "E2E editor series", "E2E chapter");
 }
 
 test("sign in and open a document", async ({ page }) => {

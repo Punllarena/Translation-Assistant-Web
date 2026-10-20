@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openChapter as openIn } from "./fixtures/library";
 
 test("leaving Edit Source with unsaved text asks first", async ({ page }) => {
   await page.goto("/login");
@@ -6,8 +7,7 @@ test("leaving Edit Source with unsaved text asks first", async ({ page }) => {
   await page.getByLabel("Password").fill("e2e-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
-  await page.goto("/");
-  await page.getByRole("link", { name: "Open E2E chapter" }).click();
+  await openIn(page, "E2E editor series", "E2E chapter");
   await page.getByRole("link", { name: "Edit source" }).click();
   await page.locator(".source-editor .cm-content").click();
   await page.keyboard.type("x");

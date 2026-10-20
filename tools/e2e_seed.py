@@ -34,7 +34,7 @@ def main() -> None:
 
     from api.db import SessionLocal
     from api.library import write_lines
-    from api.models import Document, Line, Profile, Series, User
+    from api.models import Document, Line, Profile, Series, User, Volume
     from api.security import hash_password
 
     with SessionLocal() as db:
@@ -110,6 +110,22 @@ def main() -> None:
                                         "translated_text": "Stats."}])
         db.execute(update(Line).where(Line.document_id == stats_doc.id)
                    .values(translated_at=func.now()))
+        # library.spec: a volume with two chapters and one loose chapter; nothing else opens it
+        lib = Series(user_id=user.id, title="E2E library series")
+        db.add(lib)
+        db.flush()
+        vol_a = Volume(series_id=lib.id, title="Vol A", volume_order=1)
+        db.add(vol_a)
+        db.flush()
+        for order, (title, volume_id) in enumerate((
+            ("Lib one", vol_a.id), ("Lib two", vol_a.id), ("Lib loose", None),
+        )):
+            ch = Document(user_id=user.id, title=title, series_id=lib.id, volume_id=volume_id,
+                          series_order=order)
+            db.add(ch)
+            db.flush()
+            write_lines(db, ch.id, [{"line_number": 0, "prefix": "%", "raw_text": "図書です。",
+                                     "translated_text": ""}])
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)

@@ -75,6 +75,16 @@ import back) and inserts lines in Core batches of 1,000 (`api/core/tadb_lines.py
 by row. `GET /import/tadb/pending` lets the import card resume; the header's running-jobs button polls
 `GET /jobs?active=true`.
 
+Library redesign: the Library (`/`) lists series only, as a bookshelf or a list (`ta.libraryView` in `localStorage`, helper
+`web/src/library/viewPref.ts`). A series opens at `/series/:id?tab=volumes|tools|settings&volume=<id>|none`: Volumes is a
+two-pane view (volume list, then the selected volume's chapters with a selection bar and per-row ⋯ menu; "No volume" holds
+loose chapters), and its grouping and numbering helpers live in `web/src/library/volumeGroups.ts`. `documents.series_id` is
+`NOT NULL` and deleting a series cascades to its volumes and chapters. `arrange()` renumbers and reorders a series' chapters
+after moves, merges and deletes, except for syosetu-sourced series, which keep syosetu's chapter numbers. `POST /documents/export/zip`
+exports ticked chapters; `GET /volumes` feeds the Move-to dialogs. Library dialogs (`web/src/ui/Dialog.tsx`: `ConfirmDialog`,
+`PromptDialog`) replace native `prompt`/`confirm`, and none of them closes while its action is busy. Deferred work (WordPress
+volume indexing, the EPUB illustrations chapter) is tracked in `docs/TODO.md`.
+
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
 

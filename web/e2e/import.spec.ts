@@ -29,7 +29,7 @@ test("batch import of TXT files into a new series", async ({ page }) => {
   await page.getByRole("button", { name: "Import", exact: true }).click();
   await expect(page.getByRole("status").getByText("Imported: 2")).toBeVisible();
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Import Batch", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Import Batch", exact: true }).click();
   await expect(page.getByRole("link", { name: "Open Batch A" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open Batch B" })).toBeVisible();
 });
