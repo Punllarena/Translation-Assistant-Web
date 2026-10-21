@@ -124,5 +124,6 @@ def parse_title(title: str, series_title: str = "") -> ParsedName:
 
 def sort_key(kind: str, index: Decimal | None) -> tuple:
     """Volume first, other named kinds next, unkinded last."""
-    group = 0 if kind == "Volume" else 2 if kind == "" else 1
-    return (group, kind.casefold(), index is None, index or 0)
+    folded = kind.strip().casefold()
+    group = 0 if folded == "volume" else 2 if folded == "" else 1
+    return (group, folded, index is None, index or 0)

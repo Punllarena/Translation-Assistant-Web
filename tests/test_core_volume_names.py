@@ -78,3 +78,14 @@ def test_sort_key_orders_kinds():
     ]
     shuffled = [items[i] for i in (4, 2, 5, 0, 3, 1)]
     assert sorted(shuffled, key=lambda kv: sort_key(*kv)) == items
+
+
+def test_sort_key_volume_group_is_case_insensitive():
+    items = [
+        ("volume", Decimal(1)),
+        (" VOLUME ", Decimal(2)),
+        ("Volume", Decimal(3)),
+        ("Extra", Decimal(1)),
+    ]
+    assert [sort_key(*i)[0] for i in items] == [0, 0, 0, 1]
+    assert sorted(items[::-1], key=lambda kv: sort_key(*kv)) == items

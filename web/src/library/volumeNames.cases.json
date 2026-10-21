@@ -1,5 +1,5 @@
 {
-  "format_index": [{"in": "3.000", "out": "3"}, {"in": "3.500", "out": "3.5"}, {"in": "0", "out": "0"}, {"in": null, "out": ""}],
+  "format_index": [{"in": "3.000", "out": "3"}, {"in": "3.500", "out": "3.5"}, {"in": "0", "out": "0"}, {"in": "10.000", "out": "10"}, {"in": "120", "out": "120"}, {"in": null, "out": ""}],
   "render": [
     {"template": "{series} - {kind} {index} - {subtitle}", "series": "Mushoku", "kind": "Volume", "index": "3", "subtitle": "The Journey", "out": "Mushoku - Volume 3 - The Journey"},
     {"template": "{series} - {kind} {index} - {subtitle}", "series": "Mushoku", "kind": "Volume", "index": "3.5", "subtitle": "", "out": "Mushoku - Volume 3.5"},
