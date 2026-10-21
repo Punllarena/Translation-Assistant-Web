@@ -48,6 +48,8 @@ def _publish_one(db: Session, c: httpx.Client, user_id: int, item: dict, endpoin
         log.exception("publishing document %s failed", doc.id)
         return {**row, "ok": False, "error": "publishing this chapter failed"}
     written = publish.record(doc, result, scheduled)
+    if written:
+        publish.freeze_volume_name(db, doc.volume_id)
     return {**row, "ok": True, "created": bool(result.get("created")),
             "post_url": str(result.get("post_url") or ""),
             "password": ch.password if written else None,
@@ -95,6 +97,8 @@ def publish_illustrations(ctx: JobContext) -> dict:
                 result = wp_http.publish_illustrations(c, endpoint, p)
             except WPPublishError as exc:
                 raise JobError(f"batch {i}/{len(payloads)}: {exc.message}") from exc
+            if first is None:
+                publish.freeze_volume_name(ctx.db, volume.id)
             first = first or result  # the desktop reports the first ("replace") answer
             ctx.progress(i, len(payloads), f"Batch {i} of {len(payloads)}")
     return {"page_url": str(first.get("page_url") or ""), "created": bool(first.get("created")),

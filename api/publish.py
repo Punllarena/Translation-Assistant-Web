@@ -142,6 +142,14 @@ def record(doc: Document, result: dict, scheduled: datetime | None) -> bool:
     return True
 
 
+def freeze_volume_name(db: Session, volume_id: int | None) -> None:
+    """Pin the volume_title WordPress was just sent: the plugin finds the volume's pages by
+    that string, so after the first publish it must never change."""
+    volume = db.get(Volume, volume_id) if volume_id is not None else None
+    if volume is not None and volume.wp_volume_title is None:
+        volume.wp_volume_title = volume.wp_name  # unset, so this is the computed label
+
+
 def apply_remote_status(doc: Document, result: dict) -> None:
     """The desktop _on_status_ok without its date wipe (ruling 7)."""
     remote = result.get("status")
