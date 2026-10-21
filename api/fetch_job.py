@@ -14,13 +14,26 @@ from api.core.syosetu_volumes import heading_sequence, targets
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.jobs import JobContext, JobError, handler
 from api.library import check_line_count, write_lines
-from api.models import Document, Series, Volume, VolumeSyosetuGroup
+from api.models import Document, Job, Series, Volume, VolumeSyosetuGroup
 
 http_client = scrape.client  # the seam tests replace
 
 
 def existing_orders(db, series_id: int) -> set[int]:
     return set(db.scalars(select(Document.series_order).where(Document.series_id == series_id)))
+
+
+FETCH_BUSY = "a fetch for this series is already queued or running"
+
+
+def fetch_active(db, user_id: int, series_id: int) -> bool:
+    """A syosetu_fetch job for the series is queued or running: regrouping or merging
+    now could move or delete a volume under it."""
+    return db.scalar(select(Job.id).where(
+        Job.user_id == user_id, Job.kind == "syosetu_fetch",
+        Job.state.in_(("queued", "running")),
+        Job.params_json["series_id"].as_integer() == series_id,
+    ).limit(1)) is not None
 
 
 def group_volume(db, series_id: int, heading: str) -> Volume:

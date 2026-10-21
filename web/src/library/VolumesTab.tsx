@@ -7,7 +7,7 @@ import type { Doc, SeriesRow } from "./shelf";
 import { invalidateLibrary, useAllVolumes } from "./queries";
 import MergeVolumesDialog from "./MergeVolumesDialog";
 import NewVolumeDialog from "./NewVolumeDialog";
-import { rangeToggle } from "./rangeToggle";
+import { pickedInOrder, rangeToggle } from "./rangeToggle";
 import VolumeList from "./VolumeList";
 import VolumePane from "./VolumePane";
 import { pickVolume, volumeGroups, type VolumeKey } from "./volumeGroups";
@@ -54,12 +54,13 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
   const order = groups.flatMap((g) => (g.volume ? [g.volume.id] : []));
   const leaveSelecting = () => { setSelecting(false); setPicked(new Set()); setAnchor(null); };
   const pick = (id: number, shift: boolean) => { setPicked((p) => rangeToggle(order, p, id, anchor, shift)); setAnchor(id); };
-  const pickedVolumes = groups.flatMap((g) => (g.volume && picked.has(g.volume.id) ? [g.volume] : []));
+  const live = new Set(pickedInOrder(order, picked));
+  const pickedVolumes = groups.flatMap((g) => (g.volume && live.has(g.volume.id) ? [g.volume] : []));
   return (
     <div className={hasVolumes ? "vol-panes" : "vol-panes single"}>
       {hasVolumes && (
         <VolumeList groups={groups} selected={group.key} onSelect={select} onNewVolume={newVolume} onDropChapter={dropChapter}
-          selecting={selecting} picked={picked} onPick={pick} onMerge={() => setMerging(true)}
+          selecting={selecting} picked={live} onPick={pick} onMerge={() => setMerging(true)}
           onToggleSelecting={() => (selecting ? leaveSelecting() : setSelecting(true))} />
       )}
       <section className="vol-pane" aria-label={group.volume?.title ?? "Chapters"}>
@@ -68,7 +69,7 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
         {assign.isError && <p className="error" role="alert">{assign.error.message}</p>}
         <ChapterTable key={`table-${group.key}`} series={series} group={group} groups={groups} syosetu={syosetu} />
       </section>
-      {merging && (
+      {merging && pickedVolumes.length >= 2 && (
         <MergeVolumesDialog seriesId={series.id} volumes={pickedVolumes} onClose={() => setMerging(false)}
           onMerged={(id) => { setMerging(false); leaveSelecting(); select(id); }} />
       )}

@@ -84,7 +84,7 @@ def test_regroup_reads_the_index_once_when_no_sequence_is_stored(
     s = make_series(me, "S")
     s.syosetu_url = INDEX_URL
     for n in (1, 2, 3):
-        make_doc(me, ["x"], series=s, order=n)
+        make_doc(me, ["x"], series=s, order=n).source_url = f"{INDEX_URL}{n}/"
     db.flush()
     assert _regroup(app_client, s, "marker", "★").json() == {
         "volumes_created": 2, "chapters_moved": 3, "volumes_emptied": 0}
@@ -124,3 +124,14 @@ def test_regroup_needs_your_series_with_a_url(app_client, me, make_series, make_
     assert _regroup(app_client, mine, "off").status_code == 422
     theirs = make_series(make_user(email="o@example.com"), "T")
     assert _regroup(app_client, theirs, "off").status_code == 404
+
+
+def test_regroup_leaves_chapters_not_fetched_from_syosetu(
+        app_client, me, make_series, make_doc, site, db):
+    s = _all_fetched(app_client, make_series, site, db, me)
+    make_doc(me, ["note"], series=s, order=4, title="Translator's note")
+    db.flush()
+    r = _regroup(app_client, s, "marker", "★", apply=True)
+    assert r.json()["chapters_moved"] == 1
+    db.expire_all()
+    assert _placement(db, s)[3] == (4, None)

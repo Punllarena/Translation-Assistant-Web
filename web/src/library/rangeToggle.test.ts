@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rangeToggle } from "./rangeToggle";
+import { pickedInOrder, rangeToggle } from "./rangeToggle";
 
 const order = [10, 11, 12, 13];
 const sorted = (s: Set<number>) => [...s].sort((a, b) => a - b);
@@ -17,4 +17,9 @@ describe("rangeToggle", () => {
     rangeToggle(order, picked, 11, null, false);
     expect(sorted(picked)).toEqual([10]);
   });
+});
+
+describe("pickedInOrder", () => {
+  it("keeps list order and drops ids that are gone", () =>
+    expect(pickedInOrder([10, 11, 12], new Set([12, 99, 10]))).toEqual([10, 12]));
 });

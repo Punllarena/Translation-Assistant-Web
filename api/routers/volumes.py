@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from api.deps import current_user, db_session, scoped, scoped_volume
 from api.errors import conflict
+from api.fetch_job import FETCH_BUSY, fetch_active
 from api.library import arrange, send_to_volume_end
 from api.models import Document, DocumentImage, Series, User, Volume, VolumeSyosetuGroup
 from api.routing import api_router
@@ -130,6 +131,8 @@ def merge_volumes(
     if found != ids:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             "volume_ids: every volume must be in this series")
+    if fetch_active(db, user.id, series.id):
+        raise HTTPException(status.HTTP_409_CONFLICT, FETCH_BUSY)
     others = ids - {body.into}
     db.execute(update(Document).where(Document.volume_id.in_(others))
                .values(volume_id=body.into))

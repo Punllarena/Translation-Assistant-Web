@@ -98,3 +98,11 @@ def test_bad_merges_are_422(app_client, me, make_series, plain, case):
 def test_merge_in_another_users_series_is_404(app_client, me, make_user, make_series):
     theirs = make_series(make_user(email="o@example.com"), "T")
     assert _merge(app_client, theirs, [1, 2], 1).status_code == 404
+
+
+def test_merge_is_409_while_a_fetch_runs(app_client, me, make_series, site, db):
+    s = _marked_series(make_series, site, db, me)
+    _fetch(app_client, s, [1, 2])
+    ids = [v.id for v in db.query(Volume).filter_by(series_id=s.id)]
+    app_client.post(f"/series/{s.id}/syosetu/fetch", json={"nums": [3]})
+    assert _merge(app_client, s, ids, ids[0]).status_code == 409

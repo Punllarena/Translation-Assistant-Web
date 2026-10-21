@@ -5,7 +5,6 @@ import threading
 from contextlib import contextmanager
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import api.fetch_job  # noqa: F401  registers the syosetu_fetch handler
@@ -14,7 +13,7 @@ from api.core import scrape
 from api.core.syosetu_volumes import heading_sequence, marker_of, offered_markers
 from api.core.text import build_new_file, parse_file_content
 from api.deps import current_user, db_session, scoped
-from api.fetch_job import existing_orders
+from api.fetch_job import FETCH_BUSY, existing_orders, fetch_active
 from api.library import replace_raw_lines
 from api.models import Document, Job, Series, User
 from api.routing import api_router
@@ -89,14 +88,6 @@ def _read_index(series: Series) -> list[dict]:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
 
 
-def _fetch_active(db: Session, user_id: int, series_id: int) -> bool:
-    return db.scalar(select(Job.id).where(
-        Job.user_id == user_id, Job.kind == "syosetu_fetch",
-        Job.state.in_(("queued", "running")),
-        Job.params_json["series_id"].as_integer() == series_id,
-    ).limit(1)) is not None
-
-
 @router.get("/series/{series_id}/syosetu/chapters", response_model=ChapterList)
 def list_chapters(
     series_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
@@ -122,9 +113,8 @@ def fetch_series(
     user: User = Depends(current_user), db: Session = Depends(db_session),
 ) -> Job:
     series = _series_with_url(db, series_id, user.id)
-    if _fetch_active(db, user.id, series.id):
-        raise HTTPException(status.HTTP_409_CONFLICT,
-                            "a fetch for this series is already queued or running")
+    if fetch_active(db, user.id, series.id):
+        raise HTTPException(status.HTTP_409_CONFLICT, FETCH_BUSY)
     nums = sorted(set(body.nums))
     return jobs.enqueue(db, user.id, "syosetu_fetch",
                         {"series_id": series.id, "nums": nums}, total=len(nums))
@@ -144,9 +134,8 @@ def volume_headings(
     if body.mode != "marker" and body.marker:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             "marker: only with mode 'marker'")
-    if _fetch_active(db, user.id, series.id):
-        raise HTTPException(status.HTTP_409_CONFLICT,
-                            "a fetch for this series is already queued or running")
+    if fetch_active(db, user.id, series.id):
+        raise HTTPException(status.HTTP_409_CONFLICT, FETCH_BUSY)
     return regroup(db, series, body.mode, body.marker, body.apply, lambda: _read_index(series))
 
 

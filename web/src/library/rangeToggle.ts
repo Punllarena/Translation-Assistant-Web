@@ -11,3 +11,6 @@ export function rangeToggle(order: number[], picked: Set<number>, id: number, an
   for (const v of ids) { if (on) next.add(v); else next.delete(v); }
   return next;
 }
+
+/** The ticked ids that are still in the list, in list order (a ticked volume may have been deleted). */
+export const pickedInOrder = (order: number[], picked: Set<number>) => order.filter((id) => picked.has(id));

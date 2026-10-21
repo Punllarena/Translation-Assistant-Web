@@ -152,3 +152,16 @@ def test_patch_series_cannot_set_the_heading_setting(app_client, me, make_series
     app_client.patch(f"/series/{s.id}", json={"syosetu_volume_mode": "off"})
     db.refresh(s)
     assert s.syosetu_volume_mode == "all"
+
+
+def test_changing_the_syosetu_url_forgets_the_old_headings(app_client, me, make_series, db):
+    s = make_series(me, "S")
+    s.syosetu_url = "https://ncode.syosetu.com/n1/"
+    s.syosetu_headings, s.syosetu_volume_mode, s.syosetu_volume_marker = [[1, "★ a"]], "marker", "★"
+    db.flush()
+    app_client.patch(f"/series/{s.id}", json={"syosetu_url": "https://ncode.syosetu.com/n1/"})
+    db.refresh(s)
+    assert s.syosetu_headings == [[1, "★ a"]] and s.syosetu_volume_mode == "marker"
+    app_client.patch(f"/series/{s.id}", json={"syosetu_url": "https://ncode.syosetu.com/n2/"})
+    db.refresh(s)
+    assert (s.syosetu_headings, s.syosetu_volume_mode, s.syosetu_volume_marker) == (None, "all", "")

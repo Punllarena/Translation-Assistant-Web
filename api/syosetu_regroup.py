@@ -23,7 +23,8 @@ def regroup(
     if series.syosetu_headings is None:
         series.syosetu_headings = heading_sequence(read_index())
     docs = list(db.scalars(
-        select(Document).where(Document.series_id == series.id)
+        # only chapters fetched from syosetu: a hand-added one has no heading to follow
+        select(Document).where(Document.series_id == series.id, Document.source_url != "")
         .order_by(Document.series_order, Document.id)
     ))
     groups = dict(db.execute(
