@@ -1127,6 +1127,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/series/{series_id}/syosetu/volume-headings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Volume Headings
+         * @description Which headings start a volume. apply=False previews the regroup; apply=True saves
+         *     the setting and moves the existing chapters to match.
+         */
+        post: operations["volume_headings_series__series_id__syosetu_volume_headings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/series/{series_id}/volumes": {
         parameters: {
             query?: never;
@@ -2269,6 +2290,15 @@ export interface components {
              */
             force: boolean;
         };
+        /** RegroupCounts */
+        RegroupCounts: {
+            /** Chapters Moved */
+            chapters_moved: number;
+            /** Volumes Created */
+            volumes_created: number;
+            /** Volumes Emptied */
+            volumes_emptied: number;
+        };
         /** ReplaceRequest */
         ReplaceRequest: {
             /**
@@ -2616,6 +2646,24 @@ export interface components {
             title: string;
             /** Volume Order */
             volume_order?: number | null;
+        };
+        /** VolumeHeadings */
+        VolumeHeadings: {
+            /**
+             * Apply
+             * @default false
+             */
+            apply: boolean;
+            /**
+             * Marker
+             * @default
+             */
+            marker: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "all" | "marker" | "off";
         };
         /** VolumeOut */
         VolumeOut: {
@@ -5116,6 +5164,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    volume_headings_series__series_id__syosetu_volume_headings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeHeadings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegroupCounts"];
                 };
             };
             /** @description Validation Error */

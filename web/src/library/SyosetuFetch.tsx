@@ -2,11 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, call } from "../api/client";
 import JobProgress from "../jobs/JobProgress";
+import HeadingVolumes from "./HeadingVolumes";
 import { invalidateLibrary } from "./queries";
+import type { SeriesRow } from "./shelf";
 import { groupRuns } from "./syosetuGroups";
 
 /** Pick chapters from the series' Syosetu index and fetch them as a background job. */
-export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
+export default function SyosetuFetch({ series }: { series: SeriesRow }) {
+  const seriesId = series.id;
   const queryClient = useQueryClient();
   const [jobId, setJobId] = useState<number | null>(null);
   const [finished, setFinished] = useState(false);
@@ -60,6 +63,7 @@ export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
           {list.isError && <p className="error" role="alert">{list.error.message}</p>}
           {list.data && (
             <>
+              {list.data.chapters.some((c) => c.group) && <HeadingVolumes series={series} markers={list.data.markers} />}
               <ul>
                 {groupRuns(list.data.chapters).map((run, i) => {
                   if (run.group === null) return run.chapters.map(row);
