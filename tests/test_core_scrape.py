@@ -73,6 +73,7 @@ def test_fetch_series_index_parses_chapters():
         "num": 1,
         "title": "第一話　始まり",
         "url": "https://novel18.syosetu.com/n7696mg/1/",
+        "group": None,
     }
     assert chapters[2]["num"] == 3
     assert chapters[2]["title"] == "第三話　決意"
@@ -88,6 +89,7 @@ def test_fetch_series_index_parses_chapters_old_format():
         "num": 1,
         "title": "第一話　始まり",
         "url": "https://novel18.syosetu.com/n7696mg/1/",
+        "group": None,
     }
 
 
@@ -110,6 +112,43 @@ def test_fetch_series_index_follows_pagination():
 
     assert len(chapters) == 3
     assert [ch["num"] for ch in chapters] == [1, 2, 3]
+
+
+def test_fetch_series_index_tags_chapters_with_their_group_across_pages():
+    page1_html = """
+<html><body><div class="p-eplist">
+<div class="p-eplist__sublist"><a href="/n0280z/1/" class="p-eplist__subtitle">序</a></div>
+<div class="p-eplist__chapter-title">第一章　出会い</div>
+<div class="p-eplist__sublist"><a href="/n0280z/2/" class="p-eplist__subtitle">一</a></div>
+</div>
+<a class="c-pager__item c-pager__item--next" href="/n0280z/?p=2">次へ</a>
+</body></html>
+"""
+    page2_html = """
+<html><body><div class="p-eplist">
+<div class="p-eplist__sublist"><a href="/n0280z/3/" class="p-eplist__subtitle">二</a></div>
+<div class="p-eplist__chapter-title"> 第二章 </div>
+<div class="p-eplist__sublist"><a href="/n0280z/4/" class="p-eplist__subtitle">三</a></div>
+</div></body></html>
+"""
+    base = "https://novel18.syosetu.com/n0280z/"
+    with mock({base: (200, page1_html, {}), base + "?p=2": (200, page2_html, {})}) as c:
+        chapters = fetch_series_index(c, base)
+
+    assert [(ch["num"], ch["group"]) for ch in chapters] == [
+        (1, None), (2, "第一章　出会い"), (3, "第一章　出会い"), (4, "第二章")]
+
+
+def test_fetch_series_index_groups_old_format():
+    html = """
+<div class="index_box">
+<div class="chapter_title">第一章</div>
+<dl class="novel_sublist2"><dd class="subtitle"><a href="/n1/1/">一</a></dd></dl>
+</div>
+"""
+    url = "https://ncode.syosetu.com/n1/"
+    with one(url, html) as c:
+        assert fetch_series_index(c, url)[0]["group"] == "第一章"
 
 
 def test_fetch_series_index_empty_toc():

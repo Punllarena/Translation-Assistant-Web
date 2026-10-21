@@ -2038,6 +2038,8 @@ export interface components {
         IndexChapter: {
             /** Fetched */
             fetched: boolean;
+            /** Group */
+            group?: string | null;
             /** Num */
             num: number;
             /** Title */

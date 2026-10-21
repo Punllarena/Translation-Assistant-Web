@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api, call } from "../api/client";
 import JobProgress from "../jobs/JobProgress";
 import { invalidateLibrary } from "./queries";
+import { groupRuns } from "./syosetuGroups";
 
 /** Pick chapters from the series' Syosetu index and fetch them as a background job. */
 export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
@@ -31,8 +32,18 @@ export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
     list.reset();
     queryClient.removeQueries({ queryKey: ["jobs", "active", seriesId] });
   };
-  const toggle = (num: number, on: boolean) =>
-    setPicked((p) => { const n = new Set(p); if (on) n.add(num); else n.delete(num); return n; });
+  const toggle = (nums: number[], on: boolean) =>
+    setPicked((p) => { const n = new Set(p); for (const num of nums) { if (on) n.add(num); else n.delete(num); } return n; });
+  type Chapter = NonNullable<typeof list.data>[number];
+  const row = (c: Chapter) => (
+    <li key={c.num}>
+      <label>
+        <input type="checkbox" disabled={c.fetched} checked={!c.fetched && picked.has(c.num)}
+          onChange={(e) => toggle([c.num], e.target.checked)} />{" "}
+        Chapter {c.num}: {c.title}{c.fetched ? " (already fetched)" : ""}
+      </label>
+    </li>
+  );
   return (
     <section className="stack">
       <h2>Fetch from Syosetu</h2>
@@ -50,15 +61,23 @@ export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
           {list.data && (
             <>
               <ul>
-                {list.data.map((c) => (
-                  <li key={c.num}>
-                    <label>
-                      <input type="checkbox" disabled={c.fetched} checked={!c.fetched && picked.has(c.num)}
-                        onChange={(e) => toggle(c.num, e.target.checked)} />{" "}
-                      Chapter {c.num}: {c.title}{c.fetched ? " (already fetched)" : ""}
-                    </label>
-                  </li>
-                ))}
+                {groupRuns(list.data).map((run, i) => {
+                  if (run.group === null) return run.chapters.map(row);
+                  const open = run.chapters.filter((c) => !c.fetched).map((c) => c.num);
+                  const on = open.filter((n) => picked.has(n)).length;
+                  return (
+                    <li key={`g${i}`}>
+                      <label>
+                        <input type="checkbox" disabled={open.length === 0}
+                          checked={open.length > 0 && on === open.length}
+                          ref={(el) => { if (el) el.indeterminate = on > 0 && on < open.length; }}
+                          onChange={(e) => toggle(open, e.target.checked)} />{" "}
+                        <strong>{run.group}</strong>
+                      </label>
+                      <ul>{run.chapters.map(row)}</ul>
+                    </li>
+                  );
+                })}
               </ul>
               <div className="toolbar">
                 <button type="button" disabled={picked.size === 0 || fetchSelected.isPending}

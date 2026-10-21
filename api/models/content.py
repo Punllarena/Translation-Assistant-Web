@@ -48,7 +48,10 @@ class Series(Base):
 
 class Volume(Base):
     __tablename__ = "volumes"
-    __table_args__ = (UniqueConstraint("series_id", "title"),)
+    __table_args__ = (
+        UniqueConstraint("series_id", "title"),
+        UniqueConstraint("series_id", "syosetu_group", name="uq_volumes_series_syosetu_group"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     series_id: Mapped[int] = mapped_column(
@@ -65,6 +68,9 @@ class Volume(Base):
     epub_illustrator: Mapped[str] = mapped_column(Text, nullable=False, default="")
     epub_publisher: Mapped[str] = mapped_column(Text, nullable=False, default="")
     epub_identifier: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # The syosetu chapter-title heading this volume was made from; never shown, so a
+    # renamed volume still receives that arc's later chapters.
+    syosetu_group: Mapped[str | None] = mapped_column(Text)
 
     series: Mapped[Series] = relationship(back_populates="volumes")
 

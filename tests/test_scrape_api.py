@@ -5,7 +5,7 @@ import pytest
 
 from api import fetch_job, jobs
 from api.core import scrape
-from api.models import Document
+from api.models import Document, Volume
 from api.routers import scrape as scrape_router
 
 INDEX = ('<div class="p-eplist__sublist"><a href="/n1/1/">One</a></div>'
@@ -202,3 +202,75 @@ def test_a_second_fetch_job_for_the_same_series_is_409(app_client, me, make_seri
     jobs.run_next()
     jobs.run_next()
     assert app_client.post(url, json={"nums": [2]}).status_code == 202
+
+
+GROUPED = ('<div class="p-eplist__sublist"><a href="/n1/1/">One</a></div>'
+           '<div class="p-eplist__chapter-title">第一章</div>'
+           '<div class="p-eplist__sublist"><a href="/n1/2/">Two</a></div>'
+           '<div class="p-eplist__chapter-title">第二章</div>'
+           '<div class="p-eplist__sublist"><a href="/n1/3/">Three</a></div>')
+
+
+def _grouped_series(make_series, site, db, me):
+    pages, _ = site
+    pages["https://ncode.syosetu.com/n1/"] = GROUPED
+    s = make_series(me, "S")
+    s.syosetu_url = "https://ncode.syosetu.com/n1/"
+    db.flush()
+    return s
+
+
+def _fetch(app_client, s, nums):
+    app_client.post(f"/series/{s.id}/syosetu/fetch", json={"nums": nums})
+    assert jobs.run_next() is True
+
+
+def _placement(db, s):
+    docs = db.query(Document).filter_by(series_id=s.id).order_by(Document.series_order).all()
+    return [(d.series_order, d.volume_id and db.get(Volume, d.volume_id).title) for d in docs]
+
+
+def test_chapter_list_reports_groups(app_client, me, make_series, site, db):
+    s = _grouped_series(make_series, site, db, me)
+    body = app_client.get(f"/series/{s.id}/syosetu/chapters").json()
+    assert [c["group"] for c in body] == [None, "第一章", "第二章"]
+
+
+def test_fetch_puts_grouped_chapters_into_volumes_in_order(
+        app_client, me, make_series, site, db):
+    s = _grouped_series(make_series, site, db, me)
+    _fetch(app_client, s, [1, 2, 3])
+    assert _placement(db, s) == [(1, None), (2, "第一章"), (3, "第二章")]
+    vols = db.query(Volume).filter_by(series_id=s.id).order_by(Volume.volume_order).all()
+    assert [v.title for v in vols] == ["第一章", "第二章"]
+    assert "syosetu_group" not in app_client.get(f"/series/{s.id}/volumes").text
+
+
+def test_a_renamed_group_volume_still_receives_its_chapters(
+        app_client, me, make_series, site, db):
+    s = _grouped_series(make_series, site, db, me)
+    _fetch(app_client, s, [2])
+    vol = db.query(Volume).filter_by(series_id=s.id).one()
+    assert app_client.patch(f"/volumes/{vol.id}", json={"title": "Arc 1"}).status_code == 200
+    pages, _ = site
+    pages["https://ncode.syosetu.com/n1/"] = GROUPED.replace(
+        '<div class="p-eplist__chapter-title">第二章</div>', "")
+    _fetch(app_client, s, [3])
+    assert _placement(db, s) == [(2, "Arc 1"), (3, "Arc 1")]
+
+
+def test_a_group_whose_title_is_taken_gets_a_suffix(app_client, me, make_series, site, db):
+    s = _grouped_series(make_series, site, db, me)
+    db.add(Volume(series_id=s.id, title="第一章", volume_order=1))
+    db.flush()
+    _fetch(app_client, s, [2])
+    assert _placement(db, s) == [(2, "第一章 (2)")]
+
+
+def test_chapters_already_fetched_are_not_moved(
+        app_client, me, make_series, make_doc, site, db):
+    s = _grouped_series(make_series, site, db, me)
+    make_doc(me, ["x"], series=s, order=2)
+    db.flush()
+    _fetch(app_client, s, [2, 3])
+    assert _placement(db, s) == [(2, None), (3, "第二章")]

@@ -2,6 +2,28 @@
 
 Deferred work, recorded so it can be picked up later. Newest first.
 
+## WordPress plugin: how it uses `volume_title`
+
+*Raised 2026-10-21 during the volume naming design
+(`docs/superpowers/specs/2026-10-21-volume-naming-design.md`).*
+
+The volume naming change replaces `volumes.title` with kind + index + subtitle and a
+series-level title template. `api/core/wp.py:145` (chapter publish) and `api/core/wp.py:292`
+(volume illustrations) send `volume_title` to the WordPress plugin, which lives outside this
+repo. What the plugin does with it is unknown.
+
+To do:
+
+- Check the plugin: does it find or group volume pages by the `volume_title` string, or only
+  display it?
+- If it keys on it: changing the string splits already-published volumes into duplicates.
+  Add a `wp_volume_title` column, filled from `title` in the naming migration (before `title`
+  is dropped), and keep sending it for volumes that were already published.
+- If it only displays it: pick what it shows. The full generated title ("Series - Volume 3 -
+  Subtitle") repeats the series name, since `series_title` is sent separately; the short label
+  ("Volume 3 - Subtitle") doesn't.
+- Either way, settle this before the naming migration ships, because `title` is gone afterwards.
+
 ## WordPress: volume-aware chapter indexing
 
 *Raised 2026-10-20 during the library redesign

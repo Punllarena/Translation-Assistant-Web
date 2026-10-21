@@ -14,6 +14,7 @@ class IndexChapter(BaseModel):
     num: int
     title: str
     url: str
+    group: str | None = None
     fetched: bool
 
 
