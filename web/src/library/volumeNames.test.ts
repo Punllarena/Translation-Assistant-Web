@@ -6,6 +6,7 @@ import {
   label,
   nextVolumeIndex,
   parseTitle,
+  prefillName,
   render,
   templateError,
   wpLabel,
@@ -70,5 +71,22 @@ describe("render placeholder lookup", () => {
     const v = { series: "S", kind: "Volume", index: "1", subtitle: "T" };
     expect(render("{constructor} {toString} {kind}", v)).toBe("Volume");
     expect(render("{constructor}", v)).toBe("");
+  });
+});
+
+describe("prefillName", () => {
+  const vols = [{ kind: "Volume", volume_index: "2" }];
+  it("a book titled as the series starts as the next Volume", () => {
+    expect(prefillName("Mushoku", "mushoku ", vols)).toEqual({ kind: "Volume", index: "3", subtitle: "" });
+  });
+  it("a new series starts at Volume 1", () => {
+    expect(prefillName("Book", "Book", [])).toEqual({ kind: "Volume", index: "1", subtitle: "" });
+  });
+  it("a volume shape still parses", () => {
+    expect(prefillName("Mushoku - Volume 5", "Mushoku", vols)).toEqual({ kind: "Volume", index: "5", subtitle: "" });
+  });
+  it("another title stays a subtitle", () => {
+    expect(prefillName("Prologue", "Mushoku", vols)).toEqual({ kind: "", index: null, subtitle: "Prologue" });
+    expect(prefillName("Mushoku", "", vols)).toEqual({ kind: "", index: null, subtitle: "Mushoku" });
   });
 });

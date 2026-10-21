@@ -1,10 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Schemas } from "../api/client";
 import { appendSeries, type Choice } from "./SeriesChoice";
 import { postForm } from "./upload";
 import VolumeNameFields, { kindOptions, type VolumeName } from "./VolumeNameFields";
-import { parseTitle } from "./volumeNames";
+import { prefillName } from "./volumeNames";
 
 const CHECK_THRESHOLD = 500; // desktop _DEFAULT_CHECK_THRESHOLD
 const META = [
@@ -14,9 +14,13 @@ const META = [
 type Meta = Record<(typeof META)[number][0], string>;
 const NO_META: Meta = { author: "", illustrator: "", publisher: "", identifier: "" };
 
-/** The picked EPUB, its inspection, and the volume fields and chapter ticks the import sends. */
-export function useEpubBook({ onPick, onBook, seriesTitle = "" }: {
-  onPick?: () => void; onBook?: (b: Schemas["BookOut"]) => void; seriesTitle?: string;
+type VolumeRef = { kind: string; volume_index: string | null };
+const NO_VOLUMES: VolumeRef[] = [];
+
+/** The picked EPUB, its inspection, and the volume fields and chapter ticks the import sends.
+ *  The name fields follow the chosen series (title and volumes) until the user edits them. */
+export function useEpubBook({ onPick, onBook, seriesTitle = "", volumes = NO_VOLUMES }: {
+  onPick?: () => void; onBook?: (b: Schemas["BookOut"]) => void; seriesTitle?: string; volumes?: VolumeRef[];
 } = {}) {
   const [file, setFile] = useState<File | null>(null);
   const [book, setBook] = useState<Schemas["BookOut"] | null>(null);
@@ -24,6 +28,7 @@ export function useEpubBook({ onPick, onBook, seriesTitle = "" }: {
   const [volumeName, setVolumeName] = useState<VolumeName>({ kind: "", index: "", subtitle: "" });
   const [meta, setMeta] = useState<Meta>(NO_META);
   const current = useRef<File | null>(null); // a slow inspect of an earlier pick must not win
+  const touched = useRef(false); // the user edited the name: stop re-parsing it
   const inspect = useMutation({
     mutationFn: (f: File) => {
       const form = new FormData();
@@ -34,12 +39,20 @@ export function useEpubBook({ onPick, onBook, seriesTitle = "" }: {
       if (f !== current.current) return;
       setBook(b);
       setChecked(new Set(b.chapters.filter((c) => c.char_count >= CHECK_THRESHOLD || c.image_count > 0).map((c) => c.href)));
-      const parsed = parseTitle(b.title, seriesTitle);
-      setVolumeName({ kind: parsed.kind, index: parsed.index ?? "", subtitle: parsed.subtitle });
+      touched.current = false;
       setMeta({ author: b.author, illustrator: b.illustrator, publisher: b.publisher, identifier: b.identifier });
       onBook?.(b);
     },
   });
+  useEffect(() => {
+    if (!book || touched.current) return;
+    const p = prefillName(book.title, seriesTitle, volumes);
+    setVolumeName({ kind: p.kind, index: p.index ?? "", subtitle: p.subtitle });
+  }, [book, seriesTitle, volumes]);
+  const editName = (n: VolumeName) => {
+    touched.current = true;
+    setVolumeName(n);
+  };
   const pick = (f: File | null) => {
     current.current = f;
     setFile(f);
@@ -65,7 +78,7 @@ export function useEpubBook({ onPick, onBook, seriesTitle = "" }: {
     book?.chapters.filter((c) => checked.has(c.href)).forEach((c) => form.append("hrefs", c.href));
     return form;
   };
-  return { file, book, checked, volumeName, setVolumeName, meta, setMeta, inspect, pick, toggle, importForm };
+  return { file, book, checked, volumeName, setVolumeName: editName, meta, setMeta, inspect, pick, toggle, importForm };
 }
 
 export type EpubBook = ReturnType<typeof useEpubBook>;

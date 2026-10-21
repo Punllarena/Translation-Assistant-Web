@@ -32,7 +32,7 @@ export default function NewVolumeDialog({ series, volumes, onCreated, onClose }:
       onCreated(v.id);
     },
   });
-  const epub = useEpubBook({ onPick: () => run.reset(), seriesTitle: series.title });
+  const epub = useEpubBook({ onPick: () => run.reset(), seriesTitle: series.title, volumes });
   const run = useMutation({
     mutationFn: () => postForm<Schemas["EpubImportOut"]>("/epub/import", epub.importForm({ id: String(series.id), title: "" })),
     onSuccess: async (r) => {

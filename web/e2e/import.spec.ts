@@ -42,8 +42,16 @@ test("EPUB import: inspect, pick chapters, import", async ({ page }) => {
   await expect(page.getByText(/2\. Inu chapter/)).toBeVisible();
   await expect(page.getByLabel("Author")).toHaveValue("E2E Author");
   for (const box of await page.getByRole("checkbox").all()) await box.check();
+  // The new series is named after the book, so the name starts as Volume 1, not "Book - Book".
+  await expect(page.getByLabel("Number", { exact: true })).toHaveValue("1");
+  await expect(page.getByLabel("Subtitle", { exact: true })).toHaveValue("");
   const title = page.getByLabel("New series title").last();
   await title.fill("Import EPUB");
+  await expect(page.getByLabel("Number", { exact: true })).toHaveValue(""); // untouched fields follow the series
+  await page.getByLabel("Subtitle", { exact: true }).fill("First");
+  await title.fill("Import EPUB 2");
+  await title.fill("Import EPUB");
+  await expect(page.getByLabel("Subtitle", { exact: true })).toHaveValue("First"); // edited fields stay
   await page.getByRole("button", { name: "Import", exact: true }).last().click();
   await expect(page.getByRole("status").getByText("Imported: 2")).toBeVisible();
   await page.getByRole("link", { name: "Open series" }).click();
