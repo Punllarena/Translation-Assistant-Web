@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 import api.fetch_job  # noqa: F401  registers the syosetu_fetch handler
 from api import jobs, server_settings
 from api.core import scrape
-from api.core.syosetu_volumes import heading_sequence, offered_markers
+from api.core.syosetu_volumes import heading_sequence, marker_of, offered_markers
 from api.core.text import build_new_file, parse_file_content
 from api.deps import current_user, db_session, scoped
 from api.fetch_job import existing_orders
@@ -28,7 +28,10 @@ from api.schemas.scrape import (
     IndexChapter,
     Marker,
     Refetch,
+    RegroupCounts,
+    VolumeHeadings,
 )
+from api.syosetu_regroup import regroup
 
 router = api_router(tags=["scrape"])
 
@@ -76,6 +79,24 @@ def _series_with_url(db: Session, series_id: int, user_id: int) -> Series:
     return series
 
 
+def _read_index(series: Series) -> list[dict]:
+    try:
+        with _slot(), http_client() as c:
+            return scrape.fetch_series_index(c, series.syosetu_url)
+    except scrape.ScrapeError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+
+
+def _fetch_active(db: Session, user_id: int, series_id: int) -> bool:
+    return db.scalar(select(Job.id).where(
+        Job.user_id == user_id, Job.kind == "syosetu_fetch",
+        Job.state.in_(("queued", "running")),
+        Job.params_json["series_id"].as_integer() == series_id,
+    ).limit(1)) is not None
+
+
 @router.get("/series/{series_id}/syosetu/chapters", response_model=ChapterList)
 def list_chapters(
     series_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
@@ -83,13 +104,7 @@ def list_chapters(
     """The index with each chapter's heading, plus the heading markers the series could
     start volumes at. Reads only: the stored heading sequence is the fetch job's."""
     series = _series_with_url(db, series_id, user.id)
-    try:
-        with _slot(), http_client() as c:
-            index = scrape.fetch_series_index(c, series.syosetu_url)
-    except scrape.ScrapeError as exc:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    index = _read_index(series)
     have = existing_orders(db, series.id)
     markers = offered_markers(heading_sequence(index), series.syosetu_volume_marker)
     return ChapterList(
@@ -107,16 +122,32 @@ def fetch_series(
     user: User = Depends(current_user), db: Session = Depends(db_session),
 ) -> Job:
     series = _series_with_url(db, series_id, user.id)
-    if db.scalar(select(Job.id).where(
-        Job.user_id == user.id, Job.kind == "syosetu_fetch",
-        Job.state.in_(("queued", "running")),
-        Job.params_json["series_id"].as_integer() == series.id,
-    ).limit(1)):
+    if _fetch_active(db, user.id, series.id):
         raise HTTPException(status.HTTP_409_CONFLICT,
                             "a fetch for this series is already queued or running")
     nums = sorted(set(body.nums))
     return jobs.enqueue(db, user.id, "syosetu_fetch",
                         {"series_id": series.id, "nums": nums}, total=len(nums))
+
+
+@router.post("/series/{series_id}/syosetu/volume-headings", response_model=RegroupCounts)
+def volume_headings(
+    series_id: int, body: VolumeHeadings,
+    user: User = Depends(current_user), db: Session = Depends(db_session),
+) -> dict:
+    """Which headings start a volume. apply=False previews the regroup; apply=True saves
+    the setting and moves the existing chapters to match."""
+    series = _series_with_url(db, series_id, user.id)
+    if body.mode == "marker" and (not body.marker or marker_of(body.marker) != body.marker):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            "marker: one symbol or punctuation character")
+    if body.mode != "marker" and body.marker:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            "marker: only with mode 'marker'")
+    if _fetch_active(db, user.id, series.id):
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            "a fetch for this series is already queued or running")
+    return regroup(db, series, body.mode, body.marker, body.apply, lambda: _read_index(series))
 
 
 @router.post("/documents/{document_id}/refetch", response_model=DocumentOut)
