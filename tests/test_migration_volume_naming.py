@@ -111,3 +111,59 @@ def test_label_titles_dedupes_for_downgrade(db, make_user, make_series):
     got = [db.execute(text("SELECT title FROM volumes WHERE id = :i"), {"i": i}).scalar_one()
            for i in ids]
     assert got == ["Volume 1", "Volume 1 (2)", "Extra · Q"]
+
+
+def test_numbers_the_column_cannot_hold_keep_the_whole_title(db, make_user, make_series):
+    """>= 10^7 and a 26-digit run (which overflowed quantize()) both fall back."""
+    user = make_user()
+    series = make_series(user, "S")
+    _legacy(db)
+    long = "Volume " + "1" * 26
+    ids = [_insert(db, series.id, t, n)
+           for n, t in enumerate(["Volume 12345678", long], start=1)]
+    _migration()._split_titles(db.connection())
+    assert [r[:3] for r in _rows(db, ids)] == [("", None, "Volume 12345678"), ("", None, long)]
+
+
+def test_whitespace_only_differences_are_deduped(db, make_user, make_series):
+    user = make_user()
+    series = make_series(user, "S")
+    _legacy(db)
+    ids = [_insert(db, series.id, t, n)
+           for n, t in enumerate(["Prologue", " Prologue ", "Vol 1", "Volume 1"], start=1)]
+    _migration()._split_titles(db.connection())
+    assert [r[:3] for r in _rows(db, ids)] == [
+        ("", None, "Prologue"), ("", None, "Prologue (2)"),
+        ("Volume", Decimal(1), ""), ("", None, "Volume 1"),
+    ]
+
+
+def test_fallback_title_naming_the_series_keeps_its_epub_title(db, make_user, make_series):
+    """The old standalone EPUB import named the volume after the book; the default
+    template would render "Book - Book", so the old title becomes the EPUB override."""
+    user = make_user()
+    series = make_series(user, "Book")
+    _legacy(db)
+    ids = [_insert(db, series.id, t, n, e) for n, (t, e) in enumerate(
+        [("Book", ""), ("book: The Sequel", ""), ("Book Two", "Mine"), ("Afterword", ""),
+         ("Book - Volume 2", "")], start=1)]
+    _migration()._split_titles(db.connection())
+    rows = _rows(db, ids)
+    assert [r[4] for r in rows] == ["Book", "book: The Sequel", "Mine", "", ""]
+    assert rows[4][:3] == ("Volume", Decimal(2), "")
+
+
+def test_label_titles_restores_the_published_name(db, make_user, make_series):
+    user = make_user()
+    series = make_series(user, "S")
+    _legacy(db)
+    ids = [_insert(db, series.id, t, n) for n, t in enumerate(["x", "y"], start=1)]
+    db.execute(text("UPDATE volumes SET kind = 'Volume', volume_index = 2.5, "
+                    "subtitle = 'Extra Bits', wp_volume_title = 'Vol. 2.5 - Extra Bits' "
+                    "WHERE id = :i"), {"i": ids[0]})
+    db.execute(text("UPDATE volumes SET kind = '', volume_index = NULL, "
+                    "subtitle = 'Vol. 2.5 - Extra Bits' WHERE id = :i"), {"i": ids[1]})
+    _migration()._label_titles(db.connection())
+    got = [db.execute(text("SELECT title FROM volumes WHERE id = :i"), {"i": i}).scalar_one()
+           for i in ids]
+    assert got == ["Vol. 2.5 - Extra Bits", "Vol. 2.5 - Extra Bits (2)"]

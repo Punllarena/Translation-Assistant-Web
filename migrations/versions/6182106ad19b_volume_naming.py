@@ -4,28 +4,23 @@ Revision ID: 6182106ad19b
 Revises: f8ea6091f19f
 Create Date: 2026-10-21 14:21:39.141242
 
-The data step parses each legacy title with api.core.volume_names.parse_title (no frozen
-copy). Downgrade restores ``title`` from the short label: lossy only in that the label's
-format may differ from the original string.
+The data step parses each legacy title with api.core.volume_names.parse_title_fit (no
+frozen copy). Downgrade restores ``title`` from wp_volume_title (published volumes), else
+the short label: lossy only in that the label's format may differ from the original string.
 """
 from collections.abc import Sequence
-from decimal import Decimal
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.engine import Connection
 
-from api.core.volume_names import label, parse_title
+from api.core.volume_names import label, parse_title_fit
 
 # revision identifiers, used by Alembic.
 revision: str = '6182106ad19b'
 down_revision: str | Sequence[str] | None = 'f8ea6091f19f'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
-
-_STEP = Decimal("0.001")  # Numeric(10, 3)
-_MAX_INDEX = Decimal(10) ** 7
-
 
 def _free(name: str, taken: set) -> str:
     candidate, n = name, 2
@@ -35,21 +30,21 @@ def _free(name: str, taken: set) -> str:
 
 
 def _split_titles(conn: Connection) -> None:
-    """Parse every volume title per series in volume_order, id order. A parsed
-    (kind, index) already taken in the series keeps the whole title as an unkinded,
-    unnumbered subtitle instead."""
+    """Parse every volume title per series in volume_order, id order. A number the column
+    cannot hold, or a parsed (kind, index) already taken in the series, keeps the whole
+    title as an unkinded, unnumbered subtitle instead. Such a fallback title that is (or
+    starts with) the series title keeps its EPUB title as an override, so the default
+    template never renders "Series - Series"."""
     rows = conn.execute(sa.text(
-        "SELECT v.id, v.series_id, v.title, s.title FROM volumes v "
+        "SELECT v.id, v.series_id, v.title, v.epub_title, s.title FROM volumes v "
         "JOIN series s ON s.id = v.series_id ORDER BY v.series_id, v.volume_order, v.id"
     )).all()
     numbered: set = set()
     unnumbered: dict[tuple, set[str]] = {}
-    for vid, series_id, title, series_title in rows:
-        kind, index, subtitle = parse_title(title, series_title)
-        if index is not None:
-            index = index.quantize(_STEP)
-            if index >= _MAX_INDEX or (series_id, kind.lower(), index) in numbered:
-                kind, index, subtitle = "", None, title.strip()
+    for vid, series_id, title, epub_title, series_title in rows:
+        kind, index, subtitle = parse_title_fit(title, series_title)
+        if index is not None and (series_id, kind.lower(), index) in numbered:
+            kind, index, subtitle = "", None, title.strip()
         if index is None:
             # Old titles were unique, so this only bites on whitespace-only differences.
             seen = unnumbered.setdefault((series_id, kind.lower()), set())
@@ -57,9 +52,19 @@ def _split_titles(conn: Connection) -> None:
             seen.add(subtitle)
         else:
             numbered.add((series_id, kind.lower(), index))
+        if (not kind and index is None and not (epub_title or "").strip()
+                and _names_series(title, series_title)):
+            epub_title = title
         conn.execute(sa.text(
-            "UPDATE volumes SET kind = :k, volume_index = :i, subtitle = :s WHERE id = :id"
-        ), {"k": kind, "i": index, "s": subtitle, "id": vid})
+            "UPDATE volumes SET kind = :k, volume_index = :i, subtitle = :s, epub_title = :e "
+            "WHERE id = :id"
+        ), {"k": kind, "i": index, "s": subtitle, "e": epub_title, "id": vid})
+
+
+def _names_series(title: str, series_title: str) -> bool:
+    """The title is the series title or starts with it, ignoring case."""
+    series = series_title.strip().lower()
+    return bool(series) and title.strip().lower().startswith(series)
 
 
 def _freeze_wp_names(conn: Connection) -> None:
@@ -72,15 +77,16 @@ def _freeze_wp_names(conn: Connection) -> None:
 
 
 def _label_titles(conn: Connection) -> None:
-    """Downgrade: title = short label, suffixed ' (n)' where two labels collide."""
+    """Downgrade: title = the frozen WordPress name (a published volume's exact old title),
+    else the short label; suffixed ' (n)' where two collide."""
     rows = conn.execute(sa.text(
-        "SELECT id, series_id, kind, volume_index, subtitle FROM volumes "
+        "SELECT id, series_id, kind, volume_index, subtitle, wp_volume_title FROM volumes "
         "ORDER BY series_id, volume_order, id"
     )).all()
     taken: dict[int, set[str]] = {}
-    for vid, series_id, kind, index, subtitle in rows:
+    for vid, series_id, kind, index, subtitle, wp_title in rows:
         seen = taken.setdefault(series_id, set())
-        title = _free(label(kind, index, subtitle) or "Volume", seen)
+        title = _free(wp_title or label(kind, index, subtitle) or "Volume", seen)
         seen.add(title)
         conn.execute(sa.text("UPDATE volumes SET title = :t WHERE id = :id"),
                      {"t": title, "id": vid})
