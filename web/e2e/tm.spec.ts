@@ -34,6 +34,7 @@ test("Ctrl+L adds a glossary phrase and the source updates in place", async ({ p
   await dialog.getByRole("button", { name: "Add" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByText("Added “記憶語” to the glossary")).toBeVisible();
-  await expect(page.getByText("memory_word")).toBeVisible();
+  // The source line, not the MT panel, which shows the phrase too.
+  await expect(page.locator("p.source", { hasText: "memory_word" })).toBeVisible();
   await expect(box).toContainText("keep this");
 });
