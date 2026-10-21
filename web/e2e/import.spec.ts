@@ -59,7 +59,7 @@ test("New volume can import an EPUB into the open series", async ({ page }) => {
   await dialog.getByLabel("EPUB file").setInputFiles(path.join(here, "fixtures/sample.epub"));
   await expect(dialog.getByText(/1\. Neko chapter/)).toBeVisible();
   for (const box of await dialog.getByRole("checkbox").all()) await box.check();
-  await dialog.getByLabel("Volume title").fill("Vol from EPUB");
+  await dialog.getByLabel("Subtitle").fill("Vol from EPUB");
   await dialog.getByRole("button", { name: "Import", exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("button", { name: /^Vol from EPUB/ })).toHaveAttribute("aria-current", "true");
