@@ -52,6 +52,7 @@ test("Sort by number restores order", async ({ page }) => {
   await page.getByRole("button", { name: "Volume actions" }).click();
   await page.getByRole("menuitem", { name: "Sort volumes by number" }).click();
   const dialog = page.getByRole("dialog", { name: "Sort volumes by number" });
+  await expect(dialog.getByText("Sort volumes by kind and number? Volumes you placed by hand will move.")).toBeVisible();
   await dialog.getByRole("button", { name: "Sort", exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(titles(page)).toHaveText(["Volume 1", "Volume 1.5", "Volume 2", "Volume 3"]);

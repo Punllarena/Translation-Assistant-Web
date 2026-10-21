@@ -123,7 +123,7 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
       )}
       {open === "sort" && (
         <ConfirmDialog title="Sort volumes by number" confirmLabel="Sort" busy={sort.isPending}
-          message="Sort this series' volumes by kind and number? Their chapters are renumbered to match."
+          message="Sort volumes by kind and number? Volumes you placed by hand will move."
           error={sort.error?.message} onConfirm={() => sort.mutate()} onClose={() => setOpen(null)} />
       )}
       {open === "chapter" && (
