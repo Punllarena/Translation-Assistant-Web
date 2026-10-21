@@ -67,6 +67,10 @@ class VolumeMerge(BaseModel):
     into: int
 
 
+class VolumeIds(BaseModel):
+    volume_ids: list[int] = Field(max_length=1000)
+
+
 class VolumeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

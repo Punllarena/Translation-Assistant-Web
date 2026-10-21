@@ -13,12 +13,14 @@ from api.schemas.documents import DocumentIds, DocumentOut
 from api.schemas.volumes import (
     CoverOut,
     VolumeCreate,
+    VolumeIds,
     VolumeMerge,
     VolumeOut,
     VolumeUpdate,
     check_name,
 )
 from api.uploads import read_capped, sniff_image
+from api.volume_order import place, reorder, sort_by_number
 
 router = api_router(tags=["volumes"])
 
@@ -79,6 +81,12 @@ def create_volume(
             db.add(volume)
     except IntegrityError as exc:
         raise conflict(exc, NAME_TAKEN) from exc
+    if body.volume_order is None:
+        db.flush()
+        place(db, volume)
+        db.flush()
+        arrange(db, series)
+        db.flush()
     return volume
 
 
@@ -105,11 +113,45 @@ def update_volume(
                 setattr(volume, field, value)
     except IntegrityError as exc:
         raise conflict(exc, NAME_TAKEN) from exc
-    if "volume_order" in changes:
+    moved = "volume_order" in changes
+    if not moved and ("kind" in changes or "volume_index" in changes):
+        db.flush()
+        place(db, volume)
+        moved = True
+    if moved:
         db.flush()
         arrange(db, volume.series)
         db.flush()
     return volume
+
+
+@router.put("/series/{series_id}/volumes/order", response_model=list[VolumeOut])
+def reorder_volumes(
+    series_id: int,
+    body: VolumeIds,
+    user: User = Depends(current_user),
+    db: Session = Depends(db_session),
+) -> list[Volume]:
+    """Drag-and-drop: the body lists every volume of the series once, in the new order."""
+    series = scoped(db, Series, series_id, user.id)
+    ordered = reorder(db, series, body.volume_ids)
+    db.flush()
+    arrange(db, series)
+    db.flush()
+    return ordered
+
+
+@router.post("/series/{series_id}/volumes/sort", response_model=list[VolumeOut])
+def sort_volumes(
+    series_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
+) -> list[Volume]:
+    """Sort by number: Volume by index, other kinds alphabetically, unkinded last."""
+    series = scoped(db, Series, series_id, user.id)
+    ordered = sort_by_number(db, series)
+    db.flush()
+    arrange(db, series)
+    db.flush()
+    return ordered
 
 
 @router.delete("/volumes/{volume_id}", status_code=status.HTTP_204_NO_CONTENT)
