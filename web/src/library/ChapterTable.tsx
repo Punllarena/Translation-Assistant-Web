@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
 import BatchPublish from "../publish/BatchPublish";
@@ -30,7 +30,8 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
   const queryClient = useQueryClient();
   const [ticked, setTicked] = useState<Set<number>>(new Set());
   const [open, setOpen] = useState<Open>(null);
-  const [dragging, setDragging] = useState<number | null>(null);
+  const [dragging, setDragging] = useState<number | null>(null); // styling only
+  const dragged = useRef<number | null>(null); // read by the drop handlers, set before any re-render
   const [order, setOrder] = useState<Doc[] | null>(null); // optimistic order while saving
   const shown = order ?? group.docs;
   const selected = group.docs.filter((d) => ticked.has(d.id)).map((d) => d.id);
@@ -64,9 +65,10 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
     else next.delete(id);
     setTicked(next);
   };
+  const endDrag = () => { dragged.current = null; setDragging(null); };
   const drop = (to: number) => {
-    const from = shown.findIndex((d) => d.id === dragging);
-    setDragging(null);
+    const from = shown.findIndex((d) => d.id === dragged.current);
+    endDrag();
     if (from < 0 || from === to) return;
     const next = moveItem(shown, from, to);
     setOrder(next);
@@ -113,8 +115,8 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
           <tbody>
             {shown.map((d, i) => (
               <tr key={d.id} className={[ticked.has(d.id) && "selected", dragging === d.id && "dragging"].filter(Boolean).join(" ")}
-                onDragOver={(e) => { if (dragging !== null) e.preventDefault(); }}
-                onDrop={(e) => { if (dragging !== null) { e.preventDefault(); drop(i); } }}>
+                onDragOver={(e) => { if (dragged.current !== null) e.preventDefault(); }}
+                onDrop={(e) => { if (dragged.current !== null) { e.preventDefault(); drop(i); } }}>
                 <td className="ch-grip">
                   {!syosetu && (
                     <span className="grip" draggable title="Drag to reorder" aria-hidden="true"
@@ -123,9 +125,11 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
                         e.dataTransfer.effectAllowed = "move";
                         const row = e.currentTarget.closest("tr");
                         if (row) e.dataTransfer.setDragImage(row, 16, 16);
-                        setDragging(d.id);
+                        dragged.current = d.id;
+                        // Chrome cancels a drag whose source is re-rendered inside dragstart.
+                        setTimeout(() => { if (dragged.current === d.id) setDragging(d.id); });
                       }}
-                      onDragEnd={() => setDragging(null)}>⠿</span>
+                      onDragEnd={endDrag}>⠿</span>
                   )}
                 </td>
                 <td className="ch-check">
