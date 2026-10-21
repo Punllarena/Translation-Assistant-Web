@@ -13,7 +13,9 @@ export default defineConfig({
   use: { baseURL: "http://localhost:5174" },
   webServer: [
     {
-      command: "cd .. && python -m alembic upgrade head && python -m uvicorn api.main:app --port 8001",
+      // The reset runs here, not in globalSetup: Playwright starts webServer first, and the API needs the
+      // database (created and migrated by e2e_seed) before it starts.
+      command: "cd .. && python -m tools.e2e_seed && python -m uvicorn api.main:app --port 8001",
       url: `${API}/healthz`,
       env: { ...process.env, TA_DATABASE_URL: E2E_DB, TA_SECRET_KEY: SECRET, TA_COOKIE_SECURE: "false", TA_WP_ALLOW_PRIVATE_URLS: "true",
         TA_DATA_DIR: path.resolve(import.meta.dirname, ".e2e-data"),
