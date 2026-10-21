@@ -131,24 +131,33 @@ def _validate_series_url(url: str) -> None:
         )
 
 
-def _extract_chapters(soup: BeautifulSoup, base: str) -> list[dict]:
-    links = soup.select("div.p-eplist__sublist a") or [
-        dd.find("a") for dd in soup.select("dl.novel_sublist2 dd.subtitle")
-    ]
+_INDEX_NODES = (
+    "div.p-eplist__chapter-title, div.p-eplist__sublist a, "
+    "div.index_box div.chapter_title, dl.novel_sublist2 dd.subtitle a"
+)
+
+
+def _extract_chapters(
+    soup: BeautifulSoup, base: str, group: str | None
+) -> tuple[list[dict], str | None]:
+    """Chapters in page order, each tagged with the chapter-title heading above it.
+    ``group`` is the heading still open from the previous index page; the one open at
+    the end of this page is returned for the next."""
     chapters = []
-    for a in links:
-        if not a:
+    for el in soup.select(_INDEX_NODES):  # document order
+        if el.name != "a":
+            group = el.get_text(strip=True) or None
             continue
-        href = a.get("href", "")
+        href = el.get("href", "")
         href_parts = [p for p in href.split("/") if p]
         try:
             num = int(href_parts[-1])
         except (ValueError, IndexError):
             continue
-        title = a.get_text(strip=True)
+        title = el.get_text(strip=True)
         chapter_url = urljoin(base, href)
-        chapters.append({"num": num, "title": title, "url": chapter_url})
-    return chapters
+        chapters.append({"num": num, "title": title, "url": chapter_url, "group": group})
+    return chapters, group
 
 
 def _next_page_url(soup: BeautifulSoup, base: str) -> str | None:
@@ -164,14 +173,16 @@ def fetch_series_index(c: httpx.Client, url: str) -> list[dict]:
     parsed = urlparse(url)
     base = f"{parsed.scheme}://{parsed.netloc}"
     current_url: str | None = url
-    chapters = []
+    chapters: list[dict] = []
+    group = None
     pages = 0
     while current_url:
         if pages >= MAX_INDEX_PAGES:
             raise ScrapeError(f"the chapter list has more than {MAX_INDEX_PAGES} pages")
         pages += 1
         soup = BeautifulSoup(_get(c, current_url), "html.parser")
-        chapters.extend(_extract_chapters(soup, base))
+        found, group = _extract_chapters(soup, base, group)
+        chapters.extend(found)
         current_url = _next_page_url(soup, base)
     chapters.sort(key=lambda ch: ch["num"])
     return chapters

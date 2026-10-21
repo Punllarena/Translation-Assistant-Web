@@ -2,22 +2,44 @@
 
 Takes chapter numbers, never URLs (plan ruling 8): the index is re-read from the
 series' own syosetu_url. Chapters already in the series are skipped, so a rerun
-resumes an interrupted fetch (ruling 10)."""
+resumes an interrupted fetch (ruling 10). A chapter under a syosetu chapter-title
+heading goes into the volume made from that heading (Volume.syosetu_group), created on
+first sight; chapters already in the series are never moved."""
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from api import server_settings
 from api.core import scrape
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.jobs import JobContext, JobError, handler
 from api.library import check_line_count, write_lines
-from api.models import Document, Series
+from api.models import Document, Series, Volume
 
 http_client = scrape.client  # the seam tests replace
 
 
 def existing_orders(db, series_id: int) -> set[int]:
     return set(db.scalars(select(Document.series_order).where(Document.series_id == series_id)))
+
+
+def group_volume(db, series_id: int, group: str) -> Volume:
+    """The volume holding ``group``'s chapters: matched by the hidden key, so renaming it
+    is safe; otherwise a new last volume titled after the heading (suffixed when that
+    title is taken)."""
+    volume = db.scalar(select(Volume).where(
+        Volume.series_id == series_id, Volume.syosetu_group == group))
+    if volume is not None:
+        return volume
+    taken = set(db.scalars(select(Volume.title).where(Volume.series_id == series_id)))
+    title, n = group, 2
+    while title in taken:
+        title, n = f"{group} ({n})", n + 1
+    order = db.scalar(select(func.coalesce(func.max(Volume.volume_order), 0) + 1)
+                      .where(Volume.series_id == series_id))
+    volume = Volume(series_id=series_id, title=title, volume_order=order, syosetu_group=group)
+    db.add(volume)
+    db.flush()
+    return volume
 
 
 @handler("syosetu_fetch")
@@ -48,10 +70,11 @@ def fetch_series(ctx: JobContext) -> dict:
                     message = getattr(exc, "detail", None) or str(exc) or type(exc).__name__
                     errors.append({"num": ch["num"], "message": str(message)})
                 else:
+                    volume = ch["group"] and group_volume(ctx.db, series.id, ch["group"])
                     doc = Document(
                         user_id=series.user_id, series_id=series.id, title=title or ch["title"],
                         chapter_title=title or ch["title"], series_order=ch["num"],
-                        source_url=ch["url"],
+                        source_url=ch["url"], volume_id=volume.id if volume else None,
                     )
                     ctx.db.add(doc)
                     ctx.db.flush()
