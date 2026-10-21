@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 
 from api import server_settings
 from api.core import scrape
+from api.core.syosetu_volumes import heading_sequence, targets
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.jobs import JobContext, JobError, handler
 from api.library import check_line_count, write_lines
@@ -56,10 +57,13 @@ def fetch_series(ctx: JobContext) -> dict:
     added, skipped, errors = 0, 0, []
     with http_client() as c:
         try:
-            index = [ch for ch in scrape.fetch_series_index(c, series.syosetu_url)
-                     if ch["num"] in wanted]
+            full = scrape.fetch_series_index(c, series.syosetu_url)
         except (ValueError, scrape.ScrapeError) as exc:
             raise JobError(f"could not read the chapter list: {exc}") from exc
+        index = [ch for ch in full if ch["num"] in wanted]
+        series.syosetu_headings = heading_sequence(full)
+        place = targets(series.syosetu_headings, wanted,
+                        series.syosetu_volume_mode, series.syosetu_volume_marker)
         have = existing_orders(ctx.db, series.id)
         for i, ch in enumerate(index, start=1):
             if ch["num"] in have:
@@ -73,7 +77,8 @@ def fetch_series(ctx: JobContext) -> dict:
                     message = getattr(exc, "detail", None) or str(exc) or type(exc).__name__
                     errors.append({"num": ch["num"], "message": str(message)})
                 else:
-                    volume = ch["group"] and group_volume(ctx.db, series.id, ch["group"])
+                    heading = place[ch["num"]]
+                    volume = heading and group_volume(ctx.db, series.id, heading)
                     doc = Document(
                         user_id=series.user_id, series_id=series.id, title=title or ch["title"],
                         chapter_title=title or ch["title"], series_order=ch["num"],

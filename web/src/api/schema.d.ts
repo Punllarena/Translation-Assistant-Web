@@ -1096,7 +1096,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Chapters */
+        /**
+         * List Chapters
+         * @description The index with each chapter's heading, plus the heading markers the series could
+         *     start volumes at. Reads only: the stored heading sequence is the fetch job's.
+         */
         get: operations["list_chapters_series__series_id__syosetu_chapters_get"];
         put?: never;
         post?: never;
@@ -1663,6 +1667,13 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** ChapterList */
+        ChapterList: {
+            /** Chapters */
+            chapters: components["schemas"]["IndexChapter"][];
+            /** Markers */
+            markers: components["schemas"]["Marker"][];
+        };
         /** Comparison */
         Comparison: {
             /** Daily Avg 30 */
@@ -2154,6 +2165,13 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** Marker */
+        Marker: {
+            /** Headings */
+            headings: number;
+            /** Marker */
+            marker: string;
+        };
         /** MergeRequest */
         MergeRequest: {
             /** Document Ids */
@@ -2311,6 +2329,10 @@ export interface components {
             profile_id: number | null;
             /** Syosetu Url */
             syosetu_url: string;
+            /** Syosetu Volume Marker */
+            syosetu_volume_marker: string;
+            /** Syosetu Volume Mode */
+            syosetu_volume_mode: string;
             /** Title */
             title: string;
             /** Wp Password Enabled */
@@ -5058,7 +5080,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["IndexChapter"][];
+                    "application/json": components["schemas"]["ChapterList"];
                 };
             };
             /** @description Validation Error */

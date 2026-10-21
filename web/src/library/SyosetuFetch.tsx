@@ -17,7 +17,7 @@ export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
   });
   const list = useMutation({
     mutationFn: () => call(api.GET("/series/{series_id}/syosetu/chapters", { params: { path: { series_id: seriesId } } })),
-    onSuccess: (chapters) => setPicked(new Set(chapters.filter((c) => !c.fetched).map((c) => c.num))),
+    onSuccess: (data) => setPicked(new Set(data.chapters.filter((c) => !c.fetched).map((c) => c.num))),
   });
   const fetchSelected = useMutation({
     mutationFn: () => call(api.POST("/series/{series_id}/syosetu/fetch", {
@@ -34,7 +34,7 @@ export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
   };
   const toggle = (nums: number[], on: boolean) =>
     setPicked((p) => { const n = new Set(p); for (const num of nums) { if (on) n.add(num); else n.delete(num); } return n; });
-  type Chapter = NonNullable<typeof list.data>[number];
+  type Chapter = NonNullable<typeof list.data>["chapters"][number];
   const row = (c: Chapter) => (
     <li key={c.num}>
       <label>
@@ -61,7 +61,7 @@ export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
           {list.data && (
             <>
               <ul>
-                {groupRuns(list.data).map((run, i) => {
+                {groupRuns(list.data.chapters).map((run, i) => {
                   if (run.group === null) return run.chapters.map(row);
                   const open = run.chapters.filter((c) => !c.fetched).map((c) => c.num);
                   const on = open.filter((n) => picked.has(n)).length;

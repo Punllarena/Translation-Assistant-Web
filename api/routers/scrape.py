@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 import api.fetch_job  # noqa: F401  registers the syosetu_fetch handler
 from api import jobs, server_settings
 from api.core import scrape
+from api.core.syosetu_volumes import heading_sequence, offered_markers
 from api.core.text import build_new_file, parse_file_content
 from api.deps import current_user, db_session, scoped
 from api.fetch_job import existing_orders
@@ -19,7 +20,15 @@ from api.models import Document, Job, Series, User
 from api.routing import api_router
 from api.schemas.documents import DocumentOut
 from api.schemas.jobs import JobOut
-from api.schemas.scrape import FetchChapters, Fetched, FetchUrl, IndexChapter, Refetch
+from api.schemas.scrape import (
+    ChapterList,
+    FetchChapters,
+    Fetched,
+    FetchUrl,
+    IndexChapter,
+    Marker,
+    Refetch,
+)
 
 router = api_router(tags=["scrape"])
 
@@ -67,10 +76,12 @@ def _series_with_url(db: Session, series_id: int, user_id: int) -> Series:
     return series
 
 
-@router.get("/series/{series_id}/syosetu/chapters", response_model=list[IndexChapter])
+@router.get("/series/{series_id}/syosetu/chapters", response_model=ChapterList)
 def list_chapters(
     series_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
-) -> list[IndexChapter]:
+) -> ChapterList:
+    """The index with each chapter's heading, plus the heading markers the series could
+    start volumes at. Reads only: the stored heading sequence is the fetch job's."""
     series = _series_with_url(db, series_id, user.id)
     try:
         with _slot(), http_client() as c:
@@ -80,7 +91,11 @@ def list_chapters(
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     have = existing_orders(db, series.id)
-    return [IndexChapter(**ch, fetched=ch["num"] in have) for ch in index]
+    markers = offered_markers(heading_sequence(index), series.syosetu_volume_marker)
+    return ChapterList(
+        chapters=[IndexChapter(**ch, fetched=ch["num"] in have) for ch in index],
+        markers=[Marker(**m) for m in markers],
+    )
 
 
 @router.post(

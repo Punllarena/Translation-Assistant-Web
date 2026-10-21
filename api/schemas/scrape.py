@@ -18,6 +18,16 @@ class IndexChapter(BaseModel):
     fetched: bool
 
 
+class Marker(BaseModel):
+    marker: str
+    headings: int
+
+
+class ChapterList(BaseModel):
+    chapters: list[IndexChapter]
+    markers: list[Marker]
+
+
 class FetchChapters(BaseModel):
     nums: list[int] = Field(min_length=1, max_length=5000)
 
