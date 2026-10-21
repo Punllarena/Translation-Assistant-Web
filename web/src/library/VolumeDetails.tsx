@@ -33,7 +33,7 @@ export default function VolumeDetails({ volume, series, kinds, onClose }: {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const epub = Object.fromEntries(new FormData(e.currentTarget as HTMLFormElement));
-    save.mutate({ ...epub, kind: name.kind, volume_index: name.index || null, subtitle: name.subtitle } as Schemas["VolumeUpdate"]);
+    save.mutate({ ...epub, kind: name.kind.trim(), volume_index: name.index || null, subtitle: name.subtitle.trim() } as Schemas["VolumeUpdate"]);
   };
   return (
     <Modal title="Volume details" onClose={onClose} busy={save.isPending} onSubmit={submit}>

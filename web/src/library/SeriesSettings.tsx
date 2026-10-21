@@ -21,7 +21,7 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
   const sample = first
     ? { kind: first.kind, index: first.volume_index, subtitle: first.subtitle }
     : { kind: "Volume", index: "1", subtitle: "Subtitle" };
-  const preview = templateProblem ? null : render(template || series.volume_title_template_effective || DEFAULT_TEMPLATE, { series: series.title, ...sample });
+  const preview = templateProblem ? null : render(template.trim() ? template : DEFAULT_TEMPLATE, { series: series.title, ...sample });
   const chapters = `${chapterCount} ${chapterCount === 1 ? "chapter" : "chapters"}`;
   const profiles = useQuery({ queryKey: ["profiles"], queryFn: () => call(api.GET("/profiles")) });
   const save = useMutation({
@@ -44,7 +44,7 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
       title: String(form.get("title")),
       syosetu_url: String(form.get("syosetu_url")),
       profile_id: profile ? Number(profile) : null,
-      volume_title_template: template,
+      volume_title_template: template.trim() ? template : "",
     });
   };
   return (
