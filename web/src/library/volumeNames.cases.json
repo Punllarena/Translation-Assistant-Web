@@ -1,0 +1,36 @@
+{
+  "format_index": [{"in": "3.000", "out": "3"}, {"in": "3.500", "out": "3.5"}, {"in": "0", "out": "0"}, {"in": null, "out": ""}],
+  "render": [
+    {"template": "{series} - {kind} {index} - {subtitle}", "series": "Mushoku", "kind": "Volume", "index": "3", "subtitle": "The Journey", "out": "Mushoku - Volume 3 - The Journey"},
+    {"template": "{series} - {kind} {index} - {subtitle}", "series": "Mushoku", "kind": "Volume", "index": "3.5", "subtitle": "", "out": "Mushoku - Volume 3.5"},
+    {"template": "{series} - {kind} {index} - {subtitle}", "series": "Mushoku", "kind": "Side Story", "index": "1", "subtitle": "Roxy", "out": "Mushoku - Side Story 1 - Roxy"},
+    {"template": "{series} - {kind} {index} - {subtitle}", "series": "Mushoku", "kind": "Extra", "index": null, "subtitle": "Q&A", "out": "Mushoku - Extra - Q&A"},
+    {"template": "{series} - {kind} {index} - {subtitle}", "series": "Mushoku", "kind": "", "index": null, "subtitle": "Prologue", "out": "Mushoku - Prologue"},
+    {"template": "{series} - {kind} {index} - {subtitle}", "series": "S", "kind": "Volume", "index": "1", "subtitle": "Re:Start - Part 1", "out": "S - Volume 1 - Re:Start - Part 1"},
+    {"template": "{series} Vol. {index}:  {subtitle}", "series": "S", "kind": "Volume", "index": "2", "subtitle": "X", "out": "S Vol. 2: X"},
+    {"template": "Book - {subtitle}", "series": "S", "kind": "Volume", "index": "2", "subtitle": "", "out": "Book"}
+  ],
+  "label": [
+    {"kind": "Volume", "index": "3.5", "subtitle": "", "out": "Volume 3.5", "wp": "Volume 3.5"},
+    {"kind": "Side Story", "index": "1", "subtitle": "Roxy", "out": "Side Story 1 · Roxy", "wp": "Side Story 1 - Roxy"},
+    {"kind": "", "index": null, "subtitle": "第一章", "out": "第一章", "wp": "第一章"}
+  ],
+  "parse": [
+    {"title": "Volume 1", "series": "", "kind": "Volume", "index": "1", "subtitle": ""},
+    {"title": "Vol. 2.5 - Extra Bits", "series": "", "kind": "Volume", "index": "2.5", "subtitle": "Extra Bits"},
+    {"title": "vol 4: Dawn", "series": "", "kind": "Volume", "index": "4", "subtitle": "Dawn"},
+    {"title": "V 7", "series": "", "kind": "Volume", "index": "7", "subtitle": ""},
+    {"title": "第3巻 旅立ち", "series": "", "kind": "Volume", "index": "3", "subtitle": "旅立ち"},
+    {"title": "第１２巻", "series": "", "kind": "Volume", "index": "12", "subtitle": ""},
+    {"title": "Side Story 1 — Roxy", "series": "", "kind": "Side Story", "index": "1", "subtitle": "Roxy"},
+    {"title": "SS 2", "series": "", "kind": "Side Story", "index": "2", "subtitle": ""},
+    {"title": "Short Stories 1", "series": "", "kind": "Short Stories", "index": "1", "subtitle": ""},
+    {"title": "3 - The Journey", "series": "", "kind": "Volume", "index": "3", "subtitle": "The Journey"},
+    {"title": "Mushoku - Volume 5", "series": "Mushoku", "kind": "Volume", "index": "5", "subtitle": ""},
+    {"title": "Mushoku", "series": "Mushoku", "kind": "", "index": null, "subtitle": "Mushoku"},
+    {"title": "3rd Arc", "series": "", "kind": "", "index": null, "subtitle": "3rd Arc"},
+    {"title": "Prologue", "series": "", "kind": "", "index": null, "subtitle": "Prologue"},
+    {"title": "第一章", "series": "", "kind": "", "index": null, "subtitle": "第一章"}
+  ],
+  "templates_invalid": ["{Series} - {index}", "{title}", "{series} - {kind", "x }"]
+}
