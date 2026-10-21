@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
-import { api, call, type Schemas } from "../api/client";
-import { PromptDialog } from "../ui/Dialog";
+import { api, call } from "../api/client";
 import ChapterTable from "./ChapterTable";
 import type { Doc, SeriesRow } from "./shelf";
 import { invalidateLibrary, useAllVolumes } from "./queries";
+import NewVolumeDialog from "./NewVolumeDialog";
 import VolumeList from "./VolumeList";
 import VolumePane from "./VolumePane";
 import { pickVolume, volumeGroups, type VolumeKey } from "./volumeGroups";
@@ -27,16 +27,6 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
     next.set("volume", String(key));
     setParams(next, { replace: true });
   };
-  // Generated VolumeCreate marks server-defaulted fields required; the cast sends title only.
-  const create = useMutation({
-    mutationFn: (title: string) =>
-      call(api.POST("/series/{series_id}/volumes", { params: { path: { series_id: series.id } }, body: { title } as Schemas["VolumeCreate"] })),
-    onSuccess: async (v) => {
-      await invalidateLibrary(queryClient);
-      setCreating(false);
-      select(v.id);
-    },
-  });
   // Dropping a chapter on a volume entry: it goes to the end of that volume.
   const assign = useMutation({
     mutationFn: async ({ docId, key }: { docId: number; key: VolumeKey }) => {
@@ -54,7 +44,7 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
   };
   if (volumes.isPending) return <p className="muted">Loading volumes…</p>;
   if (volumes.isError) return <p className="error" role="alert">{volumes.error.message}</p>;
-  const newVolume = () => { create.reset(); setCreating(true); };
+  const newVolume = () => setCreating(true);
   return (
     <div className={hasVolumes ? "vol-panes" : "vol-panes single"}>
       {hasVolumes && (
@@ -67,8 +57,8 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
         <ChapterTable key={`table-${group.key}`} series={series} group={group} groups={groups} syosetu={syosetu} />
       </section>
       {creating && (
-        <PromptDialog title="New volume" label="Volume title" confirmLabel="Create" busy={create.isPending}
-          error={create.error?.message} onSubmit={(t) => create.mutate(t.trim())} onClose={() => setCreating(false)} />
+        <NewVolumeDialog series={series} onClose={() => setCreating(false)}
+          onCreated={(id) => { setCreating(false); select(id); }} />
       )}
     </div>
   );
