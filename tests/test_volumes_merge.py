@@ -107,3 +107,19 @@ def test_merge_is_409_while_a_fetch_runs(app_client, me, make_series, site, db):
     ids = [v.id for v in db.query(Volume).filter_by(series_id=s.id)]
     app_client.post(f"/series/{s.id}/syosetu/fetch", json={"nums": [3]})
     assert _merge(app_client, s, ids, ids[0]).status_code == 409
+
+
+def test_merge_keeps_survivor_names(app_client, me, make_series, db):
+    s = make_series(me, "Names")
+    made = []
+    for body in ({"kind": "Volume", "volume_index": "2", "subtitle": "Two"},
+                 {"kind": "Side Story", "volume_index": "1"}):
+        made.append(app_client.post(f"/series/{s.id}/volumes", json=body).json()["id"])
+    db.get(Volume, made[0]).wp_volume_title = "WP Two"
+    db.flush()
+    assert _merge(app_client, s, made, made[0]).status_code == 200
+    db.expire_all()
+    vol = db.get(Volume, made[0])
+    assert (vol.kind, int(vol.volume_index), vol.subtitle, vol.wp_volume_title) == (
+        "Volume", 2, "Two", "WP Two")
+    assert db.get(Volume, made[1]) is None

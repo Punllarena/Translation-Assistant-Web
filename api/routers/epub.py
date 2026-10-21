@@ -4,11 +4,13 @@ is uploaded twice, once per step (ruling 6)."""
 
 import io
 import mimetypes
+import re
 import zipfile
 import zlib
+from decimal import Decimal
 
-from fastapi import Depends, File, Form, HTTPException, Response, UploadFile, status
-from sqlalchemy import func, select
+from fastapi import Depends, File, Form, HTTPException, Request, Response, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.exc import DataError
 from sqlalchemy.orm import Session
 
@@ -24,7 +26,7 @@ from api.core.text import (
     parse_file_content,
     sanitize_filename,
 )
-from api.core.volume_names import parse_title
+from api.core.volume_names import ParsedName, index_fits, quantize_index
 from api.deps import current_user, db_session, owned_ref, scoped_volume
 from api.library import (
     arrange,
@@ -39,6 +41,7 @@ from api.routers.transfer import attachment
 from api.routing import api_router
 from api.schemas.epub import BookOut, ChapterError, EpubImportOut
 from api.uploads import read_capped
+from api.volume_order import place
 
 router = api_router(tags=["epub"])
 
@@ -88,24 +91,42 @@ def _series(db: Session, user: User, series_id: int | None, title: str) -> Serie
     return series
 
 
-def _volume(db: Session, series: Series, title: str, meta: dict[str, str]) -> Volume:
-    kind, index, subtitle = parse_title(title, series.title)
+async def _sent_kind(request: Request) -> str | None:
+    """The raw volume_kind field (the form is parsed once and cached), None if absent."""
+    value = (await request.form()).get("volume_kind")
+    return value if isinstance(value, str) else None
+
+
+def _volume(db: Session, series: Series, name: ParsedName, meta: dict[str, str]) -> Volume:
+    """The volume with this (kind, number) or (kind, subtitle); a new one is placed."""
     volume = db.scalar(select(Volume).where(
-        Volume.series_id == series.id, Volume.named(kind, index, subtitle)))
+        Volume.series_id == series.id, Volume.named(name.kind, name.index, name.subtitle)))
     if volume is None:
-        order = db.scalar(
-            select(func.coalesce(func.max(Volume.volume_order), 0) + 1).where(
-                Volume.series_id == series.id
-            )
-        )
-        volume = Volume(series_id=series.id, kind=kind, volume_index=index, subtitle=subtitle,
-                        volume_order=order)
+        volume = Volume(series_id=series.id, kind=name.kind, volume_index=name.index,
+                        subtitle=name.subtitle, volume_order=0)
         db.add(volume)
+        db.flush()
+        place(db, volume)
     for field, value in meta.items():
         if value.strip():
             setattr(volume, field, value.strip())
     db.flush()
     return volume
+
+
+_INDEX_RE = re.compile(r"\d+(\.\d{1,3})?")
+
+
+def _volume_name(kind: str, index: str, subtitle: str) -> ParsedName:
+    kind, index, subtitle = kind.strip(), index.strip(), subtitle.strip()
+    number = None
+    if index:
+        if not _INDEX_RE.fullmatch(index) or not index_fits(Decimal(index)):
+            raise _unprocessable("volume_index: a number like 3 or 3.5")
+        number = quantize_index(Decimal(index))
+    if not (kind or number is not None or subtitle):
+        raise _unprocessable("give a kind, number or subtitle")
+    return ParsedName(kind, number, subtitle)
 
 
 def _import_chapter(
@@ -143,7 +164,10 @@ def import_epub(
     file: UploadFile = File(...),
     series_id: int | None = Form(None),
     series_title: str = Form("", max_length=300),
-    volume_title: str = Form(..., max_length=300),
+    volume_kind: str = Form("Volume", max_length=40),
+    sent_kind: str | None = Depends(_sent_kind),
+    volume_index: str = Form("", max_length=20),
+    volume_subtitle: str = Form("", max_length=300),
     author: str = Form("", max_length=300),
     illustrator: str = Form("", max_length=300),
     publisher: str = Form("", max_length=300),
@@ -152,17 +176,20 @@ def import_epub(
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
 ) -> EpubImportOut:
-    reject_nul(series_title, volume_title, author, illustrator, publisher, identifier)
+    reject_nul(series_title, volume_kind, volume_index, volume_subtitle, author, illustrator,
+               publisher, identifier)
     if (series_id is None) == (not series_title.strip()):
         raise _unprocessable("give exactly one of series_id and series_title")
-    if not volume_title.strip():
-        raise _unprocessable("volume_title is required")
+    # FastAPI reads an empty form value as absent, which would turn a deliberate "no
+    # kind" into the default; what the client really sent wins.
+    name = _volume_name(volume_kind if sent_kind is None else sent_kind,
+                        volume_index, volume_subtitle)
     if not 1 <= len(hrefs) <= MAX_CHAPTERS:
         raise _unprocessable(f"choose between 1 and {MAX_CHAPTERS} chapters")
 
     data, book = _book(file)
     series = _series(db, user, series_id, series_title.strip())
-    volume = _volume(db, series, volume_title.strip(), {
+    volume = _volume(db, series, name, {
         "epub_author": author, "epub_illustrator": illustrator,
         "epub_publisher": publisher, "epub_identifier": identifier,
     })

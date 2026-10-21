@@ -3,21 +3,20 @@
 import sqlite3
 from collections.abc import Callable
 
-from sqlalchemy import func, inspect, select
+from sqlalchemy import inspect, select
 from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import Session
 
 from api.core.tadb_lines import BATCH, insert_lines
 from api.core.tadb_schema import (
     NO_UNLOCK_OVERRIDE,
-    VOLUME_META,
     ImportReport,
     _get,
     _parse_tristate_flag,
     _parse_ts,
     _skip,
 )
-from api.core.volume_names import parse_title
+from api.core.tadb_volumes import _volume_meta, find_or_add_volume
 from api.models import (
     CustomWord,
     Document,
@@ -193,51 +192,6 @@ def _import_series(
     return out
 
 
-def _volume_meta(row: sqlite3.Row) -> dict[str, str]:
-    return {
-        attr: _get(row, "documents", column, "") or "" for attr, column in VOLUME_META.items()
-    }
-
-
-def _merge_volume_meta(volume: Volume, meta: dict[str, str], report: ImportReport) -> None:
-    """First non-empty value wins; a later chapter that disagrees is reported."""
-    for attr, value in meta.items():
-        if not value:
-            continue
-        current = getattr(volume, attr) or ""
-        if not current:
-            setattr(volume, attr, value)
-        elif current != value:
-            report.messages.append(
-                f"volumes {volume.label!r}: {attr} kept as {current!r}; another chapter "
-                f"says {value!r}"
-            )
-
-
-def _volume(
-    db: Session, series: Series, title: str, cache: dict[tuple, Volume | None],
-    report: ImportReport, meta: dict[str, str],
-) -> Volume | None:
-    kind, index, subtitle = parse_title(title, series.title)
-    key = (series.id, kind.lower(), index, subtitle if index is None else "")
-    if key not in cache:
-        volume = db.scalar(
-            select(Volume).where(Volume.series_id == series.id, Volume.named(kind, index, subtitle))
-        )
-        if volume is None:
-            order = db.scalar(select(func.count(Volume.id)).where(Volume.series_id == series.id))
-            volume = Volume(series_id=series.id, kind=kind, volume_index=index, subtitle=subtitle,
-                            volume_order=order or 0, **meta)
-            if not _add(db, volume, "volumes", repr(title), report):
-                volume = None
-        else:
-            _merge_volume_meta(volume, meta, report)
-        cache[key] = volume
-    elif cache[key] is not None:
-        _merge_volume_meta(cache[key], meta, report)
-    return cache[key]
-
-
 def _own_series(
     db: Session, user_id: int, title: str, cache: dict[str, Series | None],
     report: ImportReport, label: str, created: set[int],
@@ -288,7 +242,8 @@ def _import_documents(
                 continue
         volume = None
         if vol_title:
-            volume = _volume(db, series, vol_title, volumes, report, _volume_meta(row))
+            volume = find_or_add_volume(
+                db, series, vol_title, volumes, report, _volume_meta(row), _add)
             if volume is None:
                 _skip(report, "documents", label, f"volume {vol_title!r} was not imported")
                 continue

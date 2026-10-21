@@ -122,6 +122,32 @@ def parse_title(title: str, series_title: str = "") -> ParsedName:
     return ParsedName("", None, title.strip())
 
 
+_STEP = Decimal("0.001")
+_LIMIT = Decimal(10) ** 7  # volumes.volume_index is Numeric(10, 3)
+
+
+def quantize_index(index: Decimal) -> Decimal:
+    """Round to the column's 3 places, so '1.0004' finds the stored 1.000."""
+    return index.quantize(_STEP)
+
+
+def index_fits(index: Decimal) -> bool:
+    """True when the quantized index fits Numeric(10, 3)."""
+    # The first test also keeps quantize() from overflowing on a hundred-digit number.
+    return abs(index) < _LIMIT and abs(quantize_index(index)) < _LIMIT
+
+
+def parse_title_fit(title: str, series_title: str = "") -> ParsedName:
+    """parse_title for storage: index quantized; a number the column cannot hold keeps
+    the whole title as an unnumbered subtitle (the migration's rule)."""
+    parsed = parse_title(title, series_title)
+    if parsed.index is None:
+        return parsed
+    if not index_fits(parsed.index):
+        return ParsedName("", None, title.strip())
+    return parsed._replace(index=quantize_index(parsed.index))
+
+
 def sort_key(kind: str, index: Decimal | None) -> tuple:
     """Volume first, other named kinds next, unkinded last."""
     folded = kind.strip().casefold()

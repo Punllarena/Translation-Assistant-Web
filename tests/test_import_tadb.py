@@ -474,3 +474,20 @@ def test_progress_counts_every_document_line_and_image(db, make_user, tmp_path):
     assert calls[-1] == (total, total, "Importing images")
     assert [c[0] for c in calls] == sorted(c[0] for c in calls)
     assert {c[2] for c in calls} <= {"Importing chapters", "Importing lines", "Importing images"}
+
+
+def test_tadb_volume_titles_are_parsed(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _add_chapter(path, "Chapter 2")
+    _tweak(path, "INSERT INTO documents (title, series_title, series_order, volume_title) "
+                 "VALUES ('Chapter 3', 'My Series', 10, 'Prologue')")
+    _tweak(path, "INSERT INTO documents (title, series_title, series_order, volume_title) "
+                 "VALUES ('Chapter 4', 'My Series', 11, 'Volume 99999999')")
+    user = make_user()
+    import_tadb(db, path, user.id)
+    vols = db.query(Volume).order_by(Volume.volume_order).all()
+    assert [(v.kind, v.volume_index and int(v.volume_index), v.subtitle) for v in vols] == [
+        ("Volume", 1, ""), ("", None, "Prologue"), ("", None, "Volume 99999999")]
+    again = import_tadb(db, path, user.id, force=True)
+    assert db.query(Volume).count() == 3
+    assert again.written["volumes"] == 0

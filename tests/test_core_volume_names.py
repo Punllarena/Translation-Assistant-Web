@@ -89,3 +89,26 @@ def test_sort_key_volume_group_is_case_insensitive():
     ]
     assert [sort_key(*i)[0] for i in items] == [0, 0, 0, 1]
     assert sorted(items[::-1], key=lambda kv: sort_key(*kv)) == items
+
+
+def test_quantize_index_rounds_to_three_places():
+    from api.core.volume_names import quantize_index
+
+    assert quantize_index(Decimal("1.0004")) == Decimal("1.000")
+    assert quantize_index(Decimal("2.5")) == Decimal("2.500")
+
+
+def test_index_fits_is_the_column_range():
+    from api.core.volume_names import index_fits
+
+    assert index_fits(Decimal("9999999.999"))
+    assert not index_fits(Decimal("10000000"))
+    assert not index_fits(Decimal("9999999.9996"))  # rounds up to 10^7
+
+
+def test_parse_title_fit_falls_back_for_a_huge_number():
+    from api.core.volume_names import parse_title_fit
+
+    assert parse_title_fit("Volume 99999999") == ("", None, "Volume 99999999")
+    assert parse_title_fit("Volume 1.0004") == ("Volume", Decimal("1.000"), "")
+    assert parse_title_fit("Prologue") == ("", None, "Prologue")

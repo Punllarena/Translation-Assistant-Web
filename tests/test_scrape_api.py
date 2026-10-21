@@ -324,3 +324,22 @@ def test_chapter_list_reports_markers(app_client, me, make_series, site, db):
     assert [c["group"] for c in body["chapters"]] == ["★ 一日", "◇ 編", "★ 二日"]
     db.refresh(s)
     assert s.syosetu_headings is None
+
+
+def test_heading_volume_is_unnamed_kind(app_client, me, make_series, site, db):
+    s = _grouped_series(make_series, site, db, me)
+    db.add(Volume(series_id=s.id, kind="Volume", volume_index=1, volume_order=1))
+    db.flush()
+    _fetch(app_client, s, [2, 3])
+    vols = db.query(Volume).filter_by(series_id=s.id).order_by(Volume.volume_order).all()
+    assert [(v.kind, v.volume_index and int(v.volume_index), v.subtitle) for v in vols] == [
+        ("Volume", 1, ""), ("", None, "第一章"), ("", None, "第二章")]
+
+
+def test_a_taken_heading_title_is_suffixed_in_arc_order(app_client, me, make_series, site, db):
+    s = _grouped_series(make_series, site, db, me)
+    db.add(Volume(series_id=s.id, kind="", subtitle="第一章", volume_order=1))
+    db.flush()
+    _fetch(app_client, s, [2, 3])
+    vols = db.query(Volume).filter_by(series_id=s.id).order_by(Volume.volume_order).all()
+    assert [v.subtitle for v in vols] == ["第一章", "第一章 (2)", "第二章"]
