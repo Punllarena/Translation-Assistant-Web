@@ -7,6 +7,7 @@ import type { Doc, SeriesRow } from "./shelf";
 import { invalidateLibrary, useAllVolumes } from "./queries";
 import MergeVolumesDialog from "./MergeVolumesDialog";
 import NewVolumeDialog from "./NewVolumeDialog";
+import { kindOptions } from "./VolumeNameFields";
 import { pickedInOrder, rangeToggle } from "./rangeToggle";
 import VolumeList from "./VolumeList";
 import VolumePane from "./VolumePane";
@@ -51,6 +52,8 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
   if (volumes.isPending) return <p className="muted">Loading volumes…</p>;
   if (volumes.isError) return <p className="error" role="alert">{volumes.error.message}</p>;
   const newVolume = () => setCreating(true);
+  const allVolumes = groups.flatMap((g) => (g.volume ? [g.volume] : []));
+  const kinds = kindOptions(allVolumes);
   const order = groups.flatMap((g) => (g.volume ? [g.volume.id] : []));
   const leaveSelecting = () => { setSelecting(false); setPicked(new Set()); setAnchor(null); };
   const pick = (id: number, shift: boolean) => { setPicked((p) => rangeToggle(order, p, id, anchor, shift)); setAnchor(id); };
@@ -63,9 +66,9 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
           selecting={selecting} picked={live} onPick={pick} onMerge={() => setMerging(true)}
           onToggleSelecting={() => (selecting ? leaveSelecting() : setSelecting(true))} />
       )}
-      <section className="vol-pane" aria-label={group.volume?.title ?? "Chapters"}>
+      <section className="vol-pane" aria-label={group.volume?.label ?? "Chapters"}>
         <VolumePane key={`head-${group.key}`} series={series} group={group} syosetu={syosetu} hasVolumes={hasVolumes}
-          onNewVolume={newVolume} />
+          onNewVolume={newVolume} kinds={kinds} />
         {assign.isError && <p className="error" role="alert">{assign.error.message}</p>}
         <ChapterTable key={`table-${group.key}`} series={series} group={group} groups={groups} syosetu={syosetu} />
       </section>
@@ -74,7 +77,7 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
           onMerged={(id) => { setMerging(false); leaveSelecting(); select(id); }} />
       )}
       {creating && (
-        <NewVolumeDialog series={series} onClose={() => setCreating(false)}
+        <NewVolumeDialog series={series} volumes={allVolumes} onClose={() => setCreating(false)}
           onCreated={(id) => { setCreating(false); select(id); }} />
       )}
     </div>

@@ -44,12 +44,13 @@ export function templateError(template: string): string | null {
 }
 
 export function render(template: string, v: NameParts, sep = " - "): string {
-  const values: Record<string, string> = {
+  // Own properties only: a typed {constructor} must render "", not Object's.
+  const values: Record<string, string> = Object.assign(Object.create(null), {
     series: v.series,
     kind: v.kind,
     index: formatIndex(v.index),
     subtitle: v.subtitle,
-  };
+  });
   // Split on the literal separator first so a separator inside a value
   // (a subtitle like "Re:Start - Part 1") is never split.
   const parts: string[] = [];

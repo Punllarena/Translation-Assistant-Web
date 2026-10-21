@@ -22,8 +22,9 @@ function editedLabel(group: VolumeGroup): string | null {
 
 /** The selected volume's header: cover, title, counts and the volume-level actions. The "No volume"
  *  group only offers New chapter (and New volume when the series has none yet). */
-export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVolume }: {
+export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVolume, kinds }: {
   series: SeriesRow; group: VolumeGroup; syosetu: boolean; hasVolumes: boolean; onNewVolume: () => void;
+  kinds: string[];
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState<Open>(null);
@@ -31,7 +32,7 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
   const changed = () => invalidateLibrary(queryClient);
   const illustrations = useIllustrations(volume);
   const epub = useMutation({
-    mutationFn: () => downloadBlob(`/api/volumes/${volume!.id}/export/epub`, `${volume!.title}.epub`),
+    mutationFn: () => downloadBlob(`/api/volumes/${volume!.id}/export/epub`, `${volume!.full_title}.epub`),
   });
   const renumber = useMutation({
     mutationFn: () => call(api.POST("/series/{series_id}/renumber", { params: { path: { series_id: series.id } } })),
@@ -102,10 +103,10 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
         {volume && <Illustrations volume={volume} job={illustrations} asking={open === "illustrations"} onAsked={() => setOpen(null)} />}
       </div>
       {open === "publish" && <BatchPublish ids={group.docs.map((d) => d.id)} onClose={() => setOpen(null)} />}
-      {open === "details" && volume && <VolumeDetails volume={volume} onClose={() => setOpen(null)} />}
+      {open === "details" && volume && <VolumeDetails volume={volume} series={series} kinds={kinds} onClose={() => setOpen(null)} />}
       {open === "delete" && volume && (
         <ConfirmDialog title="Delete volume" confirmLabel="Delete volume" danger busy={remove.isPending}
-          message={`Delete volume "${volume.title}"? Its chapters stay in the series.`} error={remove.error?.message}
+          message={`Delete volume "${volume.label}"? Its chapters stay in the series.`} error={remove.error?.message}
           onConfirm={() => remove.mutate()} onClose={() => setOpen(null)} />
       )}
       {open === "renumber" && (

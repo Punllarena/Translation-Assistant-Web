@@ -64,3 +64,11 @@ describe("nextVolumeIndex", () => {
     expect(nextVolumeIndex([{ kind: "", volume_index: null }])).toBe("1");
   });
 });
+
+describe("render placeholder lookup", () => {
+  it("renders inherited names as empty", () => {
+    const v = { series: "S", kind: "Volume", index: "1", subtitle: "T" };
+    expect(render("{constructor} {toString} {kind}", v)).toBe("Volume");
+    expect(render("{constructor}", v)).toBe("");
+  });
+});

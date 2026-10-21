@@ -3,6 +3,8 @@ import { useRef, useState, type ReactNode } from "react";
 import type { Schemas } from "../api/client";
 import { appendSeries, type Choice } from "./SeriesChoice";
 import { postForm } from "./upload";
+import VolumeNameFields, { kindOptions, type VolumeName } from "./VolumeNameFields";
+import { parseTitle } from "./volumeNames";
 
 const CHECK_THRESHOLD = 500; // desktop _DEFAULT_CHECK_THRESHOLD
 const META = [
@@ -13,11 +15,13 @@ type Meta = Record<(typeof META)[number][0], string>;
 const NO_META: Meta = { author: "", illustrator: "", publisher: "", identifier: "" };
 
 /** The picked EPUB, its inspection, and the volume fields and chapter ticks the import sends. */
-export function useEpubBook({ onPick, onBook }: { onPick?: () => void; onBook?: (b: Schemas["BookOut"]) => void } = {}) {
+export function useEpubBook({ onPick, onBook, seriesTitle = "" }: {
+  onPick?: () => void; onBook?: (b: Schemas["BookOut"]) => void; seriesTitle?: string;
+} = {}) {
   const [file, setFile] = useState<File | null>(null);
   const [book, setBook] = useState<Schemas["BookOut"] | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [volumeTitle, setVolumeTitle] = useState("");
+  const [volumeName, setVolumeName] = useState<VolumeName>({ kind: "", index: "", subtitle: "" });
   const [meta, setMeta] = useState<Meta>(NO_META);
   const current = useRef<File | null>(null); // a slow inspect of an earlier pick must not win
   const inspect = useMutation({
@@ -30,7 +34,8 @@ export function useEpubBook({ onPick, onBook }: { onPick?: () => void; onBook?: 
       if (f !== current.current) return;
       setBook(b);
       setChecked(new Set(b.chapters.filter((c) => c.char_count >= CHECK_THRESHOLD || c.image_count > 0).map((c) => c.href)));
-      setVolumeTitle(b.title);
+      const parsed = parseTitle(b.title, seriesTitle);
+      setVolumeName({ kind: parsed.kind, index: parsed.index ?? "", subtitle: parsed.subtitle });
       setMeta({ author: b.author, illustrator: b.illustrator, publisher: b.publisher, identifier: b.identifier });
       onBook?.(b);
     },
@@ -53,12 +58,14 @@ export function useEpubBook({ onPick, onBook }: { onPick?: () => void; onBook?: 
     const form = new FormData();
     form.append("file", file as File);
     appendSeries(form, choice);
-    form.append("volume_title", volumeTitle);
+    form.append("volume_kind", volumeName.kind);
+    form.append("volume_index", volumeName.index);
+    form.append("volume_subtitle", volumeName.subtitle);
     for (const [key] of META) form.append(key, meta[key]);
     book?.chapters.filter((c) => checked.has(c.href)).forEach((c) => form.append("hrefs", c.href));
     return form;
   };
-  return { file, book, checked, volumeTitle, setVolumeTitle, meta, setMeta, inspect, pick, toggle, importForm };
+  return { file, book, checked, volumeName, setVolumeName, meta, setMeta, inspect, pick, toggle, importForm };
 }
 
 export type EpubBook = ReturnType<typeof useEpubBook>;
@@ -81,14 +88,13 @@ export function EpubPicker({ epub, disabled }: { epub: EpubBook; disabled?: bool
   );
 }
 
-/** Volume title, metadata and the chapter checklist of an inspected book. */
-export function EpubFields({ epub }: { epub: EpubBook }) {
+/** Volume name, metadata and the chapter checklist of an inspected book. */
+export function EpubFields({ epub, kinds = kindOptions([]) }: { epub: EpubBook; kinds?: string[] }) {
   const { book, checked, meta } = epub;
   if (!book) return null;
   return (
     <>
-      <label className="field"><span>Volume title</span>
-        <input value={epub.volumeTitle} onChange={(e) => epub.setVolumeTitle(e.target.value)} /></label>
+      <VolumeNameFields value={epub.volumeName} onChange={epub.setVolumeName} kinds={kinds} />
       <div className="row-fields">
         {META.map(([key, label]) => (
           <label key={key} className="field"><span>{label}</span>

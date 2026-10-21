@@ -4,7 +4,7 @@ import type { VolumeGroup, VolumeKey } from "./volumeGroups";
 /** The drag payload a chapter row carries: its document id. */
 export const CHAPTER_MIME = "application/x-ta-chapter";
 
-export const groupTitle = (g: VolumeGroup) => g.volume?.title ?? "No volume";
+export const groupTitle = (g: VolumeGroup) => g.volume?.label ?? "No volume";
 
 export function VolumeCover({ group }: { group: VolumeGroup }) {
   return group.coverImageId != null

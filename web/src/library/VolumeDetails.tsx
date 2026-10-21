@@ -3,7 +3,9 @@ import { useState, type FormEvent } from "react";
 import { api, call, type Schemas } from "../api/client";
 import JobProgress from "../jobs/JobProgress";
 import { ConfirmDialog, Modal } from "../ui/Dialog";
-import type { Volume } from "./shelf";
+import type { SeriesRow, Volume } from "./shelf";
+import VolumeNameFields, { type VolumeName } from "./VolumeNameFields";
+import { render } from "./volumeNames";
 import { invalidateLibrary } from "./queries";
 
 const EPUB_FIELDS = [
@@ -13,7 +15,12 @@ const EPUB_FIELDS = [
 ] as const;
 
 /** The volume's title and EPUB metadata, in a dialog. */
-export default function VolumeDetails({ volume, onClose }: { volume: Volume; onClose: () => void }) {
+export default function VolumeDetails({ volume, series, kinds, onClose }: {
+  volume: Volume; series: SeriesRow; kinds: string[]; onClose: () => void;
+}) {
+  const [name, setName] = useState<VolumeName>({
+    kind: volume.kind, index: volume.volume_index ?? "", subtitle: volume.subtitle,
+  });
   const queryClient = useQueryClient();
   const save = useMutation({
     mutationFn: (body: Schemas["VolumeUpdate"]) =>
@@ -25,15 +32,28 @@ export default function VolumeDetails({ volume, onClose }: { volume: Volume; onC
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    save.mutate(Object.fromEntries(new FormData(e.currentTarget as HTMLFormElement)) as Schemas["VolumeUpdate"]);
+    const epub = Object.fromEntries(new FormData(e.currentTarget as HTMLFormElement));
+    save.mutate({ ...epub, kind: name.kind, volume_index: name.index || null, subtitle: name.subtitle } as Schemas["VolumeUpdate"]);
   };
   return (
     <Modal title="Volume details" onClose={onClose} busy={save.isPending} onSubmit={submit}>
       <div className="dlg-head"><h2>Volume details</h2></div>
       <div className="dlg-body">
-        <label className="field"><span>Title</span><input name="title" defaultValue={volume.title} required /></label>
-        {EPUB_FIELDS.map(([name, label]) => (
-          <label key={name} className="field"><span>{label}</span><input name={name} defaultValue={volume[name]} /></label>
+        <VolumeNameFields value={name} onChange={setName} kinds={kinds} />
+        {volume.wp_volume_title && (
+          <label className="field"><span>WordPress volume name</span>
+            <input value={volume.wp_volume_title} readOnly />
+            <span className="hint">Fixed after first publish; WordPress finds the volume's pages by it.</span>
+          </label>
+        )}
+        {EPUB_FIELDS.map(([field, label]) => (
+          <label key={field} className="field"><span>{label}</span>
+            <input name={field} defaultValue={volume[field]}
+              placeholder={field === "epub_title"
+                ? render(series.volume_title_template_effective,
+                  { series: series.title, kind: name.kind, index: name.index || null, subtitle: name.subtitle })
+                : undefined} />
+          </label>
         ))}
         {save.isError && <p className="error" role="alert">{save.error.message}</p>}
       </div>
@@ -71,7 +91,7 @@ export function Illustrations({ volume, job, asking, onAsked }: {
     <>
       {asking && !running && (
         <ConfirmDialog title="Publish illustrations" confirmLabel="Publish" busy={start.isPending}
-          message={`Publish the illustrations of "${volume.title}" to WordPress? An existing illustrations page for this volume will be overwritten.`}
+          message={`Publish the illustrations of "${volume.label}" to WordPress? An existing illustrations page for this volume will be overwritten.`}
           error={start.error?.message}
           onConfirm={() => start.mutate(undefined, { onSuccess: onAsked })} onClose={() => { start.reset(); onAsked(); }} />
       )}
