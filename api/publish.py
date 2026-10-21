@@ -109,7 +109,7 @@ def build_chapter(db: Session, doc: Document, prefs: WpPrefs) -> Chapter:
     return Chapter(
         doc_meta={"series_title": series.title, "series_order": doc.series_order,
                   "chapter_title": doc.chapter_title or doc.title,  # ruling 11
-                  "volume_title": volume.title if volume else ""},
+                  "volume_title": volume.wp_name if volume else ""},
         series_meta=series_meta(series), lines=lines, inline_images=inline,
         # build_payload sends the cover with chapter 1 only, so only that one is shrunk
         cover_image=image_dict(cover) if cover is not None and doc.series_order == 1 else None,
@@ -140,6 +140,14 @@ def record(doc: Document, result: dict, scheduled: datetime | None) -> bool:
     doc.wp_scheduled_for = scheduled
     doc.wp_chapter_index = doc.series_order
     return True
+
+
+def freeze_volume_name(db: Session, volume_id: int | None) -> None:
+    """Pin the volume_title WordPress was just sent: the plugin finds the volume's pages by
+    that string, so after the first publish it must never change."""
+    volume = db.get(Volume, volume_id) if volume_id is not None else None
+    if volume is not None and volume.wp_volume_title is None:
+        volume.wp_volume_title = volume.wp_name  # unset, so this is the computed label
 
 
 def apply_remote_status(doc: Document, result: dict) -> None:

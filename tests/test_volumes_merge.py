@@ -8,7 +8,8 @@ site = scrape_tests.site  # the fake-syosetu fixture
 
 
 def _volume(client, series, title):
-    return client.post(f"/series/{series.id}/volumes", json={"title": title}).json()["id"]
+    r = client.post(f"/series/{series.id}/volumes", json={"kind": "", "subtitle": title})
+    return r.json()["id"]
 
 
 def _merge(client, series, ids, into):
@@ -45,11 +46,11 @@ def test_merge_moves_chapters_and_groups_and_deletes_the_others(app_client, plai
     assert db.query(VolumeSyosetuGroup).filter_by(series_id=s.id).one().volume_id == v[1]
 
 
-def test_the_survivor_keeps_its_title_and_epub_fields(app_client, plain, db):
+def test_the_survivor_keeps_its_name_and_epub_fields(app_client, plain, db):
     s, v = plain
     app_client.patch(f"/volumes/{v[2]}", json={"epub_author": "Someone"})
     body = _merge(app_client, s, [v[0], v[2]], v[2]).json()
-    assert (body["title"], body["epub_author"]) == ("V3", "Someone")
+    assert (body["label"], body["epub_author"]) == ("V3", "Someone")
 
 
 def test_merge_keeps_reading_order_in_a_plain_series(app_client, plain, db):
@@ -106,3 +107,19 @@ def test_merge_is_409_while_a_fetch_runs(app_client, me, make_series, site, db):
     ids = [v.id for v in db.query(Volume).filter_by(series_id=s.id)]
     app_client.post(f"/series/{s.id}/syosetu/fetch", json={"nums": [3]})
     assert _merge(app_client, s, ids, ids[0]).status_code == 409
+
+
+def test_merge_keeps_survivor_names(app_client, me, make_series, db):
+    s = make_series(me, "Names")
+    made = []
+    for body in ({"kind": "Volume", "volume_index": "2", "subtitle": "Two"},
+                 {"kind": "Side Story", "volume_index": "1"}):
+        made.append(app_client.post(f"/series/{s.id}/volumes", json=body).json()["id"])
+    db.get(Volume, made[0]).wp_volume_title = "WP Two"
+    db.flush()
+    assert _merge(app_client, s, made, made[0]).status_code == 200
+    db.expire_all()
+    vol = db.get(Volume, made[0])
+    assert (vol.kind, int(vol.volume_index), vol.subtitle, vol.wp_volume_title) == (
+        "Volume", 2, "Two", "WP Two")
+    assert db.get(Volume, made[1]) is None

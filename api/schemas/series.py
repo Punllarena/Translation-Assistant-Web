@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from api.core.volume_names import validate_template
 from api.schemas.common import Patch, Title
 
 
@@ -24,6 +25,14 @@ class SeriesUpdate(Patch):
     wp_series_title_short: str | None = None
     wp_password_enabled: bool | None = None
     wp_unlock_after: int | None = Field(default=None, ge=0, le=2**31 - 1)
+    volume_title_template: str | None = Field(default=None, max_length=300)  # "" resets
+
+    @field_validator("volume_title_template")
+    @classmethod
+    def _template_is_valid(cls, v: str | None) -> str | None:
+        if v:
+            validate_template(v)
+        return v
 
 
 class SeriesOut(BaseModel):
@@ -39,4 +48,6 @@ class SeriesOut(BaseModel):
     wp_unlock_after: int | None
     syosetu_volume_mode: str
     syosetu_volume_marker: str
+    volume_title_template: str
+    volume_title_template_effective: str
     created_at: datetime

@@ -25,7 +25,7 @@ def test_each_orphan_gets_its_own_series_with_a_free_title(db, make_user, make_s
     a = make_user(email="a@example.com")
     b = make_user(email="b@example.com")
     story = make_series(a, "Story")
-    vol = Volume(series_id=story.id, title="V", volume_order=1)
+    vol = Volume(series_id=story.id, subtitle="V", volume_order=1)
     db.add(vol)
     db.flush()
     db.execute(text("ALTER TABLE documents ALTER COLUMN series_id DROP NOT NULL"))

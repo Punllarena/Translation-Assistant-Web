@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
@@ -7,14 +8,19 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
+    and_,
     func,
+    literal,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql.elements import ColumnElement
 
+from api.core import volume_names
 from api.db import Base
 
 
@@ -45,6 +51,10 @@ class Series(Base):
         Text, nullable=False, default="", server_default=""
     )
     syosetu_headings: Mapped[list | None] = mapped_column(JSONB)
+    # How a volume's EPUB title is built (api/core/volume_names.py); '' = the default.
+    volume_title_template: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -56,18 +66,26 @@ class Series(Base):
         back_populates="series", cascade="all, delete-orphan"
     )
 
+    @property
+    def volume_title_template_effective(self) -> str:
+        return self.volume_title_template or volume_names.DEFAULT_TEMPLATE
+
 
 class Volume(Base):
+    """Named by kind + decimal index + subtitle; unique per series by (kind, index), or by
+    (kind, subtitle) when unnumbered (indexes below the class)."""
+
     __tablename__ = "volumes"
-    __table_args__ = (
-        UniqueConstraint("series_id", "title"),
-    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     series_id: Mapped[int] = mapped_column(
         ForeignKey("series.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    title: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(
+        Text, nullable=False, default="Volume", server_default="Volume"
+    )
+    volume_index: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
+    subtitle: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
     volume_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     epub_title: Mapped[str] = mapped_column(Text, nullable=False, default="")
     epub_author: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -78,7 +96,53 @@ class Volume(Base):
     epub_illustrator: Mapped[str] = mapped_column(Text, nullable=False, default="")
     epub_publisher: Mapped[str] = mapped_column(Text, nullable=False, default="")
     epub_identifier: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # What WordPress was first sent as volume_title; the plugin keys pages on it, so it
+    # never changes once set. None = never published.
+    wp_volume_title: Mapped[str | None] = mapped_column(Text)
     series: Mapped[Series] = relationship(back_populates="volumes")
+
+    @classmethod
+    def named(cls, kind: str, index: Decimal | None, subtitle: str) -> ColumnElement[bool]:
+        """SQL for "has this name", by the keys of the unique indexes below."""
+        # Both sides through Postgres' lower(), so the match is the unique index's own.
+        same_kind = func.lower(cls.kind) == func.lower(literal(kind, Text))
+        if index is not None:
+            return and_(same_kind, cls.volume_index == index)
+        return and_(same_kind, cls.volume_index.is_(None), cls.subtitle == subtitle)
+
+    @property
+    def label(self) -> str:
+        return volume_names.label(self.kind, self.volume_index, self.subtitle)
+
+    @property
+    def full_title(self) -> str:
+        """The effective EPUB title: the override, else the series template."""
+        override = (self.epub_title or "").strip()
+        if override:
+            return override
+        series = self.series
+        rendered = volume_names.render(
+            series.volume_title_template_effective, series=series.title,
+            kind=self.kind, index=self.volume_index, subtitle=self.subtitle,
+        )
+        return rendered or self.label or series.title
+
+    @property
+    def wp_name(self) -> str:
+        """The volume_title WordPress gets: frozen after the first publish."""
+        return self.wp_volume_title or volume_names.wp_label(
+            self.kind, self.volume_index, self.subtitle
+        )
+
+
+Index(
+    "uq_volumes_kind_index", Volume.series_id, func.lower(Volume.kind), Volume.volume_index,
+    unique=True, postgresql_where=Volume.volume_index.is_not(None),
+)
+Index(
+    "uq_volumes_kind_subtitle", Volume.series_id, func.lower(Volume.kind), Volume.subtitle,
+    unique=True, postgresql_where=Volume.volume_index.is_(None),
+)
 
 
 class VolumeSyosetuGroup(Base):

@@ -4,7 +4,10 @@ import type { VolumeGroup, VolumeKey } from "./volumeGroups";
 /** The drag payload a chapter row carries: its document id. */
 export const CHAPTER_MIME = "application/x-ta-chapter";
 
-export const groupTitle = (g: VolumeGroup) => g.volume?.title ?? "No volume";
+/** The drag payload a volume row's grip carries: its volume id. */
+export const VOLUME_MIME = "application/x-ta-volume";
+
+export const groupTitle = (g: VolumeGroup) => g.volume?.label ?? "No volume";
 
 export function VolumeCover({ group }: { group: VolumeGroup }) {
   return group.coverImageId != null
@@ -20,6 +23,7 @@ export function Progress({ value }: { value: number }) {
 }
 
 const carriesChapter = (e: DragEvent) => e.dataTransfer.types.includes(CHAPTER_MIME);
+const carriesVolume = (e: DragEvent) => e.dataTransfer.types.includes(VOLUME_MIME);
 
 function VolumeInfo({ group }: { group: VolumeGroup }) {
   return (
@@ -34,16 +38,19 @@ function VolumeInfo({ group }: { group: VolumeGroup }) {
   );
 }
 
-/** The left pane: one entry per volume (and "No volume"), each a drop target for chapter rows.
- *  In select mode volumes get checkboxes (shift-click ticks a range) and nothing is a drop target. */
-export default function VolumeList({ groups, selected, onSelect, onNewVolume, onDropChapter,
+/** The left pane: one entry per volume (and "No volume"), each a drop target for chapter rows. A volume's
+ *  grip drags it to another volume's place. In select mode volumes get checkboxes (shift-click ticks a
+ *  range) and nothing is a drop target or draggable. */
+export default function VolumeList({ groups, selected, onSelect, onNewVolume, onDropChapter, onMoveVolume,
   selecting, picked, onToggleSelecting, onPick, onMerge }: {
   groups: VolumeGroup[]; selected: VolumeKey | null; onSelect: (key: VolumeKey) => void;
   onNewVolume: () => void; onDropChapter: (docId: number, key: VolumeKey) => void;
+  onMoveVolume: (fromId: number, toId: number) => void;
   selecting: boolean; picked: Set<number>; onToggleSelecting: () => void;
   onPick: (id: number, shift: boolean) => void; onMerge: () => void;
 }) {
   const [over, setOver] = useState<VolumeKey | null>(null);
+  const [dragging, setDragging] = useState<number | null>(null); // styling only
   return (
     <nav className="vol-list" aria-label="Volumes">
       <div className="vol-list-head">
@@ -68,11 +75,22 @@ export default function VolumeList({ groups, selected, onSelect, onNewVolume, on
             )}
           </li>
         ) : (
-          <li key={g.key}>
-            <button type="button" className={over === g.key ? "vol-item drop" : "vol-item"}
+          <li key={g.key} className="vol-row">
+            {g.volume ? (
+              <span className="grip" draggable title="Drag to reorder" aria-hidden="true"
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(VOLUME_MIME, String(g.volume!.id));
+                  e.dataTransfer.effectAllowed = "move";
+                  // Chrome cancels a drag whose source is re-rendered inside dragstart.
+                  const id = g.volume!.id;
+                  setTimeout(() => setDragging(id));
+                }}
+                onDragEnd={() => { setDragging(null); setOver(null); }}>⠿</span>
+            ) : <span className="grip-gap" aria-hidden="true" />}
+            <button type="button" className={[over === g.key ? "vol-item drop" : "vol-item", g.volume && dragging === g.volume.id ? "dragging" : ""].join(" ").trim()}
               aria-current={g.key === selected ? "true" : undefined} onClick={() => onSelect(g.key)}
               onDragOver={(e) => {
-                if (!carriesChapter(e)) return;
+                if (!carriesChapter(e) && !(g.volume && carriesVolume(e))) return;
                 e.preventDefault();
                 e.dataTransfer.dropEffect = "move";
                 setOver(g.key);
@@ -80,6 +98,13 @@ export default function VolumeList({ groups, selected, onSelect, onNewVolume, on
               onDragLeave={() => setOver((k) => (k === g.key ? null : k))}
               onDrop={(e) => {
                 setOver(null);
+                const moved = Number(e.dataTransfer.getData(VOLUME_MIME));
+                if (moved && g.volume) {
+                  e.preventDefault();
+                  setDragging(null);
+                  if (moved !== g.volume.id) onMoveVolume(moved, g.volume.id);
+                  return;
+                }
                 const id = Number(e.dataTransfer.getData(CHAPTER_MIME));
                 if (!id) return;
                 e.preventDefault();

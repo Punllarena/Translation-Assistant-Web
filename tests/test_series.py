@@ -66,7 +66,7 @@ def test_rename_onto_existing_title_is_409(app_client, me, make_series):
 
 def test_delete_removes_the_chapters_and_volumes(app_client, db, me, make_series, make_doc):
     series = make_series(me)
-    volume = Volume(series_id=series.id, title="V1")
+    volume = Volume(series_id=series.id, subtitle="V1")
     db.add(volume)
     db.flush()
     doc = make_doc(me, ["a"], series=series, order=1, volume=volume)
@@ -165,3 +165,45 @@ def test_changing_the_syosetu_url_forgets_the_old_headings(app_client, me, make_
     app_client.patch(f"/series/{s.id}", json={"syosetu_url": "https://ncode.syosetu.com/n2/"})
     db.refresh(s)
     assert (s.syosetu_headings, s.syosetu_volume_mode, s.syosetu_volume_marker) == (None, "all", "")
+
+
+def test_template_round_trip(app_client, me, make_series):
+    s = make_series(me, "S")
+    r = app_client.post(f"/series/{s.id}/volumes", json={"volume_index": "2"})
+    assert r.status_code == 201
+    r = app_client.patch(f"/series/{s.id}", json={"volume_title_template": "{series} Vol. {index}"})
+    assert r.status_code == 200
+    assert r.json()["volume_title_template"] == "{series} Vol. {index}"
+    assert r.json()["volume_title_template_effective"] == "{series} Vol. {index}"
+    vols = app_client.get(f"/series/{s.id}/volumes").json()
+    assert vols[0]["full_title"] == "S Vol. 2"
+
+
+def test_template_rejects_unknown_placeholder(app_client, me, make_series):
+    s = make_series(me, "S")
+    r = app_client.patch(f"/series/{s.id}", json={"volume_title_template": "{Series}"})
+    assert r.status_code == 422
+    assert "Series" in r.text
+
+
+def test_template_rejects_overlong(app_client, me, make_series):
+    s = make_series(me, "S")
+    r = app_client.patch(f"/series/{s.id}", json={"volume_title_template": "x" * 301})
+    assert r.status_code == 422
+
+
+def test_template_null_is_422(app_client, me, make_series):
+    s = make_series(me, "S")
+    r = app_client.patch(f"/series/{s.id}", json={"volume_title_template": None})
+    assert r.status_code == 422
+
+
+def test_template_blank_means_default(app_client, me, make_series):
+    from api.core.volume_names import DEFAULT_TEMPLATE
+
+    s = make_series(me, "S")
+    app_client.patch(f"/series/{s.id}", json={"volume_title_template": "{series} Vol. {index}"})
+    r = app_client.patch(f"/series/{s.id}", json={"volume_title_template": ""})
+    assert r.status_code == 200
+    assert r.json()["volume_title_template"] == ""
+    assert r.json()["volume_title_template_effective"] == DEFAULT_TEMPLATE

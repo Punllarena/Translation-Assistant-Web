@@ -27,7 +27,7 @@ export default function MergeVolumesDialog({ seriesId, volumes, onClose, onMerge
           <legend>Keep the name and details of:</legend>
           {volumes.map((v) => (
             <label key={v.id}>
-              <input type="radio" name="into" checked={into === v.id} onChange={() => setInto(v.id)} /> {v.title}
+              <input type="radio" name="into" checked={into === v.id} onChange={() => setInto(v.id)} /> {v.label}
             </label>
           ))}
         </fieldset>

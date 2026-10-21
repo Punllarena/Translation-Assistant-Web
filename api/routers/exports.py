@@ -61,7 +61,7 @@ def export_series_markdown(
         )
         if volume is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
-        label = f"{series.title} - {volume.title}"
+        label = volume.full_title
         docs = [d for d in docs if d.volume_id == volume.id]
     build = build_markdown_ruby if variant == "ruby" else build_markdown_translation
     skipped = 0

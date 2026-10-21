@@ -6,6 +6,7 @@
 import os
 import subprocess
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
@@ -114,7 +115,7 @@ def main() -> None:
         lib = Series(user_id=user.id, title="E2E library series")
         db.add(lib)
         db.flush()
-        vol_a = Volume(series_id=lib.id, title="Vol A", volume_order=1)
+        vol_a = Volume(series_id=lib.id, kind="", subtitle="Vol A", volume_order=1)
         db.add(vol_a)
         db.flush()
         for order, (title, volume_id) in enumerate((
@@ -130,7 +131,21 @@ def main() -> None:
         ev = Series(user_id=user.id, title="E2E epub volume series")
         db.add(ev)
         db.flush()
-        db.add(Volume(series_id=ev.id, title="Vol existing", volume_order=1))
+        db.add(Volume(series_id=ev.id, kind="", subtitle="Vol existing", volume_order=1))
+        # volumes.spec: three numbered volumes, one chapter each; nothing else opens this series
+        vn = Series(user_id=user.id, title="E2E volume naming series")
+        db.add(vn)
+        db.flush()
+        for n in (1, 2, 3):
+            v = Volume(series_id=vn.id, kind="Volume", volume_index=Decimal(n), volume_order=n)
+            db.add(v)
+            db.flush()
+            ch = Document(user_id=user.id, title=f"Naming chapter {n}", series_id=vn.id,
+                          volume_id=v.id, series_order=n)
+            db.add(ch)
+            db.flush()
+            write_lines(db, ch.id, [{"line_number": 0, "prefix": "%", "raw_text": "巻です。",
+                                     "translated_text": ""}])
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)

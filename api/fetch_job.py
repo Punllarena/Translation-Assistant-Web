@@ -6,7 +6,7 @@ resumes an interrupted fetch (ruling 10). A chapter under a syosetu chapter-titl
 heading goes into the volume made from that heading (VolumeSyosetuGroup), created on
 first sight; chapters already in the series are never moved."""
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from api import server_settings
 from api.core import scrape
@@ -15,6 +15,7 @@ from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.jobs import JobContext, JobError, handler
 from api.library import check_line_count, write_lines
 from api.models import Document, Job, Series, Volume, VolumeSyosetuGroup
+from api.volume_order import place as place_volume
 
 http_client = scrape.client  # the seam tests replace
 
@@ -38,22 +39,22 @@ def fetch_active(db, user_id: int, series_id: int) -> bool:
 
 def group_volume(db, series_id: int, heading: str) -> Volume:
     """The volume holding ``heading``'s chapters: matched by the hidden key, so renaming
-    it is safe; otherwise a new last volume titled after the heading (suffixed when that
-    title is taken)."""
+    it is safe; otherwise a new unkinded, unnumbered volume placed after the last unkinded
+    one (else at the end), with the heading as its subtitle (suffixed while that is taken)."""
     volume = db.scalar(select(Volume).join(
         VolumeSyosetuGroup, VolumeSyosetuGroup.volume_id == Volume.id).where(
         VolumeSyosetuGroup.series_id == series_id, VolumeSyosetuGroup.heading == heading))
     if volume is not None:
         return volume
-    taken = set(db.scalars(select(Volume.title).where(Volume.series_id == series_id)))
-    title, n = heading, 2
-    while title in taken:
-        title, n = f"{heading} ({n})", n + 1
-    order = db.scalar(select(func.coalesce(func.max(Volume.volume_order), 0) + 1)
-                      .where(Volume.series_id == series_id))
-    volume = Volume(series_id=series_id, title=title, volume_order=order)
+    taken = set(db.scalars(select(Volume.subtitle).where(
+        Volume.series_id == series_id, Volume.kind == "", Volume.volume_index.is_(None))))
+    subtitle, n = heading, 2
+    while subtitle in taken:
+        subtitle, n = f"{heading} ({n})", n + 1
+    volume = Volume(series_id=series_id, kind="", subtitle=subtitle, volume_order=0)
     db.add(volume)
     db.flush()
+    place_volume(db, volume)
     db.add(VolumeSyosetuGroup(series_id=series_id, volume_id=volume.id, heading=heading))
     db.flush()
     return volume

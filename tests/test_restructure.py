@@ -231,7 +231,7 @@ def test_split_original_keeps_wp_fields_new_segments_unpublished(db, user, chapt
 
 
 def test_split_new_segments_inherit_volume(db, user, series, make_doc):
-    vol = Volume(series_id=series.id, title="Vol 1")
+    vol = Volume(series_id=series.id, subtitle="Vol 1")
     db.add(vol)
     db.flush()
     doc = make_doc(user, ["l0", "l1", "l2", "l3"], series=series, order=1, volume=vol)

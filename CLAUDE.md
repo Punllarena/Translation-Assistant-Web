@@ -96,6 +96,13 @@ volumes keep receiving chapters; a merged volume holds several). `POST /series/{
 (`api/syosetu_regroup.py`) previews or applies a setting change: it never deletes volumes and never moves chapters out of
 volumes with no heading link. `POST /series/{id}/volumes/merge` merges volumes into one (the Volumes tab's Select mode).
 
+Volume naming: a volume has `kind` / `volume_index` (Numeric(10,3), optional) / `subtitle`, not a title; names are unique ignoring case
+by kind + index, or kind + subtitle when unnumbered (partial indexes `uq_volumes_kind_index` / `uq_volumes_kind_subtitle`; migration
+`6182106ad19b` split old titles). The rules are `api/core/volume_names.py` and its TS twin `web/src/library/volumeNames.ts` (camelCase
+names), both tested against `volumeNames.cases.json`. `Volume.full_title` = `epub_title` override, else the series' `volume_title_template`
+(blank = `DEFAULT_TEMPLATE`); `Volume.label` is the short SPA form. `api/volume_order.place` positions new and re-keyed volumes (ta.db import
+appends in desktop order; an explicit `volume_order` on create is kept). `volumes.wp_volume_title` freezes at the first publish; WordPress gets `Volume.wp_name`.
+
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
 

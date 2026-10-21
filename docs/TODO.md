@@ -2,27 +2,19 @@
 
 Deferred work, recorded so it can be picked up later. Newest first.
 
-## WordPress plugin: how it uses `volume_title`
+## EPUB: series position metadata
 
-*Raised 2026-10-21 during the volume naming design
+*Raised 2026-10-21 during the volume naming work
 (`docs/superpowers/specs/2026-10-21-volume-naming-design.md`).*
 
-The volume naming change replaces `volumes.title` with kind + index + subtitle and a
-series-level title template. `api/core/wp.py:145` (chapter publish) and `api/core/wp.py:292`
-(volume illustrations) send `volume_title` to the WordPress plugin, which lives outside this
-repo. What the plugin does with it is unknown.
+Volumes now carry a numeric `volume_index`, but the EPUB built by `api/core/epub_build.py` does
+not record where a volume sits in its series, so readers cannot sort volumes of one series.
 
 To do:
 
-- Check the plugin: does it find or group volume pages by the `volume_title` string, or only
-  display it?
-- If it keys on it: changing the string splits already-published volumes into duplicates.
-  Add a `wp_volume_title` column, filled from `title` in the naming migration (before `title`
-  is dropped), and keep sending it for volumes that were already published.
-- If it only displays it: pick what it shows. The full generated title ("Series - Volume 3 -
-  Subtitle") repeats the series name, since `series_title` is sent separately; the short label
-  ("Volume 3 - Subtitle") doesn't.
-- Either way, settle this before the naming migration ships, because `title` is gone afterwards.
+- Write `calibre:series` / `calibre:series_index` (EPUB 2 meta) from the series title and `volume_index`.
+- Write EPUB 3 `belongs-to-collection` (collection type `series`) with `group-position` from `volume_index`.
+- Skip both for unnumbered volumes (no `volume_index`).
 
 ## WordPress: volume-aware chapter indexing
 
@@ -64,3 +56,16 @@ last in the volume (after the final chapter).
 - Relate this to the WordPress "Publish illustrations" job (`wp_illustrations`), which today
   builds the illustrations page from the volume's images; decide whether it should publish this
   chapter instead.
+
+## WordPress: volume names must be unique per series
+
+*Raised 2026-10-21 (volume naming review).*
+
+The naming indexes keep `(kind, index)` and `(kind, subtitle)` unique, but WordPress gets
+`Volume.wp_name` (`wp_volume_title`, else `wp_label(kind, index, subtitle)`), and two different
+names can share it: an unkinded volume subtitled "Volume 3" and Volume 3 both send
+"Volume 3". The plugin keys the TOC heading and the illustrations page on that string, so
+publishing both would merge them on the site.
+
+Not blocked today. Option: refuse (409) a create or PATCH whose `wp_label` collides with
+another volume's `wp_name` in the same series, and report collisions left by the migration.

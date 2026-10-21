@@ -38,7 +38,7 @@ def test_create_in_series_appends(app_client, me, make_series, make_doc):
 
 def test_volume_must_belong_to_the_named_series(app_client, db, me, make_series):
     a, b = make_series(me, "A"), make_series(me, "B")
-    vol = Volume(series_id=b.id, title="V")
+    vol = Volume(series_id=b.id, subtitle="V")
     db.add(vol)
     db.flush()
     wrong = app_client.post(
@@ -73,7 +73,7 @@ def test_list_reports_progress_and_only_mine(app_client, db, me, make_user, make
 
 def test_moving_series_appends_and_leaves_volume(app_client, db, me, make_series, make_doc):
     a, b = make_series(me, "A"), make_series(me, "B")
-    vol = Volume(series_id=a.id, title="V")
+    vol = Volume(series_id=a.id, subtitle="V")
     db.add(vol)
     db.flush()
     make_doc(me, series=b, order=7)
@@ -84,7 +84,7 @@ def test_moving_series_appends_and_leaves_volume(app_client, db, me, make_series
 
 def test_patch_volume_of_another_series_is_422(app_client, db, me, make_series, make_doc):
     a, b = make_series(me, "A"), make_series(me, "B")
-    vol = Volume(series_id=b.id, title="V")
+    vol = Volume(series_id=b.id, subtitle="V")
     db.add(vol)
     db.flush()
     doc = make_doc(me, series=a)
@@ -126,7 +126,7 @@ def test_create_line_count_is_capped(app_client, me, make_series, monkeypatch):
     [
         ("patch", "/documents/1", {"last_position": 2**31}),
         ("patch", "/series/1", {"wp_unlock_after": 2**31}),
-        ("post", "/series/1/volumes", {"title": "V", "volume_order": 2**31}),
+        ("post", "/series/1/volumes", {"subtitle": "V", "volume_order": 2**31}),
     ],
 )
 def test_integer_fields_are_bounded(app_client, me, method, path, body):

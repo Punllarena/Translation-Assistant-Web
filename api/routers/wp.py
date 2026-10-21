@@ -115,6 +115,8 @@ def publish_chapter(
         except WPPublishError as exc:
             raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     written = publish.record(doc, result, body.scheduled_for)
+    if written:
+        publish.freeze_volume_name(db, doc.volume_id)
     db.flush()
     return PublishOut(
         created=bool(result.get("created")), updated=bool(result.get("updated")),

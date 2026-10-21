@@ -53,7 +53,7 @@ export default function MoveDialog({ ids, currentSeriesId, currentVolumeId, onCl
         </label>
         <label className="field"><span>Volume</span>
           <select value={volume} onChange={(e) => setVolume(e.target.value)}>
-            {options.map((v) => <option key={v.id} value={v.id}>{v.title}</option>)}
+            {options.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
             <option value="none">No volume</option>
           </select>
         </label>

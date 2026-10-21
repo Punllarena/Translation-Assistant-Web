@@ -7,6 +7,8 @@ import type { Doc, SeriesRow } from "./shelf";
 import { invalidateLibrary, useAllVolumes } from "./queries";
 import MergeVolumesDialog from "./MergeVolumesDialog";
 import NewVolumeDialog from "./NewVolumeDialog";
+import { moveItem } from "./order";
+import { kindOptions } from "./VolumeNameFields";
 import { pickedInOrder, rangeToggle } from "./rangeToggle";
 import VolumeList from "./VolumeList";
 import VolumePane from "./VolumePane";
@@ -48,9 +50,22 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
     const from = groups.find((g) => g.docs.some((d) => d.id === docId));
     if (from && from.key !== key) assign.mutate({ docId, key });
   };
+  // Dragging a volume onto another puts it at that volume's place; the API answers with the new order.
+  const reorder = useMutation({
+    mutationFn: (ids: number[]) =>
+      call(api.PUT("/series/{series_id}/volumes/order", { params: { path: { series_id: series.id } }, body: { volume_ids: ids } })),
+    onSettled: () => invalidateLibrary(queryClient),
+  });
   if (volumes.isPending) return <p className="muted">Loading volumes…</p>;
   if (volumes.isError) return <p className="error" role="alert">{volumes.error.message}</p>;
   const newVolume = () => setCreating(true);
+  const allVolumes = groups.flatMap((g) => (g.volume ? [g.volume] : []));
+  const kinds = kindOptions(allVolumes);
+  const moveVolume = (fromId: number, toId: number) => {
+    const ids = allVolumes.map((v) => v.id);
+    const from = ids.indexOf(fromId), to = ids.indexOf(toId);
+    if (from >= 0 && to >= 0 && from !== to) reorder.mutate(moveItem(ids, from, to));
+  };
   const order = groups.flatMap((g) => (g.volume ? [g.volume.id] : []));
   const leaveSelecting = () => { setSelecting(false); setPicked(new Set()); setAnchor(null); };
   const pick = (id: number, shift: boolean) => { setPicked((p) => rangeToggle(order, p, id, anchor, shift)); setAnchor(id); };
@@ -59,13 +74,14 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
   return (
     <div className={hasVolumes ? "vol-panes" : "vol-panes single"}>
       {hasVolumes && (
-        <VolumeList groups={groups} selected={group.key} onSelect={select} onNewVolume={newVolume} onDropChapter={dropChapter}
+        <VolumeList groups={groups} selected={group.key} onSelect={select} onNewVolume={newVolume} onDropChapter={dropChapter} onMoveVolume={moveVolume}
           selecting={selecting} picked={live} onPick={pick} onMerge={() => setMerging(true)}
           onToggleSelecting={() => (selecting ? leaveSelecting() : setSelecting(true))} />
       )}
-      <section className="vol-pane" aria-label={group.volume?.title ?? "Chapters"}>
+      <section className="vol-pane" aria-label={group.volume?.label ?? "Chapters"}>
         <VolumePane key={`head-${group.key}`} series={series} group={group} syosetu={syosetu} hasVolumes={hasVolumes}
-          onNewVolume={newVolume} />
+          onNewVolume={newVolume} kinds={kinds} />
+        {reorder.isError && <p className="error" role="alert">{reorder.error.message}</p>}
         {assign.isError && <p className="error" role="alert">{assign.error.message}</p>}
         <ChapterTable key={`table-${group.key}`} series={series} group={group} groups={groups} syosetu={syosetu} />
       </section>
@@ -74,7 +90,7 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
           onMerged={(id) => { setMerging(false); leaveSelecting(); select(id); }} />
       )}
       {creating && (
-        <NewVolumeDialog series={series} onClose={() => setCreating(false)}
+        <NewVolumeDialog series={series} volumes={allVolumes} onClose={() => setCreating(false)}
           onCreated={(id) => { setCreating(false); select(id); }} />
       )}
     </div>

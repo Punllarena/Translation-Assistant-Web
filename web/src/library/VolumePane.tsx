@@ -12,7 +12,7 @@ import VolumeDetails, { Illustrations, useIllustrations } from "./VolumeDetails"
 import { groupTitle, VolumeCover } from "./VolumeList";
 import type { VolumeGroup } from "./volumeGroups";
 
-type Open = null | "publish" | "details" | "illustrations" | "delete" | "chapter" | "renumber";
+type Open = null | "publish" | "details" | "illustrations" | "delete" | "chapter" | "renumber" | "sort";
 
 function editedLabel(group: VolumeGroup): string | null {
   let at: string | null = null;
@@ -22,8 +22,9 @@ function editedLabel(group: VolumeGroup): string | null {
 
 /** The selected volume's header: cover, title, counts and the volume-level actions. The "No volume"
  *  group only offers New chapter (and New volume when the series has none yet). */
-export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVolume }: {
+export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVolume, kinds }: {
   series: SeriesRow; group: VolumeGroup; syosetu: boolean; hasVolumes: boolean; onNewVolume: () => void;
+  kinds: string[];
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState<Open>(null);
@@ -31,12 +32,17 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
   const changed = () => invalidateLibrary(queryClient);
   const illustrations = useIllustrations(volume);
   const epub = useMutation({
-    mutationFn: () => downloadBlob(`/api/volumes/${volume!.id}/export/epub`, `${volume!.title}.epub`),
+    mutationFn: () => downloadBlob(`/api/volumes/${volume!.id}/export/epub`, `${volume!.full_title}.epub`),
   });
   const renumber = useMutation({
     mutationFn: () => call(api.POST("/series/{series_id}/renumber", { params: { path: { series_id: series.id } } })),
     onSettled: changed,
     onSuccess: () => setOpen((o) => (o === "renumber" ? null : o)),
+  });
+  const sort = useMutation({
+    mutationFn: () => call(api.POST("/series/{series_id}/volumes/sort", { params: { path: { series_id: series.id } } })),
+    onSettled: changed,
+    onSuccess: () => setOpen((o) => (o === "sort" ? null : o)),
   });
   const remove = useMutation({
     mutationFn: () => call(api.DELETE("/volumes/{volume_id}", { params: { path: { volume_id: volume!.id } } })),
@@ -84,6 +90,8 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
                       <button type="button" role="menuitem"
                         onClick={() => { close(); renumber.reset(); setOpen("renumber"); }}>Renumber all volumes by title</button>
                     )}
+                    <button type="button" role="menuitem"
+                      onClick={() => { close(); sort.reset(); setOpen("sort"); }}>Sort volumes by number</button>
                     <button type="button" role="menuitem" className="danger"
                       onClick={() => { close(); remove.reset(); setOpen("delete"); }}>Delete volume</button>
                   </>
@@ -102,16 +110,21 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
         {volume && <Illustrations volume={volume} job={illustrations} asking={open === "illustrations"} onAsked={() => setOpen(null)} />}
       </div>
       {open === "publish" && <BatchPublish ids={group.docs.map((d) => d.id)} onClose={() => setOpen(null)} />}
-      {open === "details" && volume && <VolumeDetails volume={volume} onClose={() => setOpen(null)} />}
+      {open === "details" && volume && <VolumeDetails volume={volume} series={series} kinds={kinds} onClose={() => setOpen(null)} />}
       {open === "delete" && volume && (
         <ConfirmDialog title="Delete volume" confirmLabel="Delete volume" danger busy={remove.isPending}
-          message={`Delete volume "${volume.title}"? Its chapters stay in the series.`} error={remove.error?.message}
+          message={`Delete volume "${volume.label}"? Its chapters stay in the series.`} error={remove.error?.message}
           onConfirm={() => remove.mutate()} onClose={() => setOpen(null)} />
       )}
       {open === "renumber" && (
         <ConfirmDialog title="Renumber by title" confirmLabel="Renumber" busy={renumber.isPending}
           message="Renumber every chapter in this series by title? Each volume is sorted by chapter title."
           error={renumber.error?.message} onConfirm={() => renumber.mutate()} onClose={() => setOpen(null)} />
+      )}
+      {open === "sort" && (
+        <ConfirmDialog title="Sort volumes by number" confirmLabel="Sort" busy={sort.isPending}
+          message="Sort volumes by kind and number? Volumes you placed by hand will move."
+          error={sort.error?.message} onConfirm={() => sort.mutate()} onClose={() => setOpen(null)} />
       )}
       {open === "chapter" && (
         <NewDocument seriesId={series.id} volumeId={volume?.id ?? null} onClose={() => setOpen(null)} />

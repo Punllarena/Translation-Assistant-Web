@@ -1177,10 +1177,51 @@ export interface paths {
         put?: never;
         /**
          * Merge Volumes
-         * @description Merge several volumes into ``into``: it keeps its own title and EPUB details and
-         *     takes the others' chapters and syosetu headings; the others are deleted.
+         * @description Merge several volumes into ``into``: it keeps its own kind, index, subtitle, EPUB
+         *     details and WordPress name and takes the others' chapters and syosetu headings; the
+         *     others are deleted.
          */
         post: operations["merge_volumes_series__series_id__volumes_merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/volumes/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Reorder Volumes
+         * @description Drag-and-drop: the body lists every volume of the series once, in the new order.
+         */
+        put: operations["reorder_volumes_series__series_id__volumes_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/volumes/sort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sort Volumes
+         * @description Sort by number: Volume by index, other kinds alphabetically, unkinded last.
+         */
+        post: operations["sort_volumes_series__series_id__volumes_sort_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1640,8 +1681,21 @@ export interface components {
              * @default
              */
             series_title: string;
-            /** Volume Title */
-            volume_title: string;
+            /**
+             * Volume Index
+             * @default
+             */
+            volume_index: string;
+            /**
+             * Volume Kind
+             * @default Volume
+             */
+            volume_kind: string;
+            /**
+             * Volume Subtitle
+             * @default
+             */
+            volume_subtitle: string;
         };
         /** Body_import_txt_documents_import_txt_post */
         Body_import_txt_documents_import_txt_post: {
@@ -2386,6 +2440,10 @@ export interface components {
             syosetu_volume_mode: string;
             /** Title */
             title: string;
+            /** Volume Title Template */
+            volume_title_template: string;
+            /** Volume Title Template Effective */
+            volume_title_template_effective: string;
             /** Wp Password Enabled */
             wp_password_enabled: boolean | null;
             /** Wp Series Slug */
@@ -2418,6 +2476,8 @@ export interface components {
             syosetu_url?: string | null;
             /** Title */
             title?: string | null;
+            /** Volume Title Template */
+            volume_title_template?: string | null;
             /** Wp Password Enabled */
             wp_password_enabled?: boolean | null;
             /** Wp Series Slug */
@@ -2663,8 +2723,18 @@ export interface components {
              * @default
              */
             epub_title: string;
-            /** Title */
-            title: string;
+            /**
+             * Kind
+             * @default Volume
+             */
+            kind: string;
+            /**
+             * Subtitle
+             * @default
+             */
+            subtitle: string;
+            /** Volume Index */
+            volume_index?: number | string | null;
             /** Volume Order */
             volume_order?: number | null;
         };
@@ -2685,6 +2755,11 @@ export interface components {
              * @enum {string}
              */
             mode: "all" | "marker" | "off";
+        };
+        /** VolumeIds */
+        VolumeIds: {
+            /** Volume Ids */
+            volume_ids: number[];
         };
         /** VolumeMerge */
         VolumeMerge: {
@@ -2709,16 +2784,29 @@ export interface components {
             epub_publisher: string;
             /** Epub Title */
             epub_title: string;
+            /** Full Title */
+            full_title: string;
             /** Id */
             id: number;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
             /** Series Id */
             series_id: number;
-            /** Title */
-            title: string;
+            /** Subtitle */
+            subtitle: string;
+            /** Volume Index */
+            volume_index: string | null;
             /** Volume Order */
             volume_order: number;
+            /** Wp Volume Title */
+            wp_volume_title: string | null;
         };
-        /** VolumeUpdate */
+        /**
+         * VolumeUpdate
+         * @description The router checks the merged kind/index/subtitle with check_name().
+         */
         VolumeUpdate: {
             /** Epub Author */
             epub_author?: string | null;
@@ -2734,8 +2822,12 @@ export interface components {
             epub_publisher?: string | null;
             /** Epub Title */
             epub_title?: string | null;
-            /** Title */
-            title?: string | null;
+            /** Kind */
+            kind?: string | null;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Volume Index */
+            volume_index?: number | string | null;
             /** Volume Order */
             volume_order?: number | null;
         };
@@ -5328,6 +5420,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VolumeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_volumes_series__series_id__volumes_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeIds"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sort_volumes_series__series_id__volumes_sort_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeOut"][];
                 };
             };
             /** @description Validation Error */

@@ -47,7 +47,7 @@ export default function SeriesPage() {
           <SeriesTools series={series}
             defaultProfileId={series.profile_id ?? profiles.data?.find((p) => p.is_default)?.id ?? null} />
         )}
-        {tab === "settings" && <SeriesSettings series={series} chapterCount={chapters.length} />}
+        {tab === "settings" && <SeriesSettings key={`${series.id}:${series.volume_title_template}`} series={series} chapterCount={chapters.length} />}
       </div>
     </main>
   );
