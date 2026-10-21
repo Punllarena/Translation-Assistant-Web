@@ -24,6 +24,7 @@ from api.core.text import (
     parse_file_content,
     sanitize_filename,
 )
+from api.core.volume_names import parse_title
 from api.deps import current_user, db_session, owned_ref, scoped_volume
 from api.library import (
     arrange,
@@ -88,14 +89,17 @@ def _series(db: Session, user: User, series_id: int | None, title: str) -> Serie
 
 
 def _volume(db: Session, series: Series, title: str, meta: dict[str, str]) -> Volume:
-    volume = db.scalar(select(Volume).where(Volume.series_id == series.id, Volume.title == title))
+    kind, index, subtitle = parse_title(title, series.title)
+    volume = db.scalar(select(Volume).where(
+        Volume.series_id == series.id, Volume.named(kind, index, subtitle)))
     if volume is None:
         order = db.scalar(
             select(func.coalesce(func.max(Volume.volume_order), 0) + 1).where(
                 Volume.series_id == series.id
             )
         )
-        volume = Volume(series_id=series.id, title=title, volume_order=order)
+        volume = Volume(series_id=series.id, kind=kind, volume_index=index, subtitle=subtitle,
+                        volume_order=order)
         db.add(volume)
     for field, value in meta.items():
         if value.strip():
@@ -263,10 +267,10 @@ def export_volume(
     if not chapters:
         raise _unprocessable("the volume has no chapters with content")
     data = build_epub(
-        volume.epub_title or volume.title or volume.series.title, chapters,
+        volume.full_title, chapters,
         language=volume.epub_language or "en", cover=cover,
         creator=volume.epub_author, illustrator=volume.epub_illustrator,
         publisher=volume.epub_publisher, identifier=volume.epub_identifier,
     )
-    name = f"{sanitize_filename(volume.title) or 'volume'}.epub"
+    name = f"{sanitize_filename(volume.full_title) or 'volume'}.epub"
     return Response(data, media_type="application/epub+zip", headers=attachment(name))

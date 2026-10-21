@@ -85,7 +85,7 @@ def publish_illustrations(ctx: JobContext) -> dict:
     if not inline and cover is None:
         raise JobError("This volume has no illustrations to publish.")
     payloads = wp.build_illustrations_payloads(
-        {"series_title": series.title, "volume_title": volume.title},
+        {"series_title": series.title, "volume_title": volume.wp_name},
         publish.series_meta(series), inline, api_key=key, cover=cover)
     ctx.progress(0, len(payloads), "Uploading")
     first: dict | None = None

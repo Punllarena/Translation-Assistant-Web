@@ -154,7 +154,7 @@ def test_passwords_are_kept_in_the_job_result(app_client, me, ready, make_doc, w
 
 def test_illustrations_upload_in_batches(app_client, me, ready, make_doc, wp_site, db, monkeypatch):
     monkeypatch.setattr("api.core.wp._ILLUS_BATCH_BYTES", 50)  # cover (4) + a (40) fit; b splits
-    vol = Volume(series_id=ready.id, title="Vol 1")
+    vol = Volume(series_id=ready.id, subtitle="Vol 1")
     db.add(vol)
     db.flush()
     doc = make_doc(me, ["一"], series=ready, order=1, volume=vol)
@@ -174,10 +174,10 @@ def test_illustrations_upload_in_batches(app_client, me, ready, make_doc, wp_sit
 
 
 def test_illustrations_need_images_and_your_volume(app_client, me, ready, make_user, make_series, db, wp_site):
-    vol = Volume(series_id=ready.id, title="Empty")
+    vol = Volume(series_id=ready.id, subtitle="Empty")
     db.add(vol)
     theirs = make_series(make_user(email="o@example.com"), "T")
-    other = Volume(series_id=theirs.id, title="Theirs")
+    other = Volume(series_id=theirs.id, subtitle="Theirs")
     db.add(other)
     db.flush()
     r = app_client.post(f"/volumes/{vol.id}/wp/illustrations")
@@ -186,7 +186,7 @@ def test_illustrations_need_images_and_your_volume(app_client, me, ready, make_u
 
 
 def test_one_illustrations_upload_at_a_time(app_client, me, ready, make_doc, wp_site, db):
-    vol = Volume(series_id=ready.id, title="Vol 1")
+    vol = Volume(series_id=ready.id, subtitle="Vol 1")
     db.add(vol)
     db.flush()
     doc = make_doc(me, ["一"], series=ready, order=1, volume=vol)

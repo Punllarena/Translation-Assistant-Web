@@ -21,7 +21,7 @@ def _all_fetched(app_client, make_series, site, db, me):
 
 
 def _vol(db, s, title):
-    return db.query(Volume).filter_by(series_id=s.id, title=title).one()
+    return db.query(Volume).filter_by(series_id=s.id, kind="", subtitle=title).one()
 
 
 def test_preview_changes_nothing_but_the_sequence(app_client, me, make_series, site, db):
@@ -48,7 +48,7 @@ def test_apply_switches_to_marker_and_keeps_emptied_volumes(
 def test_switching_back_reuses_the_renamed_volume(app_client, me, make_series, site, db):
     s = _all_fetched(app_client, make_series, site, db, me)
     _regroup(app_client, s, "marker", "★", apply=True)
-    app_client.patch(f"/volumes/{_vol(db, s, '◇ 編').id}", json={"title": "Arc"})
+    app_client.patch(f"/volumes/{_vol(db, s, '◇ 編').id}", json={"subtitle": "Arc"})
     r = _regroup(app_client, s, "all", apply=True)
     assert r.json()["volumes_created"] == 0
     db.expire_all()
@@ -68,7 +68,7 @@ def test_regroup_leaves_hand_made_volumes_and_headingless_chapters(
         app_client, me, make_series, site, db):
     s = _grouped_series(make_series, site, db, me)
     _fetch(app_client, s, [1, 2, 3])
-    mine = app_client.post(f"/series/{s.id}/volumes", json={"title": "Mine"}).json()
+    mine = app_client.post(f"/series/{s.id}/volumes", json={"kind": "", "subtitle": "Mine"}).json()
     ch3 = [d for d in s.documents if d.series_order == 3][0]
     app_client.post(f"/volumes/{mine['id']}/documents", json={"document_ids": [ch3.id]})
     r = _regroup(app_client, s, "off", apply=True)

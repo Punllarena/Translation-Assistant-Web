@@ -34,7 +34,7 @@ def test_another_users_series_export_is_404(app_client, me, make_user, make_seri
 
 
 def _volume(db, series, title="Vol 1", order=1):
-    v = Volume(series_id=series.id, title=title, volume_order=order)
+    v = Volume(series_id=series.id, kind="", subtitle=title, volume_order=order)
     db.add(v)
     db.flush()
     return v

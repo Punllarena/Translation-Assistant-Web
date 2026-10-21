@@ -114,7 +114,7 @@ def main() -> None:
         lib = Series(user_id=user.id, title="E2E library series")
         db.add(lib)
         db.flush()
-        vol_a = Volume(series_id=lib.id, title="Vol A", volume_order=1)
+        vol_a = Volume(series_id=lib.id, kind="", subtitle="Vol A", volume_order=1)
         db.add(vol_a)
         db.flush()
         for order, (title, volume_id) in enumerate((
@@ -130,7 +130,7 @@ def main() -> None:
         ev = Series(user_id=user.id, title="E2E epub volume series")
         db.add(ev)
         db.flush()
-        db.add(Volume(series_id=ev.id, title="Vol existing", volume_order=1))
+        db.add(Volume(series_id=ev.id, kind="", subtitle="Vol existing", volume_order=1))
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)

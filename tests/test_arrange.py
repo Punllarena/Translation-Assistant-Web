@@ -9,8 +9,8 @@ from api.models import Document, Volume
 @pytest.fixture
 def lib(db, me, make_series, make_doc):
     series = make_series(me)
-    va = Volume(series_id=series.id, title="A", volume_order=1)
-    vb = Volume(series_id=series.id, title="B", volume_order=2)
+    va = Volume(series_id=series.id, subtitle="A", volume_order=1)
+    vb = Volume(series_id=series.id, subtitle="B", volume_order=2)
     db.add_all([va, vb])
     db.flush()
     d = {
@@ -80,7 +80,7 @@ def test_changing_volume_order_rearranges(app_client, db, lib):
 def test_syosetu_series_keeps_its_numbers(app_client, db, me, make_series, make_doc):
     series = make_series(me, "Syo")
     series.syosetu_url = "https://ncode.syosetu.com/n0000a/"
-    vol = Volume(series_id=series.id, title="V", volume_order=1)
+    vol = Volume(series_id=series.id, subtitle="V", volume_order=1)
     db.add(vol)
     db.flush()
     d = {

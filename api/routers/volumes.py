@@ -10,12 +10,19 @@ from api.library import arrange, send_to_volume_end
 from api.models import Document, DocumentImage, Series, User, Volume, VolumeSyosetuGroup
 from api.routing import api_router
 from api.schemas.documents import DocumentIds, DocumentOut
-from api.schemas.volumes import CoverOut, VolumeCreate, VolumeMerge, VolumeOut, VolumeUpdate
+from api.schemas.volumes import (
+    CoverOut,
+    VolumeCreate,
+    VolumeMerge,
+    VolumeOut,
+    VolumeUpdate,
+    check_name,
+)
 from api.uploads import read_capped, sniff_image
 
 router = api_router(tags=["volumes"])
 
-TITLE_TAKEN = "a volume with that title exists in this series"
+NAME_TAKEN = "a volume with that kind and number exists in this series"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 
@@ -71,7 +78,7 @@ def create_volume(
         with db.begin_nested():
             db.add(volume)
     except IntegrityError as exc:
-        raise conflict(exc, TITLE_TAKEN) from exc
+        raise conflict(exc, NAME_TAKEN) from exc
     return volume
 
 
@@ -85,11 +92,19 @@ def update_volume(
     volume = scoped_volume(db, volume_id, user.id)
     changes = body.model_dump(exclude_unset=True)
     try:
+        check_name(
+            changes.get("kind", volume.kind),
+            changes.get("volume_index", volume.volume_index),
+            changes.get("subtitle", volume.subtitle),
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    try:
         with db.begin_nested():
             for field, value in changes.items():
                 setattr(volume, field, value)
     except IntegrityError as exc:
-        raise conflict(exc, TITLE_TAKEN) from exc
+        raise conflict(exc, NAME_TAKEN) from exc
     if "volume_order" in changes:
         db.flush()
         arrange(db, volume.series)
@@ -116,8 +131,9 @@ def merge_volumes(
     series_id: int, body: VolumeMerge,
     user: User = Depends(current_user), db: Session = Depends(db_session),
 ) -> Volume:
-    """Merge several volumes into ``into``: it keeps its own title and EPUB details and
-    takes the others' chapters and syosetu headings; the others are deleted."""
+    """Merge several volumes into ``into``: it keeps its own kind, index, subtitle, EPUB
+    details and WordPress name and takes the others' chapters and syosetu headings; the
+    others are deleted."""
     series = scoped(db, Series, series_id, user.id)
     ids = set(body.volume_ids)
     if len(ids) < 2:

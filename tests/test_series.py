@@ -66,7 +66,7 @@ def test_rename_onto_existing_title_is_409(app_client, me, make_series):
 
 def test_delete_removes_the_chapters_and_volumes(app_client, db, me, make_series, make_doc):
     series = make_series(me)
-    volume = Volume(series_id=series.id, title="V1")
+    volume = Volume(series_id=series.id, subtitle="V1")
     db.add(volume)
     db.flush()
     doc = make_doc(me, ["a"], series=series, order=1, volume=volume)

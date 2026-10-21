@@ -109,7 +109,7 @@ def build_chapter(db: Session, doc: Document, prefs: WpPrefs) -> Chapter:
     return Chapter(
         doc_meta={"series_title": series.title, "series_order": doc.series_order,
                   "chapter_title": doc.chapter_title or doc.title,  # ruling 11
-                  "volume_title": volume.title if volume else ""},
+                  "volume_title": volume.wp_name if volume else ""},
         series_meta=series_meta(series), lines=lines, inline_images=inline,
         # build_payload sends the cover with chapter 1 only, so only that one is shrunk
         cover_image=image_dict(cover) if cover is not None and doc.series_order == 1 else None,

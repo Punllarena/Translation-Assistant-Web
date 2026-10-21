@@ -17,6 +17,7 @@ from api.core.tadb_schema import (
     _parse_ts,
     _skip,
 )
+from api.core.volume_names import parse_title
 from api.models import (
     CustomWord,
     Document,
@@ -208,23 +209,25 @@ def _merge_volume_meta(volume: Volume, meta: dict[str, str], report: ImportRepor
             setattr(volume, attr, value)
         elif current != value:
             report.messages.append(
-                f"volumes {volume.title!r}: {attr} kept as {current!r}; another chapter "
+                f"volumes {volume.label!r}: {attr} kept as {current!r}; another chapter "
                 f"says {value!r}"
             )
 
 
 def _volume(
-    db: Session, series: Series, title: str, cache: dict[tuple[int, str], Volume | None],
+    db: Session, series: Series, title: str, cache: dict[tuple, Volume | None],
     report: ImportReport, meta: dict[str, str],
 ) -> Volume | None:
-    key = (series.id, title)
+    kind, index, subtitle = parse_title(title, series.title)
+    key = (series.id, kind.lower(), index, subtitle if index is None else "")
     if key not in cache:
         volume = db.scalar(
-            select(Volume).where(Volume.series_id == series.id, Volume.title == title)
+            select(Volume).where(Volume.series_id == series.id, Volume.named(kind, index, subtitle))
         )
         if volume is None:
             order = db.scalar(select(func.count(Volume.id)).where(Volume.series_id == series.id))
-            volume = Volume(series_id=series.id, title=title, volume_order=order or 0, **meta)
+            volume = Volume(series_id=series.id, kind=kind, volume_index=index, subtitle=subtitle,
+                            volume_order=order or 0, **meta)
             if not _add(db, volume, "volumes", repr(title), report):
                 volume = None
         else:
@@ -264,7 +267,7 @@ def _import_documents(
     series_by_title: dict[str, Series],
     progress: Progress,
 ) -> None:
-    volumes: dict[tuple[int, str], Volume | None] = {}
+    volumes: dict[tuple, Volume | None] = {}
     id_map: dict[int, Document] = {}
     oneshots: dict[str, Series | None] = {}
     fresh: set[int] = set()  # oneshot series created by this import

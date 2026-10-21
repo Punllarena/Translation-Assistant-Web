@@ -38,20 +38,21 @@ def fetch_active(db, user_id: int, series_id: int) -> bool:
 
 def group_volume(db, series_id: int, heading: str) -> Volume:
     """The volume holding ``heading``'s chapters: matched by the hidden key, so renaming
-    it is safe; otherwise a new last volume titled after the heading (suffixed when that
-    title is taken)."""
+    it is safe; otherwise a new last volume, unkinded and unnumbered, with the heading as
+    its subtitle (suffixed while that subtitle is taken)."""
     volume = db.scalar(select(Volume).join(
         VolumeSyosetuGroup, VolumeSyosetuGroup.volume_id == Volume.id).where(
         VolumeSyosetuGroup.series_id == series_id, VolumeSyosetuGroup.heading == heading))
     if volume is not None:
         return volume
-    taken = set(db.scalars(select(Volume.title).where(Volume.series_id == series_id)))
-    title, n = heading, 2
-    while title in taken:
-        title, n = f"{heading} ({n})", n + 1
+    taken = set(db.scalars(select(Volume.subtitle).where(
+        Volume.series_id == series_id, Volume.kind == "", Volume.volume_index.is_(None))))
+    subtitle, n = heading, 2
+    while subtitle in taken:
+        subtitle, n = f"{heading} ({n})", n + 1
     order = db.scalar(select(func.coalesce(func.max(Volume.volume_order), 0) + 1)
                       .where(Volume.series_id == series_id))
-    volume = Volume(series_id=series_id, title=title, volume_order=order)
+    volume = Volume(series_id=series_id, kind="", subtitle=subtitle, volume_order=order)
     db.add(volume)
     db.flush()
     db.add(VolumeSyosetuGroup(series_id=series_id, volume_id=volume.id, heading=heading))

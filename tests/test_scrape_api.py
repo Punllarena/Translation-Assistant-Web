@@ -227,7 +227,7 @@ def _fetch(app_client, s, nums):
 
 def _placement(db, s):
     docs = db.query(Document).filter_by(series_id=s.id).order_by(Document.series_order).all()
-    return [(d.series_order, d.volume_id and db.get(Volume, d.volume_id).title) for d in docs]
+    return [(d.series_order, d.volume_id and db.get(Volume, d.volume_id).label) for d in docs]
 
 
 def test_chapter_list_reports_groups(app_client, me, make_series, site, db):
@@ -242,7 +242,8 @@ def test_fetch_puts_grouped_chapters_into_volumes_in_order(
     _fetch(app_client, s, [1, 2, 3])
     assert _placement(db, s) == [(1, None), (2, "第一章"), (3, "第二章")]
     vols = db.query(Volume).filter_by(series_id=s.id).order_by(Volume.volume_order).all()
-    assert [v.title for v in vols] == ["第一章", "第二章"]
+    assert [(v.kind, v.volume_index, v.subtitle) for v in vols] == [
+        ("", None, "第一章"), ("", None, "第二章")]
     assert db.query(VolumeSyosetuGroup).filter_by(series_id=s.id).count() == 2
     assert "syosetu_group" not in app_client.get(f"/series/{s.id}/volumes").text
 
@@ -252,7 +253,7 @@ def test_a_renamed_group_volume_still_receives_its_chapters(
     s = _grouped_series(make_series, site, db, me)
     _fetch(app_client, s, [2])
     vol = db.query(Volume).filter_by(series_id=s.id).one()
-    assert app_client.patch(f"/volumes/{vol.id}", json={"title": "Arc 1"}).status_code == 200
+    assert app_client.patch(f"/volumes/{vol.id}", json={"subtitle": "Arc 1"}).status_code == 200
     pages, _ = site
     pages["https://ncode.syosetu.com/n1/"] = GROUPED.replace(
         '<div class="p-eplist__chapter-title">第二章</div>', "")
@@ -262,7 +263,7 @@ def test_a_renamed_group_volume_still_receives_its_chapters(
 
 def test_a_group_whose_title_is_taken_gets_a_suffix(app_client, me, make_series, site, db):
     s = _grouped_series(make_series, site, db, me)
-    db.add(Volume(series_id=s.id, title="第一章", volume_order=1))
+    db.add(Volume(series_id=s.id, kind="", subtitle="第一章", volume_order=1))
     db.flush()
     _fetch(app_client, s, [2])
     assert _placement(db, s) == [(2, "第一章 (2)")]

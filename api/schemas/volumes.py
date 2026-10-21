@@ -1,10 +1,34 @@
-from pydantic import BaseModel, ConfigDict, Field
+from decimal import Decimal
+from typing import Annotated, ClassVar, Self
 
-from api.schemas.common import Patch, Title
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
+
+from api.core.volume_names import format_index
+from api.schemas.common import Patch
+
+Kind = Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]
+Subtitle = Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]
+VolumeIndex = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=3)]
+NAME_EMPTY = "give a kind, number or subtitle"
+
+
+def check_name(kind: str, index: Decimal | None, subtitle: str) -> None:
+    """A volume needs something to be called by."""
+    if not kind and index is None and not subtitle:
+        raise ValueError(NAME_EMPTY)
 
 
 class VolumeCreate(BaseModel):
-    title: Title
+    kind: Kind = "Volume"
+    volume_index: VolumeIndex | None = None
+    subtitle: Subtitle = ""
     volume_order: int | None = Field(default=None, ge=0, le=2**31 - 1)  # None: last
     epub_title: str = ""
     epub_author: str = ""
@@ -14,9 +38,20 @@ class VolumeCreate(BaseModel):
     epub_publisher: str = ""
     epub_identifier: str = ""
 
+    @model_validator(mode="after")
+    def _named(self) -> Self:
+        check_name(self.kind, self.volume_index, self.subtitle)
+        return self
+
 
 class VolumeUpdate(Patch):
-    title: Title | None = None
+    """The router checks the merged kind/index/subtitle with check_name()."""
+
+    NULLABLE: ClassVar[frozenset[str]] = frozenset({"volume_index"})
+
+    kind: Kind | None = None
+    volume_index: VolumeIndex | None = None
+    subtitle: Subtitle | None = None
     volume_order: int | None = Field(default=None, ge=0, le=2**31 - 1)
     epub_title: str | None = None
     epub_author: str | None = None
@@ -37,7 +72,12 @@ class VolumeOut(BaseModel):
 
     id: int
     series_id: int
-    title: str
+    kind: str
+    volume_index: str | None  # "3.5", never a float
+    subtitle: str
+    label: str
+    full_title: str
+    wp_volume_title: str | None
     volume_order: int
     epub_title: str
     epub_author: str
@@ -46,6 +86,11 @@ class VolumeOut(BaseModel):
     epub_illustrator: str
     epub_publisher: str
     epub_identifier: str
+
+    @field_validator("volume_index", mode="before")
+    @classmethod
+    def _index_text(cls, value: object) -> object:
+        return format_index(value) if isinstance(value, Decimal) else value
 
 
 class CoverOut(BaseModel):

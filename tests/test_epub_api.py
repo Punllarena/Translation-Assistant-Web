@@ -199,8 +199,8 @@ def test_import_into_an_earlier_volume_keeps_volumes_contiguous(
     app_client, me, db, make_series, make_doc
 ):
     series = make_series(me, "Lib")
-    va = Volume(series_id=series.id, title="A", volume_order=1)
-    vb = Volume(series_id=series.id, title="B", volume_order=2)
+    va = Volume(series_id=series.id, kind="", subtitle="A", volume_order=1)
+    vb = Volume(series_id=series.id, kind="", subtitle="B", volume_order=2)
     db.add_all([va, vb])
     db.flush()
     make_doc(me, series=series, volume=va, order=1, title="a1")
