@@ -21,16 +21,53 @@ export function Progress({ value }: { value: number }) {
 
 const carriesChapter = (e: DragEvent) => e.dataTransfer.types.includes(CHAPTER_MIME);
 
-/** The left pane: one entry per volume (and "No volume"), each a drop target for chapter rows. */
-export default function VolumeList({ groups, selected, onSelect, onNewVolume, onDropChapter }: {
+function VolumeInfo({ group }: { group: VolumeGroup }) {
+  return (
+    <>
+      <VolumeCover group={group} />
+      <span className="vol-info">
+        <span className="vol-title">{groupTitle(group)}</span>
+        <span className="muted vol-count">{group.docs.length} {group.docs.length === 1 ? "chapter" : "chapters"}</span>
+        <Progress value={group.progress} />
+      </span>
+    </>
+  );
+}
+
+/** The left pane: one entry per volume (and "No volume"), each a drop target for chapter rows.
+ *  In select mode volumes get checkboxes (shift-click ticks a range) and nothing is a drop target. */
+export default function VolumeList({ groups, selected, onSelect, onNewVolume, onDropChapter,
+  selecting, picked, onToggleSelecting, onPick, onMerge }: {
   groups: VolumeGroup[]; selected: VolumeKey | null; onSelect: (key: VolumeKey) => void;
   onNewVolume: () => void; onDropChapter: (docId: number, key: VolumeKey) => void;
+  selecting: boolean; picked: Set<number>; onToggleSelecting: () => void;
+  onPick: (id: number, shift: boolean) => void; onMerge: () => void;
 }) {
   const [over, setOver] = useState<VolumeKey | null>(null);
   return (
     <nav className="vol-list" aria-label="Volumes">
+      <div className="vol-list-head">
+        <button type="button" onClick={onToggleSelecting}>{selecting ? "Done" : "Select"}</button>
+      </div>
+      {selecting && picked.size >= 2 && (
+        <div className="vol-merge-bar">
+          <button type="button" className="primary" onClick={onMerge}>Merge {picked.size} volumes</button>
+        </div>
+      )}
       <ul>
-        {groups.map((g) => (
+        {groups.map((g) => selecting ? (
+          <li key={g.key}>
+            {g.volume ? (
+              <label className={picked.has(g.volume.id) ? "vol-item picking picked" : "vol-item picking"}>
+                <input type="checkbox" checked={picked.has(g.volume.id)} onChange={() => {}}
+                  onClick={(e) => onPick(g.volume!.id, e.shiftKey)} />
+                <VolumeInfo group={g} />
+              </label>
+            ) : (
+              <div className="vol-item picking"><VolumeInfo group={g} /></div>
+            )}
+          </li>
+        ) : (
           <li key={g.key}>
             <button type="button" className={over === g.key ? "vol-item drop" : "vol-item"}
               aria-current={g.key === selected ? "true" : undefined} onClick={() => onSelect(g.key)}
@@ -48,12 +85,7 @@ export default function VolumeList({ groups, selected, onSelect, onNewVolume, on
                 e.preventDefault();
                 onDropChapter(id, g.key);
               }}>
-              <VolumeCover group={g} />
-              <span className="vol-info">
-                <span className="vol-title">{groupTitle(g)}</span>
-                <span className="muted vol-count">{g.docs.length} {g.docs.length === 1 ? "chapter" : "chapters"}</span>
-                <Progress value={g.progress} />
-              </span>
+              <VolumeInfo group={g} />
             </button>
           </li>
         ))}
