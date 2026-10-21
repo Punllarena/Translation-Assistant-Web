@@ -15,3 +15,5 @@ web/playwright-report/
 data/
 web/e2e/.generated/
 web/.e2e-data/
+.claude/
+.superpowers/
