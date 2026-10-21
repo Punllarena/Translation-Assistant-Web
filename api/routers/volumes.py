@@ -1,15 +1,15 @@
 from fastapi import Depends, File, HTTPException, UploadFile, status
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.deps import current_user, db_session, scoped, scoped_volume
 from api.errors import conflict
 from api.library import arrange, send_to_volume_end
-from api.models import Document, DocumentImage, Series, User, Volume
+from api.models import Document, DocumentImage, Series, User, Volume, VolumeSyosetuGroup
 from api.routing import api_router
 from api.schemas.documents import DocumentIds, DocumentOut
-from api.schemas.volumes import CoverOut, VolumeCreate, VolumeOut, VolumeUpdate
+from api.schemas.volumes import CoverOut, VolumeCreate, VolumeMerge, VolumeOut, VolumeUpdate
 from api.uploads import read_capped, sniff_image
 
 router = api_router(tags=["volumes"])
@@ -108,6 +108,39 @@ def delete_volume(
     db.expire_all()
     arrange(db, series)
     db.flush()
+
+
+@router.post("/series/{series_id}/volumes/merge", response_model=VolumeOut)
+def merge_volumes(
+    series_id: int, body: VolumeMerge,
+    user: User = Depends(current_user), db: Session = Depends(db_session),
+) -> Volume:
+    """Merge several volumes into ``into``: it keeps its own title and EPUB details and
+    takes the others' chapters and syosetu headings; the others are deleted."""
+    series = scoped(db, Series, series_id, user.id)
+    ids = set(body.volume_ids)
+    if len(ids) < 2:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            "volume_ids: pick at least two volumes")
+    if body.into not in ids:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            "into must be one of volume_ids")
+    found = set(db.scalars(
+        select(Volume.id).where(Volume.id.in_(ids), Volume.series_id == series.id)))
+    if found != ids:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
+                            "volume_ids: every volume must be in this series")
+    others = ids - {body.into}
+    db.execute(update(Document).where(Document.volume_id.in_(others))
+               .values(volume_id=body.into))
+    db.execute(update(VolumeSyosetuGroup).where(VolumeSyosetuGroup.volume_id.in_(others))
+               .values(volume_id=body.into))
+    db.execute(delete(Volume).where(Volume.id.in_(others)))
+    db.flush()
+    db.expire_all()
+    arrange(db, series)
+    db.flush()
+    return db.get(Volume, body.into)
 
 
 @router.post("/volumes/{volume_id}/documents", response_model=list[DocumentOut])

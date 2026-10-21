@@ -1166,6 +1166,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/series/{series_id}/volumes/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge Volumes
+         * @description Merge several volumes into ``into``: it keeps its own title and EPUB details and
+         *     takes the others' chapters and syosetu headings; the others are deleted.
+         */
+        post: operations["merge_volumes_series__series_id__volumes_merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/settings": {
         parameters: {
             query?: never;
@@ -2664,6 +2685,13 @@ export interface components {
              * @enum {string}
              */
             mode: "all" | "marker" | "off";
+        };
+        /** VolumeMerge */
+        VolumeMerge: {
+            /** Into */
+            into: number;
+            /** Volume Ids */
+            volume_ids: number[];
         };
         /** VolumeOut */
         VolumeOut: {
@@ -5260,6 +5288,41 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    merge_volumes_series__series_id__volumes_merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeMerge"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -27,6 +27,11 @@ class VolumeUpdate(Patch):
     epub_identifier: str | None = None
 
 
+class VolumeMerge(BaseModel):
+    volume_ids: list[int] = Field(min_length=1, max_length=1000)
+    into: int
+
+
 class VolumeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
