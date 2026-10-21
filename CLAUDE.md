@@ -98,11 +98,10 @@ volumes with no heading link. `POST /series/{id}/volumes/merge` merges volumes i
 
 Volume naming: a volume has `kind` / `volume_index` (Numeric(10,3), optional) / `subtitle`, not a title; names are unique ignoring case
 by kind + index, or kind + subtitle when unnumbered (partial indexes `uq_volumes_kind_index` / `uq_volumes_kind_subtitle`; migration
-`6182106ad19b` split old titles). The rules are `api/core/volume_names.py` (render, label, wp_label, parse_title, quantize_index,
-sort_key, validate_template) and its TS twin `web/src/library/volumeNames.ts`, both tested against `volumeNames.cases.json`.
-`Volume.full_title` = `epub_title` override, else the series' `volume_title_template` (blank = `DEFAULT_TEMPLATE`); `Volume.label` is the short SPA form.
-`api/volume_order.place` is the only way a new or re-keyed volume gets its position (also `PUT .../volumes/order`, `POST .../volumes/sort`).
-`volumes.wp_volume_title` is frozen at the first successful publish (`publish.freeze_volume_name`); WordPress always gets `Volume.wp_name`.
+`6182106ad19b` split old titles). The rules are `api/core/volume_names.py` and its TS twin `web/src/library/volumeNames.ts` (camelCase
+names), both tested against `volumeNames.cases.json`. `Volume.full_title` = `epub_title` override, else the series' `volume_title_template`
+(blank = `DEFAULT_TEMPLATE`); `Volume.label` is the short SPA form. `api/volume_order.place` positions new and re-keyed volumes (ta.db import
+appends in desktop order; an explicit `volume_order` on create is kept). `volumes.wp_volume_title` freezes at the first publish; WordPress gets `Volume.wp_name`.
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)

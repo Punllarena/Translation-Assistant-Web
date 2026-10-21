@@ -56,3 +56,16 @@ last in the volume (after the final chapter).
 - Relate this to the WordPress "Publish illustrations" job (`wp_illustrations`), which today
   builds the illustrations page from the volume's images; decide whether it should publish this
   chapter instead.
+
+## WordPress: volume names must be unique per series
+
+*Raised 2026-10-21 (volume naming review).*
+
+The naming indexes keep `(kind, index)` and `(kind, subtitle)` unique, but WordPress gets
+`Volume.wp_name` (`wp_volume_title`, else `wp_label(kind, index, subtitle)`), and two different
+names can share it: an unkinded volume subtitled "Volume 3" and Volume 3 both send
+"Volume 3". The plugin keys the TOC heading and the illustrations page on that string, so
+publishing both would merge them on the site.
+
+Not blocked today. Option: refuse (409) a create or PATCH whose `wp_label` collides with
+another volume's `wp_name` in the same series, and report collisions left by the migration.
