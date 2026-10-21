@@ -33,13 +33,14 @@ def _merge_volume_meta(volume: Volume, meta: dict[str, str], report: ImportRepor
 
 
 def find_or_add_volume(
-    db: Session, series: Series, title: str, cache: dict[tuple, Volume | None],
+    db: Session, series: Series, title: str, cache: dict[tuple, Volume | str | None],
     report: ImportReport, meta: dict[str, str],
     add: Callable[[Session, object, str, str, ImportReport], bool],  # tadb_rows._add
 ) -> Volume | None:
     """The volume a desktop title names, found by (kind, number) or (kind, subtitle) and
     created in desktop order (appended, no re-sorting) when new. The cache is keyed by
-    the desktop title itself."""
+    the desktop title itself; ("created", volume id) holds the title that created a volume,
+    so a second title landing on it ("Vol 3" then "Volume 3") is reported."""
     key = (series.id, title)
     if key not in cache:
         kind, index, subtitle = parse_title_fit(title, series.title)
@@ -52,7 +53,14 @@ def find_or_add_volume(
                             volume_order=order or 0, **meta)
             if not add(db, volume, "volumes", repr(title), report):
                 volume = None
+            else:
+                cache[("created", volume.id)] = title
         else:
+            first = cache.get(("created", volume.id))
+            if first is not None and first != title:
+                report.messages.append(
+                    f"volumes {title!r}: merged into {volume.label!r}, created from {first!r}"
+                )
             _merge_volume_meta(volume, meta, report)
         cache[key] = volume
     elif cache[key] is not None:

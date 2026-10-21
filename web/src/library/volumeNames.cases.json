@@ -30,7 +30,10 @@
     {"title": "Mushoku", "series": "Mushoku", "kind": "", "index": null, "subtitle": "Mushoku"},
     {"title": "3rd Arc", "series": "", "kind": "", "index": null, "subtitle": "3rd Arc"},
     {"title": "Prologue", "series": "", "kind": "", "index": null, "subtitle": "Prologue"},
-    {"title": "第一章", "series": "", "kind": "", "index": null, "subtitle": "第一章"}
+    {"title": "第一章", "series": "", "kind": "", "index": null, "subtitle": "第一章"},
+    {"title": "Volume ٣", "series": "", "kind": "", "index": null, "subtitle": "Volume ٣"},
+    {"title": "٣ - Dawn", "series": "", "kind": "", "index": null, "subtitle": "٣ - Dawn"},
+    {"title": "Vol ３", "series": "", "kind": "Volume", "index": "3", "subtitle": ""}
   ],
   "templates_invalid": ["{Series} - {index}", "{title}", "{series} - {kind", "x }"]
 }

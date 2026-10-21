@@ -27,6 +27,8 @@ def format_index(index: Decimal | None) -> str:
     """'' for None; trailing zeros and a bare point are dropped."""
     if index is None:
         return ""
+    if index.is_zero():
+        return "0"  # never "-0"
     return format(index.normalize(), "f")
 
 
@@ -85,7 +87,8 @@ def wp_label(kind: str, index: Decimal | None, subtitle: str) -> str:
     )
 
 
-_NUM = r"(\d+(?:\.\d+)?)"
+# ASCII digits only, like the TS twin (NFKC has already folded full-width digits).
+_NUM = r"([0-9]+(?:\.[0-9]+)?)"
 # The number must end the string or be followed by whitespace or a separator,
 # so "3rd Arc" is not volume 3.
 _END = r"(?=$|[\s\-–—:.])"

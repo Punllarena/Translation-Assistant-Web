@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Annotated, ClassVar, Self
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
@@ -15,7 +16,11 @@ from api.schemas.common import Patch
 
 Kind = Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]
 Subtitle = Annotated[str, StringConstraints(strip_whitespace=True, max_length=300)]
-VolumeIndex = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=3)]
+VolumeIndex = Annotated[
+    Decimal,
+    Field(ge=0, max_digits=10, decimal_places=3),
+    AfterValidator(lambda v: abs(v) if v.is_zero() else v),  # "-0" is 0
+]
 NAME_EMPTY = "give a kind, number or subtitle"
 
 

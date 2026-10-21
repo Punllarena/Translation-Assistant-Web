@@ -5,6 +5,7 @@ is uploaded twice, once per step (ruling 6)."""
 import io
 import mimetypes
 import re
+import unicodedata
 import zipfile
 import zlib
 from decimal import Decimal
@@ -114,11 +115,12 @@ def _volume(db: Session, series: Series, name: ParsedName, meta: dict[str, str])
     return volume
 
 
-_INDEX_RE = re.compile(r"\d+(\.\d{1,3})?")
+_INDEX_RE = re.compile(r"[0-9]+(\.[0-9]{1,3})?")  # ASCII only, as the SPA checks it
 
 
 def _volume_name(kind: str, index: str, subtitle: str) -> ParsedName:
-    kind, index, subtitle = kind.strip(), index.strip(), subtitle.strip()
+    kind, subtitle = kind.strip(), subtitle.strip()
+    index = unicodedata.normalize("NFKC", index).strip()  # full-width digits still count
     number = None
     if index:
         if not _INDEX_RE.fullmatch(index) or not index_fits(Decimal(index)):

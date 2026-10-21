@@ -258,10 +258,16 @@ def test_epub_import_new_volume_is_placed(app_client, me, db, make_series):
     assert [v.volume_order for v in vols] == [1, 2, 3]
 
 
-@pytest.mark.parametrize("index", ["2,5", "abc", "1.2345", "-1", ".5"])
+@pytest.mark.parametrize("index", ["2,5", "abc", "1.2345", "-1", ".5", "٣"])
 def test_epub_import_bad_index_422(app_client, me, index):
     r = _vol_form(app_client, book(), volume_index=index)
     assert r.status_code == 422 and "volume_index: a number like 3 or 3.5" in r.text
+
+
+def test_epub_import_full_width_index_is_folded(app_client, me, db):
+    r = _vol_form(app_client, book(), volume_kind="Volume", volume_index="３")
+    assert r.status_code == 201, r.text
+    assert db.get(Volume, r.json()["volume_id"]).volume_index == 3
 
 
 def test_epub_import_index_too_big_is_422_not_500(app_client, me):

@@ -112,3 +112,8 @@ def test_parse_title_fit_falls_back_for_a_huge_number():
     assert parse_title_fit("Volume 99999999") == ("", None, "Volume 99999999")
     assert parse_title_fit("Volume 1.0004") == ("Volume", Decimal("1.000"), "")
     assert parse_title_fit("Prologue") == ("", None, "Prologue")
+
+
+def test_format_index_never_prints_minus_zero():
+    assert format_index(Decimal("-0")) == "0"
+    assert format_index(Decimal("-0.000")) == "0"

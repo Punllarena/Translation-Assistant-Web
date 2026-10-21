@@ -221,7 +221,7 @@ def _import_documents(
     series_by_title: dict[str, Series],
     progress: Progress,
 ) -> None:
-    volumes: dict[tuple, Volume | None] = {}
+    volumes: dict[tuple, Volume | str | None] = {}
     id_map: dict[int, Document] = {}
     oneshots: dict[str, Series | None] = {}
     fresh: set[int] = set()  # oneshot series created by this import

@@ -14,6 +14,7 @@ from sqlalchemy import (
     UniqueConstraint,
     and_,
     func,
+    literal,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -103,7 +104,8 @@ class Volume(Base):
     @classmethod
     def named(cls, kind: str, index: Decimal | None, subtitle: str) -> ColumnElement[bool]:
         """SQL for "has this name", by the keys of the unique indexes below."""
-        same_kind = func.lower(cls.kind) == kind.lower()
+        # Both sides through Postgres' lower(), so the match is the unique index's own.
+        same_kind = func.lower(cls.kind) == func.lower(literal(kind, Text))
         if index is not None:
             return and_(same_kind, cls.volume_index == index)
         return and_(same_kind, cls.volume_index.is_(None), cls.subtitle == subtitle)

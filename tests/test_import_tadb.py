@@ -491,3 +491,16 @@ def test_tadb_volume_titles_are_parsed(db, make_user, tmp_path):
     again = import_tadb(db, path, user.id, force=True)
     assert db.query(Volume).count() == 3
     assert again.written["volumes"] == 0
+
+
+def test_tadb_two_titles_naming_one_volume_are_reported(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "INSERT INTO documents (title, series_title, series_order, volume_title) "
+                 "VALUES ('Chapter 3', 'My Series', 10, 'Vol 3')")
+    _tweak(path, "INSERT INTO documents (title, series_title, series_order, volume_title) "
+                 "VALUES ('Chapter 4', 'My Series', 11, 'Volume 3')")
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    assert db.query(Volume).filter(Volume.volume_index == 3).count() == 1
+    assert any("'Volume 3'" in m and "'Vol 3'" in m and "'Volume 3': merged into 'Volume 3'"
+               in m for m in report.messages)

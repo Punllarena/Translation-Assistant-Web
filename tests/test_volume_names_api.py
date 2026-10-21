@@ -36,6 +36,15 @@ def test_whole_index_is_serialised_without_zeros(app_client, series):
     assert (r.status_code, r.json()["volume_index"], r.json()["label"]) == (201, "3", "Volume 3")
 
 
+def test_minus_zero_index_is_zero(app_client, series):
+    r = _post(app_client, series, kind="Volume", volume_index="-0")
+    assert (r.status_code, r.json()["volume_index"], r.json()["label"]) == (201, "0", "Volume 0")
+    vid = r.json()["id"]
+    r = app_client.patch(f"/volumes/{vid}", json={"volume_index": "-0.000"})
+    assert (r.status_code, r.json()["volume_index"]) == (200, "0")
+    assert _post(app_client, series, kind="Volume", volume_index="0").status_code == 409
+
+
 @pytest.mark.parametrize("index", ["3,5", "3.1234"])
 def test_index_rejects_comma_and_four_decimals(app_client, series, index):
     assert _post(app_client, series, kind="Volume", volume_index=index).status_code == 422
