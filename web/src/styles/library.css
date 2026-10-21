@@ -57,6 +57,11 @@
 .vol-count { font-size: 12px; }
 .vol-info .prog { display: block; margin-top: 4px; }
 .vol-add { width: 100%; border-style: dashed; color: var(--muted); background: none; }
+.vol-list-head, .vol-merge-bar { display: flex; justify-content: flex-end; margin: 0 0 8px; }
+.vol-merge-bar button { width: 100%; }
+.vol-item.picking { border: 1px solid transparent; border-radius: 6px; cursor: pointer; }
+.vol-item.picking input { flex: none; }
+.vol-item.picked { background: var(--accent-soft); border-color: var(--line); }
 
 .vol-head { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 12px; }
 .vol-head > .cover { width: 72px; flex: none; }

@@ -59,6 +59,10 @@ def update_series(
     changes = body.model_dump(exclude_unset=True)
     if changes.get("profile_id") is not None:
         owned_ref(db, Profile, changes["profile_id"], user.id, "profile_id")
+    if "syosetu_url" in changes and changes["syosetu_url"] != series.syosetu_url:
+        # Another novel: the stored headings and the setting chosen from them don't apply.
+        series.syosetu_headings = None
+        series.syosetu_volume_mode, series.syosetu_volume_marker = "all", ""
     try:
         with db.begin_nested():
             for field, value in changes.items():

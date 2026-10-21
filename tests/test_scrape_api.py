@@ -5,7 +5,7 @@ import pytest
 
 from api import fetch_job, jobs
 from api.core import scrape
-from api.models import Document, Volume
+from api.models import Document, Volume, VolumeSyosetuGroup
 from api.routers import scrape as scrape_router
 
 INDEX = ('<div class="p-eplist__sublist"><a href="/n1/1/">One</a></div>'
@@ -67,7 +67,7 @@ def test_chapter_list_marks_fetched(app_client, me, make_series, make_doc, site,
     s.syosetu_url = "https://ncode.syosetu.com/n1/"
     make_doc(me, ["x"], series=s, order=2)
     db.flush()
-    body = app_client.get(f"/series/{s.id}/syosetu/chapters").json()
+    body = app_client.get(f"/series/{s.id}/syosetu/chapters").json()["chapters"]
     assert [(c["num"], c["fetched"]) for c in body] == [(1, False), (2, True), (3, False)]
 
 
@@ -232,7 +232,7 @@ def _placement(db, s):
 
 def test_chapter_list_reports_groups(app_client, me, make_series, site, db):
     s = _grouped_series(make_series, site, db, me)
-    body = app_client.get(f"/series/{s.id}/syosetu/chapters").json()
+    body = app_client.get(f"/series/{s.id}/syosetu/chapters").json()["chapters"]
     assert [c["group"] for c in body] == [None, "第一章", "第二章"]
 
 
@@ -243,6 +243,7 @@ def test_fetch_puts_grouped_chapters_into_volumes_in_order(
     assert _placement(db, s) == [(1, None), (2, "第一章"), (3, "第二章")]
     vols = db.query(Volume).filter_by(series_id=s.id).order_by(Volume.volume_order).all()
     assert [v.title for v in vols] == ["第一章", "第二章"]
+    assert db.query(VolumeSyosetuGroup).filter_by(series_id=s.id).count() == 2
     assert "syosetu_group" not in app_client.get(f"/series/{s.id}/volumes").text
 
 
@@ -274,3 +275,51 @@ def test_chapters_already_fetched_are_not_moved(
     db.flush()
     _fetch(app_client, s, [2, 3])
     assert _placement(db, s) == [(2, None), (3, "第二章")]
+
+
+MARKED = ('<div class="p-eplist__chapter-title">★ 一日</div>'
+          '<div class="p-eplist__sublist"><a href="/n1/1/">One</a></div>'
+          '<div class="p-eplist__chapter-title">◇ 編</div>'
+          '<div class="p-eplist__sublist"><a href="/n1/2/">Two</a></div>'
+          '<div class="p-eplist__chapter-title">★ 二日</div>'
+          '<div class="p-eplist__sublist"><a href="/n1/3/">Three</a></div>')
+
+
+def _marked_series(make_series, site, db, me, mode="all", marker=""):
+    s = _grouped_series(make_series, site, db, me)
+    site[0]["https://ncode.syosetu.com/n1/"] = MARKED
+    s.syosetu_volume_mode, s.syosetu_volume_marker = mode, marker
+    db.flush()
+    return s
+
+
+def test_marker_mode_folds_other_headings_into_the_previous_volume(
+        app_client, me, make_series, site, db):
+    s = _marked_series(make_series, site, db, me, "marker", "★")
+    _fetch(app_client, s, [2, 3])
+    assert _placement(db, s) == [(2, "★ 一日"), (3, "★ 二日")]
+    db.refresh(s)
+    assert s.syosetu_headings == [[1, "★ 一日"], [2, "◇ 編"], [3, "★ 二日"]]
+
+
+def test_off_creates_no_volumes(app_client, me, make_series, site, db):
+    s = _marked_series(make_series, site, db, me, "off")
+    _fetch(app_client, s, [1, 2, 3])
+    assert _placement(db, s) == [(1, None), (2, None), (3, None)]
+    assert db.query(Volume).filter_by(series_id=s.id).count() == 0
+
+
+def test_marker_mode_with_no_starting_heading_creates_no_volumes(
+        app_client, me, make_series, site, db):
+    s = _marked_series(make_series, site, db, me, "marker", "◎")
+    _fetch(app_client, s, [1, 2, 3])
+    assert _placement(db, s) == [(1, None), (2, None), (3, None)]
+
+
+def test_chapter_list_reports_markers(app_client, me, make_series, site, db):
+    s = _marked_series(make_series, site, db, me)
+    body = app_client.get(f"/series/{s.id}/syosetu/chapters").json()
+    assert body["markers"] == [{"marker": "★", "headings": 2}]
+    assert [c["group"] for c in body["chapters"]] == ["★ 一日", "◇ 編", "★ 二日"]
+    db.refresh(s)
+    assert s.syosetu_headings is None

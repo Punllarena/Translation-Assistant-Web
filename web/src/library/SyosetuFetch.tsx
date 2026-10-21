@@ -2,11 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, call } from "../api/client";
 import JobProgress from "../jobs/JobProgress";
+import HeadingVolumes from "./HeadingVolumes";
 import { invalidateLibrary } from "./queries";
+import type { SeriesRow } from "./shelf";
 import { groupRuns } from "./syosetuGroups";
 
 /** Pick chapters from the series' Syosetu index and fetch them as a background job. */
-export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
+export default function SyosetuFetch({ series }: { series: SeriesRow }) {
+  const seriesId = series.id;
   const queryClient = useQueryClient();
   const [jobId, setJobId] = useState<number | null>(null);
   const [finished, setFinished] = useState(false);
@@ -17,7 +20,7 @@ export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
   });
   const list = useMutation({
     mutationFn: () => call(api.GET("/series/{series_id}/syosetu/chapters", { params: { path: { series_id: seriesId } } })),
-    onSuccess: (chapters) => setPicked(new Set(chapters.filter((c) => !c.fetched).map((c) => c.num))),
+    onSuccess: (data) => setPicked(new Set(data.chapters.filter((c) => !c.fetched).map((c) => c.num))),
   });
   const fetchSelected = useMutation({
     mutationFn: () => call(api.POST("/series/{series_id}/syosetu/fetch", {
@@ -34,7 +37,7 @@ export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
   };
   const toggle = (nums: number[], on: boolean) =>
     setPicked((p) => { const n = new Set(p); for (const num of nums) { if (on) n.add(num); else n.delete(num); } return n; });
-  type Chapter = NonNullable<typeof list.data>[number];
+  type Chapter = NonNullable<typeof list.data>["chapters"][number];
   const row = (c: Chapter) => (
     <li key={c.num}>
       <label>
@@ -60,8 +63,9 @@ export default function SyosetuFetch({ seriesId }: { seriesId: number }) {
           {list.isError && <p className="error" role="alert">{list.error.message}</p>}
           {list.data && (
             <>
+              {list.data.chapters.some((c) => c.group) && <HeadingVolumes series={series} markers={list.data.markers} />}
               <ul>
-                {groupRuns(list.data).map((run, i) => {
+                {groupRuns(list.data.chapters).map((run, i) => {
                   if (run.group === null) return run.chapters.map(row);
                   const open = run.chapters.filter((c) => !c.fetched).map((c) => c.num);
                   const on = open.filter((n) => picked.has(n)).length;

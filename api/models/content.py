@@ -12,6 +12,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.db import Base
@@ -34,6 +35,16 @@ class Series(Base):
     wp_series_title_short: Mapped[str] = mapped_column(Text, nullable=False, default="")
     wp_password_enabled: Mapped[bool | None] = mapped_column(Boolean)
     wp_unlock_after: Mapped[int | None] = mapped_column(Integer)
+    # Which syosetu chapter-title headings start a volume: 'all', 'marker' (headings that
+    # begin with syosetu_volume_marker) or 'off'. syosetu_headings is the index's heading
+    # sequence from the last read, [[first_num, heading], ...]; None = never read.
+    syosetu_volume_mode: Mapped[str] = mapped_column(
+        Text, nullable=False, default="all", server_default="all"
+    )
+    syosetu_volume_marker: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    syosetu_headings: Mapped[list | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -50,7 +61,6 @@ class Volume(Base):
     __tablename__ = "volumes"
     __table_args__ = (
         UniqueConstraint("series_id", "title"),
-        UniqueConstraint("series_id", "syosetu_group", name="uq_volumes_series_syosetu_group"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -68,11 +78,26 @@ class Volume(Base):
     epub_illustrator: Mapped[str] = mapped_column(Text, nullable=False, default="")
     epub_publisher: Mapped[str] = mapped_column(Text, nullable=False, default="")
     epub_identifier: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    # The syosetu chapter-title heading this volume was made from; never shown, so a
-    # renamed volume still receives that arc's later chapters.
-    syosetu_group: Mapped[str | None] = mapped_column(Text)
-
     series: Mapped[Series] = relationship(back_populates="volumes")
+
+
+class VolumeSyosetuGroup(Base):
+    """A syosetu heading whose chapters go into this volume; never shown, so a renamed
+    volume still receives them. A merged volume holds several."""
+
+    __tablename__ = "volume_syosetu_groups"
+    __table_args__ = (
+        UniqueConstraint("series_id", "heading", name="uq_volume_syosetu_groups_series_heading"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    series_id: Mapped[int] = mapped_column(
+        ForeignKey("series.id", ondelete="CASCADE"), nullable=False
+    )
+    volume_id: Mapped[int] = mapped_column(
+        ForeignKey("volumes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    heading: Mapped[str] = mapped_column(Text, nullable=False)
 
 
 class Document(Base):

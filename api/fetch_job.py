@@ -3,17 +3,18 @@
 Takes chapter numbers, never URLs (plan ruling 8): the index is re-read from the
 series' own syosetu_url. Chapters already in the series are skipped, so a rerun
 resumes an interrupted fetch (ruling 10). A chapter under a syosetu chapter-title
-heading goes into the volume made from that heading (Volume.syosetu_group), created on
+heading goes into the volume made from that heading (VolumeSyosetuGroup), created on
 first sight; chapters already in the series are never moved."""
 
 from sqlalchemy import func, select
 
 from api import server_settings
 from api.core import scrape
+from api.core.syosetu_volumes import heading_sequence, targets
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.jobs import JobContext, JobError, handler
 from api.library import check_line_count, write_lines
-from api.models import Document, Series, Volume
+from api.models import Document, Job, Series, Volume, VolumeSyosetuGroup
 
 http_client = scrape.client  # the seam tests replace
 
@@ -22,22 +23,38 @@ def existing_orders(db, series_id: int) -> set[int]:
     return set(db.scalars(select(Document.series_order).where(Document.series_id == series_id)))
 
 
-def group_volume(db, series_id: int, group: str) -> Volume:
-    """The volume holding ``group``'s chapters: matched by the hidden key, so renaming it
-    is safe; otherwise a new last volume titled after the heading (suffixed when that
+FETCH_BUSY = "a fetch for this series is already queued or running"
+
+
+def fetch_active(db, user_id: int, series_id: int) -> bool:
+    """A syosetu_fetch job for the series is queued or running: regrouping or merging
+    now could move or delete a volume under it."""
+    return db.scalar(select(Job.id).where(
+        Job.user_id == user_id, Job.kind == "syosetu_fetch",
+        Job.state.in_(("queued", "running")),
+        Job.params_json["series_id"].as_integer() == series_id,
+    ).limit(1)) is not None
+
+
+def group_volume(db, series_id: int, heading: str) -> Volume:
+    """The volume holding ``heading``'s chapters: matched by the hidden key, so renaming
+    it is safe; otherwise a new last volume titled after the heading (suffixed when that
     title is taken)."""
-    volume = db.scalar(select(Volume).where(
-        Volume.series_id == series_id, Volume.syosetu_group == group))
+    volume = db.scalar(select(Volume).join(
+        VolumeSyosetuGroup, VolumeSyosetuGroup.volume_id == Volume.id).where(
+        VolumeSyosetuGroup.series_id == series_id, VolumeSyosetuGroup.heading == heading))
     if volume is not None:
         return volume
     taken = set(db.scalars(select(Volume.title).where(Volume.series_id == series_id)))
-    title, n = group, 2
+    title, n = heading, 2
     while title in taken:
-        title, n = f"{group} ({n})", n + 1
+        title, n = f"{heading} ({n})", n + 1
     order = db.scalar(select(func.coalesce(func.max(Volume.volume_order), 0) + 1)
                       .where(Volume.series_id == series_id))
-    volume = Volume(series_id=series_id, title=title, volume_order=order, syosetu_group=group)
+    volume = Volume(series_id=series_id, title=title, volume_order=order)
     db.add(volume)
+    db.flush()
+    db.add(VolumeSyosetuGroup(series_id=series_id, volume_id=volume.id, heading=heading))
     db.flush()
     return volume
 
@@ -53,10 +70,13 @@ def fetch_series(ctx: JobContext) -> dict:
     added, skipped, errors = 0, 0, []
     with http_client() as c:
         try:
-            index = [ch for ch in scrape.fetch_series_index(c, series.syosetu_url)
-                     if ch["num"] in wanted]
+            full = scrape.fetch_series_index(c, series.syosetu_url)
         except (ValueError, scrape.ScrapeError) as exc:
             raise JobError(f"could not read the chapter list: {exc}") from exc
+        index = [ch for ch in full if ch["num"] in wanted]
+        series.syosetu_headings = heading_sequence(full)
+        place = targets(series.syosetu_headings, wanted,
+                        series.syosetu_volume_mode, series.syosetu_volume_marker)
         have = existing_orders(ctx.db, series.id)
         for i, ch in enumerate(index, start=1):
             if ch["num"] in have:
@@ -70,7 +90,8 @@ def fetch_series(ctx: JobContext) -> dict:
                     message = getattr(exc, "detail", None) or str(exc) or type(exc).__name__
                     errors.append({"num": ch["num"], "message": str(message)})
                 else:
-                    volume = ch["group"] and group_volume(ctx.db, series.id, ch["group"])
+                    heading = place[ch["num"]]
+                    volume = heading and group_volume(ctx.db, series.id, heading)
                     doc = Document(
                         user_id=series.user_id, series_id=series.id, title=title or ch["title"],
                         chapter_title=title or ch["title"], series_order=ch["num"],

@@ -88,6 +88,14 @@ exports ticked chapters; `GET /volumes` feeds the Move-to dialogs. Library dialo
 `PromptDialog`) replace native `prompt`/`confirm`, and none of them closes while its action is busy. Deferred work (WordPress
 volume indexing, the EPUB illustrations chapter) is tracked in `docs/TODO.md`.
 
+Syosetu heading volumes: the fetch job puts each chapter in the volume of its `p-eplist__chapter-title` heading, per the
+series' `syosetu_volume_mode` (`all` / `marker` with `syosetu_volume_marker` / `off`); the rules are pure, in
+`api/core/syosetu_volumes.py`, and read the heading sequence stored in `series.syosetu_headings` (written by the fetch job
+and regroup, never by the chapter-list GET). Heading→volume links live in `volume_syosetu_groups` (hidden, so renamed
+volumes keep receiving chapters; a merged volume holds several). `POST /series/{id}/syosetu/volume-headings`
+(`api/syosetu_regroup.py`) previews or applies a setting change: it never deletes volumes and never moves chapters out of
+volumes with no heading link. `POST /series/{id}/volumes/merge` merges volumes into one (the Volumes tab's Select mode).
+
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
 

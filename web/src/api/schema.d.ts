@@ -1096,7 +1096,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Chapters */
+        /**
+         * List Chapters
+         * @description The index with each chapter's heading, plus the heading markers the series could
+         *     start volumes at. Reads only: the stored heading sequence is the fetch job's.
+         */
         get: operations["list_chapters_series__series_id__syosetu_chapters_get"];
         put?: never;
         post?: never;
@@ -1123,6 +1127,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/series/{series_id}/syosetu/volume-headings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Volume Headings
+         * @description Which headings start a volume. apply=False previews the regroup; apply=True saves
+         *     the setting and moves the existing chapters to match.
+         */
+        post: operations["volume_headings_series__series_id__syosetu_volume_headings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/series/{series_id}/volumes": {
         parameters: {
             query?: never;
@@ -1135,6 +1160,27 @@ export interface paths {
         put?: never;
         /** Create Volume */
         post: operations["create_volume_series__series_id__volumes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/volumes/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge Volumes
+         * @description Merge several volumes into ``into``: it keeps its own title and EPUB details and
+         *     takes the others' chapters and syosetu headings; the others are deleted.
+         */
+        post: operations["merge_volumes_series__series_id__volumes_merge_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1663,6 +1709,13 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** ChapterList */
+        ChapterList: {
+            /** Chapters */
+            chapters: components["schemas"]["IndexChapter"][];
+            /** Markers */
+            markers: components["schemas"]["Marker"][];
+        };
         /** Comparison */
         Comparison: {
             /** Daily Avg 30 */
@@ -2154,6 +2207,13 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** Marker */
+        Marker: {
+            /** Headings */
+            headings: number;
+            /** Marker */
+            marker: string;
+        };
         /** MergeRequest */
         MergeRequest: {
             /** Document Ids */
@@ -2251,6 +2311,15 @@ export interface components {
              */
             force: boolean;
         };
+        /** RegroupCounts */
+        RegroupCounts: {
+            /** Chapters Moved */
+            chapters_moved: number;
+            /** Volumes Created */
+            volumes_created: number;
+            /** Volumes Emptied */
+            volumes_emptied: number;
+        };
         /** ReplaceRequest */
         ReplaceRequest: {
             /**
@@ -2311,6 +2380,10 @@ export interface components {
             profile_id: number | null;
             /** Syosetu Url */
             syosetu_url: string;
+            /** Syosetu Volume Marker */
+            syosetu_volume_marker: string;
+            /** Syosetu Volume Mode */
+            syosetu_volume_mode: string;
             /** Title */
             title: string;
             /** Wp Password Enabled */
@@ -2594,6 +2667,31 @@ export interface components {
             title: string;
             /** Volume Order */
             volume_order?: number | null;
+        };
+        /** VolumeHeadings */
+        VolumeHeadings: {
+            /**
+             * Apply
+             * @default false
+             */
+            apply: boolean;
+            /**
+             * Marker
+             * @default
+             */
+            marker: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "all" | "marker" | "off";
+        };
+        /** VolumeMerge */
+        VolumeMerge: {
+            /** Into */
+            into: number;
+            /** Volume Ids */
+            volume_ids: number[];
         };
         /** VolumeOut */
         VolumeOut: {
@@ -5058,7 +5156,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["IndexChapter"][];
+                    "application/json": components["schemas"]["ChapterList"];
                 };
             };
             /** @description Validation Error */
@@ -5094,6 +5192,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    volume_headings_series__series_id__syosetu_volume_headings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeHeadings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegroupCounts"];
                 };
             };
             /** @description Validation Error */
@@ -5155,6 +5288,41 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    merge_volumes_series__series_id__volumes_merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeMerge"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
