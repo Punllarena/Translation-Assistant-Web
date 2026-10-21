@@ -34,8 +34,8 @@ def place(db: Session, volume: Volume) -> None:
     The volume must be flushed (it has an id). The caller flushes and runs arrange()."""
     others = [v for v in _volumes(db, volume.series_id) if v.id != volume.id]
     mine = _key(volume)
-    kind = volume.kind.casefold()
-    siblings = [(i, v) for i, v in enumerate(others) if v.kind.casefold() == kind]
+    kind = volume.kind.strip().casefold()
+    siblings = [(i, v) for i, v in enumerate(others) if v.kind.strip().casefold() == kind]
     lower = [i for i, v in siblings if _key(v) < mine]
     higher = [i for i, v in siblings if _key(v) > mine]
     if lower:

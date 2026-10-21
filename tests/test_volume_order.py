@@ -126,3 +126,31 @@ def test_reorder_other_users_series_404(app_client, me, make_user, make_series):
     other = make_series(make_user(email="o@example.com"), "Theirs")
     assert _put(app_client, other, [1]).status_code == 404
     assert app_client.post(f"/series/{other.id}/volumes/sort").status_code == 404
+
+
+def test_patch_resending_same_kind_and_index_does_not_move(app_client, series):
+    v1 = _new(app_client, series, index=1)
+    v2 = _new(app_client, series, index=2)
+    assert _put(app_client, series, [v2, v1]).status_code == 200
+    r = app_client.patch(
+        f"/volumes/{v1}", json={"kind": " volume ", "volume_index": "1.000", "epub_author": "X"}
+    )
+    assert r.status_code == 200
+    assert _ids(app_client, series) == [v2, v1]
+
+
+def test_patch_changing_kind_replaces_among_new_siblings(app_client, series):
+    v1 = _new(app_client, series, index=1)
+    ss1 = _new(app_client, series, "Side Story", 1)
+    x = _new(app_client, series, "Extra", 5)
+    assert _put(app_client, series, [x, ss1, v1]).status_code == 200
+    assert app_client.patch(f"/volumes/{x}", json={"kind": "Side Story"}).status_code == 200
+    assert _labels(app_client, series) == ["Side Story 1", "Side Story 5", "Volume 1"]
+
+
+def test_rule_two_goes_right_before_first_higher_sibling(app_client, series):
+    v1 = _new(app_client, series, index=1)
+    ss2 = _new(app_client, series, "Side Story", 2)
+    assert _put(app_client, series, [ss2, v1]).status_code == 200
+    _new(app_client, series, "Side Story", 1)
+    assert _labels(app_client, series) == ["Side Story 1", "Side Story 2", "Volume 1"]

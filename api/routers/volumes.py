@@ -107,6 +107,9 @@ def update_volume(
         )
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    renamed = (
+        "kind" in changes and changes["kind"].strip().casefold() != volume.kind.strip().casefold()
+    ) or ("volume_index" in changes and changes["volume_index"] != volume.volume_index)
     try:
         with db.begin_nested():
             for field, value in changes.items():
@@ -114,7 +117,7 @@ def update_volume(
     except IntegrityError as exc:
         raise conflict(exc, NAME_TAKEN) from exc
     moved = "volume_order" in changes
-    if not moved and ("kind" in changes or "volume_index" in changes):
+    if not moved and renamed:
         db.flush()
         place(db, volume)
         moved = True
