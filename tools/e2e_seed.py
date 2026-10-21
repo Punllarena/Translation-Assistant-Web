@@ -126,6 +126,11 @@ def main() -> None:
             db.flush()
             write_lines(db, ch.id, [{"line_number": 0, "prefix": "%", "raw_text": "図書です。",
                                      "translated_text": ""}])
+        # import.spec: New volume → Import EPUB lands the book as a second volume here
+        ev = Series(user_id=user.id, title="E2E epub volume series")
+        db.add(ev)
+        db.flush()
+        db.add(Volume(series_id=ev.id, title="Vol existing", volume_order=1))
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)

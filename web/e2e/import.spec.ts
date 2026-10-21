@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { openSeries } from "./fixtures/library";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,4 +48,20 @@ test("EPUB import: inspect, pick chapters, import", async ({ page }) => {
   await expect(page.getByRole("status").getByText("Imported: 2")).toBeVisible();
   await page.getByRole("link", { name: "Open series" }).click();
   await expect(page.getByText("Neko chapter").first()).toBeVisible();
+});
+
+test("New volume can import an EPUB into the open series", async ({ page }) => {
+  await openImport(page);
+  await openSeries(page, "E2E epub volume series");
+  await page.getByRole("button", { name: "New volume" }).click();
+  const dialog = page.getByRole("dialog", { name: "New volume" });
+  await dialog.getByRole("button", { name: "Import EPUB" }).click();
+  await dialog.getByLabel("EPUB file").setInputFiles(path.join(here, "fixtures/sample.epub"));
+  await expect(dialog.getByText(/1\. Neko chapter/)).toBeVisible();
+  for (const box of await dialog.getByRole("checkbox").all()) await box.check();
+  await dialog.getByLabel("Volume title").fill("Vol from EPUB");
+  await dialog.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("button", { name: /^Vol from EPUB/ })).toHaveAttribute("aria-current", "true");
+  await expect(page.getByRole("link", { name: "Open Neko chapter" })).toBeVisible();
 });
