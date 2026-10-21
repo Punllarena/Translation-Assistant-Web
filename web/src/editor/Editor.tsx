@@ -165,7 +165,15 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   // `current?.` (it is undefined for a chapter with no lines).
 
   if (!rows.some((r) => r.kind === "line")) {
-    return <main><p>This chapter has no source text yet. <Link to={`/documents/${id}/source`}>Edit source</Link></p></main>;
+    // an illustration-only chapter still shows its images
+    if (images.isPending) return <main />;
+    const only = images.data?.length ? "has only images, no source text" : "has no source text yet";
+    return (
+      <main className="editor">
+        <p>This chapter {only}. <Link to={`/documents/${id}/source`}>Edit source</Link></p>
+        {(images.data ?? []).map((image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />)}
+      </main>
+    );
   }
   const n = current.line_number;
   const editor = (
