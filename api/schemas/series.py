@@ -37,4 +37,6 @@ class SeriesOut(BaseModel):
     wp_series_title_short: str
     wp_password_enabled: bool | None
     wp_unlock_after: int | None
+    syosetu_volume_mode: str
+    syosetu_volume_marker: str
     created_at: datetime

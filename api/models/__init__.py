@@ -5,6 +5,7 @@ from api.models.content import (
     MtCache,
     Series,
     Volume,
+    VolumeSyosetuGroup,
     WorkSession,
 )
 from api.models.identity import (
@@ -24,5 +25,5 @@ from api.models.server import ServerSetting
 __all__ = [
     "ApiCredential", "CustomWord", "Document", "DocumentImage", "GlossaryEntry",
     "Invite", "Job", "Line", "MtCache", "Profile", "Series", "ServerSetting", "Session", "Shortcut",
-    "User", "UserSetting", "Volume", "WorkSession",
+    "User", "UserSetting", "Volume", "VolumeSyosetuGroup", "WorkSession",
 ]

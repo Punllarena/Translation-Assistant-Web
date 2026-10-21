@@ -139,3 +139,16 @@ def test_another_users_series_order_is_404(
     theirs = make_series(make_user(email="other@example.com"), "Theirs")
     r = getattr(app_client, method)(f"/series/{theirs.id}{suffix}", **kwargs)
     assert r.status_code == 404
+
+
+def test_series_out_reports_the_heading_setting(app_client, me, make_series):
+    s = make_series(me, "S")
+    body = app_client.get(f"/series/{s.id}").json()
+    assert body["syosetu_volume_mode"] == "all" and body["syosetu_volume_marker"] == ""
+
+
+def test_patch_series_cannot_set_the_heading_setting(app_client, me, make_series, db):
+    s = make_series(me, "S")
+    app_client.patch(f"/series/{s.id}", json={"syosetu_volume_mode": "off"})
+    db.refresh(s)
+    assert s.syosetu_volume_mode == "all"

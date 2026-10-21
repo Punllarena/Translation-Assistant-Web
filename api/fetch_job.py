@@ -3,7 +3,7 @@
 Takes chapter numbers, never URLs (plan ruling 8): the index is re-read from the
 series' own syosetu_url. Chapters already in the series are skipped, so a rerun
 resumes an interrupted fetch (ruling 10). A chapter under a syosetu chapter-title
-heading goes into the volume made from that heading (Volume.syosetu_group), created on
+heading goes into the volume made from that heading (VolumeSyosetuGroup), created on
 first sight; chapters already in the series are never moved."""
 
 from sqlalchemy import func, select
@@ -13,7 +13,7 @@ from api.core import scrape
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.jobs import JobContext, JobError, handler
 from api.library import check_line_count, write_lines
-from api.models import Document, Series, Volume
+from api.models import Document, Series, Volume, VolumeSyosetuGroup
 
 http_client = scrape.client  # the seam tests replace
 
@@ -22,22 +22,25 @@ def existing_orders(db, series_id: int) -> set[int]:
     return set(db.scalars(select(Document.series_order).where(Document.series_id == series_id)))
 
 
-def group_volume(db, series_id: int, group: str) -> Volume:
-    """The volume holding ``group``'s chapters: matched by the hidden key, so renaming it
-    is safe; otherwise a new last volume titled after the heading (suffixed when that
+def group_volume(db, series_id: int, heading: str) -> Volume:
+    """The volume holding ``heading``'s chapters: matched by the hidden key, so renaming
+    it is safe; otherwise a new last volume titled after the heading (suffixed when that
     title is taken)."""
-    volume = db.scalar(select(Volume).where(
-        Volume.series_id == series_id, Volume.syosetu_group == group))
+    volume = db.scalar(select(Volume).join(
+        VolumeSyosetuGroup, VolumeSyosetuGroup.volume_id == Volume.id).where(
+        VolumeSyosetuGroup.series_id == series_id, VolumeSyosetuGroup.heading == heading))
     if volume is not None:
         return volume
     taken = set(db.scalars(select(Volume.title).where(Volume.series_id == series_id)))
-    title, n = group, 2
+    title, n = heading, 2
     while title in taken:
-        title, n = f"{group} ({n})", n + 1
+        title, n = f"{heading} ({n})", n + 1
     order = db.scalar(select(func.coalesce(func.max(Volume.volume_order), 0) + 1)
                       .where(Volume.series_id == series_id))
-    volume = Volume(series_id=series_id, title=title, volume_order=order, syosetu_group=group)
+    volume = Volume(series_id=series_id, title=title, volume_order=order)
     db.add(volume)
+    db.flush()
+    db.add(VolumeSyosetuGroup(series_id=series_id, volume_id=volume.id, heading=heading))
     db.flush()
     return volume
 

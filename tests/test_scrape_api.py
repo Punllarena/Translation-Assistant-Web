@@ -5,7 +5,7 @@ import pytest
 
 from api import fetch_job, jobs
 from api.core import scrape
-from api.models import Document, Volume
+from api.models import Document, Volume, VolumeSyosetuGroup
 from api.routers import scrape as scrape_router
 
 INDEX = ('<div class="p-eplist__sublist"><a href="/n1/1/">One</a></div>'
@@ -243,6 +243,7 @@ def test_fetch_puts_grouped_chapters_into_volumes_in_order(
     assert _placement(db, s) == [(1, None), (2, "第一章"), (3, "第二章")]
     vols = db.query(Volume).filter_by(series_id=s.id).order_by(Volume.volume_order).all()
     assert [v.title for v in vols] == ["第一章", "第二章"]
+    assert db.query(VolumeSyosetuGroup).filter_by(series_id=s.id).count() == 2
     assert "syosetu_group" not in app_client.get(f"/series/{s.id}/volumes").text
 
 
