@@ -92,3 +92,10 @@ def test_short_gloss_first_two_joined_and_capped_at_a_boundary():
     long = "; ".join(f"word{i}" for i in range(60))
     out = short_gloss([long])
     assert len(out) <= 160 and out.endswith("…") and not out[:-1].endswith(";")
+
+
+def test_unhashable_tag_and_data_content_do_not_raise():
+    content = [{"tag": ["x"], "content": "a"}, {"data": {"content": []}, "content": "b"}]
+    assert meanings([{"type": "structured-content", "content": content}]) == ["ab"]
+    li = [{"tag": "li", "data": {"content": {}}, "content": "c"}]
+    assert meanings([{"type": "structured-content", "content": li}]) == ["c"]

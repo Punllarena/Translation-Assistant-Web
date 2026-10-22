@@ -20,7 +20,7 @@ def _data(node: dict) -> str | None:
 
 
 def _skipped(node: dict) -> bool:
-    return node.get("tag") in _SKIP_TAGS or _data(node) in _SKIP_DATA
+    return _tag(node) in _SKIP_TAGS or _data(node) in _SKIP_DATA
 
 
 def _text(node, depth: int = 0) -> str:
@@ -34,7 +34,7 @@ def _text(node, depth: int = 0) -> str:
     if not isinstance(node, dict) or _skipped(node):
         return ""
     inner = _text(node.get("content"), depth + 1)
-    return f" {inner} " if node.get("tag") in _BLOCK_TAGS else inner
+    return f" {inner} " if _tag(node) in _BLOCK_TAGS else inner
 
 
 def _lis(node, depth: int, inside_marked: bool, marked_only: bool, out: list[str]) -> None:
@@ -47,7 +47,7 @@ def _lis(node, depth: int, inside_marked: bool, marked_only: bool, out: list[str
     if not isinstance(node, dict) or _skipped(node):
         return
     inside_marked = inside_marked or _data(node) == "glossary"
-    if node.get("tag") == "li" and (inside_marked or not marked_only):
+    if _tag(node) == "li" and (inside_marked or not marked_only):
         out.append(_text(node, depth))
         return
     _lis(node.get("content"), depth + 1, inside_marked, marked_only, out)
