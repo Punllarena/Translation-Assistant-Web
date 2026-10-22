@@ -5,11 +5,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import api.dict_job  # noqa: F401  registers the dict_download handler
-from api import dictionary, jobs
+from api import dictionary, jobs, yomitan_job, yomitan_store
 from api.deps import db_session, require_admin
 from api.models import Job, User
 from api.routing import api_router
-from api.schemas.dictionary import DictFileOut, DictionaryOut
+from api.schemas.dictionary import DictFileOut, DictionaryOut, OrderIn, YomitanDictOut
 from api.schemas.jobs import JobOut
 from api.uploads import read_capped
 
@@ -24,9 +24,18 @@ def not_env(kind: dictionary.Kind) -> None:
 
 
 @router.get("", response_model=DictionaryOut)
-def get_dictionary(_: User = Depends(require_admin)) -> dict:
+def get_dictionary(_: User = Depends(require_admin), db: Session = Depends(db_session)) -> dict:
     # sync def: FastAPI runs it in the threadpool, so the first (slow) index load is off the loop
-    return {k: dictionary.status(k) for k in ("edict", "conjugations")}
+    return {
+        **{k: dictionary.status(k) for k in ("edict", "conjugations")},
+        "yomitan": [
+            YomitanDictOut(
+                id=d.id, title=d.title, revision=d.revision, attribution=d.attribution,
+                author=d.author, url=d.url, entries=d.entry_count, installed_at=d.installed_at)
+            for d in yomitan_store.installed(db)
+        ],
+        "order": yomitan_store.order(db),
+    }
 
 
 @router.post("/edict/download", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
@@ -36,6 +45,32 @@ def download(admin: User = Depends(require_admin), db: Session = Depends(db_sess
         Job.kind == "dict_download", Job.state.in_(("queued", "running"))).limit(1)):
         raise HTTPException(status.HTTP_409_CONFLICT, "a dictionary download is already running")
     return jobs.enqueue(db, admin.id, "dict_download", {})
+
+
+@router.post("/yomitan", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
+def upload_yomitan(file: UploadFile = File(...), admin: User = Depends(require_admin),
+                   db: Session = Depends(db_session)) -> Job:
+    if db.scalar(select(Job.id).where(
+        Job.kind == "yomitan_import", Job.state.in_(("queued", "running"))).limit(1)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "a dictionary upload is already running")
+    upload_id = yomitan_job.save_upload(file)
+    return jobs.enqueue(db, admin.id, "yomitan_import", {"upload": upload_id})
+
+
+@router.put("/order")
+def put_order(body: OrderIn, admin: User = Depends(require_admin),
+              db: Session = Depends(db_session)) -> dict:
+    try:
+        return {"order": yomitan_store.set_order(db, body.order, admin.id)}
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+
+
+@router.delete("/yomitan/{dictionary_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_yomitan(dictionary_id: int, _: User = Depends(require_admin),
+                   db: Session = Depends(db_session)) -> None:
+    if not yomitan_store.remove(db, dictionary_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "dictionary not found")
 
 
 @router.post("/{kind}", response_model=DictFileOut)

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.concurrency import run_in_threadpool
 
-from api import jobs, tadb_uploads
+from api import jobs, tadb_uploads, yomitan_job
 from api.config import get_settings
 from api.routers import (
     admin,
@@ -45,6 +45,7 @@ async def lifespan(app: FastAPI):
         return
     await run_in_threadpool(jobs.fail_interrupted)
     await run_in_threadpool(tadb_uploads.sweep)
+    await run_in_threadpool(yomitan_job.sweep)
     jobs.stopping.clear()
     stop = asyncio.Event()
     task = asyncio.create_task(jobs.worker(stop))

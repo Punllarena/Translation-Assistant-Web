@@ -12,6 +12,23 @@ class DictFileOut(BaseModel):
     entries: int | None
 
 
+class YomitanDictOut(BaseModel):
+    id: int
+    title: str
+    revision: str
+    attribution: str
+    author: str
+    url: str
+    entries: int
+    installed_at: datetime
+
+
 class DictionaryOut(BaseModel):
     edict: DictFileOut
     conjugations: DictFileOut
+    yomitan: list[YomitanDictOut]
+    order: list[str]
+
+
+class OrderIn(BaseModel):
+    order: list[str]

@@ -38,6 +38,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/dictionary/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Order */
+        put: operations["put_order_admin_dictionary_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/dictionary/yomitan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Yomitan */
+        post: operations["upload_yomitan_admin_dictionary_yomitan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/dictionary/yomitan/{dictionary_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Yomitan */
+        delete: operations["remove_yomitan_admin_dictionary_yomitan__dictionary_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/dictionary/{kind}": {
         parameters: {
             query?: never;
@@ -1760,6 +1811,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_upload_yomitan_admin_dictionary_yomitan_post */
+        Body_upload_yomitan_admin_dictionary_yomitan_post: {
+            /** File */
+            file: string;
+        };
         /** BookChapter */
         BookChapter: {
             /** Char Count */
@@ -1899,6 +1955,10 @@ export interface components {
         DictionaryOut: {
             conjugations: components["schemas"]["DictFileOut"];
             edict: components["schemas"]["DictFileOut"];
+            /** Order */
+            order: string[];
+            /** Yomitan */
+            yomitan: components["schemas"]["YomitanDictOut"][];
         };
         /** DocumentCreate */
         DocumentCreate: {
@@ -2335,6 +2395,11 @@ export interface components {
             short_story: boolean;
             /** Title */
             title: string;
+        };
+        /** OrderIn */
+        OrderIn: {
+            /** Order */
+            order: string[];
         };
         /** PeriodChange */
         PeriodChange: {
@@ -2902,6 +2967,28 @@ export interface components {
             /** Ok */
             ok: boolean;
         };
+        /** YomitanDictOut */
+        YomitanDictOut: {
+            /** Attribution */
+            attribution: string;
+            /** Author */
+            author: string;
+            /** Entries */
+            entries: number;
+            /** Id */
+            id: number;
+            /**
+             * Installed At
+             * Format: date-time
+             */
+            installed_at: string;
+            /** Revision */
+            revision: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -2947,6 +3034,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobOut"];
+                };
+            };
+        };
+    };
+    put_order_admin_dictionary_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_yomitan_admin_dictionary_yomitan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_yomitan_admin_dictionary_yomitan_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_yomitan_admin_dictionary_yomitan__dictionary_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dictionary_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
