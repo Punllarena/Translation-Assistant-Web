@@ -51,7 +51,7 @@ export default function NewDocument({ seriesId: presetSeries, volumeId, onClose 
       if (doc === null) {
         let series_id = Number(choice.id);
         if (choice.id === "") {
-          const made = await call(api.POST("/series", { body: { title: choice.title.trim(), syosetu_url: "" } }));
+          const made = await call(api.POST("/series", { body: { title: choice.title.trim(), syosetu_url: "", original_title: "", original_author: "", author_romaji: "" } }));
           series_id = made.id;
           setChoice({ id: String(made.id), title: "" }); // a retry reuses it
         }

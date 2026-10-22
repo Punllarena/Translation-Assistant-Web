@@ -24,7 +24,7 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
   const preview = templateProblem ? null : render(template.trim() ? template : DEFAULT_TEMPLATE, { series: series.title, ...sample });
   const chapters = `${chapterCount} ${chapterCount === 1 ? "chapter" : "chapters"}`;
   const save = useMutation({
-    mutationFn: (body: { title: string; syosetu_url: string; volume_title_template: string }) =>
+    mutationFn: (body: { title: string; original_title: string; original_author: string; author_romaji: string; syosetu_url: string; volume_title_template: string }) =>
       call(api.PATCH("/series/{series_id}", { params: { path: { series_id: seriesId } }, body })),
     onSuccess: () => invalidateLibrary(queryClient),
   });
@@ -40,6 +40,9 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
     const form = new FormData(e.currentTarget);
     save.mutate({
       title: String(form.get("title")),
+      original_title: String(form.get("original_title")),
+      original_author: String(form.get("original_author")),
+      author_romaji: String(form.get("author_romaji")),
       syosetu_url: String(form.get("syosetu_url")),
       volume_title_template: template.trim() ? template : "",
     });
@@ -48,6 +51,9 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
     <>
       <form className="stack" onSubmit={submit} key={series.id}>
         <label>Title <input name="title" defaultValue={series.title} required /></label>
+        <label>Japanese title <input name="original_title" defaultValue={series.original_title} maxLength={300} /></label>
+        <label>Author <input name="original_author" defaultValue={series.original_author} maxLength={300} /></label>
+        <label>Author (romaji) <input name="author_romaji" defaultValue={series.author_romaji} maxLength={300} /></label>
         <label>Series URL <input name="syosetu_url" type="url" defaultValue={series.syosetu_url} /></label>
         <label>Volume title template
           <input name="volume_title_template" value={template} placeholder={DEFAULT_TEMPLATE}

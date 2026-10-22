@@ -19,7 +19,7 @@ export default function Library() {
   const [view, setView] = useState<LibraryView>(() => readView());
   const [creating, setCreating] = useState(false);
   const create = useMutation({
-    mutationFn: (title: string) => call(api.POST("/series", { body: { title, syosetu_url: "" } })),
+    mutationFn: (title: string) => call(api.POST("/series", { body: { title, syosetu_url: "", original_title: "", original_author: "", author_romaji: "" } })),
     onSuccess: async (s) => {
       await invalidateLibrary(queryClient);
       setCreating(false);
