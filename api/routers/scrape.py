@@ -26,6 +26,8 @@ from api.schemas.scrape import (
     FetchUrl,
     IndexChapter,
     Marker,
+    NovelChapter,
+    NovelInfo,
     Refetch,
     RegroupCounts,
     VolumeHeadings,
@@ -69,6 +71,27 @@ def fetch_one(
     """The desktop New document → Fetch from URL tab: returns the text for the form."""
     title, content = _fetch(body.url, server_settings.effective(db).syosetu_delay_seconds)
     return Fetched(title=title, content=content)
+
+
+@router.post("/scrape/syosetu/novel", response_model=NovelInfo)
+def read_novel(
+    body: FetchUrl, user: User = Depends(current_user), db: Session = Depends(db_session)
+) -> NovelInfo:
+    """Preview a novel (title, author, first chapter) before its series exists."""
+    delay = server_settings.effective(db).syosetu_delay_seconds
+    try:
+        with _slot(), http_client() as c:
+            novel = scrape.read_novel(c, body.url, delay=delay)
+    except scrape.NoChapters as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    except scrape.ScrapeError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    first = novel["chapters"][0]  # sorted by num
+    return NovelInfo(title=novel["title"], author=novel["author"],
+                     short_story=novel["short_story"],
+                     first_chapter=NovelChapter(num=first["num"], title=first["title"]))
 
 
 def _series_with_url(db: Session, series_id: int, user_id: int) -> Series:

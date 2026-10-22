@@ -12,6 +12,18 @@ class Fetched(BaseModel):
     content: str
 
 
+class NovelChapter(BaseModel):
+    num: int
+    title: str
+
+
+class NovelInfo(BaseModel):
+    title: str
+    author: str
+    short_story: bool
+    first_chapter: NovelChapter
+
+
 class IndexChapter(BaseModel):
     num: int
     title: str

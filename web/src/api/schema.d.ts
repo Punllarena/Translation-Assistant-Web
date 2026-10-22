@@ -810,6 +810,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/scrape/syosetu/novel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Novel
+         * @description Preview a novel (title, author, first chapter) before its series exists.
+         */
+        post: operations["read_novel_scrape_syosetu_novel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/series": {
         parameters: {
             query?: never;
@@ -2278,6 +2298,23 @@ export interface components {
             suggestions: string[];
             /** Word */
             word: string;
+        };
+        /** NovelChapter */
+        NovelChapter: {
+            /** Num */
+            num: number;
+            /** Title */
+            title: string;
+        };
+        /** NovelInfo */
+        NovelInfo: {
+            /** Author */
+            author: string;
+            first_chapter: components["schemas"]["NovelChapter"];
+            /** Short Story */
+            short_story: boolean;
+            /** Title */
+            title: string;
         };
         /** PeriodChange */
         PeriodChange: {
@@ -4464,6 +4501,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Fetched"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_novel_scrape_syosetu_novel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FetchUrl"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NovelInfo"];
                 };
             };
             /** @description Validation Error */

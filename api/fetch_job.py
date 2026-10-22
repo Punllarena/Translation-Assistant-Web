@@ -68,7 +68,7 @@ def fetch_series(ctx: JobContext) -> dict:
     wanted = set(ctx.params["nums"])
     delay = server_settings.effective(ctx.db).syosetu_delay_seconds
     ctx.progress(0, len(wanted), "Reading the chapter list")
-    added, skipped, errors = 0, 0, []
+    added, skipped, errors, document_ids = 0, 0, [], []
     with http_client() as c:
         try:
             full = scrape.fetch_series_index(c, series.syosetu_url)
@@ -91,17 +91,20 @@ def fetch_series(ctx: JobContext) -> dict:
                     message = getattr(exc, "detail", None) or str(exc) or type(exc).__name__
                     errors.append({"num": ch["num"], "message": str(message)})
                 else:
+                    name = title or ch["title"] or f"Chapter {ch['num']}"
                     heading = place[ch["num"]]
                     volume = heading and group_volume(ctx.db, series.id, heading)
                     doc = Document(
-                        user_id=series.user_id, series_id=series.id, title=title or ch["title"],
-                        chapter_title=title or ch["title"], series_order=ch["num"],
+                        user_id=series.user_id, series_id=series.id, title=name,
+                        chapter_title=name, series_order=ch["num"],
                         source_url=ch["url"], volume_id=volume.id if volume else None,
                     )
                     ctx.db.add(doc)
                     ctx.db.flush()
                     write_lines(ctx.db, doc.id, lines_to_db_rows(raw, translated))
+                    document_ids.append(doc.id)
                     added += 1
             ctx.progress(i, len(index), f"Chapter {ch['num']}")
     missing = sorted(wanted - {ch["num"] for ch in index})
-    return {"added": added, "skipped": skipped, "errors": errors, "missing": missing}
+    return {"added": added, "skipped": skipped, "errors": errors, "missing": missing,
+            "document_ids": document_ids}
