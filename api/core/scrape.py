@@ -22,6 +22,10 @@ class ScrapeError(Exception):
     """Syosetu could not be reached or answered with an error."""
 
 
+class NoChapters(ScrapeError):
+    """The page has neither chapter entries nor novel text."""
+
+
 def validate_url(url: str) -> None:
     if any(ord(ch) < 32 or ord(ch) == 127 for ch in url):
         raise ValueError("The URL contains control characters")
@@ -168,21 +172,78 @@ def _next_page_url(soup: BeautifulSoup, base: str) -> str | None:
     return urljoin(base, href) if href else None
 
 
-def fetch_series_index(c: httpx.Client, url: str) -> list[dict]:
-    _validate_series_url(url)
-    parsed = urlparse(url)
-    base = f"{parsed.scheme}://{parsed.netloc}"
+def _has_novel_text(soup: BeautifulSoup) -> bool:
+    return soup.find(
+        class_=lambda c: c and "js-novel-text" in c.split() and "p-novel__text" in c.split()
+    ) is not None
+
+
+def _novel_header(soup: BeautifulSoup) -> tuple[str, str]:
+    title_el = soup.select_one("h1.p-novel__title") or soup.find(
+        class_=lambda c: c and "p-novel__title" in c
+    )
+    title = title_el.get_text(strip=True) if title_el else ""
+    author_el = soup.select_one("div.p-novel__author")
+    author = ""
+    if author_el:
+        link = author_el.find("a")
+        if link:
+            author = link.get_text(strip=True)
+        else:
+            author = author_el.get_text(strip=True)
+            for prefix in ("作者：", "作者:"):
+                if author.startswith(prefix):
+                    author = author[len(prefix):].strip()
+                    break
+    return title, author
+
+
+def _walk_index(c: httpx.Client, url: str) -> tuple[BeautifulSoup, list[dict]]:
+    """Every index page's chapters, sorted; also the root page's soup (fetched once)."""
+    base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
     current_url: str | None = url
     chapters: list[dict] = []
     group = None
     pages = 0
+    root = None
     while current_url:
         if pages >= MAX_INDEX_PAGES:
             raise ScrapeError(f"the chapter list has more than {MAX_INDEX_PAGES} pages")
         pages += 1
         soup = BeautifulSoup(_get(c, current_url), "html.parser")
+        root = root or soup
         found, group = _extract_chapters(soup, base, group)
         chapters.extend(found)
         current_url = _next_page_url(soup, base)
     chapters.sort(key=lambda ch: ch["num"])
+    return root, chapters
+
+
+def _short_story(soup: BeautifulSoup, url: str) -> list[dict]:
+    title, _ = _novel_header(soup)
+    return [{"num": 1, "title": title, "url": url, "group": None}]
+
+
+def fetch_series_index(c: httpx.Client, url: str) -> list[dict]:
+    _validate_series_url(url)
+    root, chapters = _walk_index(c, url)
+    if not chapters and _has_novel_text(root):
+        return _short_story(root, url)
     return chapters
+
+
+def read_novel(c: httpx.Client, url: str, *, delay: float = 0.0) -> dict:
+    """Header and first index page of a series root; a short story is one chapter."""
+    _validate_series_url(url)
+    throttle(delay)
+    base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
+    soup = BeautifulSoup(_get(c, url), "html.parser")
+    title, author = _novel_header(soup)
+    chapters, _ = _extract_chapters(soup, base, None)
+    chapters.sort(key=lambda ch: ch["num"])
+    if chapters:
+        return {"title": title, "author": author, "short_story": False, "chapters": chapters}
+    if _has_novel_text(soup):
+        return {"title": title, "author": author, "short_story": True,
+                "chapters": _short_story(soup, url)}
+    raise NoChapters("no chapters found at this URL")
