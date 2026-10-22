@@ -55,6 +55,22 @@ def test_candidate_keys_include_substrings_and_deconjugation_bases():
     assert {"行った", "猫", "行く"} <= keys and " " not in "".join(keys)
 
 
+def test_keys_are_only_built_when_a_yomitan_dictionary_is_installed(
+    db, lookup_session, edict_files
+):
+    calls = []
+
+    def keys():
+        calls.append(1)
+        return {"猫"}
+
+    assert lookup.layered(keys, {}) is not None
+    assert calls == []
+    install(db, "A", {"猫": "cat (yomitan)"})
+    lk = lookup.layered(keys, {})
+    assert calls == [1] and lk["猫"].gloss == "cat (yomitan)"
+
+
 def test_order_decides_which_gloss_jparser_shows(db, lookup_session, edict_files, make_user):
     tok = install(db, "A", {"猫": "cat (yomitan)"})
     assert jparser.run("猫")[0]["gloss"] == "cat"

@@ -414,7 +414,7 @@ def run(text: str) -> list[Entry]:
 
     edict = load_index(lookup.edict_path())
     rules = load_rules(lookup.conj_path())
-    lk = lookup.layered(lookup.candidate_keys(text, rules), edict)
+    lk = lookup.layered(lambda: lookup.candidate_keys(text, rules), edict)
     if lk is None:
         raise NeedsSetup(
             "JParser needs a dictionary. An admin can download EDICT2 or upload a Yomitan "

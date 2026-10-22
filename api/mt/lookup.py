@@ -1,7 +1,7 @@
 """Layered dictionary lookup for JParser and MeCab: EDICT2 plus the admin's Yomitan
 dictionaries, in the admin's order (first layer that has a key wins)."""
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 
 from api import yomitan_store
 from api.db import SessionLocal
@@ -73,10 +73,16 @@ def candidate_keys(text: str, rules: list[DeconjRule], max_len: int = 12) -> set
     return keys
 
 
-def layered(keys: set[str], edict: Mapping[str, DictEntry] | None) -> Lookup | None:
+def layered(
+    keys: set[str] | Callable[[], set[str]], edict: Mapping[str, DictEntry] | None
+) -> Lookup | None:
+    """``keys`` may be a callable: it is only called when a Yomitan dictionary is installed."""
     with session() as db:
         order = yomitan_store.order(db)
-        fetched = yomitan_store.fetch(db, keys) if len(order) > 1 else {}
+        if len(order) > 1:
+            fetched = yomitan_store.fetch(db, keys() if callable(keys) else keys)
+        else:
+            fetched = {}
     if edict is None and len(order) <= 1:
         return None
     layers: list[Mapping[str, DictEntry]] = []
