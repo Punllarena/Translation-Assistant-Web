@@ -41,6 +41,9 @@ class Lookup(Mapping[str, DictEntry]):
                     seen.add(key)
                     yield key
 
+    def __bool__(self) -> bool:
+        return bool(self.layers)  # cheap: Mapping's default would call __len__
+
     def __len__(self) -> int:
         return sum(1 for _ in self)
 
@@ -62,7 +65,7 @@ def candidate_keys(text: str, rules: list[DeconjRule], max_len: int = 12) -> set
             if any(c.isspace() for c in sub):
                 break  # every longer substring from i contains it too
             keys.add(sub)
-            if len(sub) >= 2:
+            if len(sub) >= 2:  # analyze() only deconjugates tokens of 2+ characters
                 for suffix, base_suffix in pairs:
                     if sub.endswith(suffix):
                         keys.add(sub[: len(sub) - len(suffix)] + base_suffix)

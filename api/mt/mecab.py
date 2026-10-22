@@ -25,7 +25,7 @@ def run(text: str) -> list[dict]:
     lk = lookup.layered(keys, edict)
     out = []
     for word, f, reading, lemma in rows:
-        hit = lk and (lk.get(lemma or word.surface) or lk.get(word.surface))
+        hit = (lk.get(lemma or word.surface) or lk.get(word.surface)) if lk is not None else None
         out.append({
             "surface": word.surface, "reading": reading, "lemma": lemma,
             "pos": getattr(f, "pos1", "") or "", "gloss": hit.gloss if hit else "",

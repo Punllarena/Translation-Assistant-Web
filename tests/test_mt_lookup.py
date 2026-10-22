@@ -37,6 +37,18 @@ def test_lookup_first_layer_wins_and_all_lists_in_order():
     assert lk.all("x") == [a, b] and lk.all("zz") == []
 
 
+def test_bool_does_not_walk_the_layers():
+    class Huge(dict):
+        def __iter__(self):
+            raise AssertionError("iterated")
+
+        def __len__(self):
+            raise AssertionError("measured")
+
+    assert bool(Lookup([Huge()])) is True
+    assert bool(Lookup([])) is False
+
+
 def test_candidate_keys_include_substrings_and_deconjugation_bases():
     rules = jparser.load_rules(str(FX / "conjugations_sample.json"))
     keys = candidate_keys("行った 猫", rules)

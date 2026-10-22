@@ -1,4 +1,5 @@
-"""JParser: edict2 lookup with deconjugation, ported from the desktop app as structured entries."""
+"""JParser: layered dictionary lookup (EDICT2 plus Yomitan) with deconjugation,
+ported from the desktop app as structured entries."""
 
 import functools
 import json
