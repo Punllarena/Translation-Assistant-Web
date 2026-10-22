@@ -1669,6 +1669,11 @@ export interface components {
              * @default
              */
             author: string;
+            /**
+             * Author Romaji
+             * @default
+             */
+            author_romaji: string;
             /** File */
             file: string;
             /** Hrefs */
@@ -1683,6 +1688,21 @@ export interface components {
              * @default
              */
             illustrator: string;
+            /**
+             * New Series
+             * @default false
+             */
+            new_series: boolean;
+            /**
+             * Original Author
+             * @default
+             */
+            original_author: string;
+            /**
+             * Original Title
+             * @default
+             */
+            original_title: string;
             /**
              * Publisher
              * @default

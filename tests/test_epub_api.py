@@ -4,7 +4,7 @@ import zipfile
 import pytest
 
 from api.core.epub_build import build_epub
-from api.models import Document, DocumentImage, Volume
+from api.models import Document, DocumentImage, Series, Volume
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 32
 
@@ -278,3 +278,43 @@ def test_epub_import_index_too_big_is_422_not_500(app_client, me):
 def test_epub_import_all_empty_is_422(app_client, me):
     r = _vol_form(app_client, book(), volume_kind="", volume_index="", volume_subtitle="")
     assert r.status_code == 422 and "give a kind, number or subtitle" in r.text
+
+
+def _new_form(client, **extra):
+    return client.post("/epub/import", files=upload(book()), data={
+        "volume_kind": "Volume", "hrefs": _hrefs(client), **extra})
+
+
+def test_new_series_mode_creates_with_credits(app_client, me, db):
+    r = _new_form(app_client, new_series="true", series_title=" Hero ",
+                  original_title=" 勇者 ", original_author="作者", author_romaji="Sakusha")
+    assert r.status_code == 201
+    series = db.get(Series, r.json()["series_id"])
+    assert (series.title, series.original_title, series.original_author,
+            series.author_romaji) == ("Hero", "勇者", "作者", "Sakusha")
+
+
+def test_new_series_mode_refuses_taken_title(app_client, me, db, make_series):
+    make_series(me, "Hero")
+    counts = lambda: tuple(db.query(m).count() for m in (Series, Volume, Document))  # noqa: E731
+    before = counts()
+    r = _new_form(app_client, new_series="true", series_title="Hero")
+    assert r.status_code == 409 and r.json()["detail"] == "a series with that title exists"
+    assert counts() == before
+
+
+def test_new_series_mode_rejects_series_id(app_client, me, make_series):
+    series = make_series(me, "Hero")
+    r = _new_form(app_client, new_series="true", series_id=series.id)
+    assert r.status_code == 422
+    assert "new_series needs series_title, not series_id" in r.text
+    assert _new_form(app_client, new_series="true").status_code == 422
+
+
+def test_import_page_still_reuses_series(app_client, me, db, make_series):
+    series = make_series(me, "Hero")
+    r = _new_form(app_client, series_title="Hero", original_title="ignored")
+    assert r.status_code == 201 and r.json()["series_id"] == series.id
+    assert db.query(Series).filter_by(user_id=me.id).count() == 1
+    db.refresh(series)
+    assert series.original_title == ""
