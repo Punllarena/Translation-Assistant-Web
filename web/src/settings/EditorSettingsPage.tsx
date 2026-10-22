@@ -2,9 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, call } from "../api/client";
 import PageHeader from "../ui/PageHeader";
 import WordList from "./WordList";
-
-/** Same default as the API's `DEFAULT_PARSE_CHARS` (api/core/text.py). */
-export const DEFAULT_PARSE_CHARS = "、 。 ？ ！ 「 」 …… ";
+import { DEFAULT_PARSE_CHARS } from "./parseChars";
 
 /** Settings → Editor: parse characters and the account dictionary. */
 export default function EditorSettingsPage() {

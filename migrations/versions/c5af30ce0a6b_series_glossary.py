@@ -166,8 +166,9 @@ def upgrade() -> None:
     op.add_column('glossary', sa.Column('series_id', sa.Integer(), nullable=True))
     op.add_column('custom_words', sa.Column('user_id', sa.Integer(), nullable=True))
     op.add_column('custom_words', sa.Column('series_id', sa.Integer(), nullable=True))
-    # A shared profile's rows and their per-series copies coexist until the data step
-    # deletes the originals, so the old keying cannot stay unique or required meanwhile.
+    # The per-series copies carry no profile_id, so only relaxing NOT NULL on the old
+    # profile_id columns is required before the copy (NULL never conflicts with the old
+    # unique keys); the old unique keys are dropped here because the schema retires them.
     op.drop_constraint(op.f('glossary_profile_id_phrase_key'), 'glossary', type_='unique')
     op.drop_index(op.f('uq_custom_words_profile_lower_word'), table_name='custom_words')
     op.alter_column('glossary', 'profile_id', nullable=True)

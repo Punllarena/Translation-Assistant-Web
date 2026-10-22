@@ -10,7 +10,8 @@ interface Props {
   onClose(): void;
 }
 
-/** The right-click menu on a misspelled word: suggestions, then "Add to dictionary". */
+/** The right-click menu on a misspelled word: suggestions, then "Add to dictionary" for this
+ * series or for all series (the account dictionary). */
 export default function SpellMenu({ x, y, word, onPick, onAdd, onClose }: Props) {
   const menu = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: x, top: y });

@@ -5,12 +5,12 @@ a self-hosted, multi-user FastAPI + Postgres server with a React SPA under `web/
 port are in place:
 
 1. **Skeleton:** FastAPI app, full Postgres schema via Alembic, session auth with invites, per-user
-   profiles/settings/shortcuts/encrypted credentials, the `ta.db` importer.
+   settings/shortcuts/encrypted credentials, the `ta.db` importer.
 2. **Library:** series, volumes, documents, picker with progress, reorder and renumber, merge and split,
    covers, TXT import, TXT/Markdown export.
 3. **Editor:** line cards with dirty-line saving, keymap and parse navigation, find, spellcheck, inline
    images, Edit Source/Split.
-4. **Memory:** glossary and profiles, translation memory, series find and replace, phrase suggestions.
+4. **Memory:** series glossaries, translation memory, series find and replace, phrase suggestions.
 5. **Machine translation:** DeepL, LibreTranslate, Ollama (streamed), MeCab and JParser, with a shared cache.
 6. **Acquisition and publishing:** background jobs, syosetu fetch, batch TXT and EPUB import, EPUB build
    (6a); WordPress publish, batch publish/schedule, volume illustrations, and statistics (6b).
@@ -303,7 +303,7 @@ are counted in the viewer's browser time zone.
   rewrapping them by hand would be undone by the next `--autogenerate`.
 - **Delete semantics follow the addressing.** Key-addressed stores are idempotent:
   `DELETE /settings/{key}` and `DELETE /shortcuts/{action_key}` answer 204 whether or not the key
-  existed. Id-addressed resources are not: `DELETE /profiles/{id}` and `DELETE /credentials/{id}`
+  existed. Id-addressed resources are not: `DELETE /series/{id}` and `DELETE /credentials/{id}`
   answer 404 for an id that is not the caller's. Phases 2-6 should follow the same rule.
 - **Writes commit in the request path**, in `CommitOnResponseRoute` (`api/routing.py`), not in the
   session dependency's teardown — a teardown commit runs after the response has been sent, so its
@@ -332,7 +332,7 @@ are counted in the viewer's browser time zone.
   from empty to non-empty, clears it when the line is emptied, and keeps it on an edit (the
   desktop restamped every edit).
 - **Spellcheck spans are UTF-16 offsets**, the units of a browser string; enchant runs
-  server-side with each profile's custom words. Without enchant or an English dictionary the
+  server-side with the account's custom words plus the series' own. Without enchant or an English dictionary the
   endpoint answers `available: false` and flags nothing. Requests are capped at 200 texts,
   100,000 characters each and 200,000 in total (422 beyond), and enchant calls are serialised
   behind one global lock.

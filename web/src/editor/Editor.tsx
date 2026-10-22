@@ -189,7 +189,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
           <Link to={`/documents/${id}/source`}>Edit source</Link>
           <Link to={`/documents/${id}/split`}>Split</Link>
           {!spell.available && <span className="muted">Spellcheck unavailable</span>}
-          {data.document.series_id != null && <Link to={`/series/${data.document.series_id}`}>Series tools</Link>}
+          <Link to={`/series/${data.document.series_id}`}>Series tools</Link>
           <button onClick={() => {
             queryClient.setQueryData(["settings"], { ...settings.data, tm_visible: !tmVisible });
             void call(api.PUT("/settings", { body: { tm_visible: !tmVisible } })).catch(() => {});

@@ -67,10 +67,10 @@ class Series(Base):
         back_populates="series", cascade="all, delete-orphan"
     )
     glossary: Mapped[list["GlossaryEntry"]] = relationship(
-        back_populates="series", cascade="all, delete-orphan"
+        back_populates="series", cascade="all, delete-orphan", passive_deletes=True
     )
     custom_words: Mapped[list["CustomWord"]] = relationship(
-        back_populates="series", cascade="all, delete-orphan"
+        back_populates="series", cascade="all, delete-orphan", passive_deletes=True
     )
 
     @property
