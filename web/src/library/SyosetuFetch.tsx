@@ -7,6 +7,9 @@ import { invalidateLibrary } from "./queries";
 import type { SeriesRow } from "./shelf";
 import { groupRuns } from "./syosetuGroups";
 
+const shortStory = (chapters: { fetched: boolean; url: string }[], series: SeriesRow) =>
+  chapters.length === 1 && chapters[0].fetched && chapters[0].url === series.syosetu_url;
+
 /** Pick chapters from the series' Syosetu index and fetch them as a background job. */
 export default function SyosetuFetch({ series }: { series: SeriesRow }) {
   const seriesId = series.id;
@@ -61,7 +64,10 @@ export default function SyosetuFetch({ series }: { series: SeriesRow }) {
             <button type="button" disabled={list.isPending} onClick={() => list.mutate()}>Load chapter list</button>
           </div>
           {list.isError && <p className="error" role="alert">{list.error.message}</p>}
-          {list.data && (
+          {list.data && shortStory(list.data.chapters, series) && (
+            <p className="muted">This is a short story; there are no more chapters to fetch.</p>
+          )}
+          {list.data && !shortStory(list.data.chapters, series) && (
             <>
               {list.data.chapters.some((c) => c.group) && <HeadingVolumes series={series} markers={list.data.markers} />}
               <ul>
