@@ -1,4 +1,4 @@
-import { createBrowserRouter, createRoutesFromElements, Route } from "react-router";
+import { createBrowserRouter, createRoutesFromElements, Route, Navigate } from "react-router";
 import AcceptInvite from "./auth/AcceptInvite";
 import Login from "./auth/Login";
 import { RequireAuth, SetupGate } from "./auth/session";
@@ -7,7 +7,7 @@ import SourcePage from "./editor/SourcePage";
 import ImportPage from "./library/ImportPage";
 import Library from "./library/Library";
 import SeriesPage from "./library/SeriesPage";
-import ProfilesPage from "./settings/ProfilesPage";
+import EditorSettingsPage from "./settings/EditorSettingsPage";
 import MtSettingsPage from "./settings/MtSettingsPage";
 import WpSettingsPage from "./settings/WpSettingsPage";
 import ShortcutsPage from "./settings/ShortcutsPage";
@@ -29,7 +29,8 @@ export const router = createBrowserRouter(
           <Route path="import" element={<ImportPage />} />
           <Route path="stats" element={<StatsPage />} />
           <Route path="series/:id" element={<SeriesPage />} />
-          <Route path="settings/profiles" element={<ProfilesPage />} />
+          <Route path="settings/editor" element={<EditorSettingsPage />} />
+          <Route path="settings/profiles" element={<Navigate to="/settings/editor" replace />} />
           <Route path="settings/shortcuts" element={<ShortcutsPage />} />
           <Route path="settings/mt" element={<MtSettingsPage />} />
           <Route path="settings/wp" element={<WpSettingsPage />} />

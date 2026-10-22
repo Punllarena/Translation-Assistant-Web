@@ -28,7 +28,7 @@ export default function Shell() {
         <nav aria-label="Main">
           <Link to="/" aria-current={LIBRARY.test(pathname) ? "page" : undefined}>Library</Link>
           <NavLink to="/stats">Statistics</NavLink>
-          <NavLink to="/settings/profiles">Profiles</NavLink>
+          <NavLink to="/settings/editor">Editor</NavLink>
           <NavLink to="/settings/mt">Machine translation</NavLink>
           <NavLink to="/settings/wp">WordPress</NavLink>
           <NavLink to="/settings/shortcuts">Shortcuts</NavLink>

@@ -60,7 +60,7 @@ export default function ImportTadb() {
   return (
     <section className="panel sec" aria-labelledby="tadb-h">
       <div className="sec-head"><h2 id="tadb-h">Desktop library (ta.db)</h2></div>
-      <p className="hint">Imports profiles, glossaries, series and chapters from the desktop app's ta.db into your account. Nothing is written until you confirm.</p>
+      <p className="hint">Imports glossaries, series and chapters from the desktop app's ta.db into your account. Nothing is written until you confirm.</p>
       <label className="field"><span>ta.db file</span>
         <input type="file" accept=".db,application/x-sqlite3" aria-label="Desktop ta.db"
           disabled={send.isPending || (upload !== null && !done)} onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) send.mutate(f); }} /></label>
