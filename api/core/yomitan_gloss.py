@@ -76,14 +76,27 @@ def _structured(content) -> list[str]:
 
 
 def _lines(text: str) -> list[str]:
-    """Candidate meanings from a multi-line plain string (the 新和英 shape)."""
-    rows = [ln.strip() for ln in text.splitlines()]
-    if rows and ("【" in rows[0] or "[ローマ字]" in rows[0]):
-        rows = rows[1:]
+    """Candidate meanings from a multi-line plain string (the 新和英 shape).
+
+    Headword lines (any line with ``[ローマ字]``, which also catches the next entry's
+    headword trailing a row) are dropped. A first line written ``headword<U+3000>sense``
+    keeps its sense; later lines containing U+3000 are phrase examples and are dropped, unless
+    they start with a sense number (U+3000 inside a numbered sense, as in a life-span)."""
     out = []
-    for row in rows:
+    for i, row in enumerate(ln.strip() for ln in text.splitlines()):
         row = _XREF.sub("", row).strip()
-        if not row or "　" in row or not _LATIN.search(row):
+        if "[ローマ字]" in row:
+            continue
+        if i == 0:
+            if "　" in row:
+                row = row.split("　", 1)[1].strip()
+            elif "【" in row:
+                continue
+        elif "　" in row:
+            if not _SENSE_NO.match(row):
+                continue
+            row = row.replace("　", " ")
+        if not row or not _LATIN.search(row):
             continue
         out.append(_SENSE_NO.sub("", row))
     return out

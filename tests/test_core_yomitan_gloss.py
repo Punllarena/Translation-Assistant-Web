@@ -79,6 +79,22 @@ def test_multiline_string_drops_headword_xref_phrase_and_label_lines():
     assert meanings([text]) == ["〔動物〕 a cat; 《口》 a puss.", "〔芸者〕 a geisha."]
 
 
+def test_multiline_one_line_entry_keeps_sense_after_headword_ideographic_space():
+    assert meanings(["ほげふが　a made-up thing.\n"]) == ["a made-up thing."]
+    assert meanings(["ほげ　1 〔試験〕 a probe; a test.\n"]) == ["〔試験〕 a probe; a test."]
+
+
+def test_multiline_trailing_next_headword_and_xref_only_rows_give_nothing_extra():
+    text = "ほげ　a stand-in.\nふが１【譜画】 [ローマ字](fuga)\n"
+    assert meanings([text]) == ["a stand-in."]
+    assert meanings(["ほげ [ローマ字](hoge)\n＝ふが.\n"]) == []
+
+
+def test_multiline_numbered_sense_may_hold_ideographic_space():
+    text = "ほげ [ローマ字](hoge)\n1 Foo, Bar (1930-　; 作家).\n〜に　phrase only.\n"
+    assert meanings([text]) == ["Foo, Bar (1930- ; 作家)."]
+
+
 def test_deep_nesting_is_cut_at_max_depth():
     assert MAX_DEPTH == 64
     node = "deep"
