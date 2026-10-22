@@ -219,3 +219,13 @@ def make_doc(db):
         return doc
 
     return _make
+
+
+@pytest.fixture
+def lookup_session(db, monkeypatch):
+    import contextlib
+
+    from api.mt import lookup
+
+    monkeypatch.setattr(lookup, "session", lambda: contextlib.nullcontext(db))
+    return db

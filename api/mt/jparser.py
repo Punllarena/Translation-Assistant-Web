@@ -1,10 +1,12 @@
-"""JParser: edict2 lookup with deconjugation, ported from the desktop app as structured entries."""
+"""JParser: layered dictionary lookup (EDICT2 plus Yomitan) with deconjugation,
+ported from the desktop app as structured entries."""
 
 import functools
 import json
 import os
 import re
 import threading
+from collections.abc import Mapping
 from typing import NamedTuple
 
 from api.mt.base import NeedsSetup
@@ -24,6 +26,7 @@ class DictEntry(NamedTuple):
     pos_tags: frozenset[str]
     gloss: str
     common: bool = False  # True if any headword has (P) marker
+    deconj: bool = True  # False: never offered to the deconjugator (no POS known)
 
 
 class DeconjRule(NamedTuple):
@@ -211,10 +214,18 @@ def _load_conj_rules(path: str) -> list[DeconjRule]:
     return rules
 
 
+def _pos_ok(entry: DictEntry, rule: DeconjRule) -> bool:
+    # an entry with known POS must match the rule's conj_type by prefix (v5 ~ v5k)
+    ct = rule.conj_type
+    return not entry.pos_tags or any(
+        t == ct or t.startswith(ct) or ct.startswith(t) for t in entry.pos_tags
+    )
+
+
 def deconjugate(
     word: str,
     rules: list[DeconjRule],
-    index: dict[str, DictEntry],
+    index: Mapping[str, DictEntry],
 ) -> list[DeconjMatch]:
     results: list[DeconjMatch] = []
     seen: set[str] = set()
@@ -226,20 +237,10 @@ def deconjugate(
         base = stem + rule.base_suffix
         if not base or base in seen:
             continue
-        entry = index.get(base)
+        cands = index.all(base) if hasattr(index, "all") else [index.get(base)]
+        entry = next((e for e in cands if e is not None and e.deconj and _pos_ok(e, rule)), None)
         if entry is None:
             continue
-        # POS filter: skip if entry POS is known and doesn't match conj_type prefix
-        if entry.pos_tags:
-            # conj_type like "v5k" should match edict2 "v5k", "v5" etc.
-            # adj-i should match adj-i; adj-na should match adj-na
-            ct = rule.conj_type
-            tag_match = any(
-                t == ct or t.startswith(ct) or ct.startswith(t)
-                for t in entry.pos_tags
-            )
-            if not tag_match:
-                continue
         seen.add(base)
         results.append(DeconjMatch(
             base_form=base,
@@ -344,7 +345,7 @@ def load_rules(path: str) -> list[DeconjRule]:
         return _load_rules_cached(path, mtime)
 
 
-def analyze(text: str, index: dict[str, DictEntry], rules: list[DeconjRule]) -> list[Entry]:
+def analyze(text: str, index: Mapping[str, DictEntry], rules: list[DeconjRule]) -> list[Entry]:
     output: list[Entry] = []
     i = 0
     while i < len(text):
@@ -408,22 +409,15 @@ def analyze(text: str, index: dict[str, DictEntry], rules: list[DeconjRule]) -> 
     return output
 
 
-def _edict_path() -> str:
-    from api import dictionary
-
-    return dictionary.path("edict")
-
-
-def _conj_path() -> str:
-    from api import dictionary
-
-    return dictionary.path("conjugations")
-
-
 def run(text: str) -> list[Entry]:
-    index = load_index(_edict_path())
-    if index is None:
+    from api.mt import lookup
+
+    edict = load_index(lookup.edict_path())
+    rules = load_rules(lookup.conj_path())
+    lk = lookup.layered(lambda: lookup.candidate_keys(text, rules), edict)
+    if lk is None:
         raise NeedsSetup(
-            "JParser needs the EDICT2 dictionary. An admin can download it from Admin → Dictionary."
+            "JParser needs a dictionary. An admin can download EDICT2 or upload a Yomitan "
+            "dictionary from Admin → Dictionary."
         )
-    return analyze(text, index, load_rules(_conj_path()))
+    return analyze(text, lk, rules)

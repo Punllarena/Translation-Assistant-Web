@@ -41,6 +41,18 @@ Per-user backend settings live under `/mt` and Settings → Machine translation.
 Ollama URLs are refused when they resolve to a non-global address unless `TA_MT_ALLOW_PRIVATE_URLS=true`
 (guard in `api/mt/urls.py`).
 
+Yomitan dictionaries: an admin can upload Yomitan format-3 term dictionaries (JMdict, 新和英, ...; kanji, frequency and
+pitch-accent dictionaries are refused) in Admin → Dictionary. `api/core/yomitan_read.py` reads a zip (members read by name, never
+extracted; limits like `epub_safety.py`) into one flattened entry per lookup key, and `api/core/yomitan_gloss.py` holds the
+flattening rules (structured content and the plain multi-line 新和英 shape) into short meanings. `api/yomitan_store.py` installs
+them into `dictionaries` / `dictionary_terms` (keyed by `identity_key`; re-uploading replaces) and owns the order. The order is the
+`dictionary_order` row in `server_settings` (tokens `edict` / `yomitan:<id>`, first layer with a key wins); it is not an admin
+setting and is not in `api.server_settings.effective`. `api/mt/lookup.py` layers EDICT2 and the Yomitan dictionaries for JParser and
+MeCab (`layered`, `candidate_keys`; `session` is the test seam). A Yomitan entry with no POS tags is direct-only: it is never offered
+to the deconjugator. Install runs as the `yomitan_import` job (`api/yomitan_job.py`); the upload cap is 64 MiB. Reading a large dictionary (JMdict) peaks around 500 MiB in the API process during the import job. Local check against
+real zips: `python -m tools.yomitan_check <zip>... [--line TEXT]` (set `TA_DATABASE_URL` to a scratch database to time `jparser.run`);
+never commit text from those dictionaries. Spec: `docs/superpowers/specs/2026-10-22-yomitan-dictionaries-design.md`.
+
 Phase 6a: acquisition. Jobs (`api/jobs.py`; worker started in the lifespan; SSE at `/jobs/{id}/events`);
 syosetu fetch (`api/core/scrape.py`: chapter numbers only, redirects checked, only `*.syosetu.com`);
 batch TXT import (<=500 files, 12 MB (Caddy) / 12 MiB (API) per request) and EPUB import (`api/core/epub_read.py`,

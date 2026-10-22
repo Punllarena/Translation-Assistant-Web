@@ -2,6 +2,18 @@
 
 Deferred work, recorded so it can be picked up later. Newest first.
 
+## Yomitan dictionaries: deferred formats and fields
+
+*Raised 2026-10-22 during the Yomitan dictionaries work
+(`docs/superpowers/specs/2026-10-22-yomitan-dictionaries-design.md`).*
+
+Only term dictionaries are read, flattened to a short plain-text gloss. Deferred:
+
+- Kanji dictionaries (KANJIDIC and similar) are refused; a per-character lookup panel could use them.
+- Pitch-accent dictionaries (`term_meta_bank` `pitch`) are ignored.
+- Frequency dictionaries (`term_meta_bank` `freq`) are ignored; they could rank candidates.
+- Full entries: the structured-content tree is flattened, so tables, images, examples and cross-references are not shown.
+
 ## Syosetu: periodic background fetch
 
 *Raised 2026-10-22 during the new-series work

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api, call, type Schemas } from "../api/client";
 import JobProgress from "../jobs/JobProgress";
 import { postForm } from "../library/upload";
+import YomitanDictionaries from "./YomitanDictionaries";
 
 type Kind = "edict" | "conjugations";
 const LABEL: Record<Kind, string> = { edict: "EDICT2", conjugations: "Conjugations" };
@@ -64,6 +65,7 @@ export default function DictionaryPanel() {
         );
       })}
       {running !== null && <JobProgress jobId={running} outcome={() => null} onDone={(j) => { if (j.state !== "done") setFailure(j.state === "cancelled" ? "Cancelled" : j.message || "The download failed"); setJobId(null); queryClient.removeQueries({ queryKey: ["jobs", "active", "dict_download"] }); void active.refetch(); void refresh(); }} />}
+      <YomitanDictionaries />
     </section>
   );
 }
