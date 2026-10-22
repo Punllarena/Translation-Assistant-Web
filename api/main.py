@@ -30,6 +30,7 @@ from api.routers import (
     tadb,
     transfer,
     volumes,
+    words,
     wp,
 )
 from api.routers import (
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
     app.include_router(lines.router)
     app.include_router(memory.router)
     app.include_router(spell.router)
+    app.include_router(words.router)
     app.include_router(images.router)
     app.include_router(settings.router)
     app.include_router(credentials.router)
