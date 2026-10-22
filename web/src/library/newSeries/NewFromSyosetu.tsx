@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { api, call, type Schemas } from "../../api/client";
 import JobProgress from "../../jobs/JobProgress";
@@ -17,9 +17,11 @@ export default function NewFromSyosetu() {
   const [novel, setNovel] = useState<Novel | null>(null);
   const [value, setValue] = useState<SeriesFieldsValue>(EMPTY_FIELDS);
   const [started, setStarted] = useState<{ seriesId: number; jobId: number } | null>(null);
+  const current = useRef(""); // a slow Read of an earlier URL must not win
   const read = useMutation({
-    mutationFn: () => call(api.POST("/scrape/syosetu/novel", { body: { url: url.trim() } })),
-    onSuccess: (n) => {
+    mutationFn: (u: string) => call(api.POST("/scrape/syosetu/novel", { body: { url: u } })),
+    onSuccess: (n, u) => {
+      if (u !== current.current) return;
       setNovel(n);
       setValue((v) => ({ ...v, originalTitle: n.title, originalAuthor: n.author }));
     },
@@ -46,13 +48,14 @@ export default function NewFromSyosetu() {
   };
   const changeUrl = (u: string) => {
     setUrl(u);
+    current.current = u.trim();
     setNovel(null);
     read.reset();
   };
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!novel) {
-      if (url.trim() && !read.isPending) read.mutate();
+      if (url.trim() && !read.isPending) read.mutate(url.trim());
     } else if (value.title.trim() && !create.isPending) create.mutate();
   };
   const busy = create.isPending || started !== null;
