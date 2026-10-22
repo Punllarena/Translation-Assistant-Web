@@ -20,7 +20,7 @@ async function openGlossary(page: Page) {
 
 test("series glossary: add, reorder, save, import with BOM and duplicate", async ({ page }) => {
   await openGlossary(page);
-  await expect(page.getByRole("heading", { name: "Glossary" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Glossary", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Add row" }).click();
   await page.getByLabel("Phrase 1").fill("alpha");
   await page.getByLabel("Translation 1").fill("big wolf");
