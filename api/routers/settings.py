@@ -12,7 +12,7 @@ from api.schemas.settings import SettingsMap, ShortcutsMap
 router = api_router(tags=["settings"])
 
 # A concurrent first write of the same key loses the race on the unique constraint.
-# Savepoint + 409 (as in profiles and credentials), so the loser neither 500s nor
+# Savepoint + 409 (as in series and credentials), so the loser neither 500s nor
 # discards the rest of the request's work.
 CONCURRENT_SETTING = "that setting was written concurrently; retry"
 CONCURRENT_SHORTCUT = "that shortcut was written concurrently; retry"

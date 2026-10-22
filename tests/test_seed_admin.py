@@ -1,14 +1,14 @@
 import pytest
+from sqlalchemy import inspect
 
 from api.accounts import create_admin
-from api.models import Profile
 
 
-def test_create_admin_makes_an_admin_with_a_default_profile(db):
+def test_create_admin_makes_an_admin_and_no_profile(db):
     user = create_admin(db, "root@example.com", "pw-root-12345")
     assert user.is_admin is True
     assert user.password_hash.startswith("$argon2")
-    assert [p.name for p in db.query(Profile).filter_by(user_id=user.id)] == ["default"]
+    assert inspect(db.connection()).has_table("profiles") is False
 
 
 def test_create_admin_normalises_email(db):

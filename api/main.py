@@ -20,7 +20,6 @@ from api.routers import (
     lines,
     memory,
     mt,
-    profiles,
     scrape,
     series,
     settings,
@@ -69,7 +68,6 @@ def create_app() -> FastAPI:
     app.include_router(admin.router)
     app.include_router(dictionary.router)
     app.include_router(invites.router)
-    app.include_router(profiles.router)
     app.include_router(glossary.router)
     app.include_router(series.router)
     app.include_router(scrape.router)  # literal paths under /documents/{id}

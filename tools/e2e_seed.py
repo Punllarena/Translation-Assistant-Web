@@ -35,7 +35,7 @@ def main() -> None:
 
     from api.db import SessionLocal
     from api.library import write_lines
-    from api.models import Document, Line, Profile, Series, User, Volume
+    from api.models import Document, Line, Series, User, Volume
     from api.security import hash_password
 
     with SessionLocal() as db:
@@ -149,8 +149,6 @@ def main() -> None:
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)
-        db.flush()
-        db.add(Profile(user_id=tadb.id, name="default", is_default=True))
         db.commit()
 
     from tests.fixtures.tadb import desktop_db

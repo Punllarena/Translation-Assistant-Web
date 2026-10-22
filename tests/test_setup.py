@@ -1,10 +1,10 @@
 import threading
 
-from sqlalchemy import delete
+from sqlalchemy import delete, inspect
 from sqlalchemy.orm import Session
 
 from api.accounts import AlreadySetUp, claim_first_admin
-from api.models import Profile, User
+from api.models import User
 
 PW = "pw-setup-123456"
 
@@ -22,6 +22,13 @@ def test_claim_creates_an_admin_and_signs_in(app_client):
     assert r.json()["email"] == "root@example.com" and r.json()["is_admin"] is True
     assert app_client.get("/auth/me").json()["email"] == "root@example.com"
     assert app_client.get("/setup/status").json() == {"needs_setup": False}
+
+
+def test_claim_creates_no_profile(app_client, db):
+    r = app_client.post("/setup/admin", json={"email": "root@example.com", "username": "root",
+                                              "password": PW})
+    assert r.status_code == 201
+    assert inspect(db.connection()).has_table("profiles") is False
 
 
 def test_claim_after_setup_is_409_with_a_sign_in_hint(app_client, make_user):
@@ -64,7 +71,6 @@ def test_two_concurrent_claims_create_exactly_one_admin(engine):
         a.rollback()
         emails = ["a@example.com", "b@example.com"]
         ids = [u.id for u in a.query(User).filter(User.email.in_(emails))]
-        a.execute(delete(Profile).where(Profile.user_id.in_(ids)))
         a.execute(delete(User).where(User.id.in_(ids)))
         a.commit()
         a.close()

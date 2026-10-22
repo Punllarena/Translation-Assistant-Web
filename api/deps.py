@@ -63,7 +63,7 @@ def scoped[T: UserOwned](db: Session, model: type[T], obj_id: int, user_id: int)
     answer 404 and hide the mistake.
 
     Single-row access only: list endpoints must filter by ``user_id`` inline
-    (as ``list_profiles`` does).
+    (as ``list_series`` does).
     """
     if not hasattr(model, "user_id"):
         raise AttributeError(
@@ -78,7 +78,7 @@ def scoped[T: UserOwned](db: Session, model: type[T], obj_id: int, user_id: int)
 def owned_ref[T: UserOwned](
     db: Session, model: type[T], obj_id: int, user_id: int, field: str
 ) -> T:
-    """``scoped()`` for an id named in a request *body* (series_id, profile_id, ...).
+    """``scoped()`` for an id named in a request *body* (series_id, volume_id, ...).
 
     The URL names the resource, so a bad reference in the body is a 422, not a 404,
     and "missing" and "someone else's" get one message, so existence stays undisclosed.

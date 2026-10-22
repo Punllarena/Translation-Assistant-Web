@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from api.schemas.glossary import ImportResult
+
 
 class BatchError(BaseModel):
     name: str
@@ -10,7 +12,7 @@ class BatchError(BaseModel):
 
 class BatchImportOut(BaseModel):
     series_id: int
-    profile_id: int | None
+    glossary: ImportResult | None  # null when no CSV was imported
     imported: list[str]
     skipped: list[str]
     errors: list[BatchError]

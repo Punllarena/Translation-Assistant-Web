@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
-from api.models import Invite, Profile, User
+from sqlalchemy import inspect
+
+from api.models import Invite, User
 
 
 def _login(client, email, password="pw-correct"):
@@ -36,7 +38,7 @@ def test_admin_creates_an_invite_and_gets_the_token_once(app_client, db, make_us
     assert token not in str(listed)
 
 
-def test_accept_invite_creates_user_with_default_profile(app_client, db, make_user):
+def test_accept_invite_creates_user_and_no_profile(app_client, db, make_user):
     make_user(email="admin2@example.com", is_admin=True)
     _login(app_client, "admin2@example.com")
     token = app_client.post("/invites", json={}).json()["token"]
@@ -50,7 +52,8 @@ def test_accept_invite_creates_user_with_default_profile(app_client, db, make_us
     assert r.status_code == 201
     assert _login(app_client, "fresh@example.com", "pw-fresh-123").status_code == 200
     user = db.query(User).filter_by(email="fresh@example.com").one()
-    assert [p.name for p in db.query(Profile).filter_by(user_id=user.id)] == ["default"]
+    assert user.username == "fresh_user"
+    assert inspect(db.connection()).has_table("profiles") is False
 
 
 def test_accept_invite_normalises_email_so_user_can_log_in(app_client, make_user):
@@ -226,13 +229,11 @@ def test_claim_rowcount_rejects_when_row_was_claimed_after_the_pre_check(
     )
     assert invite.accepted_at is None  # pre-check will pass
 
-    profiles_before = db.query(Profile).count()
     reference = _accept(app_client, "nonsense", "ref@example.com")
     r = _accept(app_client, token, "racer@example.com")
     assert r.status_code == 400
     assert r.json() == reference.json()
     assert db.query(User).filter_by(email="racer@example.com").count() == 0
-    assert db.query(Profile).count() == profiles_before
 
 
 def test_admin_revokes_a_pending_invite(app_client, db, make_user):
