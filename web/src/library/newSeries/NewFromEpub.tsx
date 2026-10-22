@@ -12,11 +12,18 @@ export default function NewFromEpub() {
   const queryClient = useQueryClient();
   const [value, setValue] = useState<SeriesFieldsValue>(EMPTY_FIELDS);
   const lastAuthor = useRef(""); // the volume Author we last set: a different value means the user edited it
+  const prefilled = useRef({ title: "", author: "" }); // Japanese title/author we last prefilled
   const epub = useEpubBook({
     onPick: () => run.reset(),
     onBook: (b) => {
       lastAuthor.current = b.author;
-      setValue((v) => ({ ...v, originalTitle: v.originalTitle || b.title, originalAuthor: v.originalAuthor || b.author }));
+      const prev = prefilled.current;
+      prefilled.current = { title: b.title, author: b.author };
+      setValue((v) => ({
+        ...v,
+        originalTitle: v.originalTitle === prev.title ? b.title : v.originalTitle,
+        originalAuthor: v.originalAuthor === prev.author ? b.author : v.originalAuthor,
+      }));
     },
   });
   const { book, meta, setMeta } = epub;

@@ -318,3 +318,11 @@ def test_import_page_still_reuses_series(app_client, me, db, make_series):
     assert db.query(Series).filter_by(user_id=me.id).count() == 1
     db.refresh(series)
     assert series.original_title == ""
+
+
+def test_new_series_mode_nothing_imported_is_422_and_claims_nothing(app_client, me, db):
+    before = db.query(Series).count()
+    r = _new_form(app_client, new_series="true", series_title="Ghost", hrefs=["nope.xhtml"])
+    assert r.status_code == 422 and "nothing imported" in r.text
+    db.rollback()  # what db_session's teardown does on a failed request
+    assert db.query(Series).count() == before

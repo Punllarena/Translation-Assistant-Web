@@ -253,6 +253,10 @@ def import_epub(
         if is_empty:
             empty.append(title)
 
+    if new_series and not imported:  # roll back, so the title is not claimed
+        detail = "; ".join(f"{e.title} — {e.message}" for e in errors) or "no chapters"
+        raise _unprocessable(f"nothing imported: {detail}")
+
     cover_href = book["cover_href"]
     if cover_href and first_doc is not None and not db.scalar(
         select(DocumentImage.id)

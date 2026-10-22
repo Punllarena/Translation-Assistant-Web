@@ -89,4 +89,5 @@ test("Syosetu reads the novel and prefills", async ({ page }) => {
   await page.getByLabel("Title", { exact: true }).fill("NS Syosetu");
   await page.getByRole("button", { name: "Create" }).click();
   await expect(page).toHaveURL(/\/series\/\d+\?tab=tools/);
+  await expect(page.getByRole("alert").filter({ hasText: "Use Fetch from Syosetu below to try again." })).toContainText("boom");
 });

@@ -14,7 +14,7 @@ const QUIET_MS = 60_000; // no progress change this long: say so, without callin
 
 /** Follows one job over SSE: counts, elapsed time and an estimate, Cancel (unless cancellable
  * is false), then the outcome. `background` adds the "runs on the server" line. */
-export default function JobProgress({ jobId, onDone, outcome, cancellable = true, background = true }: { jobId: number; onDone?: (job: Job) => void; outcome?: (job: Job) => ReactNode; cancellable?: boolean; background?: boolean }) {
+export default function JobProgress({ jobId, onDone, outcome, cancellable = true, background = true, lostLink }: { jobId: number; onDone?: (job: Job) => void; outcome?: (job: Job) => ReactNode; cancellable?: boolean; background?: boolean; lostLink?: ReactNode }) {
   const [job, setJob] = useState<Job | null>(null);
   const samples = useRef<Samples | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -55,7 +55,12 @@ export default function JobProgress({ jobId, onDone, outcome, cancellable = true
     }
   };
   if (lost && !(job && isTerminal(job))) {
-    return <p className="error" role="alert">Connection lost — reload to resume.</p>;
+    return (
+      <div className="stack">
+        <p className="error" role="alert">Connection lost — reload to resume.</p>
+        {lostLink && <p>{lostLink}</p>}
+      </div>
+    );
   }
   if (!job) return <p className="muted">Starting…</p>;
   if (!isTerminal(job)) {

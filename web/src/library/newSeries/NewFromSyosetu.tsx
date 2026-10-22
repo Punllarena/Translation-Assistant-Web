@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { api, call, type Schemas } from "../../api/client";
 import JobProgress from "../../jobs/JobProgress";
 import type { Job } from "../../jobs/follow";
@@ -9,6 +9,7 @@ import { EMPTY_FIELDS, seriesBody, type SeriesFieldsValue } from "./fields";
 import SeriesFields from "./SeriesFields";
 
 type Novel = Schemas["NovelInfo"];
+const FALLBACK = "The first chapter could not be fetched.";
 
 export default function NewFromSyosetu() {
   const queryClient = useQueryClient();
@@ -35,16 +36,23 @@ export default function NewFromSyosetu() {
           params: { path: { series_id: s.id } }, body: { nums: [(novel as Novel).first_chapter.num] },
         }));
         setStarted({ seriesId: s.id, jobId: job.id });
-      } catch {
-        navigate(`/series/${s.id}?tab=tools`); // the series exists: fetch from its Tools tab
+      } catch (e) {
+        // the series exists: fetch from its Tools tab
+        navigate(`/series/${s.id}?tab=tools`, { state: { fetchError: (e as Error).message || FALLBACK } });
       }
     },
   });
   const onDone = (job: Job) => {
-    const id = (job.result as { document_ids?: number[] } | null)?.document_ids?.[0];
+    const result = job.result as { document_ids?: number[]; errors?: { message?: string }[] } | null;
+    const id = result?.document_ids?.[0];
     void invalidateLibrary(queryClient);
     const seriesId = (started as { seriesId: number }).seriesId;
-    navigate(job.state === "done" && id ? `/documents/${id}` : `/series/${seriesId}?tab=tools`);
+    if (job.state === "done" && id) {
+      navigate(`/documents/${id}`);
+      return;
+    }
+    const fetchError = job.message || result?.errors?.[0]?.message || FALLBACK;
+    navigate(`/series/${seriesId}?tab=tools`, { state: { fetchError } });
   };
   const changeUrl = (u: string) => {
     setUrl(u);
@@ -78,12 +86,13 @@ export default function NewFromSyosetu() {
           <SeriesFields value={value} onChange={setValue} disabled={busy} />
           <p className="muted">
             {novel.short_story
-              ? `Short story: ${first.title} will be fetched as one chapter.`
+              ? `Short story: ${first.title || "Chapter 1"} will be fetched as one chapter.`
               : `Chapter ${first.num}: ${first.title} will be fetched.`}
           </p>
           {create.error && <p className="error" role="alert">{create.error.message}</p>}
           {started ? (
-            <JobProgress jobId={started.jobId} background={false} onDone={onDone} />
+            <JobProgress jobId={started.jobId} background={false} onDone={onDone}
+              lostLink={<Link to={`/series/${started.seriesId}`}>Open the series</Link>} />
           ) : (
             <div className="row-fields">
               <button type="submit" className="primary" disabled={value.title.trim() === "" || busy}>Create</button>
