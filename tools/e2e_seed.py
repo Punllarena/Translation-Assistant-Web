@@ -43,7 +43,8 @@ def main() -> None:
         editor_series = Series(user_id=user.id, title="E2E editor series")
         tm_series = Series(user_id=user.id, title="E2E tm series")
         mt_series = Series(user_id=user.id, title="E2E mt series")
-        db.add_all([editor_series, tm_series, mt_series])
+        yomitan_series = Series(user_id=user.id, title="Yomitan spec")
+        db.add_all([editor_series, tm_series, mt_series, yomitan_series])
         db.flush()
         doc = Document(user_id=user.id, title="E2E chapter", series_id=editor_series.id)
         db.add(doc)
@@ -92,6 +93,13 @@ def main() -> None:
         db.flush()
         write_lines(db, mt.id, [
             {"line_number": 0, "prefix": "%", "raw_text": "猫です。", "translated_text": ""},
+        ])
+        # dictionaries spec: ゆもたん語 occurs only here
+        yom = Document(user_id=user.id, title="Yomitan target", series_id=yomitan_series.id)
+        db.add(yom)
+        db.flush()
+        write_lines(db, yom.id, [
+            {"line_number": 0, "prefix": "%", "raw_text": "ゆもたん語です", "translated_text": ""},
         ])
         # publish spec: its own series, with the WordPress fields already set
         pub = Series(user_id=user.id, title="E2E publish series",
