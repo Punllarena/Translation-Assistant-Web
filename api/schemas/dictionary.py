@@ -30,5 +30,9 @@ class DictionaryOut(BaseModel):
     order: list[str]
 
 
+class OrderOut(BaseModel):
+    order: list[str]
+
+
 class OrderIn(BaseModel):
     order: list[str]

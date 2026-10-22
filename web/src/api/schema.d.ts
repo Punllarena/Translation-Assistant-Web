@@ -2401,6 +2401,11 @@ export interface components {
             /** Order */
             order: string[];
         };
+        /** OrderOut */
+        OrderOut: {
+            /** Order */
+            order: string[];
+        };
         /** PeriodChange */
         PeriodChange: {
             /** Current */
@@ -3057,9 +3062,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["OrderOut"];
                 };
             };
             /** @description Validation Error */

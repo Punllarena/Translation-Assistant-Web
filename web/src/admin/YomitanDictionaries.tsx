@@ -75,7 +75,7 @@ export default function YomitanDictionaries() {
             <li key={token}>
               <strong>{name}</strong>
               {token === "edict" && q.data && !q.data.edict.present && <span className="muted"> · not installed</span>}
-              {d && <span className="muted"> · {d.revision} · {d.entries} entries{d.attribution ? ` · ${d.attribution}` : ""}</span>}
+              {d && <span className="muted"> · {d.revision} · {d.entries.toLocaleString()} entries{d.attribution ? ` · ${d.attribution}` : ""}</span>}
               {" "}
               <button type="button" aria-label={`Move ${name} up`} disabled={i === 0 || reorder.isPending} onClick={() => move(i, -1)}>↑</button>
               <button type="button" aria-label={`Move ${name} down`} disabled={i === order.length - 1 || reorder.isPending} onClick={() => move(i, 1)}>↓</button>
@@ -86,7 +86,7 @@ export default function YomitanDictionaries() {
       </ol>
       {removing && (
         <ConfirmDialog title="Remove dictionary" confirmLabel="Remove" danger busy={remove.isPending}
-          message={<>Remove {removing.title} and its {removing.entries} entries?</>}
+          message={<>Remove {removing.title} and its {removing.entries.toLocaleString()} entries?</>}
           error={remove.error?.message ?? null}
           onConfirm={() => remove.mutate(removing.id)} onClose={() => { remove.reset(); setRemoving(null); }} />
       )}

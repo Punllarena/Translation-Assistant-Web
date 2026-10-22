@@ -9,7 +9,7 @@ from api import dictionary, jobs, yomitan_job, yomitan_store
 from api.deps import db_session, require_admin
 from api.models import Job, User
 from api.routing import api_router
-from api.schemas.dictionary import DictFileOut, DictionaryOut, OrderIn, YomitanDictOut
+from api.schemas.dictionary import DictFileOut, DictionaryOut, OrderIn, OrderOut, YomitanDictOut
 from api.schemas.jobs import JobOut
 from api.uploads import read_capped
 
@@ -57,7 +57,7 @@ def upload_yomitan(file: UploadFile = File(...), admin: User = Depends(require_a
     return jobs.enqueue(db, admin.id, "yomitan_import", {"upload": upload_id})
 
 
-@router.put("/order")
+@router.put("/order", response_model=OrderOut)
 def put_order(body: OrderIn, admin: User = Depends(require_admin),
               db: Session = Depends(db_session)) -> dict:
     try:
