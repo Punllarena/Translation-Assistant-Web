@@ -218,7 +218,8 @@ def test_on_bank_exception_propagates(tmp_path):
 
 
 def _ascii_jmdict_rows():
-    gloss = [{"type": "structured-content", "content": {"tag": "ul", "data": {"content": "glossary"},
+    gloss = [{"type": "structured-content", "content": {
+              "tag": "ul", "data": {"content": "glossary"},
               "content": [{"tag": "li", "content": "tomorrow"}]}}]
     return [
         ["明日", "あした", "1 n", "", 100, gloss, 1, "⭐"],
