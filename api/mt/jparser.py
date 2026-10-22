@@ -24,6 +24,7 @@ class DictEntry(NamedTuple):
     pos_tags: frozenset[str]
     gloss: str
     common: bool = False  # True if any headword has (P) marker
+    deconj: bool = True  # False: never offered to the deconjugator (no POS known)
 
 
 class DeconjRule(NamedTuple):
