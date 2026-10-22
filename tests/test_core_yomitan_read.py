@@ -3,7 +3,15 @@ import zipfile
 import pytest
 
 from api.core import yomitan_read
-from api.core.yomitan_read import YomitanError, identity_key, read
+from api.core.yomitan_read import (
+    NO_INDEX,
+    NO_WORDS,
+    NOT_A_ZIP,
+    NOT_FORMAT_3,
+    YomitanError,
+    identity_key,
+    read,
+)
 from tests.fixtures.yomitan import JMDICT_INDEX, JMDICT_ROWS, JMDICT_TAGS, make_zip
 
 SHINWAEI_INDEX = {"title": "新和英", "format": 3, "revision": "Shinwaei1", "sequenced": True}
@@ -116,16 +124,50 @@ def _case_zip(tmp_path, case):
 
 
 @pytest.mark.parametrize("case,message", [
-    ("not_zip", "This is not a zip file"), ("no_index", "has no index.json"),
-    ("format2", "Only Yomitan format 3"), ("kanji_only", "has no word definitions"),
-    ("meta_only", "has no word definitions"), ("traversal", "unsafe path"),
-    ("too_big", "expands to more than"),
+    ("not_zip", "This is not a zip file; upload the Yomitan dictionary .zip."),
+    ("no_index", "This zip has no index.json; it is not a Yomitan dictionary."),
+    ("format2", "Only Yomitan format 3 dictionaries are supported."),
+    ("kanji_only", "This dictionary has no word definitions (kanji, frequency or pitch-accent "
+                   "dictionaries are not supported); use it in Yomitan instead."),
+    ("meta_only", NO_WORDS), ("traversal", "unsafe path"), ("too_big", "expands to more than"),
 ])
 def test_refusals(tmp_path, monkeypatch, case, message):
     if case == "too_big":
         monkeypatch.setattr(yomitan_read, "MAX_UNPACKED", 10)
-    with pytest.raises(YomitanError, match=message):
+    with pytest.raises(YomitanError) as exc:
         read(str(_case_zip(tmp_path, case)))
+    if case in ("traversal", "too_big"):
+        assert message in str(exc.value)
+    else:
+        assert str(exc.value) == message
+
+
+def test_message_constants_are_exact():
+    assert NOT_A_ZIP == "This is not a zip file; upload the Yomitan dictionary .zip."
+    assert NO_INDEX == "This zip has no index.json; it is not a Yomitan dictionary."
+    assert NOT_FORMAT_3 == "Only Yomitan format 3 dictionaries are supported."
+
+
+def test_empty_gloss_row_contributes_nothing_to_its_group(tmp_path):
+    index = {**PLAIN_INDEX, "sequenced": True}
+    rows = [
+        _row("空", "そら", tags="n", rules="v5", score=900, gloss="", seq=7, term_tags="P"),
+        _row("猫", "ねこ", tags="n", score=1, gloss="cat", seq=7),
+    ]
+    tags = [["n", "partOfSpeech", 0, "noun", 0]]
+    d = read(str(make_zip(tmp_path / "g.zip", index,
+                          {"term_bank_1.json": rows, "tag_bank_1.json": tags})))
+    e = d.terms["猫"]
+    assert e.headwords == ("猫",) and e.reading == "ねこ" and e.pos == frozenset({"n"})
+    assert "空" not in d.terms and d.entry_count == 1
+
+
+def test_dictionary_with_no_entries_is_refused(tmp_path):
+    rows = [_row("〃", "おなじ", tags="forms")]
+    p = make_zip(tmp_path / "f.zip", PLAIN_INDEX, {"term_bank_1.json": rows})
+    with pytest.raises(YomitanError) as exc:
+        read(str(p))
+    assert str(exc.value) == NO_WORDS
 
 
 def test_member_count_bank_size_and_row_limits(tmp_path, monkeypatch):

@@ -23,6 +23,15 @@ _TAG_BANK = re.compile(r"tag_bank_(\d+)\.json")
 _TRAILING_BRACKET = re.compile(r"\s*\[[^\]]*\]\s*$")
 
 
+NOT_A_ZIP = "This is not a zip file; upload the Yomitan dictionary .zip."
+NO_INDEX = "This zip has no index.json; it is not a Yomitan dictionary."
+NOT_FORMAT_3 = "Only Yomitan format 3 dictionaries are supported."
+NO_WORDS = (
+    "This dictionary has no word definitions (kanji, frequency or pitch-accent dictionaries "
+    "are not supported); use it in Yomitan instead."
+)
+
+
 class YomitanError(ValueError):
     """The upload is not a Yomitan dictionary we can read."""
 
@@ -118,12 +127,12 @@ def _numbered(names: list[str], pattern: re.Pattern) -> list[str]:
 
 def _read_index(zf: zipfile.ZipFile) -> dict:
     if "index.json" not in zf.namelist():
-        raise YomitanError("The zip has no index.json; it is not a Yomitan dictionary.")
+        raise YomitanError(NO_INDEX)
     index = _json(zf, "index.json")
     if not isinstance(index, dict):
         raise YomitanError("index.json is not valid JSON")
     if index.get("format", index.get("version")) != 3:
-        raise YomitanError("Only Yomitan format 3 dictionaries are supported")
+        raise YomitanError(NOT_FORMAT_3)
     if not _text(index, "title") or not _text(index, "revision"):
         raise YomitanError("index.json needs a title and a revision")
     return index
@@ -157,6 +166,9 @@ def _add_row(groups: dict, row: list, order: int, sequenced: bool, pos_names: se
     tag_list = tags.split()
     if "forms" in tag_list:
         return
+    found = meanings(glossary)
+    if not found:
+        return
     by_sequence = sequenced and sequence != 0
     key = ("seq", sequence) if by_sequence else ("form", expression, reading)
     group = groups.get(key)
@@ -171,7 +183,7 @@ def _add_row(groups: dict, row: list, order: int, sequenced: bool, pos_names: se
     group.max_score = score if group.max_score is None else max(group.max_score, score)
     if {"⭐", "P"} & set(term_tags.split()):
         group.popular = True
-    group.rows.append((score, order, meanings(glossary)))
+    group.rows.append((score, order, found))
 
 
 def _build(group: _Group) -> FlatEntry | None:
@@ -207,14 +219,14 @@ def read(path: str, on_bank: Callable[[int, int, str], None] | None = None) -> P
     try:
         zf = zipfile.ZipFile(path)
     except (zipfile.BadZipFile, zlib.error, EOFError) as exc:
-        raise YomitanError("This is not a zip file") from exc
+        raise YomitanError(NOT_A_ZIP) from exc
     with zf:
         _check_archive(zf)
         index = _read_index(zf)
         names = zf.namelist()
         term_banks = _numbered(names, _TERM_BANK)
         if not term_banks:
-            raise YomitanError("This dictionary has no word definitions.")
+            raise YomitanError(NO_WORDS)
         pos_names = _pos_names(zf, _numbered(names, _TAG_BANK))
         sequenced = index.get("sequenced") is True
         groups: dict = {}
@@ -237,4 +249,7 @@ def read(path: str, on_bank: Callable[[int, int, str], None] | None = None) -> P
             _text(index, "title"), _text(index, "revision"), _text(index, "attribution"),
             _text(index, "author"), _text(index, "url"), identity_key(index),
         )
-    return _flatten(groups, meta, skipped)
+    parsed = _flatten(groups, meta, skipped)
+    if not parsed.terms:
+        raise YomitanError(NO_WORDS)
+    return parsed
