@@ -1,86 +1,59 @@
 from datetime import UTC, datetime
 
-from fastapi import Depends, HTTPException, Query, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from api.core.text import replace_and_parse, split_parse_chars
-from api.deps import current_user, db_session, owned_ref, scoped
+from api.core.text import DEFAULT_PARSE_CHARS, replace_and_parse, split_parse_chars
+from api.deps import current_user, db_session, scoped
 from api.library import replace_raw_lines
-from api.models import Document, GlossaryEntry, Line, Profile, Series, User, UserSetting
+from api.models import Document, GlossaryEntry, Line, User, UserSetting
 from api.routing import api_router
 from api.schemas.documents import DocumentOut
 from api.schemas.lines import DocumentLines, LineBatch, LineOut, SaveResult, SourceUpdate
-from api.schemas.profiles import DEFAULT_PARSE_CHARS
 
 router = api_router(tags=["lines"])
 
 
-def editor_profile(
-    db: Session, user_id: int, doc: Document, profile_id: int | None
-) -> Profile | None:
-    """The profile whose glossary and parse characters the editor uses: an explicit
-    choice, else the series' profile, else the remembered `profile_used` setting, else the
-    default, else the oldest, else none."""
-    if profile_id is not None:
-        return owned_ref(db, Profile, profile_id, user_id, "profile_id")
-    series = db.get(Series, doc.series_id)
-    if series.profile_id is not None:
-        return db.get(Profile, series.profile_id)
-    used = db.scalar(
+def user_parse_chars(db: Session, user_id: int) -> str:
+    """The user's `parse_chars` setting; unset or not a string means the default.
+    An empty string is a real choice: don't split."""
+    value = db.scalar(
         select(UserSetting.value_json).where(
-            UserSetting.user_id == user_id, UserSetting.key == "profile_used"
+            UserSetting.user_id == user_id, UserSetting.key == "parse_chars"
         )
     )
-    if isinstance(used, int) and not isinstance(used, bool):
-        profile = db.get(Profile, used)
-        if profile is not None and profile.user_id == user_id:
-            return profile
-    return db.scalar(
-        select(Profile)
-        .where(Profile.user_id == user_id)
-        .order_by(Profile.is_default.desc(), Profile.id)
-        .limit(1)
-    )
+    return value if isinstance(value, str) else DEFAULT_PARSE_CHARS
 
 
 def editor_context(
-    db: Session, user_id: int, doc: Document, profile_id: int | None
-) -> tuple[Profile | None, list[tuple[str, str]], list[str]]:
-    """The editor profile with its glossary (in apply order) and parse characters."""
-    profile = editor_profile(db, user_id, doc, profile_id)
-    glossary: list[tuple[str, str]] = []
-    if profile is not None:
-        glossary = [
-            tuple(row)
-            for row in db.execute(
-                select(GlossaryEntry.phrase, GlossaryEntry.translation)
-                .where(GlossaryEntry.profile_id == profile.id)
-                .order_by(GlossaryEntry.sort_order, GlossaryEntry.id)
-            )
-        ]
-    parse_chars = split_parse_chars(profile.parse_chars if profile else DEFAULT_PARSE_CHARS)
-    return profile, glossary, parse_chars
+    db: Session, user_id: int, doc: Document
+) -> tuple[list[tuple[str, str]], list[str]]:
+    """The chapter's series glossary (in apply order) and the user's parse characters."""
+    glossary = [
+        tuple(row)
+        for row in db.execute(
+            select(GlossaryEntry.phrase, GlossaryEntry.translation)
+            .where(GlossaryEntry.series_id == doc.series_id)
+            .order_by(GlossaryEntry.sort_order, GlossaryEntry.id)
+        )
+    ]
+    return glossary, split_parse_chars(user_parse_chars(db, user_id))
 
 
-def display_line(
-    db: Session, user_id: int, doc: Document, line: Line, profile_id: int | None
-) -> str:
+def display_line(db: Session, user_id: int, doc: Document, line: Line) -> str:
     """One line as the editor displays it (glossary applied, % and $ stripped), trimmed:
     the text machine translation is asked for (desktop source_sentence_changed)."""
-    _, glossary, parse_chars = editor_context(db, user_id, doc, profile_id)
+    glossary, parse_chars = editor_context(db, user_id, doc)
     return replace_and_parse(line.raw_text, glossary, parse_chars)[0].strip()
 
 
 @router.get("/documents/{document_id}/lines", response_model=DocumentLines)
 def get_lines(
-    document_id: int,
-    profile_id: int | None = Query(None),
-    user: User = Depends(current_user),
-    db: Session = Depends(db_session),
+    document_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
 ) -> DocumentLines:
     doc = scoped(db, Document, document_id, user.id)
-    profile, glossary, parse_chars = editor_context(db, user.id, doc, profile_id)
+    glossary, parse_chars = editor_context(db, user.id, doc)
     lines = []
     for line in db.scalars(
         select(Line).where(Line.document_id == doc.id).order_by(Line.line_number)
@@ -97,7 +70,7 @@ def get_lines(
                 translated_text=line.translated_text,
             )
         )
-    return DocumentLines(document=doc, profile=profile, lines=lines)
+    return DocumentLines(document=doc, lines=lines)
 
 
 @router.patch("/documents/{document_id}/lines", response_model=SaveResult)

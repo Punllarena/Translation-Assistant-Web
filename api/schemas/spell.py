@@ -10,7 +10,7 @@ MAX_TOTAL_CHARS = 200_000  # across all texts: bounds regex + enchant work per r
 
 class SpellRequest(BaseModel):
     texts: list[Annotated[str, Field(max_length=MAX_TEXT_CHARS)]] = Field(max_length=MAX_TEXTS)
-    profile_id: int | None = None
+    series_id: int | None = None
 
     @model_validator(mode="after")
     def _total_size(self):

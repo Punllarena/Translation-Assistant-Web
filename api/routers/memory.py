@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from api.core import nouns
 from api.core.text import needle_pattern, replace_all
-from api.deps import current_user, db_session, owned_ref, scoped
-from api.models import Document, GlossaryEntry, Line, Profile, Series, User
+from api.deps import current_user, db_session, scoped
+from api.models import Document, GlossaryEntry, Line, Series, User
 from api.routing import api_router
 from api.schemas.lines import MAX_TRANSLATION_CHARS, NoNulStr
 from api.schemas.memory import (
@@ -174,12 +174,10 @@ def phrase_suggestions(
 ) -> Suggestions:
     """The desktop SeriesPhrasesDialog analysis, synchronous until phase 6 (ruling 2)."""
     series = scoped(db, Series, series_id, user.id)
-    known: set[str] = set()
-    if body.profile_id is not None:
-        profile = owned_ref(db, Profile, body.profile_id, user.id, "profile_id")
-        known = set(
-            db.scalars(select(GlossaryEntry.phrase).where(GlossaryEntry.profile_id == profile.id))
-        )
+    # Phrases already in the series glossary are left out.
+    known = set(
+        db.scalars(select(GlossaryEntry.phrase).where(GlossaryEntry.series_id == series.id))
+    )
     raw = [
         r
         for r in db.scalars(

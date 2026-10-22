@@ -9,17 +9,13 @@ from api.schemas.common import Patch, Title
 
 class SeriesCreate(BaseModel):
     title: Title
-    profile_id: int | None = None
     syosetu_url: str = ""
 
 
 class SeriesUpdate(Patch):
-    NULLABLE: ClassVar[frozenset[str]] = frozenset(
-        {"profile_id", "wp_password_enabled", "wp_unlock_after"}
-    )
+    NULLABLE: ClassVar[frozenset[str]] = frozenset({"wp_password_enabled", "wp_unlock_after"})
 
     title: Title | None = None
-    profile_id: int | None = None
     syosetu_url: str | None = None
     wp_series_slug: str | None = None
     wp_series_title_short: str | None = None
@@ -40,7 +36,6 @@ class SeriesOut(BaseModel):
 
     id: int
     title: str
-    profile_id: int | None
     syosetu_url: str
     wp_series_slug: str
     wp_series_title_short: str

@@ -79,18 +79,20 @@ def test_deepl_result_is_streamed_then_cached(app_client, me, make_doc, wire, db
     assert db.query(MtCache).one().backend == "deepl"
 
 
-def test_glossary_applied_text_is_what_gets_translated(app_client, db, me, make_doc, wire):
-    from api.models import GlossaryEntry, Profile
+def test_glossary_applied_text_is_what_gets_translated(
+    app_client, db, me, make_doc, make_series, wire
+):
+    from api.models import GlossaryEntry
     install, calls = wire
     install(deepl_ok)
-    p = Profile(user_id=me.id, name="p", is_default=True)
-    db.add(p)
-    db.flush()
-    db.add(GlossaryEntry(profile_id=p.id, phrase="一行目", translation="first_line"))
+    series, other = make_series(me, "S"), make_series(me, "Other")
+    db.add(GlossaryEntry(series_id=other.id, phrase="一行目", translation="wrong_line"))
+    db.flush()  # the other series' row first: a leak would apply it
+    db.add(GlossaryEntry(series_id=series.id, phrase="一行目", translation="first_line"))
     db.flush()
     app_client.post("/credentials", json={"kind": "deepl", "secret": "k:fx"})
-    doc = make_doc(me, ["一行目です。"], translated=False)
-    stream(app_client, doc, "deepl")
+    doc = make_doc(me, ["一行目です。"], series=series, translated=False)
+    stream(app_client, doc, "deepl")  # no profile_id: the chapter's series glossary
     assert json.loads(calls[0].content)["text"] == ["first_lineです。"]
 
 
@@ -267,16 +269,6 @@ def test_users_never_send_each_others_deepl_key_or_ollama_url(
     assert calls[0].headers["Authorization"] == "DeepL-Auth-Key key-of-b"
     assert all(c.url.host != "ollama-a" for c in calls)
     assert all("key-of-a" not in str(c.headers) for c in calls)
-
-
-def test_foreign_profile_id_query_is_422(app_client, db, me, make_user, make_doc):
-    from api.models import Profile
-    theirs = Profile(user_id=make_user(email="other@example.com").id, name="p")
-    db.add(theirs)
-    db.flush()
-    doc = make_doc(me, ["猫"], translated=False)
-    r = stream(app_client, doc, "jparser", profile_id=theirs.id)
-    assert (r.status_code, r.json()["detail"]) == (422, "profile_id: no such item")
 
 
 def test_disconnect_mid_ollama_stream_closes_upstream_and_caches_nothing(wire, db):

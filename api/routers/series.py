@@ -4,10 +4,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api.core.text import natural_key
-from api.deps import current_user, db_session, owned_ref, scoped
+from api.deps import current_user, db_session, scoped
 from api.errors import conflict
 from api.library import arrange, chapters, renumber
-from api.models import Document, Profile, Series, User
+from api.models import Document, Series, User
 from api.routing import api_router
 from api.schemas.documents import DocumentIds, DocumentOut
 from api.schemas.series import SeriesCreate, SeriesOut, SeriesUpdate
@@ -37,8 +37,6 @@ def get_series(
 def create_series(
     body: SeriesCreate, user: User = Depends(current_user), db: Session = Depends(db_session)
 ) -> Series:
-    if body.profile_id is not None:
-        owned_ref(db, Profile, body.profile_id, user.id, "profile_id")
     series = Series(user_id=user.id, **body.model_dump())
     try:
         with db.begin_nested():
@@ -57,8 +55,6 @@ def update_series(
 ) -> Series:
     series = scoped(db, Series, series_id, user.id)
     changes = body.model_dump(exclude_unset=True)
-    if changes.get("profile_id") is not None:
-        owned_ref(db, Profile, changes["profile_id"], user.id, "profile_id")
     if "syosetu_url" in changes and changes["syosetu_url"] != series.syosetu_url:
         # Another novel: the stored headings and the setting chosen from them don't apply.
         series.syosetu_headings = None

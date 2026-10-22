@@ -2,7 +2,7 @@ import pytest
 
 from api.core import nouns
 from api.core.nouns import extract_frequent_nouns
-from api.models import GlossaryEntry, Profile
+from api.models import GlossaryEntry
 
 
 class _FakeTagger:
@@ -90,16 +90,15 @@ def suggest(client, series, **body):
     return client.post(f"/series/{series.id}/phrase-suggestions", json=body)
 
 
-def test_endpoint_excludes_the_profiles_glossary(
-    app_client, db, me, series_with_text, monkeypatch
+def test_endpoint_excludes_the_series_glossary(
+    app_client, db, me, make_series, series_with_text, monkeypatch
 ):
     monkeypatch.setattr(nouns, "tagger", lambda: _FakeTagger([_OUT_BOTH]))
-    p = Profile(user_id=me.id, name="p")
-    db.add(p)
+    other = make_series(me, title="other")
+    db.add(GlossaryEntry(series_id=series_with_text.id, phrase="花子", translation="Hanako"))
+    db.add(GlossaryEntry(series_id=other.id, phrase="太郎", translation="Taro"))
     db.flush()
-    db.add(GlossaryEntry(profile_id=p.id, phrase="花子", translation="Hanako"))
-    db.flush()
-    body = suggest(app_client, series_with_text, profile_id=p.id, min_freq=2).json()
+    body = suggest(app_client, series_with_text, min_freq=2).json()
     assert body == {"available": True, "message": None, "terms": [{"term": "太郎", "count": 2}]}
 
 
@@ -112,17 +111,9 @@ def test_endpoint_reports_missing_mecab(app_client, series_with_text, monkeypatc
     assert body["available"] is False and "MeCab" in body["message"] and body["terms"] == []
 
 
-def test_another_users_series_or_profile_is_404(
-    app_client, db, me, make_user, make_series, series_with_text
-):
-    other = make_user(email="other@example.com")
-    theirs = make_series(other, title="theirs")
-    their_profile = Profile(user_id=other.id, name="x")
-    db.add(their_profile)
-    db.flush()
+def test_another_users_series_is_404(app_client, me, make_user, make_series, series_with_text):
+    theirs = make_series(make_user(email="other@example.com"), title="theirs")
     assert suggest(app_client, theirs).status_code == 404
-    r = suggest(app_client, series_with_text, profile_id=their_profile.id)
-    assert (r.status_code, r.json()["detail"]) == (422, "profile_id: no such item")
 
 
 def test_missing_mecab_message_is_static_and_leaks_nothing(
@@ -134,8 +125,3 @@ def test_missing_mecab_message_is_static_and_leaks_nothing(
     monkeypatch.setattr(nouns, "_tagger", broken)
     msg = suggest(app_client, series_with_text).json()["message"]
     assert msg == nouns.SETUP and "/srv" not in msg and ".[mecab]" in msg
-
-
-def test_suggest_profile_id_is_bounded(app_client, series_with_text):
-    assert suggest(app_client, series_with_text, profile_id=2**31).status_code == 422
-    assert suggest(app_client, series_with_text, profile_id=0).status_code == 422
