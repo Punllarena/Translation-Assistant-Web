@@ -81,14 +81,16 @@ def import_dictionary(ctx: JobContext) -> dict:
     try:
         parsed = yomitan_read.read(path, on_bank=on_bank)
         ctx.report(seen[0], seen[0], "Saving")
-        result = yomitan_store.install(ctx.db, parsed)
+        result = yomitan_store.install(
+            ctx.db, parsed, on_batch=lambda i, n: ctx.report(i, n, "Saving"))
     except YomitanError as exc:
         raise JobError(str(exc)) from exc
     finally:
         path.unlink(missing_ok=True)
     d = result.dictionary
+    noun = "entry" if d.entry_count == 1 else "entries"
     if result.replaced_revision is None:
-        message = f"Installed {d.title} ({d.entry_count:,} entries)"
+        message = f"Installed {d.title} ({d.entry_count:,} {noun})"
     else:
         message = f"Updated {d.title} from {result.replaced_revision} to {d.revision}"
     return {"dictionary_id": d.id, "title": d.title, "revision": d.revision,

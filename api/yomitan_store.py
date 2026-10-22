@@ -1,7 +1,7 @@
 """Installed Yomitan dictionaries: storage, the admin-set order, and the one-query fetch
 JParser uses (spec "Upload and storage" and "Lookup"). Flushes only; the route commits."""
 
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 
 from sqlalchemy import Text, bindparam, delete, func, insert, select
@@ -32,7 +32,8 @@ def installed(db: Session) -> list[Dictionary]:
     return list(db.scalars(select(Dictionary).order_by(Dictionary.id)))
 
 
-def install(db: Session, parsed: Parsed) -> Installed:
+def install(db: Session, parsed: Parsed,
+            on_batch: Callable[[int, int], None] | None = None) -> Installed:
     meta = parsed.meta
     fields = {
         "title": meta.title, "revision": meta.revision, "attribution": meta.attribution,
@@ -55,7 +56,10 @@ def install(db: Session, parsed: Parsed) -> Installed:
          "reading": e.reading, "pos": sorted(e.pos), "gloss": e.gloss}
         for key, e in parsed.terms.items()
     ]
-    for i in range(0, len(rows), BATCH):
+    batches = -(-len(rows) // BATCH)
+    for n, i in enumerate(range(0, len(rows), BATCH)):
+        if on_batch is not None:
+            on_batch(n, batches)  # may raise jobs.Cancelled; the job's session rolls back
         db.execute(insert(DictionaryTerm), rows[i:i + BATCH])
     db.flush()
     db.refresh(row)

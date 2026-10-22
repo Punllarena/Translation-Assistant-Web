@@ -25,7 +25,7 @@ test("an admin uploads a Yomitan dictionary and JParser uses it", async ({ page 
   await cleanup(page);
   await page.goto("/admin");
   await page.getByLabel("Upload Yomitan dictionary").setInputFiles(path.resolve(import.meta.dirname, "fixtures/yomitan-e2e.zip"));
-  await expect(page.getByRole("status").filter({ hasText: "Installed E2E Yomitan (1 entries)" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Installed E2E Yomitan (1 entry)" })).toBeVisible();
   const order = page.getByRole("list", { name: "Dictionary order" });
   const items = order.getByRole("listitem");
   await expect(items.nth(0)).toContainText("EDICT2");

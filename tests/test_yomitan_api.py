@@ -95,6 +95,27 @@ def test_cancel_leaves_nothing_installed(app_client, env, monkeypatch, db):
     assert list(yomitan_job.upload_dir().glob("*.zip")) == []
 
 
+def test_single_entry_message_is_singular(app_client, env):
+    job = run(app_client, zip_bytes(env, banks={"term_bank_1.json": [JMDICT_ROWS[0]]}))
+    assert job["result"]["message"] == "Installed JMdict [2026-10-21] (1 entry)"
+
+
+def test_cancel_during_saving_leaves_nothing_installed(app_client, env, monkeypatch, db):
+    monkeypatch.setattr(yomitan_store, "BATCH", 1)
+    saves = []
+
+    def report(self, done, total, message=""):
+        if message == "Saving":
+            saves.append(done)
+            if len(saves) == 3:  # the job's own report, then batches 0 and 1
+                raise jobs.Cancelled
+    monkeypatch.setattr(jobs.JobContext, "report", report)
+    job = run(app_client, zip_bytes(env))
+    assert job["state"] == "cancelled"
+    assert len(saves) == 3
+    assert yomitan_store.installed(db) == []
+
+
 def test_one_upload_at_a_time(app_client, env):
     assert post(app_client, zip_bytes(env)).status_code == 202
     assert post(app_client, zip_bytes(env)).status_code == 409
