@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-DEFAULT_PARSE_CHARS = "、 。 ？ ！ 「 」 …… "
+from api.core.text import DEFAULT_PARSE_CHARS
 
 
 class ProfileCreate(BaseModel):

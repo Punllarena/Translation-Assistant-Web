@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -23,6 +24,9 @@ from sqlalchemy.sql.elements import ColumnElement
 from api.core import volume_names
 from api.db import Base
 
+if TYPE_CHECKING:
+    from api.models.identity import CustomWord, GlossaryEntry
+
 
 class Series(Base):
     __tablename__ = "series"
@@ -33,9 +37,6 @@ class Series(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
-    profile_id: Mapped[int | None] = mapped_column(
-        ForeignKey("profiles.id", ondelete="SET NULL"), index=True
-    )
     syosetu_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     wp_series_slug: Mapped[str] = mapped_column(Text, nullable=False, default="")
     wp_series_title_short: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -63,6 +64,12 @@ class Series(Base):
         back_populates="series", cascade="all, delete-orphan", passive_deletes=True
     )
     volumes: Mapped[list["Volume"]] = relationship(
+        back_populates="series", cascade="all, delete-orphan"
+    )
+    glossary: Mapped[list["GlossaryEntry"]] = relationship(
+        back_populates="series", cascade="all, delete-orphan"
+    )
+    custom_words: Mapped[list["CustomWord"]] = relationship(
         back_populates="series", cascade="all, delete-orphan"
     )
 

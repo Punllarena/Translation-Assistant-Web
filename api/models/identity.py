@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Boolean,
@@ -17,6 +17,9 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.db import Base
+
+if TYPE_CHECKING:
+    from api.models.content import Series
 
 
 def _username_from_email(context) -> str:
@@ -36,10 +39,6 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-
-    profiles: Mapped[list["Profile"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
     )
 
 
@@ -80,65 +79,52 @@ class Invite(Base):
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class Profile(Base):
-    __tablename__ = "profiles"
-    __table_args__ = (UniqueConstraint("user_id", "name"),)
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    name: Mapped[str] = mapped_column(String(120), nullable=False)
-    parse_chars: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default="、 。 ？ ！ 「 」 …… "
-    )
-    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-
-    user: Mapped[User] = relationship(back_populates="profiles")
-    glossary: Mapped[list["GlossaryEntry"]] = relationship(
-        back_populates="profile", cascade="all, delete-orphan"
-    )
-    custom_words: Mapped[list["CustomWord"]] = relationship(
-        back_populates="profile", cascade="all, delete-orphan"
-    )
-
-
 class GlossaryEntry(Base):
     __tablename__ = "glossary"
-    __table_args__ = (UniqueConstraint("profile_id", "phrase"),)
+    __table_args__ = (UniqueConstraint("series_id", "phrase"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    profile_id: Mapped[int] = mapped_column(
-        ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    series_id: Mapped[int] = mapped_column(
+        ForeignKey("series.id", ondelete="CASCADE"), nullable=False, index=True
     )
     phrase: Mapped[str] = mapped_column(Text, nullable=False)
     translation: Mapped[str] = mapped_column(Text, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    profile: Mapped[Profile] = relationship(back_populates="glossary")
+    series: Mapped["Series"] = relationship(back_populates="glossary")
 
 
 class CustomWord(Base):
+    """A spellcheck word: account-wide when series_id is None, else that series' own."""
+
     __tablename__ = "custom_words"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    profile_id: Mapped[int] = mapped_column(
-        ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, index=True
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    series_id: Mapped[int | None] = mapped_column(
+        ForeignKey("series.id", ondelete="CASCADE"), index=True
     )
     word: Mapped[str] = mapped_column(String(120), nullable=False)
 
-    profile: Mapped[Profile] = relationship(back_populates="custom_words")
+    series: Mapped["Series | None"] = relationship(back_populates="custom_words")
 
 
-# Case-insensitive uniqueness per profile (a table constraint cannot hold an expression).
+# Case-insensitive uniqueness per list (a table constraint cannot hold an expression).
 Index(
-    "uq_custom_words_profile_lower_word",
-    CustomWord.profile_id,
+    "uq_custom_words_user_lower_word",
+    CustomWord.user_id,
     func.lower(CustomWord.word),
     unique=True,
+    postgresql_where=CustomWord.series_id.is_(None),
+)
+Index(
+    "uq_custom_words_series_lower_word",
+    CustomWord.series_id,
+    func.lower(CustomWord.word),
+    unique=True,
+    postgresql_where=CustomWord.series_id.is_not(None),
 )
 
 
