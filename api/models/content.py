@@ -38,6 +38,15 @@ class Series(Base):
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     syosetu_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    original_title: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    original_author: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    author_romaji: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
     wp_series_slug: Mapped[str] = mapped_column(Text, nullable=False, default="")
     wp_series_title_short: Mapped[str] = mapped_column(Text, nullable=False, default="")
     wp_password_enabled: Mapped[bool | None] = mapped_column(Boolean)

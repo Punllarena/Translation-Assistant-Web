@@ -5,6 +5,11 @@ from pydantic import BaseModel, StringConstraints, model_validator
 # A name a person reads in a list: surrounding whitespace dropped, never empty.
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
 
+# Free text about a work (original title, author): trimmed, no NUL, may be blank.
+Credit = Annotated[
+    str, StringConstraints(strip_whitespace=True, max_length=300, pattern=r"^[^\x00]*$")
+]
+
 
 class Patch(BaseModel):
     """A PATCH body. Omitted fields are left alone (handlers dump with exclude_unset);

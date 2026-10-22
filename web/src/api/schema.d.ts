@@ -2370,6 +2370,21 @@ export interface components {
         /** SeriesCreate */
         SeriesCreate: {
             /**
+             * Author Romaji
+             * @default
+             */
+            author_romaji: string;
+            /**
+             * Original Author
+             * @default
+             */
+            original_author: string;
+            /**
+             * Original Title
+             * @default
+             */
+            original_title: string;
+            /**
              * Syosetu Url
              * @default
              */
@@ -2379,6 +2394,8 @@ export interface components {
         };
         /** SeriesOut */
         SeriesOut: {
+            /** Author Romaji */
+            author_romaji: string;
             /**
              * Created At
              * Format: date-time
@@ -2386,6 +2403,10 @@ export interface components {
             created_at: string;
             /** Id */
             id: number;
+            /** Original Author */
+            original_author: string;
+            /** Original Title */
+            original_title: string;
             /** Syosetu Url */
             syosetu_url: string;
             /** Syosetu Volume Marker */
@@ -2424,6 +2445,12 @@ export interface components {
         };
         /** SeriesUpdate */
         SeriesUpdate: {
+            /** Author Romaji */
+            author_romaji?: string | null;
+            /** Original Author */
+            original_author?: string | null;
+            /** Original Title */
+            original_title?: string | null;
             /** Syosetu Url */
             syosetu_url?: string | null;
             /** Title */

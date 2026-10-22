@@ -4,12 +4,15 @@ from typing import ClassVar
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from api.core.volume_names import validate_template
-from api.schemas.common import Patch, Title
+from api.schemas.common import Credit, Patch, Title
 
 
 class SeriesCreate(BaseModel):
     title: Title
     syosetu_url: str = ""
+    original_title: Credit = ""
+    original_author: Credit = ""
+    author_romaji: Credit = ""
 
 
 class SeriesUpdate(Patch):
@@ -17,6 +20,9 @@ class SeriesUpdate(Patch):
 
     title: Title | None = None
     syosetu_url: str | None = None
+    original_title: Credit | None = None
+    original_author: Credit | None = None
+    author_romaji: Credit | None = None
     wp_series_slug: str | None = None
     wp_series_title_short: str | None = None
     wp_password_enabled: bool | None = None
@@ -37,6 +43,9 @@ class SeriesOut(BaseModel):
     id: int
     title: str
     syosetu_url: str
+    original_title: str
+    original_author: str
+    author_romaji: str
     wp_series_slug: str
     wp_series_title_short: str
     wp_password_enabled: bool | None

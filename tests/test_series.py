@@ -199,3 +199,45 @@ def test_template_blank_means_default(app_client, me, make_series):
     assert r.status_code == 200
     assert r.json()["volume_title_template"] == ""
     assert r.json()["volume_title_template_effective"] == DEFAULT_TEMPLATE
+
+
+def test_credits_round_trip(app_client, me):
+    body = {
+        "title": "Hero",
+        "original_title": "勇者",
+        "original_author": "山田",
+        "author_romaji": "Yamada",
+    }
+    r = app_client.post("/series", json=body)
+    assert r.status_code == 201
+    created = r.json()
+    for key in ("original_title", "original_author", "author_romaji"):
+        assert created[key] == body[key]
+    got = app_client.get("/series").json()[0]
+    assert got["original_title"] == "勇者"
+    r = app_client.patch(f"/series/{created['id']}", json={"author_romaji": " Taro Yamada "})
+    assert r.status_code == 200
+    assert r.json()["author_romaji"] == "Taro Yamada"
+    assert r.json()["original_title"] == "勇者"
+    assert r.json()["original_author"] == "山田"
+
+
+def test_credits_default_blank(app_client, me):
+    r = app_client.post("/series", json={"title": "Hero"})
+    assert r.status_code == 201
+    for key in ("original_title", "original_author", "author_romaji"):
+        assert r.json()[key] == ""
+
+
+def test_credit_rules(app_client, me, make_series):
+    assert (
+        app_client.post("/series", json={"title": "A", "original_title": "x\x00y"}).status_code
+        == 422
+    )
+    assert (
+        app_client.post("/series", json={"title": "B", "author_romaji": "x" * 301}).status_code
+        == 422
+    )
+    s = make_series(me, "S")
+    r = app_client.patch(f"/series/{s.id}", json={"original_author": None})
+    assert r.status_code == 422
