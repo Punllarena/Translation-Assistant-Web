@@ -282,6 +282,14 @@ def import_epub(
     )
 
 
+def credit(series: Series) -> str:
+    """The original work, for dc:source: title, plus the author when known."""
+    title, author = series.original_title.strip(), series.original_author.strip()
+    if not title:
+        return ""
+    return f"{title} ({author})" if author else title
+
+
 @router.get("/volumes/{volume_id}/export/epub")
 def export_volume(
     volume_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
@@ -321,8 +329,10 @@ def export_volume(
     data = build_epub(
         volume.full_title, chapters,
         language=volume.epub_language or "en", cover=cover,
-        creator=volume.epub_author, illustrator=volume.epub_illustrator,
+        creator=volume.epub_author or volume.series.author_romaji,
+        illustrator=volume.epub_illustrator,
         publisher=volume.epub_publisher, identifier=volume.epub_identifier,
+        source=credit(volume.series),
     )
     name = f"{sanitize_filename(volume.full_title) or 'volume'}.epub"
     return Response(data, media_type="application/epub+zip", headers=attachment(name))
