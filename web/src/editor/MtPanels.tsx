@@ -10,7 +10,7 @@ const LABELS: Record<string, string> = {
 };
 const TERMINAL = new Set(["needs_setup", "error", "done"]);
 
-function useMtStream(backend: string, documentId: number, lineNumber: number, profileId: number | null) {
+function useMtStream(backend: string, documentId: number, lineNumber: number) {
   const [state, setState] = useState<MtState>(initial);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -18,7 +18,6 @@ function useMtStream(backend: string, documentId: number, lineNumber: number, pr
     let es: EventSource | null = null;
     const timer = setTimeout(() => {
       const params = new URLSearchParams({ backend, document_id: String(documentId), line_number: String(lineNumber) });
-      if (profileId != null) params.set("profile_id", String(profileId));
       const source = new EventSource(`/api/mt/stream?${params}`);
       es = source;
       let heard = false;
@@ -38,7 +37,7 @@ function useMtStream(backend: string, documentId: number, lineNumber: number, pr
       };
     }, 300);
     return () => { clearTimeout(timer); es?.close(); };
-  }, [backend, documentId, lineNumber, profileId, attempt]);
+  }, [backend, documentId, lineNumber, attempt]);
   return { state, retry: useCallback(() => setAttempt((a) => a + 1), []) };
 }
 
@@ -56,10 +55,10 @@ function EntryRow({ e }: { e: Entry }) {
   );
 }
 
-function Card({ name, label, documentId, lineNumber, profileId, onUse }: {
-  name: string; label: string; documentId: number; lineNumber: number; profileId: number | null; onUse(text: string): void;
+function Card({ name, label, documentId, lineNumber, onUse }: {
+  name: string; label: string; documentId: number; lineNumber: number; onUse(text: string): void;
 }) {
-  const { state, retry } = useMtStream(name, documentId, lineNumber, profileId);
+  const { state, retry } = useMtStream(name, documentId, lineNumber);
   const glyph = state.status === "done" ? (state.cached ? "cached" : "✓") : state.status === "running" ? "…" : "";
   return (
     <section className="mt-card" aria-label={label}>
@@ -75,8 +74,8 @@ function Card({ name, label, documentId, lineNumber, profileId, onUse }: {
 }
 
 /** Machine translation cards for the active line, one SSE stream per enabled backend. */
-export default function MtPanels({ documentId, lineNumber, profileId, onUse }: {
-  documentId: number; lineNumber: number; profileId: number | null; onUse(text: string): void;
+export default function MtPanels({ documentId, lineNumber, onUse }: {
+  documentId: number; lineNumber: number; onUse(text: string): void;
 }) {
   const backends = useQuery({ queryKey: ["mt", "backends"], queryFn: () => call(api.GET("/mt/backends")) });
   const enabled = backends.data?.enabled ?? [];
@@ -85,7 +84,7 @@ export default function MtPanels({ documentId, lineNumber, profileId, onUse }: {
     <div className="mt-panels" aria-label="Machine translation">
       {enabled.map((name) => (
         <Card key={name} name={name} label={LABELS[name] ?? name}
-          documentId={documentId} lineNumber={lineNumber} profileId={profileId} onUse={onUse} />
+          documentId={documentId} lineNumber={lineNumber} onUse={onUse} />
       ))}
     </div>
   );

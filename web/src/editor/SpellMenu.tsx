@@ -6,7 +6,7 @@ interface Props {
   y: number;
   word: Misspelling;
   onPick(suggestion: string): void;
-  onAdd(): void;
+  onAdd(scope: "series" | "all"): void;
   onClose(): void;
 }
 
@@ -35,7 +35,8 @@ export default function SpellMenu({ x, y, word, onPick, onAdd, onClose }: Props)
         <span className="muted">No suggestions</span>
       )}
       <hr />
-      <button role="menuitem" onClick={onAdd}>Add “{word.word}” to the dictionary</button>
+      <button role="menuitem" onClick={() => onAdd("series")}>Add “{word.word}” to this series</button>
+      <button role="menuitem" onClick={() => onAdd("all")}>Add “{word.word}” for all series</button>
     </div>
   );
 }
