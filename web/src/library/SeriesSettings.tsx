@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { api, call } from "../api/client";
@@ -23,9 +23,8 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
     : { kind: "Volume", index: "1", subtitle: "Subtitle" };
   const preview = templateProblem ? null : render(template.trim() ? template : DEFAULT_TEMPLATE, { series: series.title, ...sample });
   const chapters = `${chapterCount} ${chapterCount === 1 ? "chapter" : "chapters"}`;
-  const profiles = useQuery({ queryKey: ["profiles"], queryFn: () => call(api.GET("/profiles")) });
   const save = useMutation({
-    mutationFn: (body: { title: string; syosetu_url: string; profile_id: number | null; volume_title_template: string }) =>
+    mutationFn: (body: { title: string; syosetu_url: string; volume_title_template: string }) =>
       call(api.PATCH("/series/{series_id}", { params: { path: { series_id: seriesId } }, body })),
     onSuccess: () => invalidateLibrary(queryClient),
   });
@@ -39,11 +38,9 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
   const submit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    const profile = String(form.get("profile_id") ?? "");
     save.mutate({
       title: String(form.get("title")),
       syosetu_url: String(form.get("syosetu_url")),
-      profile_id: profile ? Number(profile) : null,
       volume_title_template: template.trim() ? template : "",
     });
   };
@@ -59,16 +56,8 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
         </label>
         {templateProblem && <p className="error" role="alert">{templateProblem}</p>}
         {preview && <p className="muted">Preview: {preview}</p>}
-        <label>
-          Profile{" "}
-          <select name="profile_id" defaultValue={series.profile_id ?? ""}>
-            <option value="">Default profile</option>
-            {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </label>
-        {profiles.isError && <p className="error" role="alert">{profiles.error.message}</p>}
         <div className="toolbar">
-          <button disabled={save.isPending || !profiles.isSuccess || templateProblem !== null}>Save</button>
+          <button disabled={save.isPending || templateProblem !== null}>Save</button>
           <a href={`/api/series/${seriesId}/export/markdown?variant=plain`} download>Markdown ZIP (complete chapters only)</a>
           <a href={`/api/series/${seriesId}/export/markdown?variant=ruby`} download>Ruby Markdown ZIP (complete chapters only)</a>
         </div>

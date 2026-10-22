@@ -4,12 +4,12 @@ import { api, ApiError, call, errorMessage } from "../api/client";
 import { ArrowDown, ArrowUp, Cross } from "../ui/icons";
 import { changedRows, countChanges, moveRow, toEntries, type Row } from "./glossary";
 
-/** Editable glossary for one profile (desktop dlg_glossary). Keyed by the parent on profile + data version. */
-type Props = { pid: number; loaded: Row[]; onLoaded: (rows: Row[]) => void; onDirty: (d: boolean) => void; note: string | null; setNote: (n: string | null) => void };
+/** Editable glossary for one series (desktop dlg_glossary). Keyed by the parent on series + data version. */
+type Props = { seriesId: number; loaded: Row[]; onLoaded: (rows: Row[]) => void; onDirty: (d: boolean) => void; note: string | null; setNote: (n: string | null) => void };
 
 const Heading = () => <h2 id="glossary-h">Glossary</h2>;
 
-function Editor({ pid, loaded, onLoaded, onDirty, note, setNote }: Props) {
+function Editor({ seriesId, loaded, onLoaded, onDirty, note, setNote }: Props) {
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<Row[]>(loaded);
   const dirty = JSON.stringify(rows) !== JSON.stringify(loaded);
@@ -22,7 +22,7 @@ function Editor({ pid, loaded, onLoaded, onDirty, note, setNote }: Props) {
   const written = () => queryClient.invalidateQueries({ queryKey: ["document"] });
   const save = useMutation({
     mutationFn: () =>
-      call(api.PUT("/profiles/{profile_id}/glossary", { params: { path: { profile_id: pid } }, body: { entries: toEntries(rows) } })),
+      call(api.PUT("/series/{series_id}/glossary", { params: { path: { series_id: seriesId } }, body: { entries: toEntries(rows) } })),
     onSuccess: (data) => {
       onLoaded(data.map(({ phrase, translation }) => ({ phrase, translation })));
       setNote("Saved");
@@ -34,13 +34,13 @@ function Editor({ pid, loaded, onLoaded, onDirty, note, setNote }: Props) {
     mutationFn: async (file: File) => {
       const body = new FormData();
       body.append("file", file);
-      const res = await fetch(`/api/profiles/${pid}/glossary/import`, { method: "POST", body });
+      const res = await fetch(`/api/series/${seriesId}/glossary/import`, { method: "POST", body });
       if (!res.ok) throw new ApiError(res.status, errorMessage(await res.json().catch(() => null)));
       return (await res.json()) as { added: number; updated: number; skipped: number };
     },
     onSuccess: (r) => {
       setNote(`Imported: ${r.added} added, ${r.updated} updated, ${r.skipped} skipped`);
-      queryClient.invalidateQueries({ queryKey: ["glossary", pid] });
+      queryClient.invalidateQueries({ queryKey: ["glossary", seriesId] });
       written();
     },
     onError: () => setNote(null),
@@ -101,12 +101,12 @@ function Editor({ pid, loaded, onLoaded, onDirty, note, setNote }: Props) {
   );
 }
 
-export default function GlossaryTable({ pid, onDirty }: { pid: number; onDirty: (d: boolean) => void }) {
+export default function GlossaryTable({ seriesId, onDirty }: { seriesId: number; onDirty: (d: boolean) => void }) {
   const queryClient = useQueryClient();
   const [note, setNote] = useState<string | null>(null); // outlives Editor remounts on data change
   const glossary = useQuery({
-    queryKey: ["glossary", pid],
-    queryFn: () => call(api.GET("/profiles/{profile_id}/glossary", { params: { path: { profile_id: pid } } })),
+    queryKey: ["glossary", seriesId],
+    queryFn: () => call(api.GET("/series/{series_id}/glossary", { params: { path: { series_id: seriesId } } })),
   });
   if (!glossary.data) {
     return (
@@ -121,13 +121,13 @@ export default function GlossaryTable({ pid, onDirty }: { pid: number; onDirty: 
   const loaded = glossary.data.map(({ phrase, translation }) => ({ phrase, translation }));
   return (
     <Editor
-      key={`${pid}:${glossary.dataUpdatedAt}`}
-      pid={pid}
+      key={`${seriesId}:${glossary.dataUpdatedAt}`}
+      seriesId={seriesId}
       loaded={loaded}
       onDirty={onDirty}
       note={note}
       setNote={setNote}
-      onLoaded={(rows) => queryClient.setQueryData(["glossary", pid], rows.map((r, i) => ({ ...r, id: i, sort_order: i })))}
+      onLoaded={(rows) => queryClient.setQueryData(["glossary", seriesId], rows.map((r, i) => ({ ...r, id: i, sort_order: i })))}
     />
   );
 }
