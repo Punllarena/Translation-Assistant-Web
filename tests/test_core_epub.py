@@ -719,6 +719,18 @@ class TestBuildEpubMetadata:
             opf = zf.read("OEBPS/content.opf").decode("utf-8")
         assert "urn:isbn:1234567890123" in opf
 
+    def test_source_is_written(self):
+        result = build_epub("Vol", [("Ch 1", [("text", "Hello.")], [])], source="勇者 (山田)")
+        with zipfile.ZipFile(io.BytesIO(result)) as zf:
+            opf = zf.read("OEBPS/content.opf").decode("utf-8")
+        assert "<dc:source>勇者 (山田)</dc:source>" in opf
+
+    def test_blank_credits_emit_nothing(self):
+        result = build_epub("Vol", [("Ch 1", [("text", "Hello.")], [])], source="", creator="")
+        with zipfile.ZipFile(io.BytesIO(result)) as zf:
+            opf = zf.read("OEBPS/content.opf").decode("utf-8")
+        assert "dc:source" not in opf and "dc:creator" not in opf
+
     def test_blank_metadata_omits_tags(self, tmp_path):
         result = build_epub("Vol", [("Ch 1", [("text", "Hello.")], [])])
         out = tmp_path / "out.epub"

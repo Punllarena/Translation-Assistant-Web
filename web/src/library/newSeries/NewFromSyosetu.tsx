@@ -1,0 +1,105 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router";
+import { api, call, type Schemas } from "../../api/client";
+import JobProgress from "../../jobs/JobProgress";
+import type { Job } from "../../jobs/follow";
+import { invalidateLibrary } from "../queries";
+import { EMPTY_FIELDS, seriesBody, type SeriesFieldsValue } from "./fields";
+import SeriesFields from "./SeriesFields";
+
+type Novel = Schemas["NovelInfo"];
+const FALLBACK = "The first chapter could not be fetched.";
+
+export default function NewFromSyosetu() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [url, setUrl] = useState("");
+  const [novel, setNovel] = useState<Novel | null>(null);
+  const [value, setValue] = useState<SeriesFieldsValue>(EMPTY_FIELDS);
+  const [started, setStarted] = useState<{ seriesId: number; jobId: number } | null>(null);
+  const current = useRef(""); // a slow Read of an earlier URL must not win
+  const read = useMutation({
+    mutationFn: (u: string) => call(api.POST("/scrape/syosetu/novel", { body: { url: u } })),
+    onSuccess: (n, u) => {
+      if (u !== current.current) return;
+      setNovel(n);
+      setValue((v) => ({ ...v, originalTitle: n.title, originalAuthor: n.author }));
+    },
+  });
+  const create = useMutation({
+    mutationFn: async () => {
+      const s = await call(api.POST("/series", { body: { ...seriesBody(value), syosetu_url: url.trim() } }));
+      await invalidateLibrary(queryClient);
+      try {
+        const job = await call(api.POST("/series/{series_id}/syosetu/fetch", {
+          params: { path: { series_id: s.id } }, body: { nums: [(novel as Novel).first_chapter.num] },
+        }));
+        setStarted({ seriesId: s.id, jobId: job.id });
+      } catch (e) {
+        // the series exists: fetch from its Tools tab
+        navigate(`/series/${s.id}?tab=tools`, { state: { fetchError: (e as Error).message || FALLBACK } });
+      }
+    },
+  });
+  const onDone = (job: Job) => {
+    const result = job.result as { document_ids?: number[]; errors?: { message?: string }[] } | null;
+    const id = result?.document_ids?.[0];
+    void invalidateLibrary(queryClient);
+    const seriesId = (started as { seriesId: number }).seriesId;
+    if (job.state === "done" && id) {
+      navigate(`/documents/${id}`);
+      return;
+    }
+    const fetchError = job.message || result?.errors?.[0]?.message || FALLBACK;
+    navigate(`/series/${seriesId}?tab=tools`, { state: { fetchError } });
+  };
+  const changeUrl = (u: string) => {
+    setUrl(u);
+    current.current = u.trim();
+    setNovel(null);
+    read.reset();
+  };
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!novel) {
+      if (url.trim() && !read.isPending) read.mutate(url.trim());
+    } else if (value.title.trim() && !create.isPending) create.mutate();
+  };
+  const busy = create.isPending || started !== null;
+  const first = novel?.first_chapter;
+  return (
+    <form className="panel pad" onSubmit={submit}>
+      <h2 className="sec">Syosetu</h2>
+      <p className="muted">Start from a syosetu URL and fetch the first chapter.</p>
+      <label className="field"><span>Syosetu URL</span>
+        <input type="url" value={url} disabled={busy} onChange={(e) => changeUrl(e.target.value)} />
+      </label>
+      {!novel && (
+        <div className="row-fields">
+          <button type="submit" disabled={!url.trim() || read.isPending}>Read</button>
+        </div>
+      )}
+      {read.error && <p className="error" role="alert">{read.error.message}</p>}
+      {novel && first && (
+        <>
+          <SeriesFields value={value} onChange={setValue} disabled={busy} />
+          <p className="muted">
+            {novel.short_story
+              ? `Short story: ${first.title || "Chapter 1"} will be fetched as one chapter.`
+              : `Chapter ${first.num}: ${first.title} will be fetched.`}
+          </p>
+          {create.error && <p className="error" role="alert">{create.error.message}</p>}
+          {started ? (
+            <JobProgress jobId={started.jobId} background={false} onDone={onDone}
+              lostLink={<Link to={`/series/${started.seriesId}`}>Open the series</Link>} />
+          ) : (
+            <div className="row-fields">
+              <button type="submit" className="primary" disabled={value.title.trim() === "" || busy}>Create</button>
+            </div>
+          )}
+        </>
+      )}
+    </form>
+  );
+}

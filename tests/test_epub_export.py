@@ -59,3 +59,38 @@ def test_a_chapter_of_blank_lines_is_skipped_not_incomplete(
     r = app_client.get(f"/volumes/{v.id}/export/epub")
     assert r.status_code == 200
     assert [c["title"] for c in open_book(io.BytesIO(r.content))["chapters"]] == ["Done"]
+
+
+def _opf(content):
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(content)) as zf:
+        return zf.read("OEBPS/content.opf").decode("utf-8")
+
+
+def _finished(db, me, make_series, make_doc, **series_fields):
+    s = make_series(me, "S")
+    for k, val in series_fields.items():
+        setattr(s, k, val)
+    v = volume(db, s)
+    make_doc(me, ["一行目です。"], series=s, order=1, volume=v, translated=True)
+    db.flush()
+    return v
+
+
+def test_series_romaji_is_the_fallback_author(app_client, db, me, make_series, make_doc):
+    v = _finished(db, me, make_series, make_doc, author_romaji="Yamada")
+    v.epub_author = ""
+    db.flush()
+    r = app_client.get(f"/volumes/{v.id}/export/epub")
+    assert '<dc:creator id="creator-aut">Yamada</dc:creator>' in _opf(r.content)
+    v.epub_author = "A"
+    db.flush()
+    r = app_client.get(f"/volumes/{v.id}/export/epub")
+    assert '<dc:creator id="creator-aut">A</dc:creator>' in _opf(r.content)
+
+
+def test_original_title_is_credited(app_client, db, me, make_series, make_doc):
+    v = _finished(db, me, make_series, make_doc, original_title="勇者", original_author="山田")
+    r = app_client.get(f"/volumes/{v.id}/export/epub")
+    assert "<dc:source>勇者 (山田)</dc:source>" in _opf(r.content)

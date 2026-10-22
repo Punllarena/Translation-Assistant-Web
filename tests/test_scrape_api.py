@@ -12,6 +12,13 @@ INDEX = ('<div class="p-eplist__sublist"><a href="/n1/1/">One</a></div>'
          '<div class="p-eplist__sublist"><a href="/n1/2/">Two</a></div>'
          '<div class="p-eplist__sublist"><a href="/n1/3/">Three</a></div>')
 
+SERIAL_ROOT = ('<h1 class="p-novel__title">勇者の旅</h1>'
+               '<div class="p-novel__author">作者：<a href="/u/1/">山田太郎</a></div>'
+               + INDEX)
+SHORT_ROOT = ('<h1 class="p-novel__title">一夜の話</h1>'
+              '<div class="p-novel__author">作者：<a href="/u/2/">鈴木</a></div>'
+              '<div class="js-novel-text p-novel__text"><p>本文一行目</p></div>')
+
 
 def chapter(title, body):
     return (f'<h1 class="p-novel__title p-novel__title--rensai">{title}</h1>'
@@ -24,7 +31,10 @@ def site(monkeypatch, db):
     pages = {"https://ncode.syosetu.com/n1/": INDEX,
              "https://ncode.syosetu.com/n1/1/": chapter("第一話", "一行目です。"),
              "https://ncode.syosetu.com/n1/2/": chapter("第二話", "二行目です。"),
-             "https://ncode.syosetu.com/n1/3/": chapter("第三話", "三行目です。")}
+             "https://ncode.syosetu.com/n1/3/": chapter("第三話", "三行目です。"),
+             "https://ncode.syosetu.com/n7696mg/": SERIAL_ROOT,
+             "https://ncode.syosetu.com/n0001aa/": SHORT_ROOT,
+             "https://ncode.syosetu.com/n0000zz/": "<html></html>"}
     calls = []
 
     def handle(request):
@@ -82,8 +92,9 @@ def test_fetch_job_adds_selected_chapters_and_skips_existing(
     assert jobs.run_next() is True
     job = app_client.get(f"/jobs/{r.json()['id']}").json()
     assert job["state"] == "done"
-    assert job["result"] == {"added": 2, "skipped": 1, "errors": [], "missing": [99]}
     docs = db.query(Document).filter_by(series_id=s.id).order_by(Document.series_order).all()
+    assert job["result"] == {"added": 2, "skipped": 1, "errors": [], "missing": [99],
+                             "document_ids": [docs[0].id, docs[2].id]}
     assert [(d.series_order, d.title, d.source_url) for d in docs] == [
         (1, "第一話", "https://ncode.syosetu.com/n1/1/"), (2, "Ch", ""),
         (3, "第三話", "https://ncode.syosetu.com/n1/3/")]
@@ -343,3 +354,86 @@ def test_a_taken_heading_title_is_suffixed_in_arc_order(app_client, me, make_ser
     _fetch(app_client, s, [2, 3])
     vols = db.query(Volume).filter_by(series_id=s.id).order_by(Volume.volume_order).all()
     assert [v.subtitle for v in vols] == ["第一章", "第一章 (2)", "第二章"]
+
+
+def test_novel_read_serial(app_client, me, site):
+    r = app_client.post("/scrape/syosetu/novel", json={"url": "https://ncode.syosetu.com/n7696mg/"})
+    assert r.status_code == 200
+    assert r.json() == {"title": "勇者の旅", "author": "山田太郎", "short_story": False,
+                        "first_chapter": {"num": 1, "title": "One"}}
+
+
+def test_novel_read_short_story(app_client, me, site):
+    r = app_client.post("/scrape/syosetu/novel", json={"url": "https://ncode.syosetu.com/n0001aa/"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["short_story"] is True and body["first_chapter"]["num"] == 1
+
+
+@pytest.mark.parametrize("url", ["https://ncode.syosetu.com/n7696mg/1/",
+                                 "https://example.com/n7696mg/"])
+def test_novel_read_refuses_chapter_and_foreign_urls(app_client, me, site, url):
+    assert app_client.post("/scrape/syosetu/novel", json={"url": url}).status_code == 422
+
+
+def test_novel_read_with_nothing_is_422(app_client, me, site, db):
+    from api.models import Series
+    r = app_client.post("/scrape/syosetu/novel", json={"url": "https://ncode.syosetu.com/n0000zz/"})
+    assert r.status_code == 422
+    assert db.query(Series).count() == 0
+
+
+def test_novel_read_upstream_failure_is_502(app_client, me, site):
+    r = app_client.post("/scrape/syosetu/novel", json={"url": "https://ncode.syosetu.com/n9999/"})
+    assert r.status_code == 502
+
+
+def test_fetch_job_reports_document_ids(app_client, me, make_series, site, db):
+    s = make_series(me, "S")
+    s.syosetu_url = "https://ncode.syosetu.com/n1/"
+    db.flush()
+    jid = app_client.post(f"/series/{s.id}/syosetu/fetch", json={"nums": [1]}).json()["id"]
+    jobs.run_next()
+    doc = db.query(Document).filter_by(series_id=s.id).one()
+    assert app_client.get(f"/jobs/{jid}").json()["result"]["document_ids"] == [doc.id]
+
+
+def _short_series(me, make_series, db):
+    s = make_series(me, "Short")
+    s.syosetu_url = "https://ncode.syosetu.com/n0001aa/"
+    db.flush()
+    return s
+
+
+def test_short_story_fetch_creates_one_chapter(app_client, me, make_series, site, db):
+    s = _short_series(me, make_series, db)
+    app_client.post(f"/series/{s.id}/syosetu/fetch", json={"nums": [1]})
+    jobs.run_next()
+    doc = db.query(Document).filter_by(series_id=s.id).one()
+    assert (doc.series_order, doc.title, doc.source_url) == (
+        1, "一夜の話", "https://ncode.syosetu.com/n0001aa/")
+    lines = app_client.get(f"/documents/{doc.id}/lines").json()["lines"]
+    assert "本文一行目" in [ln["raw_text"] for ln in lines]
+    chapters = app_client.get(f"/series/{s.id}/syosetu/chapters").json()["chapters"]
+    assert [(c["num"], c["fetched"]) for c in chapters] == [(1, True)]
+
+
+def test_short_story_fetch_is_idempotent(app_client, me, make_series, site, db):
+    s = _short_series(me, make_series, db)
+    for _ in range(2):
+        jid = app_client.post(f"/series/{s.id}/syosetu/fetch", json={"nums": [1]}).json()["id"]
+        jobs.run_next()
+    result = app_client.get(f"/jobs/{jid}").json()["result"]
+    assert result["added"] == 0 and result["skipped"] == 1
+    assert db.query(Document).filter_by(series_id=s.id).count() == 1
+
+
+def test_short_story_without_a_title_falls_back_to_chapter_1(
+        app_client, me, make_series, site, db):
+    pages, _ = site
+    pages["https://ncode.syosetu.com/n0001aa/"] = (
+        '<div class="js-novel-text p-novel__text"><p>本文</p></div>')
+    s = _short_series(me, make_series, db)
+    app_client.post(f"/series/{s.id}/syosetu/fetch", json={"nums": [1]})
+    jobs.run_next()
+    assert db.query(Document).filter_by(series_id=s.id).one().title == "Chapter 1"

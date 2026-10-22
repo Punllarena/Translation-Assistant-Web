@@ -4,7 +4,7 @@ import pytest
 from bs4 import BeautifulSoup
 
 from api.core import scrape
-from api.core.scrape import _para_text, fetch_series_index, fetch_syosetu
+from api.core.scrape import NoChapters, _para_text, fetch_series_index, fetch_syosetu, read_novel
 
 
 def mock(pages: dict[str, tuple[int, str, dict]]):
@@ -155,6 +155,73 @@ def test_fetch_series_index_empty_toc():
     url = "https://ncode.syosetu.com/n1234ab/"
     with one(url, "<html><body></body></html>") as c:
         assert fetch_series_index(c, url) == []
+
+
+_SERIAL_HEADER_HTML = _TOC_HTML.replace(
+    "<body>",
+    '<body><h1 class="p-novel__title">勇者の旅</h1>'
+    '<div class="p-novel__author">作者：<a href="/u/1">山田太郎</a></div>',
+)
+
+_SHORT_HTML = (
+    '<html><body><h1 class="p-novel__title">一夜の話</h1>'
+    '<div class="p-novel__author">作者：鈴木</div>'
+    '<div class="js-novel-text p-novel__text"><p>本文一行目</p></div></body></html>'
+)
+
+
+def test_read_novel_serial():
+    url = "https://ncode.syosetu.com/n7696mg/"
+    with one(url, _SERIAL_HEADER_HTML) as c:
+        info = read_novel(c, url)
+    assert info["title"] == "勇者の旅"
+    assert info["author"] == "山田太郎"
+    assert info["short_story"] is False
+    assert info["chapters"][0]["num"] == 1
+    assert len(info["chapters"]) == 3
+
+
+def test_read_novel_short_story():
+    url = "https://ncode.syosetu.com/n1234ab/"
+    with one(url, _SHORT_HTML) as c:
+        info = read_novel(c, url)
+    assert info["title"] == "一夜の話"
+    assert info["author"] == "鈴木"
+    assert info["short_story"] is True
+    assert info["chapters"] == [{"num": 1, "title": "一夜の話", "url": url, "group": None}]
+
+
+def test_read_novel_missing_author():
+    url = "https://ncode.syosetu.com/n7696mg/"
+    with one(url, _TOC_HTML) as c:
+        assert read_novel(c, url)["author"] == ""
+
+
+def test_read_novel_nothing_raises():
+    url = "https://ncode.syosetu.com/n1234ab/"
+    with one(url, "<html><body></body></html>") as c:
+        with pytest.raises(NoChapters, match="no chapters"):
+            read_novel(c, url)
+
+
+def test_read_novel_rejects_chapter_url():
+    with one("https://ncode.syosetu.com/n7696mg/1/", "") as c:
+        with pytest.raises(ValueError, match="series root"):
+            read_novel(c, "https://ncode.syosetu.com/n7696mg/1/")
+
+
+def test_index_of_short_story_is_one_chapter():
+    url = "https://ncode.syosetu.com/n1234ab/"
+    hits = []
+
+    def handle(request):
+        hits.append(str(request.url))
+        return httpx.Response(200, text=_SHORT_HTML)
+
+    with scrape.client(transport=httpx.MockTransport(handle)) as c:
+        got = fetch_series_index(c, url)
+    assert got == [{"num": 1, "title": "一夜の話", "url": url, "group": None}]
+    assert len(hits) == 1
 
 
 class TestParaText:

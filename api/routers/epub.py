@@ -38,6 +38,7 @@ from api.library import (
     write_lines,
 )
 from api.models import Document, DocumentImage, Series, User, Volume
+from api.routers.series import TITLE_TAKEN
 from api.routers.transfer import attachment
 from api.routing import api_router
 from api.schemas.epub import BookOut, ChapterError, EpubImportOut
@@ -81,7 +82,16 @@ def inspect(file: UploadFile = File(...), user: User = Depends(current_user)) ->
     )
 
 
-def _series(db: Session, user: User, series_id: int | None, title: str) -> Series:
+def _series(
+    db: Session, user: User, series_id: int | None, title: str,
+    credits: dict[str, str] | None = None,
+) -> Series:
+    """Find-or-create; with `credits` (new-series mode) it only creates."""
+    if credits is not None:
+        series = Series(user_id=user.id, title=title, **credits)
+        db.add(series)
+        db.flush()
+        return series
     if series_id is not None:
         return owned_ref(db, Series, series_id, user.id, "series_id")
     series = db.scalar(select(Series).where(Series.user_id == user.id, Series.title == title))
@@ -174,13 +184,23 @@ def import_epub(
     illustrator: str = Form("", max_length=300),
     publisher: str = Form("", max_length=300),
     identifier: str = Form("", max_length=300),
+    new_series: bool = Form(False),
+    original_title: str = Form("", max_length=300),
+    original_author: str = Form("", max_length=300),
+    author_romaji: str = Form("", max_length=300),
     hrefs: list[str] = Form(...),
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
 ) -> EpubImportOut:
     reject_nul(series_title, volume_kind, volume_index, volume_subtitle, author, illustrator,
-               publisher, identifier)
-    if (series_id is None) == (not series_title.strip()):
+               publisher, identifier, original_title, original_author, author_romaji)
+    if new_series:
+        if series_id is not None or not series_title.strip():
+            raise _unprocessable("new_series needs series_title, not series_id")
+        if db.scalar(select(Series.id).where(
+                Series.user_id == user.id, Series.title == series_title.strip())) is not None:
+            raise HTTPException(status.HTTP_409_CONFLICT, TITLE_TAKEN)
+    elif (series_id is None) == (not series_title.strip()):
         raise _unprocessable("give exactly one of series_id and series_title")
     # FastAPI reads an empty form value as absent, which would turn a deliberate "no
     # kind" into the default; what the client really sent wins.
@@ -190,7 +210,10 @@ def import_epub(
         raise _unprocessable(f"choose between 1 and {MAX_CHAPTERS} chapters")
 
     data, book = _book(file)
-    series = _series(db, user, series_id, series_title.strip())
+    series = _series(db, user, series_id, series_title.strip(), {
+        "original_title": original_title.strip(), "original_author": original_author.strip(),
+        "author_romaji": author_romaji.strip(),
+    } if new_series else None)
     volume = _volume(db, series, name, {
         "epub_author": author, "epub_illustrator": illustrator,
         "epub_publisher": publisher, "epub_identifier": identifier,
@@ -230,6 +253,10 @@ def import_epub(
         if is_empty:
             empty.append(title)
 
+    if new_series and not imported:  # roll back, so the title is not claimed
+        detail = "; ".join(f"{e.title} — {e.message}" for e in errors) or "no chapters"
+        raise _unprocessable(f"nothing imported: {detail}")
+
     cover_href = book["cover_href"]
     if cover_href and first_doc is not None and not db.scalar(
         select(DocumentImage.id)
@@ -257,6 +284,14 @@ def import_epub(
         series_id=series.id, volume_id=volume.id, imported=imported, skipped=skipped,
         empty=empty, errors=errors,
     )
+
+
+def credit(series: Series) -> str:
+    """The original work, for dc:source: title, plus the author when known."""
+    title, author = series.original_title.strip(), series.original_author.strip()
+    if not title:
+        return ""
+    return f"{title} ({author})" if author else title
 
 
 @router.get("/volumes/{volume_id}/export/epub")
@@ -298,8 +333,10 @@ def export_volume(
     data = build_epub(
         volume.full_title, chapters,
         language=volume.epub_language or "en", cover=cover,
-        creator=volume.epub_author, illustrator=volume.epub_illustrator,
+        creator=volume.epub_author or volume.series.author_romaji,
+        illustrator=volume.epub_illustrator,
         publisher=volume.epub_publisher, identifier=volume.epub_identifier,
+        source=credit(volume.series),
     )
     name = f"{sanitize_filename(volume.full_title) or 'volume'}.epub"
     return Response(data, media_type="application/epub+zip", headers=attachment(name))

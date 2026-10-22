@@ -68,3 +68,6 @@
   .wizard-steps .step-name { display: none; }
   .wizard-steps li[aria-current="step"] .step-name { display: block; }
 }
+
+.source-card { display: flex; flex-direction: column; gap: 6px; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.source-card:hover { border-color: var(--accent); }

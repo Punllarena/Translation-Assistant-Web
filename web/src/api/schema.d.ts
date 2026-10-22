@@ -810,6 +810,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/scrape/syosetu/novel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Novel
+         * @description Preview a novel (title, author, first chapter) before its series exists.
+         */
+        post: operations["read_novel_scrape_syosetu_novel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/series": {
         parameters: {
             query?: never;
@@ -1649,6 +1669,11 @@ export interface components {
              * @default
              */
             author: string;
+            /**
+             * Author Romaji
+             * @default
+             */
+            author_romaji: string;
             /** File */
             file: string;
             /** Hrefs */
@@ -1663,6 +1688,21 @@ export interface components {
              * @default
              */
             illustrator: string;
+            /**
+             * New Series
+             * @default false
+             */
+            new_series: boolean;
+            /**
+             * Original Author
+             * @default
+             */
+            original_author: string;
+            /**
+             * Original Title
+             * @default
+             */
+            original_title: string;
             /**
              * Publisher
              * @default
@@ -2279,6 +2319,23 @@ export interface components {
             /** Word */
             word: string;
         };
+        /** NovelChapter */
+        NovelChapter: {
+            /** Num */
+            num: number;
+            /** Title */
+            title: string;
+        };
+        /** NovelInfo */
+        NovelInfo: {
+            /** Author */
+            author: string;
+            first_chapter: components["schemas"]["NovelChapter"];
+            /** Short Story */
+            short_story: boolean;
+            /** Title */
+            title: string;
+        };
         /** PeriodChange */
         PeriodChange: {
             /** Current */
@@ -2370,6 +2427,21 @@ export interface components {
         /** SeriesCreate */
         SeriesCreate: {
             /**
+             * Author Romaji
+             * @default
+             */
+            author_romaji: string;
+            /**
+             * Original Author
+             * @default
+             */
+            original_author: string;
+            /**
+             * Original Title
+             * @default
+             */
+            original_title: string;
+            /**
              * Syosetu Url
              * @default
              */
@@ -2379,6 +2451,8 @@ export interface components {
         };
         /** SeriesOut */
         SeriesOut: {
+            /** Author Romaji */
+            author_romaji: string;
             /**
              * Created At
              * Format: date-time
@@ -2386,6 +2460,10 @@ export interface components {
             created_at: string;
             /** Id */
             id: number;
+            /** Original Author */
+            original_author: string;
+            /** Original Title */
+            original_title: string;
             /** Syosetu Url */
             syosetu_url: string;
             /** Syosetu Volume Marker */
@@ -2424,6 +2502,12 @@ export interface components {
         };
         /** SeriesUpdate */
         SeriesUpdate: {
+            /** Author Romaji */
+            author_romaji?: string | null;
+            /** Original Author */
+            original_author?: string | null;
+            /** Original Title */
+            original_title?: string | null;
             /** Syosetu Url */
             syosetu_url?: string | null;
             /** Title */
@@ -4437,6 +4521,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Fetched"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_novel_scrape_syosetu_novel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FetchUrl"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NovelInfo"];
                 };
             };
             /** @description Validation Error */

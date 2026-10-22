@@ -111,6 +111,14 @@ names), both tested against `volumeNames.cases.json`. `Volume.full_title` = `epu
 (blank = `DEFAULT_TEMPLATE`); `Volume.label` is the short SPA form. `api/volume_order.place` positions new and re-keyed volumes (ta.db import
 appends in desktop order; an explicit `volume_order` on create is kept). `volumes.wp_volume_title` freezes at the first publish; WordPress gets `Volume.wp_name`.
 
+New series: the `/new` page (`web/src/library/newSeries/`) offers Syosetu, EPUB or Paste. Series have optional credit fields
+`original_title`, `original_author`, `author_romaji` (the translated `title` stays required). `POST /scrape/syosetu/novel`
+(`read_novel` in `api/core/scrape.py`) reads a novel's title, author and first chapter without creating anything; Create then runs
+`syosetu_fetch` for the first chapter only (its result carries `document_ids`). A syosetu short story (no index, text on the root page)
+is a one-chapter series numbered 1 whose chapter URL is the series URL. `/epub/import` with `new_series=true` refuses a taken title
+(409) instead of reusing the series. EPUB export: a volume with no `epub_author` uses the series' `author_romaji`; `original_title`
+(with `original_author`) is written as `dc:source`.
+
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
 

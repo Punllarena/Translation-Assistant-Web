@@ -6,6 +6,7 @@ import EditorPage from "./editor/EditorPage";
 import SourcePage from "./editor/SourcePage";
 import ImportPage from "./library/ImportPage";
 import Library from "./library/Library";
+import NewSeriesPage from "./library/newSeries/NewSeriesPage";
 import SeriesPage from "./library/SeriesPage";
 import EditorSettingsPage from "./settings/EditorSettingsPage";
 import MtSettingsPage from "./settings/MtSettingsPage";
@@ -26,6 +27,7 @@ export const router = createBrowserRouter(
         <Route element={<RequireAuth><Shell /></RequireAuth>}>
           <Route index element={<Library />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="new" element={<NewSeriesPage />} />
           <Route path="import" element={<ImportPage />} />
           <Route path="stats" element={<StatsPage />} />
           <Route path="series/:id" element={<SeriesPage />} />

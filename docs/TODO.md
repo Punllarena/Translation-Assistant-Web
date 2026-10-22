@@ -2,6 +2,16 @@
 
 Deferred work, recorded so it can be picked up later. Newest first.
 
+## Syosetu: periodic background fetch
+
+*Raised 2026-10-22 during the new-series work
+(`docs/superpowers/specs/2026-10-22-new-series-sources-design.md`).*
+
+New syosetu series fetch only their first chapter. Add a scheduled job that, for every series with a
+`syosetu_url`, reads the index and fetches chapters not yet fetched, respecting
+`syosetu_delay_seconds`, one `syosetu_fetch` job per series at a time, and the per-user job
+limits. Decide the interval, opt-out per series, and how failures surface.
+
 ## EPUB: series position metadata
 
 *Raised 2026-10-21 during the volume naming work

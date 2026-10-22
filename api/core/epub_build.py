@@ -51,6 +51,7 @@ _OPF_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <dc:identifier id="uid">{identifier}</dc:identifier>
 {creator_entries}
 {publisher_entry}
+{source_entry}
 {cover_meta}
 </metadata>
 <manifest>
@@ -93,6 +94,7 @@ def build_epub(
     illustrator: str = "",
     publisher: str = "",
     identifier: str = "",
+    source: str = "",
 ) -> bytes:
     """
     chapters: [(chapter_title, content_items, chapter_images), ...] in output
@@ -107,6 +109,7 @@ def build_epub(
     dc:creator entry is emitted with a role-refining <meta> (aut/ill),
     matching the shape open_book() reads them from. Blank means omitted.
     publisher: dc:publisher text, omitted when blank.
+    source: dc:source text (the original work's credit), omitted when blank.
     identifier: dc:identifier text (e.g. an ISBN urn). When blank, a
     generated urn:uuid is used instead -- unlike creator/publisher, the OPF
     always needs *some* unique identifier, so this one is never omitted,
@@ -221,6 +224,8 @@ def build_epub(
             )
         publisher_entry = f"<dc:publisher>{escape(publisher)}</dc:publisher>" if publisher else ""
 
+        source_entry = f"<dc:source>{escape(source)}</dc:source>" if source.strip() else ""
+
         opf = _OPF_TEMPLATE.format(
             title=escape(volume_title),
             lang=language,
@@ -230,6 +235,7 @@ def build_epub(
             cover_meta=cover_meta,
             creator_entries="\n".join(creator_entries),
             publisher_entry=publisher_entry,
+            source_entry=source_entry,
         )
         zf.writestr("OEBPS/content.opf", opf)
 
