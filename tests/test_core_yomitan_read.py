@@ -215,3 +215,41 @@ def test_on_bank_exception_propagates(tmp_path):
 
     with pytest.raises(KeyboardInterrupt):
         read(str(p), cancel)
+
+
+def _ascii_jmdict_rows():
+    gloss = [{"type": "structured-content", "content": {"tag": "ul", "data": {"content": "glossary"},
+              "content": [{"tag": "li", "content": "tomorrow"}]}}]
+    return [
+        ["明日", "あした", "1 n", "", 100, gloss, 1, "⭐"],
+        ["明日", "あす", "1 n", "", 99, gloss, 1, "⭐"],
+        ["明日", "みょうにち", "1 n", "", 98, gloss, 1, "⭐"],
+    ]
+
+
+def test_identical_senses_are_not_repeated_and_every_reading_is_a_key(tmp_path):
+    p = make_zip(tmp_path / "a.zip", JMDICT_INDEX, {"term_bank_1.json": _ascii_jmdict_rows()})
+    d = read(str(p))
+    e = d.terms["明日"]
+    assert e.gloss == "tomorrow"
+    assert e.reading == "あした"
+    assert d.terms["あす"] is e and d.terms["みょうにち"] is e and d.terms["あした"] is e
+    assert d.entry_count == 1
+
+
+@pytest.mark.parametrize("field,value,limit", [
+    ("title", "t" * 257, 256), ("revision", "r" * 257, 256), ("author", "a" * 257, 256),
+    ("url", "u" * 1025, 1024),
+])
+def test_long_index_fields_are_refused(tmp_path, field, value, limit):
+    index = {**PLAIN_INDEX, field: value}
+    p = make_zip(tmp_path / "l.zip", index, {"term_bank_1.json": [_row("猫", "ねこ")]})
+    with pytest.raises(YomitanError, match=rf"{field} is longer than {limit} characters"):
+        read(str(p))
+
+
+def test_long_identity_key_is_refused(tmp_path):
+    index = {**PLAIN_INDEX, "indexUrl": "https://x/" + "u" * 600}
+    p = make_zip(tmp_path / "l.zip", index, {"term_bank_1.json": [_row("猫", "ねこ")]})
+    with pytest.raises(YomitanError, match="identity is longer than 600 characters"):
+        read(str(p))

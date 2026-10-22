@@ -23,6 +23,9 @@ _TAG_BANK = re.compile(r"tag_bank_(\d+)\.json")
 _TRAILING_BRACKET = re.compile(r"\s*\[[^\]]*\]\s*$")
 
 
+IDENTITY_LIMIT = 600
+_LIMITS = {"title": 256, "revision": 256, "author": 256, "url": 1024}  # the columns' widths
+
 NOT_A_ZIP = "This is not a zip file; upload the Yomitan dictionary .zip."
 NO_INDEX = "This zip has no index.json; it is not a Yomitan dictionary."
 NOT_FORMAT_3 = "Only Yomitan format 3 dictionaries are supported."
@@ -67,7 +70,7 @@ class _Group:
     sequence: int  # 0 when the rows were grouped by form
     first_order: int
     headwords: list[str] = field(default_factory=list)
-    reading: str = ""
+    readings: list[str] = field(default_factory=list)
     pos: set[str] = field(default_factory=set)
     rows: list[tuple[int, int, list[str]]] = field(default_factory=list)
     max_score: int | None = None
@@ -135,6 +138,12 @@ def _read_index(zf: zipfile.ZipFile) -> dict:
         raise YomitanError(NOT_FORMAT_3)
     if not _text(index, "title") or not _text(index, "revision"):
         raise YomitanError("index.json needs a title and a revision")
+    for name, limit in _LIMITS.items():
+        if len(_text(index, name)) > limit:
+            raise YomitanError(f"The dictionary's {name} is longer than {limit} characters.")
+    if len(identity_key(index)) > IDENTITY_LIMIT:
+        raise YomitanError(
+            f"The dictionary's identity is longer than {IDENTITY_LIMIT} characters.")
     return index
 
 
@@ -176,8 +185,8 @@ def _add_row(groups: dict, row: list, order: int, sequenced: bool, pos_names: se
         group = groups[key] = _Group(sequence=sequence if by_sequence else 0, first_order=order)
     if expression not in group.headwords:
         group.headwords.append(expression)
-    if reading and not group.reading:
-        group.reading = reading
+    if reading and reading not in group.readings:
+        group.readings.append(reading)
     group.pos.update(t for t in tag_list if t in pos_names)
     group.pos.update(rules.split())
     group.max_score = score if group.max_score is None else max(group.max_score, score)
@@ -190,10 +199,10 @@ def _build(group: _Group) -> FlatEntry | None:
     items: list[str] = []
     for _score, _order, found in sorted(group.rows, key=lambda r: (-r[0], r[1])):
         items.extend(found)
-    gloss = short_gloss(items)
+    gloss = short_gloss(list(dict.fromkeys(items)))  # one row per form repeats the same senses
     if not gloss:
         return None
-    reading = group.reading or group.headwords[0]
+    reading = group.readings[0] if group.readings else group.headwords[0]
     return FlatEntry(tuple(group.headwords), reading, frozenset(group.pos), gloss)
 
 
@@ -207,7 +216,7 @@ def _flatten(groups: dict, meta: Meta, skipped: int) -> Parsed:
             -(group.max_score or 0), not group.popular,
             group.sequence if group.sequence else float("inf"), group.first_order,
         )
-        for key in (*entry.headwords, entry.reading):
+        for key in (*entry.headwords, *group.readings, entry.reading):
             if key not in best or rank < best[key][0]:
                 best[key] = (rank, entry)
     terms = {key: entry for key, (_rank, entry) in best.items()}
