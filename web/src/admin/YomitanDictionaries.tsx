@@ -31,11 +31,11 @@ export default function YomitanDictionaries() {
   });
   const reorder = useMutation({
     mutationFn: (order: string[]) => call(api.PUT("/admin/dictionary/order", { body: { order } })),
-    onSuccess: refresh,
+    onSuccess: () => { setDone(""); void refresh(); },
   });
   const remove = useMutation({
     mutationFn: (id: number) => call(api.DELETE("/admin/dictionary/yomitan/{dictionary_id}", { params: { path: { dictionary_id: id } } })),
-    onSuccess: () => { setRemoving(null); void refresh(); },
+    onSuccess: () => { setDone(""); setRemoving(null); void refresh(); },
   });
   const byToken = new Map((q.data?.yomitan ?? []).map((d) => [`yomitan:${d.id}`, d]));
   const order = q.data?.order ?? [];
