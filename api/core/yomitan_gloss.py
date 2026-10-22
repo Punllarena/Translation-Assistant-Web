@@ -16,7 +16,13 @@ _LATIN = re.compile(r"[A-Za-z]")
 
 def _data(node: dict) -> str | None:
     data = node.get("data")
-    return data.get("content") if isinstance(data, dict) else None
+    value = data.get("content") if isinstance(data, dict) else None
+    return value if isinstance(value, str) else None
+
+
+def _tag(node: dict) -> str | None:
+    tag = node.get("tag")
+    return tag if isinstance(tag, str) else None
 
 
 def _skipped(node: dict) -> bool:
