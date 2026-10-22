@@ -639,6 +639,41 @@ def test_reimport_keeps_unused_profile_as_series(db, make_user, tmp_path, taken,
     assert db.query(Series).filter_by(user_id=user.id).count() == 2 + len(taken)
 
 
+def test_forced_reimport_does_not_duplicate_glossary_series(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "INSERT INTO glossary (profile_id, phrase, translation) VALUES (1, '猫', 'Cat')")
+    _add_profile(path, "other", glossary=(("犬", "Dog"),), words=("Rimuru",))
+    user = make_user()
+    first = import_tadb(db, path, user.id)
+    titles = sorted(s.title for s in db.query(Series).filter_by(user_id=user.id))
+    assert titles == ["My Series", "other"] and not first.already_present.get("series")
+    for _ in range(2):
+        again = import_tadb(db, path, user.id, force=True)
+        # 'wn' matches My Series (its copy), 'other' its own glossary-only series
+        assert again.already_present["series"] == 2
+        assert not again.written.get("series")
+    assert sorted(s.title for s in db.query(Series).filter_by(user_id=user.id)) == titles
+    assert _glossary(db, _series(db, user, "other")) == [("犬", "Dog", 0)]
+
+
+def test_unused_profile_skipped_when_a_series_matches_ignoring_word_case(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "UPDATE profiles SET is_default = 0")
+    _add_profile(path, "default", glossary=(("猫", "Cat"),), words=("Rimuru",), is_default=True)
+    user = make_user()
+    db.add(Series(user_id=user.id, title="My Series"))
+    same = Series(user_id=user.id, title="Same")
+    db.add(same)
+    db.flush()
+    db.add(GlossaryEntry(series_id=same.id, phrase="猫", translation="Cat", sort_order=5))
+    db.add(CustomWord(user_id=user.id, series_id=same.id, word="RIMURU"))
+    db.flush()
+    report = import_tadb(db, path, user.id)
+    # pairs and lower(word) are equal, so the profile is already present
+    assert report.already_present["series"] == 1
+    assert db.query(Series).filter_by(user_id=user.id).count() == 2
+
+
 def test_unused_empty_profile_dropped(db, make_user, tmp_path):
     path = _desktop_db(tmp_path)
     _add_profile(path, "empty")

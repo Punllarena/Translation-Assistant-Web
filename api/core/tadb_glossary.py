@@ -108,6 +108,37 @@ def adopt_profile(
     used.add(profile.name)
 
 
+Content = tuple[frozenset[tuple[str, str]], frozenset[str]]
+
+
+def _content(p: DesktopProfile) -> Content:
+    return frozenset((ph, tr) for ph, tr, _ in p.glossary), frozenset(w.lower() for w in p.words)
+
+
+def _series_contents(db: Session, user_id: int) -> set[Content]:
+    """Each of the account's series as (glossary pairs, lower-cased series words)."""
+    pairs: dict[int, set[tuple[str, str]]] = {}
+    words: dict[int, set[str]] = {}
+    for sid in db.scalars(select(Series.id).where(Series.user_id == user_id)):
+        pairs[sid], words[sid] = set(), set()
+    rows = db.execute(
+        select(GlossaryEntry.series_id, GlossaryEntry.phrase, GlossaryEntry.translation)
+        .join(Series, Series.id == GlossaryEntry.series_id)
+        .where(Series.user_id == user_id)
+    )
+    for sid, phrase, translation in rows:
+        pairs[sid].add((phrase, translation))
+    rows = db.execute(
+        select(CustomWord.series_id, CustomWord.word).where(
+            CustomWord.user_id == user_id, CustomWord.series_id.is_not(None)
+        )
+    )
+    for sid, word in rows:
+        words.setdefault(sid, set()).add(word.lower())
+        pairs.setdefault(sid, set())
+    return {(frozenset(pairs[s]), frozenset(words[s])) for s in pairs}
+
+
 def keep_unused(
     db: Session,
     user_id: int,
@@ -115,11 +146,20 @@ def keep_unused(
     used: set[str],
     report: ImportReport,
 ) -> None:
-    """A profile copied to no series: dropped when empty, else a series of its own."""
+    """A profile copied to no series: dropped when empty, already present when a series
+    of the account has the same glossary pairs and words (a forced re-import), else a
+    series of its own."""
     from api.core import tadb_rows  # imports this module; resolved at call time
 
     for p in profiles.values():
         if p.name in used or not (p.glossary or p.words):
+            continue
+        if _content(p) in _series_contents(db, user_id):
+            report.already_present["series"] += 1
+            report.messages.append(
+                f"profile {p.name!r} is used by no imported series; a series with the same "
+                "glossary and words is already in this account, kept as is"
+            )
             continue
         taken = set(db.scalars(select(func.lower(Series.title)).where(Series.user_id == user_id)))
         title = free_glossary_title(taken, p.name)

@@ -86,6 +86,11 @@ def test_foreign_series_id_is_422(app_client, me, make_user, make_series, fake):
     assert (r.status_code, r.json()["detail"]) == (422, "series_id: no such item")
 
 
+@pytest.mark.parametrize("series_id", [0, 2**40])
+def test_out_of_range_series_id_is_422(app_client, me, fake, series_id):
+    assert check(app_client, "teh", series_id=series_id).status_code == 422
+
+
 def test_text_count_is_capped(app_client, me, fake):
     assert check(app_client, *(["x"] * 201)).status_code == 422
 
