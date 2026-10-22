@@ -20,24 +20,10 @@
 .crumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; font-size: 13px; color: var(--muted); }
 .crumbs a { color: inherit; }
 
-.with-rail { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; }
-.rail { flex: 1 1 260px; max-width: 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-.rail-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.rail ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.rail-item { width: 100%; justify-content: space-between; min-height: 52px; padding: 10px 14px;
-  border-color: transparent; background: none; text-align: left; }
-.rail-item:hover:not(:disabled) { background: var(--surface); border-color: transparent; }
-.rail-item[aria-current="true"] { background: var(--surface); border-color: var(--line);
-  box-shadow: 0 8px 22px -14px var(--shadow); }
-.rail-item > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rail-main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 24px; }
-.rail-main .page-head { margin-bottom: 0; }
-
 @media (max-width: 60rem) {
   .app-header { gap: 0 12px; padding: 0 16px; }
   .app-header nav { order: 3; flex-basis: 100%; }
   .who .email { display: none; }
-  .rail { max-width: none; }
   .page-head h1 { font-size: 28px; }
 }
 

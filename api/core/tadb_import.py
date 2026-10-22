@@ -1,8 +1,9 @@
 """One-shot importer: desktop ta.db (SQLite) -> ta-web (Postgres).
 
 Reads a copy of the desktop database with the standard library and writes
-through the ORM so every constraint applies. Profiles, series and volumes are
-looked up and reused (a forced re-import adds chapters to the existing series);
+through the ORM so every constraint applies. Desktop profiles are read into memory
+and copied into each series the import creates (api/core/tadb_glossary.py). Series and
+volumes are looked up and reused (a forced re-import adds chapters to the existing series);
 documents are deduped on (user, series, title) so a forced re-import of a file
 that has been worked in since adds only the new chapters. Each row is written in
 its own SAVEPOINT: a row the schema rejects (duplicate, over-long value, orphan)
@@ -97,9 +98,13 @@ def import_tadb(
 
     conn = sqlite3.connect(sqlite_path.resolve().as_uri() + "?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
-    _check_source_schema(conn)
-    total = sum(conn.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
-                for t in ("documents", "lines", "document_images"))
+    try:
+        _check_source_schema(conn)
+        total = sum(conn.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
+                    for t in ("documents", "lines", "document_images"))
+    except BaseException:
+        conn.close()  # an open handle keeps the refused upload from being deleted (Windows)
+        raise
     progress = Progress(total, "Checking" if dry_run else "Importing", on_progress)
     # One SAVEPOINT around the whole import: a dry run rolls back only this work,
     # never the caller's transaction.

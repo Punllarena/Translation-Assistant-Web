@@ -13,7 +13,6 @@ from api.models.identity import (
     CustomWord,
     GlossaryEntry,
     Invite,
-    Profile,
     Session,
     Shortcut,
     User,
@@ -24,6 +23,6 @@ from api.models.server import ServerSetting
 
 __all__ = [
     "ApiCredential", "CustomWord", "Document", "DocumentImage", "GlossaryEntry",
-    "Invite", "Job", "Line", "MtCache", "Profile", "Series", "ServerSetting", "Session", "Shortcut",
+    "Invite", "Job", "Line", "MtCache", "Series", "ServerSetting", "Session", "Shortcut",
     "User", "UserSetting", "Volume", "VolumeSyosetuGroup", "WorkSession",
 ]

@@ -69,10 +69,10 @@ def test_a_failing_commit_is_a_5xx_not_a_201(boom, make_user, login):
     make_user(email="commit@example.com")
     assert login(client, "commit@example.com").status_code == 200
 
-    assert client.post("/profiles", json={"name": "before"}).status_code == 201
+    assert client.post("/series", json={"title": "before"}).status_code == 201
 
     armed["on"] = True
-    response = client.post("/profiles", json={"name": "after"})
+    response = client.post("/series", json={"title": "after"})
     assert response.status_code >= 500, "a failed commit must not be reported as success"
     assert failure.calls == 1
 
@@ -82,7 +82,7 @@ def test_a_failing_commit_on_a_read_is_also_a_5xx(boom, make_user, login):
     make_user(email="read@example.com")
     login(client, "read@example.com")
     armed["on"] = True
-    assert client.get("/profiles").status_code >= 500
+    assert client.get("/series").status_code >= 500
     assert failure.calls == 1
 
 
@@ -94,7 +94,7 @@ def test_a_real_request_persists_although_no_handler_commits(
     from sqlalchemy.orm import Session, sessionmaker
 
     from api import deps
-    from api.models import User
+    from api.models import Series, User
     from api.security import hash_password
 
     monkeypatch.setattr(
@@ -109,11 +109,12 @@ def test_a_real_request_persists_although_no_handler_commits(
                 "/auth/login", json={"login": "real@example.com", "password": "pw-correct"}
             )
             assert login.status_code == 200
-            assert client.post("/profiles", json={"name": "persisted"}).status_code == 201
+            assert client.post("/series", json={"title": "persisted"}).status_code == 201
         # A fresh session: only committed rows are visible.
         with Session(engine) as check:
             user = check.scalar(select(User).where(User.email == "real@example.com"))
-            assert [p.name for p in user.profiles] == ["persisted"]
+            titles = check.scalars(select(Series.title).where(Series.user_id == user.id))
+            assert list(titles) == ["persisted"]
     finally:
         with Session(engine) as cleanup:
             cleanup.execute(delete(User).where(User.email == "real@example.com"))
@@ -150,5 +151,5 @@ def test_commit_runs_off_the_event_loop(db, insecure_cookies, make_user, login):
     with TestClient(app) as client:
         login(client, "loop@example.com")
         on_loop.clear()
-        assert client.post("/profiles", json={"name": "off-loop"}).status_code == 201
+        assert client.post("/series", json={"title": "off-loop"}).status_code == 201
     assert on_loop == [False]

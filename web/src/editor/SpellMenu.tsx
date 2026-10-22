@@ -6,11 +6,12 @@ interface Props {
   y: number;
   word: Misspelling;
   onPick(suggestion: string): void;
-  onAdd(): void;
+  onAdd(scope: "series" | "all"): void;
   onClose(): void;
 }
 
-/** The right-click menu on a misspelled word: suggestions, then "Add to dictionary". */
+/** The right-click menu on a misspelled word: suggestions, then "Add to dictionary" for this
+ * series or for all series (the account dictionary). */
 export default function SpellMenu({ x, y, word, onPick, onAdd, onClose }: Props) {
   const menu = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: x, top: y });
@@ -35,7 +36,8 @@ export default function SpellMenu({ x, y, word, onPick, onAdd, onClose }: Props)
         <span className="muted">No suggestions</span>
       )}
       <hr />
-      <button role="menuitem" onClick={onAdd}>Add “{word.word}” to the dictionary</button>
+      <button role="menuitem" onClick={() => onAdd("series")}>Add “{word.word}” to this series</button>
+      <button role="menuitem" onClick={() => onAdd("all")}>Add “{word.word}” for all series</button>
     </div>
   );
 }

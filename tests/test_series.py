@@ -1,6 +1,6 @@
 import pytest
 
-from api.models import Document, Profile, Volume
+from api.models import Document, Volume
 
 
 def test_series_require_authentication(app_client):
@@ -24,33 +24,25 @@ def test_duplicate_title_is_409(app_client, me):
     assert app_client.post("/series", json={"title": "S"}).status_code == 409
 
 
-def test_foreign_profile_reads_exactly_like_a_missing_one(app_client, db, me, make_user):
-    theirs = Profile(user_id=make_user(email="other@example.com").id, name="p")
-    db.add(theirs)
-    db.flush()
-    foreign = app_client.post("/series", json={"title": "S", "profile_id": theirs.id})
-    missing = app_client.post("/series", json={"title": "S", "profile_id": 999999})
-    assert foreign.status_code == missing.status_code == 422
-    assert foreign.json() == missing.json()
+def test_series_out_has_no_profile_id(app_client, me):
+    created = app_client.post("/series", json={"title": "S", "profile_id": 1})
+    assert created.status_code == 201
+    assert "profile_id" not in created.json()
+    assert "profile_id" not in app_client.get("/series").json()[0]
 
 
-def test_patch_renames_and_clears_profile(app_client, db, me):
-    profile = Profile(user_id=me.id, name="p")
-    db.add(profile)
-    db.flush()
-    sid = app_client.post("/series", json={"title": "S", "profile_id": profile.id}).json()["id"]
-    r = app_client.patch(f"/series/{sid}", json={"title": "S2", "profile_id": None})
-    assert r.status_code == 200
-    assert (r.json()["title"], r.json()["profile_id"]) == ("S2", None)
-
-
-def test_patch_foreign_profile_is_422(app_client, db, me, make_user, make_series):
-    theirs = Profile(user_id=make_user(email="other@example.com").id, name="p")
-    db.add(theirs)
-    db.flush()
+def test_patch_with_profile_id_is_ignored(app_client, me, make_series):
     series = make_series(me)
-    r = app_client.patch(f"/series/{series.id}", json={"profile_id": theirs.id})
-    assert r.status_code == 422
+    before = app_client.get(f"/series/{series.id}").json()
+    r = app_client.patch(f"/series/{series.id}", json={"profile_id": 999999})
+    assert r.status_code == 200
+    assert r.json() == before
+
+
+def test_patch_renames(app_client, me):
+    sid = app_client.post("/series", json={"title": "S"}).json()["id"]
+    r = app_client.patch(f"/series/{sid}", json={"title": "S2"})
+    assert (r.status_code, r.json()["title"]) == (200, "S2")
 
 
 def test_patch_null_title_is_422(app_client, me, make_series):

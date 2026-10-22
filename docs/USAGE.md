@@ -6,7 +6,8 @@ generated from it into `web/src/api/schema.d.ts`.
 
 ## Library and editor
 
-- **Library.** Series as a bookshelf or a list. A series page has Volumes, Tools and Settings tabs.
+- **Library.** Series as a bookshelf or a list. A series page has Volumes, Glossary, Tools and
+  Settings tabs.
   Each volume holds a contiguous run of chapters numbered 1..N; loose chapters sit under "No volume".
   Chapters can be reordered, renumbered by title, merged, split, moved between volumes, and exported
   (TXT, Markdown, or a ZIP of ticked chapters).
@@ -14,9 +15,11 @@ generated from it into `web/src/api/schema.d.ts`.
   leaving a line), and unsent edits survive a closed tab. Every editor key can be rebound on the
   Shortcuts screen. Edit Source keeps one line per line; a save that changes the line count asks
   first, because translations stay attached by line position.
-- **Memory.** Glossaries grouped into profiles, translation memory, series-wide find and replace
-  (reviewed as a batch), and phrase suggestions (needs MeCab).
-- **Spellcheck** runs server-side with enchant and each profile's custom words. Without enchant or an
+- **Memory.** One glossary per series (its Glossary tab), translation memory, series-wide find and
+  replace (reviewed as a batch), and phrase suggestions (needs MeCab). Parse characters are an
+  account setting under Settings → Editor.
+- **Spellcheck** runs server-side with enchant. It accepts your account-wide dictionary (Settings →
+  Editor) plus the chapter's series dictionary (the series' Glossary tab). Without enchant or an
   English dictionary it reports `available: false`.
 
 ## Acquisition

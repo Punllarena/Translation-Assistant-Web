@@ -26,10 +26,11 @@ from api.library import (
     reject_nul,
     write_lines,
 )
-from api.models import Document, Profile, Series, User
+from api.models import Document, Series, User
 from api.routers.glossary import MAX_CSV_BYTES, import_pairs
 from api.routing import api_router
 from api.schemas.documents import DocumentOut
+from api.schemas.glossary import ImportResult
 from api.schemas.transfer import BatchImportOut
 from api.uploads import read_capped
 
@@ -135,9 +136,8 @@ class _Budget:
         return data
 
 
-def _batch_glossary(db, user, csv_file, series, errors, budget) -> int | None:
-    """Upsert the one CSV into a profile named by its stem; the series adopts it."""
-    name = PureWindowsPath(csv_file.filename or "").stem[:120] or "Imported"
+def _batch_glossary(db, csv_file, series, errors, budget) -> ImportResult | None:
+    """Upsert the one CSV into the series glossary; None when nothing was imported."""
     try:
         data = budget.read(csv_file, MAX_CSV_BYTES)
     except _BatchTooLarge:
@@ -147,23 +147,14 @@ def _batch_glossary(db, user, csv_file, series, errors, budget) -> int | None:
         return None
     try:
         with db.begin_nested():
-            text = data.decode("utf-8-sig")
-            profile = db.scalar(
-                select(Profile).where(Profile.user_id == user.id, Profile.name == name)
-            )
-            if profile is None:
-                profile = Profile(user_id=user.id, name=name)
-                db.add(profile)
-                db.flush()
-            import_pairs(db, profile.id, text)
+            result = import_pairs(db, series.id, data.decode("utf-8-sig"))
     except UnicodeDecodeError:
         errors.append({"name": csv_file.filename, "message": "file is not UTF-8 text"})
         return None
     except HTTPException as exc:
         errors.append({"name": csv_file.filename, "message": str(exc.detail)})
         return None
-    series.profile_id = profile.id
-    return profile.id
+    return result
 
 
 @router.post(
@@ -178,7 +169,7 @@ def import_batch(
 ) -> dict:
     """The desktop batch_import_folder: many .txt files become chapters, appended to the
     series in natural filename order; titles already present are skipped. One .csv is
-    imported as the series' glossary profile. Bad files are reported, not fatal."""
+    upserted into the series glossary. Bad files are reported, not fatal."""
     if len(files) > MAX_BATCH_FILES:
         raise _unprocessable(f"more than {MAX_BATCH_FILES} files")
     series = _series_for(db, user, series_id, series_title)
@@ -198,9 +189,9 @@ def import_batch(
             csvs.append(f)
         else:
             errors.append({"name": name, "message": "not a .txt or .csv file"})
-    profile_id = None
+    glossary = None
     if len(csvs) == 1:
-        profile_id = _batch_glossary(db, user, csvs[0], series, errors, budget)
+        glossary = _batch_glossary(db, csvs[0], series, errors, budget)
     elif csvs:
         warnings.append(f"{len(csvs)} CSV files found; glossary import skipped.")
     existing = set(db.scalars(select(Document.title).where(Document.user_id == user.id)))
@@ -238,7 +229,7 @@ def import_batch(
         imported.append(title)
     return {
         "series_id": series.id,
-        "profile_id": profile_id,
+        "glossary": glossary,
         "imported": imported,
         "skipped": skipped,
         "errors": errors,

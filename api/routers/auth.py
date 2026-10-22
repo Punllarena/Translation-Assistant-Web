@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from api.accounts import find_by_username, start_session
 from api.deps import COOKIE_NAME, current_user, db_session
-from api.models import Invite, Profile, User
+from api.models import Invite, User
 from api.models import Session as SessionRow
 from api.routing import api_router
 from api.schemas.auth import LoginRequest, UserOut
@@ -135,6 +135,4 @@ def accept_invite(body: AcceptInvite, db: Session = Depends(db_session)) -> User
             db.flush()  # only this flush may raise IntegrityError (email/username unique)
     except IntegrityError:
         raise rejected from None
-    db.add(Profile(user_id=user.id, name="default", is_default=True))
-    db.flush()
     return user

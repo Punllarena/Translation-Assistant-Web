@@ -1,7 +1,7 @@
 import pytest
 
 from api.core import spell
-from api.models import CustomWord, Profile
+from api.models import CustomWord
 
 
 class FakeDict:
@@ -20,15 +20,12 @@ def fake(monkeypatch):
 
 
 @pytest.fixture
-def profile(db, me):
-    p = Profile(user_id=me.id, name="p")
-    db.add(p)
-    db.flush()
-    return p
+def series(me, make_series):
+    return make_series(me)
 
 
-def check(client, *texts, profile_id=None):
-    return client.post("/spell/check", json={"texts": list(texts), "profile_id": profile_id})
+def check(client, *texts, series_id=None):
+    return client.post("/spell/check", json={"texts": list(texts), "series_id": series_id})
 
 
 def test_misspellings_are_utf16_offsets():
@@ -48,11 +45,34 @@ def test_check_returns_spans_and_capped_suggestions(app_client, me, fake):
     ]
 
 
-def test_custom_words_are_not_flagged(app_client, db, me, fake, profile):
-    db.add(CustomWord(profile_id=profile.id, word="Taro"))
+def test_series_words_are_not_flagged(app_client, db, me, fake, series):
+    db.add(CustomWord(user_id=me.id, series_id=series.id, word="Taro"))
     db.flush()
-    body = check(app_client, "Taro sat", profile_id=profile.id).json()
+    body = check(app_client, "Taro sat", series_id=series.id).json()
     assert body["results"] == [[]]
+
+
+def test_account_word_accepted_everywhere(app_client, db, me, fake, series):
+    db.add(CustomWord(user_id=me.id, series_id=None, word="senpai"))
+    db.flush()
+    assert check(app_client, "senpai sat").json()["results"] == [[]]
+    assert check(app_client, "senpai sat", series_id=series.id).json()["results"] == [[]]
+
+
+def test_series_word_does_not_leak_to_other_series(app_client, db, me, fake, make_series):
+    s1, s2 = make_series(me, "S1"), make_series(me, "S2")
+    db.add(CustomWord(user_id=me.id, series_id=s1.id, word="Rimuru"))
+    db.flush()
+    spans = check(app_client, "Rimuru sat", series_id=s2.id).json()["results"][0]
+    assert [s["word"] for s in spans] == ["Rimuru"]
+    assert [s["word"] for s in check(app_client, "Rimuru").json()["results"][0]] == ["Rimuru"]
+
+
+def test_another_users_account_words_do_not_apply(app_client, db, me, make_user, fake):
+    other = make_user(email="other@example.com")
+    db.add(CustomWord(user_id=other.id, series_id=None, word="Rimuru"))
+    db.flush()
+    assert [s["word"] for s in check(app_client, "Rimuru").json()["results"][0]] == ["Rimuru"]
 
 
 def test_unavailable_dictionary_flags_nothing(app_client, me, monkeypatch):
@@ -60,44 +80,19 @@ def test_unavailable_dictionary_flags_nothing(app_client, me, monkeypatch):
     assert check(app_client, "teh").json() == {"available": False, "results": [[]]}
 
 
-def test_foreign_profile_is_422(app_client, db, me, make_user, fake):
-    theirs = Profile(user_id=make_user(email="other@example.com").id, name="x")
-    db.add(theirs)
-    db.flush()
-    r = check(app_client, "teh", profile_id=theirs.id)
-    assert (r.status_code, r.json()["detail"]) == (422, "profile_id: no such item")
+def test_foreign_series_id_is_422(app_client, me, make_user, make_series, fake):
+    theirs = make_series(make_user(email="other@example.com"), "theirs")
+    r = check(app_client, "teh", series_id=theirs.id)
+    assert (r.status_code, r.json()["detail"]) == (422, "series_id: no such item")
+
+
+@pytest.mark.parametrize("series_id", [0, 2**40])
+def test_out_of_range_series_id_is_422(app_client, me, fake, series_id):
+    assert check(app_client, "teh", series_id=series_id).status_code == 422
 
 
 def test_text_count_is_capped(app_client, me, fake):
     assert check(app_client, *(["x"] * 201)).status_code == 422
-
-
-def test_words_put_is_idempotent_and_case_insensitive(app_client, profile):
-    url = f"/profiles/{profile.id}/words"
-    assert app_client.put(f"{url}/Taro").status_code == 204
-    assert app_client.put(f"{url}/taro").status_code == 204
-    assert app_client.get(url).json() == ["Taro"]
-
-
-def test_words_delete_is_idempotent(app_client, profile):
-    url = f"/profiles/{profile.id}/words"
-    app_client.put(f"{url}/Taro")
-    assert app_client.delete(f"{url}/Taro").status_code == 204
-    assert app_client.delete(f"{url}/Taro").status_code == 204
-    assert app_client.get(url).json() == []
-
-
-def test_word_with_whitespace_is_422(app_client, profile):
-    assert app_client.put(f"/profiles/{profile.id}/words/two%20words").status_code == 422
-
-
-@pytest.mark.parametrize("method", ["get", "put", "delete"])
-def test_another_users_profile_words_are_404(app_client, db, me, make_user, method):
-    theirs = Profile(user_id=make_user(email="other@example.com").id, name="x")
-    db.add(theirs)
-    db.flush()
-    url = f"/profiles/{theirs.id}/words" + ("" if method == "get" else "/Taro")
-    assert getattr(app_client, method)(url).status_code == 404
 
 
 def test_real_enchant_when_installed():
@@ -141,10 +136,7 @@ def test_suggestion_lookups_are_capped_per_request(app_client, me, monkeypatch):
     assert sum(1 for s in spans if s["suggestions"]) == 100
 
 
-def test_custom_words_match_case_insensitively(app_client, db, fake, profile):
-    db.add(CustomWord(profile_id=profile.id, word="taro"))
+def test_custom_words_match_case_insensitively(app_client, db, me, fake, series):
+    db.add(CustomWord(user_id=me.id, series_id=series.id, word="taro"))
     db.flush()
-    assert check(app_client, "Taro sat", profile_id=profile.id).json()["results"] == [[]]
-    url = f"/profiles/{profile.id}/words"
-    assert app_client.delete(f"{url}/TARO").status_code == 204
-    assert app_client.get(url).json() == []
+    assert check(app_client, "Taro sat", series_id=series.id).json()["results"] == [[]]

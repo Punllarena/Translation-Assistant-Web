@@ -48,8 +48,6 @@ class ReplaceResult(BaseModel):
 
 
 class SuggestRequest(BaseModel):
-    # its glossary's phrases are left out
-    profile_id: int | None = Field(default=None, ge=1, le=2**31 - 1)
     min_freq: int = Field(default=2, ge=1, le=999)
 
 

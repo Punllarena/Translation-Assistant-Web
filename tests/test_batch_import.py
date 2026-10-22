@@ -1,4 +1,4 @@
-from api.models import Document, GlossaryEntry, Profile, Series
+from api.models import Document, GlossaryEntry, Series
 
 SEP = "---SEPERATOR---"
 
@@ -40,16 +40,47 @@ def test_bad_files_are_reported_and_the_rest_imported(app_client, me, db):
     assert db.query(Document).count() == 1
 
 
-def test_one_csv_becomes_a_profile_for_the_new_series(app_client, me, db):
+def test_csv_goes_to_series_glossary(app_client, me, db):
+    csv = "猫,Cat\n犬,Dog\n".encode()
     out = app_client.post(
         "/documents/import/batch",
         data={"series_title": "Fresh"},
-        files=[txt("a.txt"), ("files", ("Names.csv", "猫,Cat\n".encode(), "text/csv"))],
+        files=[txt("a.txt"), ("files", ("Names.csv", csv, "text/csv"))],
     ).json()
-    profile = db.get(Profile, out["profile_id"])
-    assert profile.name == "Names"
-    assert db.query(GlossaryEntry).filter_by(profile_id=profile.id).one().translation == "Cat"
-    assert db.get(Series, out["series_id"]).profile_id == profile.id
+    assert "profile_id" not in out
+    assert out["glossary"] == {"added": 2, "updated": 0, "skipped": 0}
+    entries = app_client.get(f"/series/{out['series_id']}/glossary").json()
+    assert [(e["phrase"], e["translation"]) for e in entries] == [("猫", "Cat"), ("犬", "Dog")]
+
+
+def test_csv_upserts_into_an_existing_series_glossary(app_client, me, make_series, db):
+    s = make_series(me, "S")
+    db.add(GlossaryEntry(series_id=s.id, phrase="猫", translation="Kitty", sort_order=0))
+    db.flush()
+    out = app_client.post(
+        "/documents/import/batch",
+        data={"series_id": s.id},
+        files=[txt("a.txt"), ("files", ("x.csv", "猫,Cat\n犬,Dog\n".encode(), "text/csv"))],
+    ).json()
+    assert out["glossary"] == {"added": 1, "updated": 1, "skipped": 0}
+
+
+def test_no_csv_glossary_is_null(app_client, me):
+    out = app_client.post(
+        "/documents/import/batch", data={"series_title": "S"}, files=[txt("a.txt")]
+    ).json()
+    assert out["glossary"] is None
+
+
+def test_bad_csv_is_reported_and_glossary_is_null(app_client, me, db):
+    out = app_client.post(
+        "/documents/import/batch",
+        data={"series_title": "S"},
+        files=[txt("a.txt"), ("files", ("x.csv", "é,e\n".encode("latin-1"), "text/csv"))],
+    ).json()
+    assert out["glossary"] is None and out["imported"] == ["a"]
+    assert [e["name"] for e in out["errors"]] == ["x.csv"]
+    assert db.query(GlossaryEntry).count() == 0
 
 
 def test_two_csvs_warn_and_import_no_glossary(app_client, me, db):
@@ -62,7 +93,7 @@ def test_two_csvs_warn_and_import_no_glossary(app_client, me, db):
             ("files", ("y.csv", b"c,d\n", "text/csv")),
         ],
     ).json()
-    assert out["profile_id"] is None and "CSV" in out["warnings"][0]
+    assert out["glossary"] is None and "CSV" in out["warnings"][0]
 
 
 def test_series_rules(app_client, me, make_series, make_user):

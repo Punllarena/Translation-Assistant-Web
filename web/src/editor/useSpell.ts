@@ -5,7 +5,7 @@ import { spellBatches } from "./spell";
 
 /** Misspellings per translation text, fetched in batches 500 ms after typing stops.
  *  Keyed by text, so a card's array stays identical until its text changes. */
-export function useSpell(profileId: number | null, texts: string[]) {
+export function useSpell(seriesId: number, texts: string[]) {
   const cache = useRef(new Map<string, Misspelling[]>());
   const [version, bump] = useReducer((n: number) => n + 1, 0);
   const [available, setAvailable] = useState(true);
@@ -13,7 +13,7 @@ export function useSpell(profileId: number | null, texts: string[]) {
     cache.current = new Map();
     bump();
   }, []);
-  useEffect(forget, [profileId, forget]);
+  useEffect(forget, [seriesId, forget]);
   const key = texts.join("\u0000");
   useEffect(() => {
     const missing = [...new Set(texts)].filter((t) => t && !cache.current.has(t));
@@ -22,7 +22,7 @@ export function useSpell(profileId: number | null, texts: string[]) {
     const timer = setTimeout(async () => {
       for (const batch of spellBatches(missing)) {
         // ponytail: spellcheck is best-effort; a failed batch is retried on the next edit
-        const result = await call(api.POST("/spell/check", { body: { texts: batch, profile_id: profileId } })).catch(() => null);
+        const result = await call(api.POST("/spell/check", { body: { texts: batch, series_id: seriesId } })).catch(() => null);
         if (!live || !result) return;
         setAvailable(result.available);
         batch.forEach((t, i) => cache.current.set(t, result.results[i]));
@@ -35,7 +35,7 @@ export function useSpell(profileId: number | null, texts: string[]) {
     };
     // `key` stands for `texts`; `version` re-runs after forget()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, profileId, version]);
+  }, [key, seriesId, version]);
   const misspelled = useCallback((t: string) => cache.current.get(t) ?? NONE,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [version]);

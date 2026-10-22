@@ -3,7 +3,6 @@ from typing import Annotated
 from pydantic import AfterValidator, BaseModel, Field
 
 from api.schemas.documents import MAX_RAW_CHARS, DocumentOut
-from api.schemas.profiles import ProfileOut
 
 # A pasted translation for one paragraph; generous, but bounded.
 MAX_TRANSLATION_CHARS = 100_000
@@ -24,14 +23,13 @@ class LineOut(BaseModel):
     prefix: str
     raw_text: str
     display_text: str  # raw_text with markers stripped and the glossary applied
-    sentences: list[str]  # display_text split on the profile's parse characters
+    sentences: list[str]  # display_text split on the user's parse characters
     replaced: bool  # whether the glossary changed anything
     translated_text: str
 
 
 class DocumentLines(BaseModel):
     document: DocumentOut
-    profile: ProfileOut | None
     lines: list[LineOut]
 
 

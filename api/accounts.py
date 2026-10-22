@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from api.config import get_settings
 from api.deps import COOKIE_NAME
-from api.models import Profile, User
 from api.models import Session as SessionRow
+from api.models import User
 from api.security import hash_password, new_token, token_hash
 
 MIN_PASSWORD = 12
@@ -39,8 +39,6 @@ def create_admin(db: Session, email: str, password: str, username: str | None = 
         email=email, username=username, password_hash=hash_password(password), is_admin=True
     )
     db.add(user)
-    db.flush()
-    db.add(Profile(user_id=user.id, name="default", is_default=True))
     db.flush()
     return user
 

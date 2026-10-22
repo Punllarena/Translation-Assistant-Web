@@ -21,7 +21,7 @@ desktop app: a FastAPI + Postgres server with a React SPA, served by Caddy.
   ZIP and EPUB export.
 - **Editor:** one card per source line, save as you type, rebindable keys, find, spellcheck, inline
   images.
-- **Memory:** glossaries and profiles, translation memory, series-wide find and replace, phrase
+- **Memory:** a glossary per series, translation memory, series-wide find and replace, phrase
   suggestions.
 - **Machine translation:** DeepL, LibreTranslate, Ollama (streamed), MeCab and JParser, with a shared
   cache.

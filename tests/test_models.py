@@ -1,20 +1,21 @@
 from sqlalchemy.orm import configure_mappers
 
 from api.db import Base
-from api.models import Document, Line, Profile, Series, User
+from api.models import CustomWord, Document, GlossaryEntry, Line, Series
 
 
 def test_every_spec_table_is_mapped():
     expected = {
-        "users", "sessions", "invites", "profiles", "user_settings", "shortcuts",
+        "users", "sessions", "invites", "user_settings", "shortcuts",
         "api_credentials", "series", "volumes", "documents", "lines",
         "document_images", "mt_cache", "work_sessions", "glossary", "custom_words",
     }
     assert expected <= set(Base.metadata.tables)
+    assert "profiles" not in Base.metadata.tables
 
 
 def test_user_owned_tables_carry_user_id():
-    for table in ("profiles", "series", "documents", "work_sessions", "api_credentials"):
+    for table in ("custom_words", "series", "documents", "work_sessions", "api_credentials"):
         assert "user_id" in Base.metadata.tables[table].columns
 
 
@@ -39,7 +40,8 @@ def test_series_title_is_unique_per_user():
 def test_relationship_paths_exist():
     assert Document.lines.property.mapper.class_ is Line
     assert Series.documents.property.mapper.class_ is Document
-    assert Profile.user.property.mapper.class_ is User
+    assert Series.glossary.property.mapper.class_ is GlossaryEntry
+    assert Series.custom_words.property.mapper.class_ is CustomWord
 
 
 def _fks_by_table_column(table_name):
@@ -48,7 +50,7 @@ def _fks_by_table_column(table_name):
 
 def test_user_referencing_foreign_keys_cascade_on_delete():
     tables = (
-        "profiles", "sessions", "invites", "user_settings", "shortcuts",
+        "sessions", "invites", "user_settings", "shortcuts", "custom_words",
         "api_credentials", "series", "documents", "work_sessions",
     )
     for table in tables:
@@ -61,7 +63,7 @@ def test_user_referencing_foreign_keys_cascade_on_delete():
             assert fk.ondelete == "CASCADE", f"{table}.{fk.parent.name} ondelete={fk.ondelete}"
 
 
-def test_set_null_foreign_keys_are_exactly_the_expected_three():
+def test_set_null_foreign_keys_are_exactly_the_expected_two():
     set_null = {
         (table.name, fk.parent.name)
         for table in Base.metadata.tables.values()
@@ -69,14 +71,13 @@ def test_set_null_foreign_keys_are_exactly_the_expected_three():
         if fk.ondelete == "SET NULL"
     }
     assert set_null == {
-        ("series", "profile_id"),
         ("documents", "volume_id"),
         ("server_settings", "updated_by"),
     }
 
 
 def test_set_null_targets_are_indexed():
-    for table, column in (("series", "profile_id"), ("documents", "volume_id")):
+    for table, column in (("documents", "volume_id"),):
         indexed = {
             tuple(c.name for c in idx.columns) for idx in Base.metadata.tables[table].indexes
         }

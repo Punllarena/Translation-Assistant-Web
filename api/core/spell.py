@@ -1,6 +1,6 @@
 """Server-side spellcheck: the desktop SpellHighlighter's enchant wiring
 (translation_assistant/spellcheck.py at f1a96ce) without Qt. No database imports;
-the caller passes the profile's custom words."""
+the caller passes the custom words (account-wide plus the series')."""
 
 import re
 import threading

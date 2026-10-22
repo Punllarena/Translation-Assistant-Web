@@ -23,7 +23,7 @@ import { useBindings, useEditorKeys } from "./useEditorKeys";
 
 type Data = Schemas["DocumentLines"];
 
-export default function Editor({ id, data, onProfile }: { id: number; data: Data; onProfile(id: number | null): void }) {
+export default function Editor({ id, data }: { id: number; data: Data }) {
   const lines = data.lines;
   const startAt = useMemo(() => {
     const p = data.document.last_position;
@@ -57,24 +57,23 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
   const find = useFind(rows, ed.texts, ed.active, ed.activate);
   const { hit } = find;
   const activate = useCallback((i: number | null) => { find.stepped.current = false; edRef.current.activate(i); }, [find.stepped]);
-  const profileId = data.profile?.id ?? null;
-  const spell = useSpell(profileId, lines.map((l) => ed.texts[l.line_number] ?? ""));
-  const profiles = useQuery({ queryKey: ["profiles"], queryFn: () => call(api.GET("/profiles")) });
+  const seriesId = data.document.series_id;
+  const spell = useSpell(seriesId, lines.map((l) => ed.texts[l.line_number] ?? ""));
   const [menu, setMenu] = useState<{ x: number; y: number; word: Misspelling } | null>(null);
   const [phrase, setPhrase] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const gone = ed.missing.length
     ? `Lines ${ed.missing.map((n) => n + 1).join(", ")} no longer exist (the source was edited elsewhere); reload the chapter`
     : null;
-  const addWord = async (word: string) => {
-    if (!profileId) return setNotice("No profile to add words to");
+  const addWord = async (word: string, scope: "series" | "all") => {
     word = word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
     if (!word || /\s/.test(word)) return setNotice("Select a single word first");
     if (word.includes("/")) return setNotice("Words with / can't be added");
     try {
-      await call(api.PUT("/profiles/{profile_id}/words/{word}", { params: { path: { profile_id: profileId, word } } }));
+      if (scope === "series") await call(api.PUT("/series/{series_id}/words/{word}", { params: { path: { series_id: seriesId, word } } }));
+      else await call(api.PUT("/words/{word}", { params: { path: { word } } }));
       spell.forget();
-      setNotice(`Added \u201c${word}\u201d to the dictionary`);
+      setNotice(scope === "series" ? `Added \u201c${word}\u201d to the series dictionary` : `Added \u201c${word}\u201d to your dictionary`);
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "Could not add the word");
     }
@@ -145,13 +144,12 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
         const v = view.current;
         if (v) {
           const { from, to } = v.state.selection.main;
-          void addWord(v.state.sliceDoc(from, to).trim());
+          void addWord(v.state.sliceDoc(from, to).trim(), "series");
         }
         break;
       }
       case "add_phrase":
-        if (!profileId) setNotice("No profile to add phrases to");
-        else setPhrase(window.getSelection()?.toString().trim() ?? "");
+        setPhrase(window.getSelection()?.toString().trim() ?? "");
         break;
       case "find":
         find.show();
@@ -188,14 +186,10 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
         phrase={ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null}
         save={ed.save} onRetry={() => void ed.store.flush()} notice={notice ?? gone}
         extra={<>
-          <select aria-label="Profile" value={profileId ?? ""} onChange={(e) => onProfile(e.target.value ? Number(e.target.value) : null)}>
-            {!profileId && <option value="">No profile</option>}
-            {(profiles.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
           <Link to={`/documents/${id}/source`}>Edit source</Link>
           <Link to={`/documents/${id}/split`}>Split</Link>
           {!spell.available && <span className="muted">Spellcheck unavailable</span>}
-          {data.document.series_id != null && <Link to={`/series/${data.document.series_id}`}>Series tools</Link>}
+          <Link to={`/series/${data.document.series_id}`}>Series tools</Link>
           <button onClick={() => {
             queryClient.setQueryData(["settings"], { ...settings.data, tm_visible: !tmVisible });
             void call(api.PUT("/settings", { body: { tm_visible: !tmVisible } })).catch(() => {});
@@ -226,16 +220,17 @@ export default function Editor({ id, data, onProfile }: { id: number; data: Data
       {(tmVisible || mtVisible) && (
         <div className="side-col">
           {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={useText} />}
-          {mtVisible && <MtPanels documentId={id} lineNumber={n} profileId={profileId} onUse={useText} />}
+          {mtVisible && <MtPanels documentId={id} lineNumber={n} onUse={useText} />}
         </div>
       )}
       </div>
       {phrase !== null && <PhraseDialog initial={phrase} onClose={() => { setPhrase(null); view.current?.focus(); }} onSave={async (p, t) => {
-        await call(api.POST("/profiles/{profile_id}/glossary", { params: { path: { profile_id: profileId! } }, body: { phrase: p, translation: t } }));
-        await queryClient.invalidateQueries({ queryKey: ["document", id, "lines"] });
+        await call(api.POST("/series/{series_id}/glossary", { params: { path: { series_id: seriesId } }, body: { phrase: p, translation: t } }));
+        await queryClient.invalidateQueries({ queryKey: ["glossary", seriesId] });
+        await queryClient.invalidateQueries({ queryKey: ["document"] });
         setNotice(`Added \u201c${p}\u201d to the glossary`);
       }} />}
-      {menu && <SpellMenu {...menu} onClose={closeMenu} onAdd={() => { void addWord(menu.word.word); closeMenu(); }}
+      {menu && <SpellMenu {...menu} onClose={closeMenu} onAdd={(scope) => { void addWord(menu.word.word, scope); closeMenu(); }}
         onPick={(s) => {
           const v = view.current;
           const { start, end, word } = menu.word;

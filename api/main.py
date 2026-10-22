@@ -20,7 +20,6 @@ from api.routers import (
     lines,
     memory,
     mt,
-    profiles,
     scrape,
     series,
     settings,
@@ -30,6 +29,7 @@ from api.routers import (
     tadb,
     transfer,
     volumes,
+    words,
     wp,
 )
 from api.routers import (
@@ -68,7 +68,6 @@ def create_app() -> FastAPI:
     app.include_router(admin.router)
     app.include_router(dictionary.router)
     app.include_router(invites.router)
-    app.include_router(profiles.router)
     app.include_router(glossary.router)
     app.include_router(series.router)
     app.include_router(scrape.router)  # literal paths under /documents/{id}
@@ -80,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(lines.router)
     app.include_router(memory.router)
     app.include_router(spell.router)
+    app.include_router(words.router)
     app.include_router(images.router)
     app.include_router(settings.router)
     app.include_router(credentials.router)

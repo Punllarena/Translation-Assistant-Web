@@ -13,7 +13,7 @@ and `api/mt/`; its `db.py` schema is the reference for the SQLAlchemy models, bu
 code is not. The full mapping is in the spec, §1.
 
 **Phases 1–2** exist: FastAPI app, full Postgres schema, invite-only session auth,
-per-user profiles/settings/shortcuts/encrypted credentials, the `ta.db` importer, and
+per-user settings/shortcuts/encrypted credentials, the `ta.db` importer, and
 the library API (series/volumes/documents CRUD, reorder, renumber, merge/split, covers,
 TXT import, TXT/Markdown export).
 
@@ -23,7 +23,15 @@ series manager).
 Phase 3b: editor screen: cards, CodeMirror input, saving, keymap, find, spell, images,
 Edit Source/Split; Playwright smoke flows.
 
-Phase 4: glossary API and Profiles page, translation memory panel, series find and replace (reviewed batch), phrase suggestions (MeCab via the optional `mecab` extra).
+Phase 4: glossary API, translation memory panel, series find and replace (reviewed batch), phrase suggestions (MeCab via the optional `mecab` extra).
+
+Series glossaries: there are no profiles. Each series owns its glossary (`/series/{id}/glossary`, the series page's
+Glossary tab), and the editor, MT, phrase suggestions and batch import use the chapter's own series' glossary.
+Spellcheck words have two layers: account-wide (`/words`, `custom_words.series_id IS NULL`, Settings → Editor) and
+per series (`/series/{id}/words`); `POST /spell/check` with a `series_id` accepts a word from either list. Parse
+characters are the user setting `parse_chars` (unset or not a string = `DEFAULT_PARSE_CHARS` in `api/core/text.py`;
+`""` means don't split). The `ta.db` import copies each desktop profile's glossary and words into every series it
+creates that used that profile (`api/core/tadb_glossary.py`). Spec: `docs/superpowers/specs/2026-10-22-series-glossary-design.md`.
 
 Phase 5: machine-translation aggregator. DeepL, LibreTranslate and Ollama stream through `GET /mt/stream`
 (SSE; the single-shot backends yield once); MeCab and JParser return structured entries, not HTML. Results
@@ -155,7 +163,7 @@ that database each run; conftest refuses any database name not ending in `_test`
 - **Config:** env only (`TA_` prefix, pydantic-settings in `api/config.py`), no config files.
 - **E2E conventions:** each Playwright spec owns its seeded rows in `tools/e2e_seed.py`; seed
   names must not contain "E2E chapter"; glossary phrases a spec adds must occur only in its own
-  chapters; the `ta_e2e` database is reset once per run, not per spec.
+  series' chapters; the `ta_e2e` database is reset once per run, not per spec.
 - **Size discipline:** no Python module over ~400 lines (spec §2).
 - Tests use a per-test transaction rolled back at the end (`db` fixture), with
   `app_client` overriding `db_session`. `insecure_cookies` is needed because

@@ -5,6 +5,8 @@ No database imports: callers convert rows at the edge (see api/library.py)."""
 import re
 
 SEPARATOR = "---SEPERATOR---"
+# The parse characters used when the user has no `parse_chars` setting.
+DEFAULT_PARSE_CHARS = "、 。 ？ ！ 「 」 …… "
 
 
 def parse_file_content(text: str) -> tuple[list[str], list[str], str]:
@@ -287,7 +289,7 @@ def replace_and_parse(
 
 
 def split_parse_chars(setting: str) -> list[str]:
-    """A profile's parse_chars setting as a list (desktop main_widget._update_parse_chars)."""
+    """A parse_chars setting as a list (desktop main_widget._update_parse_chars)."""
     return [c for c in setting.split(" ") if c]
 
 

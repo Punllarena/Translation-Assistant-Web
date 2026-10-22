@@ -8,6 +8,10 @@ package version is `0.1.0`. Each entry links to the design spec or phase plan th
 
 ### Added
 
+- **Series glossaries.** Each series owns its glossary and a series dictionary; an account-wide
+  dictionary and the parse characters live under Settings → Editor. Profiles are removed; the
+  migration copies each series the glossary and words it used.
+  ([spec](docs/superpowers/specs/2026-10-22-series-glossary-design.md))
 - **Volume naming.** Volumes have a kind, an optional numeric index and a subtitle instead of a
   free title; the displayed and EPUB title come from a per-series template.
   ([spec](docs/superpowers/specs/2026-10-21-volume-naming-design.md))

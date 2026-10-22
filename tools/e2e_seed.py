@@ -35,7 +35,7 @@ def main() -> None:
 
     from api.db import SessionLocal
     from api.library import write_lines
-    from api.models import Document, Line, Profile, Series, User, Volume
+    from api.models import Document, Line, Series, User, Volume
     from api.security import hash_password
 
     with SessionLocal() as db:
@@ -52,8 +52,18 @@ def main() -> None:
             {"line_number": i, "prefix": "%", "raw_text": raw, "translated_text": ""}
             for i, raw in enumerate(LINES)
         ])
+        # editor.spec's spellcheck chapter: two misspellings it adds to the series and account lists
+        spell_doc = Document(user_id=user.id, title="Spell target", series_id=editor_series.id)
+        db.add(spell_doc)
+        db.flush()
+        write_lines(db, spell_doc.id, [
+            {"line_number": 0, "prefix": "%", "raw_text": "綴りです。",
+             "translated_text": "zorbleq quuxbarr"},
+        ])
+        # glossary.spec: its own series, no chapters, so the phrases it saves change no text
+        db.add(Series(user_id=user.id, title="E2E glossary series"))
         # tm.spec's own chapter pair: they share TM_LINE, and 記憶語 occurs nowhere else, so the
-        # profile-wide glossary entry that spec adds cannot change any other spec's text
+        # glossary entry that spec adds to the tm series cannot change any other spec's text
         for title, translated in (("Memory source", "Remembered translation."), ("TM target", "")):
             other = Document(user_id=user.id, title=title, series_id=tm_series.id)
             db.add(other)
@@ -62,7 +72,7 @@ def main() -> None:
                 {"line_number": 0, "prefix": "%", "raw_text": TM_LINE,
                  "translated_text": translated},
             ])
-        # series spec: 太郎 occurs only here, so its glossary entry cannot change other specs' text
+        # series spec: its glossary entry for 太郎 lands in this series, whose chapters are its own
         series = Series(user_id=user.id, title="E2E series")
         db.add(series)
         db.flush()
@@ -149,8 +159,6 @@ def main() -> None:
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)
-        db.flush()
-        db.add(Profile(user_id=tadb.id, name="default", is_default=True))
         db.commit()
 
     from tests.fixtures.tadb import desktop_db

@@ -144,12 +144,12 @@ def login():
 
 
 @pytest.fixture
-def other_users_profile_id(app_client, make_user, login):
-    """An owner's profile id, with the client logged in as a different user."""
+def other_users_series_id(app_client, make_user, login):
+    """An owner's series id, with the client logged in as a different user."""
     make_user(email="owner@example.com")
     make_user(email="intruder@example.com")
     login(app_client, "owner@example.com")
-    pid = app_client.post("/profiles", json={"name": "owned"}).json()["id"]
+    pid = app_client.post("/series", json={"title": "owned"}).json()["id"]
     app_client.post("/auth/logout")
     login(app_client, "intruder@example.com")
     return pid

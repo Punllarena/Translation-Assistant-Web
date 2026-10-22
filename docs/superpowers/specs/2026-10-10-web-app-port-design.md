@@ -24,6 +24,7 @@ Decisions already taken (these are settled, not open questions):
 | Clipboard auto-copy | Dropped |
 | MT / WordPress credentials | Per-user, encrypted at rest |
 | Existing `ta.db` | Imported by a one-shot CLI tool |
+| Glossaries | Per series, not per profile: the web app has no profiles (later change, `2026-10-22-series-glossary-design.md`) |
 
 ### Why port rather than rewrite
 

@@ -1,14 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router";
-import { api, call } from "../api/client";
 import PageHeader from "../ui/PageHeader";
 import { useDocuments, useSeriesList } from "./queries";
+import SeriesGlossary from "./SeriesGlossary";
 import SeriesSettings from "./SeriesSettings";
 import SeriesTools from "./SeriesTools";
 import VolumesTab from "./VolumesTab";
 
 const TABS = [
   { id: "volumes", label: "Volumes" },
+  { id: "glossary", label: "Glossary" },
   { id: "tools", label: "Tools" },
   { id: "settings", label: "Settings" },
 ] as const;
@@ -18,7 +18,6 @@ export default function SeriesPage() {
   const [params, setParams] = useSearchParams();
   const all = useSeriesList();
   const docs = useDocuments();
-  const profiles = useQuery({ queryKey: ["profiles"], queryFn: () => call(api.GET("/profiles")) });
   if (all.isPending || docs.isPending) return <main><p className="muted">Loading…</p></main>;
   const loadError = all.error ?? docs.error;
   if (loadError) return <main><p className="error" role="alert">{loadError.message}</p></main>;
@@ -43,10 +42,8 @@ export default function SeriesPage() {
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === "volumes" && <VolumesTab series={series} docs={chapters} />}
-        {tab === "tools" && (
-          <SeriesTools series={series}
-            defaultProfileId={series.profile_id ?? profiles.data?.find((p) => p.is_default)?.id ?? null} />
-        )}
+        {tab === "glossary" && <SeriesGlossary key={series.id} seriesId={series.id} />}
+        {tab === "tools" && <SeriesTools series={series} />}
         {tab === "settings" && <SeriesSettings key={`${series.id}:${series.volume_title_template}`} series={series} chapterCount={chapters.length} />}
       </div>
     </main>

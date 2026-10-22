@@ -102,8 +102,7 @@ def _configure(db: Session, user_id: int, backend: str, p: Prefs) -> Job:
 
 
 def _prepare(
-    db: Session, user_id: int, backend: str, document_id: int, line_number: int,
-    profile_id: int | None,
+    db: Session, user_id: int, backend: str, document_id: int, line_number: int
 ) -> Job:
     doc = scoped(db, Document, document_id, user_id)
     line = db.scalar(
@@ -111,7 +110,7 @@ def _prepare(
     )
     if line is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
-    text = display_line(db, user_id, doc, line, profile_id)  # 422 for a foreign profile_id
+    text = display_line(db, user_id, doc, line)
     p = _prefs(db, user_id)
     job = _configure(db, user_id, backend, p) if text else Job(backend=backend)
     job.text, job.src, job.dst = text, doc.source_language or "ja", p.target
@@ -196,13 +195,10 @@ async def stream(
     backend: Backend,
     document_id: int,
     line_number: int = Query(ge=0, le=2**31 - 1),
-    profile_id: int | None = None,
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
 ) -> StreamingResponse:
-    job = await run_in_threadpool(
-        _prepare, db, user.id, backend, document_id, line_number, profile_id
-    )
+    job = await run_in_threadpool(_prepare, db, user.id, backend, document_id, line_number)
 
     async def body() -> AsyncIterator[str]:
         async with aclosing(_events(job)) as events:
