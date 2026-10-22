@@ -5,9 +5,19 @@ from pathlib import Path
 import pytest
 
 from api.core.tadb_import import ImportReport, import_tadb
-from api.models import Document, DocumentImage, Line, Profile, Series, UserSetting, Volume
+from api.models import (
+    CustomWord,
+    Document,
+    DocumentImage,
+    GlossaryEntry,
+    Line,
+    Series,
+    UserSetting,
+    Volume,
+)
 from tests.fixtures.tadb import DESKTOP_DDL
 from tests.fixtures.tadb import add_chapter as _add_chapter
+from tests.fixtures.tadb import add_profile as _add_profile
 from tests.fixtures.tadb import desktop_db as _desktop_db
 
 
@@ -42,7 +52,7 @@ def test_import_loads_the_whole_library(db, make_user, tmp_path):
     # the desktop writes datetime('now'), which is UTC without an offset.
     assert lines[0].translated_at == datetime(2024, 5, 6, 7, 8, 9, tzinfo=UTC)
     assert lines[1].translated_at is None
-    assert [p.name for p in db.query(Profile).filter_by(user_id=user.id)] == ["wn"]
+    assert "profiles" not in report.written
 
 
 def test_wordpress_and_volume_metadata_land_in_the_schema(db, make_user, tmp_path):
@@ -122,12 +132,19 @@ def test_a_source_without_the_expected_tables_is_refused(db, make_user, tmp_path
 
 
 def test_dry_run_writes_nothing(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "INSERT INTO glossary (profile_id, phrase, translation) VALUES (1, '猫', 'Cat')",
+           "INSERT INTO custom_words (profile_id, word) VALUES (1, 'Rimuru')")
+    _add_profile(path, "spare", glossary=(("犬", "Dog"),))  # unused: kept as a series
     user = make_user()
-    report = import_tadb(db, _desktop_db(tmp_path), user.id, dry_run=True)
+    report = import_tadb(db, path, user.id, dry_run=True)
     assert report.written["documents"] == 1
+    assert (report.written["series"], report.written["glossary"]) == (2, 2)
+    assert (report.written["custom_words"], report.written["settings"]) == (1, 1)
     assert db.query(Document).filter_by(user_id=user.id).count() == 0
     assert db.query(Series).filter_by(user_id=user.id).count() == 0
-    assert db.query(Profile).filter_by(user_id=user.id).count() == 0
+    assert db.query(GlossaryEntry).count() == 0
+    assert db.query(CustomWord).count() == 0
     assert db.query(UserSetting).filter_by(user_id=user.id).count() == 0
 
 
@@ -229,9 +246,7 @@ def test_force_reuses_existing_containers_and_adds_chapters(db, make_user, tmp_p
     second = import_tadb(db, changed, user.id, force=True)
     assert first.written["series"] == 1 and first.written["volumes"] == 1
     assert second.written["series"] == 0 and second.written["volumes"] == 0
-    assert second.written["profiles"] == 0
     assert db.query(Series).filter_by(user_id=user.id).count() == 1
-    assert db.query(Profile).filter_by(user_id=user.id).count() == 1
     docs = db.query(Document).filter_by(user_id=user.id).all()
     assert len(docs) == 2
     assert len({d.series_id for d in docs}) == 1 and len({d.volume_id for d in docs}) == 1
@@ -277,7 +292,7 @@ def test_series_without_documents_is_imported(db, make_user, tmp_path):
     report = import_tadb(db, path, user.id)
     assert report.written["series"] == 2
     empty = db.query(Series).filter_by(user_id=user.id, title="Empty").one()
-    assert empty.syosetu_url == "https://ncode.syosetu.com/n1/" and empty.profile_id is not None
+    assert empty.syosetu_url == "https://ncode.syosetu.com/n1/"
 
 
 def test_document_of_a_skipped_series_is_skipped_not_detached(
@@ -335,19 +350,6 @@ def test_a_reimported_oneshot_joins_its_existing_series(db, make_user, tmp_path)
     assert db.query(Series).filter_by(user_id=user.id, title="Oneshot").count() == 1
     assert db.query(Document).filter_by(user_id=user.id).count() == 1
     assert report.already_present["documents"] == 1
-
-
-def test_skipped_profile_skips_its_series_and_chapters(db, make_user, tmp_path):
-    path = _desktop_db(tmp_path)
-    long_name = "p" * 200
-    _tweak(path, f"UPDATE profiles SET name = '{long_name}'",
-           f"UPDATE series_profiles SET profile_name = '{long_name}'")
-    user = make_user()
-    report = import_tadb(db, path, user.id)
-    assert report.skipped["profiles"] == 1
-    assert report.skipped["series"] == 1
-    assert report.skipped["documents"] == 1
-    assert any("profile" in m and "not imported" in m for m in report.messages)
 
 
 def test_transient_database_errors_abort_instead_of_being_skipped(
@@ -504,3 +506,160 @@ def test_tadb_two_titles_naming_one_volume_are_reported(db, make_user, tmp_path)
     assert db.query(Volume).filter(Volume.volume_index == 3).count() == 1
     assert any("'Volume 3'" in m and "'Vol 3'" in m and "'Volume 3': merged into 'Volume 3'"
                in m for m in report.messages)
+
+
+# --- desktop profiles: copied into series, never imported as rows -------------------------
+
+
+def _glossary(db, series):
+    rows = db.query(GlossaryEntry).filter_by(series_id=series.id).order_by(GlossaryEntry.sort_order)
+    return [(g.phrase, g.translation, g.sort_order) for g in rows]
+
+
+def _words(db, series):
+    return sorted(w.word for w in db.query(CustomWord).filter_by(series_id=series.id))
+
+
+def _series(db, user, title):
+    return db.query(Series).filter_by(user_id=user.id, title=title).one()
+
+
+def test_shared_profile_copied_to_each_new_series(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _add_profile(path, "shared", glossary=(("太郎", "Taro"), ("花子", "Hanako")), words=("Rimuru",))
+    _tweak(path, "UPDATE series_profiles SET profile_name = 'shared'",
+           "INSERT INTO series_profiles (series_title, profile_name) VALUES ('Sequel', 'shared')")
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    for title in ("My Series", "Sequel"):
+        series = _series(db, user, title)
+        assert _glossary(db, series) == [("太郎", "Taro", 0), ("花子", "Hanako", 1)]
+        assert _words(db, series) == ["Rimuru"]
+        word = db.query(CustomWord).filter_by(series_id=series.id).one()
+        assert word.user_id == user.id
+    assert (report.written["glossary"], report.written["custom_words"]) == (4, 2)
+    assert db.query(CustomWord).filter_by(user_id=user.id, series_id=None).count() == 0
+
+
+def test_series_without_profile_name_gets_default_profile(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "INSERT INTO glossary (profile_id, phrase, translation) VALUES (1, '猫', 'Cat')",
+           "UPDATE profiles SET is_default = 0")
+    _add_profile(path, "main", glossary=(("犬", "Dog"),), is_default=True)
+    _tweak(path, "UPDATE series_profiles SET profile_name = ''",
+           "INSERT INTO series_profiles (series_title) VALUES ('Unlinked')",
+           "UPDATE documents SET series_title = '', volume_title = '', title = 'Oneshot'")
+    user = make_user()
+    import_tadb(db, path, user.id)
+    for title in ("My Series", "Unlinked", "Oneshot"):
+        assert _glossary(db, _series(db, user, title)) == [("犬", "Dog", 0)], title
+    # 'wn' went to no series and is not empty: it is kept as a series of its own
+    assert _glossary(db, _series(db, user, "wn")) == [("猫", "Cat", 0)]
+
+
+def test_without_a_default_the_oldest_profile_is_the_fallback(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "UPDATE profiles SET is_default = 0",
+           "INSERT INTO glossary (profile_id, phrase, translation) VALUES (1, '猫', 'Cat')",
+           "UPDATE series_profiles SET profile_name = ''")
+    _add_profile(path, "later", glossary=(("犬", "Dog"),))
+    user = make_user()
+    import_tadb(db, path, user.id)
+    assert _glossary(db, _series(db, user, "My Series")) == [("猫", "Cat", 0)]
+
+
+def test_missing_profile_name_imports_with_empty_glossary_and_message(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "INSERT INTO glossary (profile_id, phrase, translation) VALUES (1, '猫', 'Cat')",
+           "UPDATE series_profiles SET profile_name = 'gone'")
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    assert _glossary(db, _series(db, user, "My Series")) == []
+    assert report.written["documents"] == 1 and not report.skipped.get("series")
+    assert any("'gone'" in m and "My Series" in m for m in report.messages)
+
+
+def test_parse_chars_set_only_when_unset_and_not_default(db, make_user, tmp_path):
+    def parse_chars(user):
+        row = db.query(UserSetting).filter_by(user_id=user.id, key="parse_chars").one_or_none()
+        return row.value_json if row else None
+
+    fresh = make_user(email="fresh@example.com")
+    import_tadb(db, _desktop_db(tmp_path / "a"), fresh.id)
+    assert parse_chars(fresh) == "。！"  # the desktop default profile's
+
+    keeps = make_user(email="keeps@example.com")
+    db.add(UserSetting(user_id=keeps.id, key="parse_chars", value_json=""))
+    db.flush()
+    import_tadb(db, _desktop_db(tmp_path / "b"), keeps.id)
+    assert parse_chars(keeps) == ""
+
+    plain = make_user(email="plain@example.com")
+    path = _desktop_db(tmp_path / "c")
+    _tweak(path, "UPDATE profiles SET parse_chars = '、 。 ？ ！ 「 」 …… '")
+    import_tadb(db, path, plain.id)
+    assert parse_chars(plain) is None
+
+
+def test_existing_series_untouched(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "INSERT INTO glossary (profile_id, phrase, translation) VALUES (1, '猫', 'Cat')",
+           "INSERT INTO series_profiles (series_title, profile_name) VALUES ('New', 'wn')")
+    user = make_user()
+    existing = Series(user_id=user.id, title="My Series")
+    db.add(existing)
+    db.flush()
+    db.add(GlossaryEntry(series_id=existing.id, phrase="猫", translation="Neko", sort_order=0))
+    db.flush()
+    import_tadb(db, path, user.id)
+    assert _glossary(db, existing) == [("猫", "Neko", 0)]
+    assert _glossary(db, _series(db, user, "New")) == [("猫", "Cat", 0)]
+    assert db.query(Series).filter_by(user_id=user.id).count() == 2  # 'wn' was used
+
+
+@pytest.mark.parametrize(
+    ("taken", "expected"),
+    [((), "default"), (("Default",), "default (glossary)"),
+     (("default", "DEFAULT (glossary)"), "default (glossary 2)")],
+)
+def test_reimport_keeps_unused_profile_as_series(db, make_user, tmp_path, taken, expected):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "UPDATE profiles SET is_default = 0")
+    _add_profile(path, "default", glossary=(("猫", "Cat"),), words=("Rimuru",), is_default=True)
+    user = make_user()
+    db.add(Series(user_id=user.id, title="My Series"))  # every desktop series already exists
+    db.add_all(Series(user_id=user.id, title=t) for t in taken)
+    db.flush()
+    report = import_tadb(db, path, user.id)
+    kept = _series(db, user, expected)
+    assert _glossary(db, kept) == [("猫", "Cat", 0)] and _words(db, kept) == ["Rimuru"]
+    assert db.query(Document).filter_by(series_id=kept.id).count() == 0
+    assert any(repr(expected) in m for m in report.messages)
+    # My Series, the taken titles and the kept profile; the empty 'wn' is dropped
+    assert db.query(Series).filter_by(user_id=user.id).count() == 2 + len(taken)
+
+
+def test_unused_empty_profile_dropped(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _add_profile(path, "empty")
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    assert [s.title for s in db.query(Series).filter_by(user_id=user.id)] == ["My Series"]
+    assert report.written["series"] == 1
+
+
+def test_report_has_no_profiles_table(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _add_profile(path, "other", glossary=(("猫", "Cat"),))
+    report = import_tadb(db, path, make_user().id)
+    tables = set(report.written) | set(report.skipped) | set(report.already_present)
+    assert "profiles" not in tables
+    assert "profiles" not in report.summary()
+
+
+def test_glossary_rows_of_a_missing_profile_are_reported(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _tweak(path, "INSERT INTO glossary (profile_id, phrase, translation) VALUES (99, 'a', 'b')")
+    report = import_tadb(db, path, make_user().id)
+    assert report.skipped["glossary"] == 1
+    assert any("profile_id 99" in m for m in report.messages)

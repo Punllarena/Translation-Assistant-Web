@@ -7,6 +7,13 @@ from sqlalchemy import inspect, select
 from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import Session
 
+from api.core.tadb_glossary import (
+    DesktopProfile,
+    adopt_profile,
+    import_parse_chars,
+    keep_unused,
+    read_profiles,
+)
 from api.core.tadb_lines import BATCH, insert_lines
 from api.core.tadb_schema import (
     NO_UNLOCK_OVERRIDE,
@@ -17,15 +24,7 @@ from api.core.tadb_schema import (
     _skip,
 )
 from api.core.tadb_volumes import _volume_meta, find_or_add_volume
-from api.models import (
-    CustomWord,
-    Document,
-    DocumentImage,
-    GlossaryEntry,
-    Profile,
-    Series,
-    Volume,
-)
+from api.models import Document, DocumentImage, Series, Volume
 
 # The same caps every other import path enforces (api/library.py MAX_LINES, image uploads
 # in api/routers/volumes.py): a browser upload is user input now, not an operator's CLI file.
@@ -52,9 +51,12 @@ def _import_all(
     conn: sqlite3.Connection, db: Session, user_id: int, report: ImportReport,
     progress: Progress,
 ) -> None:
-    profiles_by_name = _import_profiles(conn, db, user_id, report)
-    series_by_title = _import_series(conn, db, user_id, report, profiles_by_name)
-    _import_documents(conn, db, user_id, report, series_by_title, progress)
+    profiles = read_profiles(conn, report)
+    used: set[str] = set()  # desktop profiles copied to a series this import created
+    series_by_title = _import_series(conn, db, user_id, report, profiles, used)
+    _import_documents(conn, db, user_id, report, series_by_title, progress, profiles, used)
+    keep_unused(db, user_id, profiles, used, report)
+    import_parse_chars(db, user_id, profiles, report)
 
 
 def _too_long(values: dict, table: str, label: str, report: ImportReport) -> bool:
@@ -88,62 +90,19 @@ def _orphan(report: ImportReport, table: str, row: sqlite3.Row, what: str) -> No
     report.messages.append(f"{table} row {row['id']}: {what} not found")
 
 
-def _import_profiles(
-    conn: sqlite3.Connection, db: Session, user_id: int, report: ImportReport
-) -> dict[str, Profile]:
-    by_name: dict[str, Profile] = {}
-    by_old_id: dict[int, Profile] = {}
-    for row in conn.execute("SELECT * FROM profiles"):
-        profile = db.scalar(
-            select(Profile).where(Profile.user_id == user_id, Profile.name == row["name"])
-        )
-        if profile is None:
-            profile = Profile(
-                user_id=user_id,
-                name=row["name"],
-                parse_chars=_get(row, "profiles", "parse_chars", "、 。 ？ ！ 「 」 …… "),
-                is_default=bool(_get(row, "profiles", "is_default", 0)),
-            )
-            if not _add(db, profile, "profiles", f"row {row['id']}", report):
-                continue
-        by_name[row["name"]] = profile
-        by_old_id[row["id"]] = profile
-
-    for row in conn.execute("SELECT * FROM glossary"):
-        profile = by_old_id.get(row["profile_id"])
-        if profile is None:
-            _orphan(report, "glossary", row, f"profile_id {row['profile_id']}")
-            continue
-        entry = GlossaryEntry(
-            profile_id=profile.id,
-            phrase=row["phrase"],
-            translation=row["translation"],
-            sort_order=_get(row, "glossary", "sort_order", 0),
-        )
-        _add(db, entry, "glossary", f"row {row['id']}", report)
-
-    for row in conn.execute("SELECT * FROM custom_words"):
-        profile = by_old_id.get(row["profile_id"])
-        if profile is None:
-            _orphan(report, "custom_words", row, f"profile_id {row['profile_id']}")
-            continue
-        word = CustomWord(profile_id=profile.id, word=row["word"])
-        _add(db, word, "custom_words", f"row {row['id']}", report)
-    return by_name
-
-
 def _import_series(
     conn: sqlite3.Connection,
     db: Session,
     user_id: int,
     report: ImportReport,
-    profiles_by_name: dict[str, Profile],
+    profiles: dict[str, DesktopProfile],
+    used: set[str],
 ) -> dict[str, Series]:
     meta: dict[str, sqlite3.Row] = {
         r["series_title"]: r for r in conn.execute("SELECT * FROM series_profiles")
     }
     # Series come from documents AND series_profiles: a series with no chapters
-    # yet still carries the user's profile link, source URL and WordPress slug.
+    # yet still carries the user's profile name, source URL and WordPress slug.
     titles = [
         r[0]
         for r in conn.execute(
@@ -152,28 +111,17 @@ def _import_series(
             "WHERE series_title IS NOT NULL AND series_title != ''"
         )
     ]
-    legacy_profiles = {r[0] for r in conn.execute("SELECT name FROM profiles")}
     out: dict[str, Series] = {}
     for title in titles:
         series = db.scalar(select(Series).where(Series.user_id == user_id, Series.title == title))
         if series is None:
             m = meta.get(title)
-            pname = (_get(m, "series_profiles", "profile_name", "") if m else "") or ""
-            profile = profiles_by_name.get(pname)
-            if pname and profile is None:
-                if pname in legacy_profiles:
-                    _skip(report, "series", repr(title), f"its profile {pname!r} was not imported")
-                    continue
-                report.messages.append(
-                    f"series {title!r}: profile {pname!r} does not exist in the source; no link"
-                )
             # Column names are the desktop's: series_slug / series_title_short,
             # not the wp_-prefixed names this schema uses for them.
             unlock = _get(m, "series_profiles", "wp_unlock_after") if m else None
             series = Series(
                 user_id=user_id,
                 title=title,
-                profile_id=profile.id if profile else None,
                 syosetu_url=_get(m, "series_profiles", "syosetu_url", "") if m else "",
                 wp_series_slug=_get(m, "series_profiles", "series_slug", "") if m else "",
                 wp_series_title_short=(
@@ -188,6 +136,8 @@ def _import_series(
             )
             if not _add(db, series, "series", repr(title), report):
                 continue
+            pname = (_get(m, "series_profiles", "profile_name", "") if m else "") or ""
+            adopt_profile(db, series, pname, profiles, used, report)
         out[title] = series
     return out
 
@@ -195,9 +145,11 @@ def _import_series(
 def _own_series(
     db: Session, user_id: int, title: str, cache: dict[str, Series | None],
     report: ImportReport, label: str, created: set[int],
+    on_create: Callable[[Series], None],
 ) -> Series | None:
     """The series a desktop chapter with no series_title lives in: one titled like the
-    chapter, reused when the account has it, else created (its id goes into ``created``)."""
+    chapter, reused when the account has it, else created (its id goes into ``created``,
+    and it is passed to ``on_create``)."""
     if title not in cache:
         series = db.scalar(select(Series).where(Series.user_id == user_id, Series.title == title))
         if series is None:
@@ -207,6 +159,7 @@ def _own_series(
                     f"documents {label}: no series; created series {title!r}"
                 )
                 created.add(series.id)
+                on_create(series)
             else:
                 series = None
         cache[title] = series
@@ -220,7 +173,12 @@ def _import_documents(
     report: ImportReport,
     series_by_title: dict[str, Series],
     progress: Progress,
+    profiles: dict[str, DesktopProfile],
+    used: set[str],
 ) -> None:
+    def adopt_fallback(series: Series) -> None:  # no series_profiles row: the fallback
+        adopt_profile(db, series, "", profiles, used, report)
+
     volumes: dict[tuple, Volume | str | None] = {}
     id_map: dict[int, Document] = {}
     oneshots: dict[str, Series | None] = {}
@@ -236,7 +194,9 @@ def _import_documents(
             _skip(report, "documents", label, f"series {series_title!r} was not imported")
             continue
         if series is None:
-            series = _own_series(db, user_id, row["title"], oneshots, report, label, fresh)
+            series = _own_series(
+                db, user_id, row["title"], oneshots, report, label, fresh, adopt_fallback
+            )
             if series is None:
                 _skip(report, "documents", label, "its own series was not created")
                 continue

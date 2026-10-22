@@ -254,7 +254,7 @@ export interface paths {
          * Import Batch
          * @description The desktop batch_import_folder: many .txt files become chapters, appended to the
          *     series in natural filename order; titles already present are skipped. One .csv is
-         *     imported as the series' glossary profile. Bad files are reported, not fatal.
+         *     upserted into the series glossary. Bad files are reported, not fatal.
          */
         post: operations["import_batch_documents_import_batch_post"];
         delete?: never;
@@ -790,120 +790,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/profiles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Profiles */
-        get: operations["list_profiles_profiles_get"];
-        put?: never;
-        /** Create Profile */
-        post: operations["create_profile_profiles_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/profiles/{profile_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Profile */
-        get: operations["get_profile_profiles__profile_id__get"];
-        put?: never;
-        post?: never;
-        /** Delete Profile */
-        delete: operations["delete_profile_profiles__profile_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Profile */
-        patch: operations["update_profile_profiles__profile_id__patch"];
-        trace?: never;
-    };
-    "/profiles/{profile_id}/glossary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Glossary */
-        get: operations["list_glossary_profiles__profile_id__glossary_get"];
-        /**
-         * Replace Glossary
-         * @description The desktop set_glossary: the whole list, in order (edit, delete and reorder).
-         */
-        put: operations["replace_glossary_profiles__profile_id__glossary_put"];
-        /** Add Phrase */
-        post: operations["add_phrase_profiles__profile_id__glossary_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/profiles/{profile_id}/glossary/import": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Import Csv */
-        post: operations["import_csv_profiles__profile_id__glossary_import_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/profiles/{profile_id}/words": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Words */
-        get: operations["list_words_profiles__profile_id__words_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/profiles/{profile_id}/words/{word}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Add Word
-         * @description Idempotent: a word already present in any letter case is left as it is.
-         */
-        put: operations["add_word_profiles__profile_id__words__word__put"];
-        post?: never;
-        /** Remove Word */
-        delete: operations["remove_word_profiles__profile_id__words__word__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/scrape/syosetu": {
         parameters: {
             query?: never;
@@ -1000,6 +886,45 @@ export interface paths {
         get: operations["find_in_series_series__series_id__find_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/glossary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Glossary */
+        get: operations["list_glossary_series__series_id__glossary_get"];
+        /**
+         * Replace Glossary
+         * @description The desktop set_glossary: the whole list, in order (edit, delete and reorder).
+         */
+        put: operations["replace_glossary_series__series_id__glossary_put"];
+        /** Add Phrase */
+        post: operations["add_phrase_series__series_id__glossary_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/glossary/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Csv */
+        post: operations["import_csv_series__series_id__glossary_import_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1223,6 +1148,41 @@ export interface paths {
          */
         post: operations["sort_volumes_series__series_id__volumes_sort_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/words": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Series Words */
+        get: operations["list_series_words_series__series_id__words_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/words/{word}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add Series Word */
+        put: operations["add_series_word_series__series_id__words__word__put"];
+        post?: never;
+        /** Remove Series Word */
+        delete: operations["remove_series_word_series__series_id__words__word__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1479,6 +1439,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/words": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Account Words */
+        get: operations["list_account_words_words_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/words/{word}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add Account Word */
+        put: operations["add_account_word_words__word__put"];
+        post?: never;
+        /** Remove Account Word */
+        delete: operations["remove_account_word_words__word__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/wp/batch": {
         parameters: {
             query?: never;
@@ -1593,10 +1588,9 @@ export interface components {
         BatchImportOut: {
             /** Errors */
             errors: components["schemas"]["BatchError"][];
+            glossary: components["schemas"]["ImportResult"] | null;
             /** Imported */
             imported: string[];
-            /** Profile Id */
-            profile_id: number | null;
             /** Series Id */
             series_id: number;
             /** Skipped */
@@ -1643,8 +1637,8 @@ export interface components {
              */
             series_title: string;
         };
-        /** Body_import_csv_profiles__profile_id__glossary_import_post */
-        Body_import_csv_profiles__profile_id__glossary_import_post: {
+        /** Body_import_csv_series__series_id__glossary_import_post */
+        Body_import_csv_series__series_id__glossary_import_post: {
             /** File */
             file: string;
         };
@@ -1905,7 +1899,6 @@ export interface components {
             document: components["schemas"]["DocumentOut"];
             /** Lines */
             lines: components["schemas"]["LineOut"][];
-            profile: components["schemas"]["ProfileOut"] | null;
         };
         /**
          * DocumentListItem
@@ -2295,41 +2288,6 @@ export interface components {
             /** Previous */
             previous: number;
         };
-        /** ProfileCreate */
-        ProfileCreate: {
-            /**
-             * Is Default
-             * @default false
-             */
-            is_default: boolean;
-            /** Name */
-            name: string;
-            /**
-             * Parse Chars
-             * @default 、 。 ？ ！ 「 」 ……
-             */
-            parse_chars: string;
-        };
-        /** ProfileOut */
-        ProfileOut: {
-            /** Id */
-            id: number;
-            /** Is Default */
-            is_default: boolean;
-            /** Name */
-            name: string;
-            /** Parse Chars */
-            parse_chars: string;
-        };
-        /** ProfileUpdate */
-        ProfileUpdate: {
-            /** Is Default */
-            is_default?: boolean | null;
-            /** Name */
-            name?: string | null;
-            /** Parse Chars */
-            parse_chars?: string | null;
-        };
         /** PublishIn */
         PublishIn: {
             /**
@@ -2411,8 +2369,6 @@ export interface components {
         };
         /** SeriesCreate */
         SeriesCreate: {
-            /** Profile Id */
-            profile_id?: number | null;
             /**
              * Syosetu Url
              * @default
@@ -2430,8 +2386,6 @@ export interface components {
             created_at: string;
             /** Id */
             id: number;
-            /** Profile Id */
-            profile_id: number | null;
             /** Syosetu Url */
             syosetu_url: string;
             /** Syosetu Volume Marker */
@@ -2470,8 +2424,6 @@ export interface components {
         };
         /** SeriesUpdate */
         SeriesUpdate: {
-            /** Profile Id */
-            profile_id?: number | null;
             /** Syosetu Url */
             syosetu_url?: string | null;
             /** Title */
@@ -2533,8 +2485,8 @@ export interface components {
         };
         /** SpellRequest */
         SpellRequest: {
-            /** Profile Id */
-            profile_id?: number | null;
+            /** Series Id */
+            series_id?: number | null;
             /** Texts */
             texts: string[];
         };
@@ -2599,8 +2551,6 @@ export interface components {
              * @default 2
              */
             min_freq: number;
-            /** Profile Id */
-            profile_id?: number | null;
         };
         /** Suggestions */
         Suggestions: {
@@ -3696,9 +3646,7 @@ export interface operations {
     };
     get_lines_documents__document_id__lines_get: {
         parameters: {
-            query?: {
-                profile_id?: number | null;
-            };
+            query?: never;
             header?: never;
             path: {
                 document_id: number;
@@ -4444,7 +4392,6 @@ export interface operations {
                 backend: "deepl" | "libretranslate" | "ollama" | "mecab" | "jparser";
                 document_id: number;
                 line_number: number;
-                profile_id?: number | null;
             };
             header?: never;
             path?: never;
@@ -4454,381 +4401,6 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_profiles_profiles_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProfileOut"][];
-                };
-            };
-        };
-    };
-    create_profile_profiles_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProfileCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProfileOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_profile_profiles__profile_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProfileOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_profile_profiles__profile_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_profile_profiles__profile_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProfileUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProfileOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_glossary_profiles__profile_id__glossary_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GlossaryOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    replace_glossary_profiles__profile_id__glossary_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GlossaryList"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GlossaryOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    add_phrase_profiles__profile_id__glossary_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GlossaryIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GlossaryOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    import_csv_profiles__profile_id__glossary_import_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_import_csv_profiles__profile_id__glossary_import_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImportResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_words_profiles__profile_id__words_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": string[];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    add_word_profiles__profile_id__words__word__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: number;
-                word: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    remove_word_profiles__profile_id__words__word__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profile_id: number;
-                word: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5082,6 +4654,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FindResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_glossary_series__series_id__glossary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlossaryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_glossary_series__series_id__glossary_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GlossaryList"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlossaryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_phrase_series__series_id__glossary_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GlossaryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlossaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_csv_series__series_id__glossary_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_csv_series__series_id__glossary_import_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
                 };
             };
             /** @description Validation Error */
@@ -5487,6 +5195,97 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["VolumeOut"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_series_words_series__series_id__words_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_series_word_series__series_id__words__word__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+                word: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_series_word_series__series_id__words__word__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+                word: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -5993,6 +5792,84 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["JobOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_account_words_words_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+        };
+    };
+    add_account_word_words__word__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                word: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_account_word_words__word__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                word: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

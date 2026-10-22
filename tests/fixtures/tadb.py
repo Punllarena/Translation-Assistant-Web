@@ -179,3 +179,30 @@ def add_chapter(path: Path, title: str, *, series: str = "My Series") -> None:
     )
     conn.commit()
     conn.close()
+
+
+def add_profile(
+    path: Path,
+    name: str,
+    *,
+    glossary: tuple[tuple[str, str], ...] = (),
+    words: tuple[str, ...] = (),
+    parse_chars: str = "、 。 ？ ！ 「 」 …… ",
+    is_default: bool = False,
+) -> int:
+    """Add a desktop profile with its glossary (in order) and words; returns its id."""
+    conn = sqlite3.connect(path)
+    pid = conn.execute(
+        "INSERT INTO profiles (name, parse_chars, is_default) VALUES (?, ?, ?)",
+        (name, parse_chars, int(is_default)),
+    ).lastrowid
+    conn.executemany(
+        "INSERT INTO glossary (profile_id, phrase, translation, sort_order) VALUES (?, ?, ?, ?)",
+        [(pid, p, t, i) for i, (p, t) in enumerate(glossary)],
+    )
+    conn.executemany(
+        "INSERT INTO custom_words (profile_id, word) VALUES (?, ?)", [(pid, w) for w in words]
+    )
+    conn.commit()
+    conn.close()
+    return pid
