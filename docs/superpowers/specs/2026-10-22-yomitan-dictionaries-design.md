@@ -81,9 +81,12 @@ github.com/yomidevs/yomitan, `ext/data/schemas/`.
 3. **Grouping into one entry:** rows with the same `sequence` (when `index.sequenced` is true and the
    sequence is non-zero) are one entry; otherwise rows with the same `(expression, reading)` are.
    Within an entry, rows are ordered by `score` descending, then file order. The entry's meanings are
-   the concatenation of its rows' meanings; the stored gloss is the first two joined with `"; "`,
-   matching `_clean_gloss` in `api/mt/jparser.py`. An entry's headwords are all distinct expressions
-   in the group; its reading is the first non-empty reading (or the expression).
+   the concatenation of its rows' meanings with exact duplicates dropped, order kept (jmdict-yomitan
+   emits one full row per kanji/reading pair, each repeating the same senses); the stored gloss is
+   the first two joined with `"; "`, matching `_clean_gloss` in `api/mt/jparser.py`. An entry's
+   headwords are all distinct expressions in the group. Its displayed reading is the first non-empty
+   reading (or the expression), but every distinct reading in the group is a lookup key (あす and
+   にっぽん reach their entries).
 4. **Part of speech:** definition tags of the entry's rows whose tag-bank category is
    `partOfSpeech`, plus the `rules` classes. Numeric sense tags (`1`, `2`) and unknown tags are
    dropped. Stored as the same frozenset JParser keeps for EDICT2.

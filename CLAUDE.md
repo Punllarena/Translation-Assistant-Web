@@ -49,7 +49,7 @@ them into `dictionaries` / `dictionary_terms` (keyed by `identity_key`; re-uploa
 `dictionary_order` row in `server_settings` (tokens `edict` / `yomitan:<id>`, first layer with a key wins); it is not an admin
 setting and is not in `api.server_settings.effective`. `api/mt/lookup.py` layers EDICT2 and the Yomitan dictionaries for JParser and
 MeCab (`layered`, `candidate_keys`; `session` is the test seam). A Yomitan entry with no POS tags is direct-only: it is never offered
-to the deconjugator. Install runs as the `yomitan_import` job (`api/yomitan_job.py`); the upload cap is 64 MiB. Local check against
+to the deconjugator. Install runs as the `yomitan_import` job (`api/yomitan_job.py`); the upload cap is 64 MiB. Reading a large dictionary (JMdict) peaks around 500 MiB in the API process during the import job. Local check against
 real zips: `python -m tools.yomitan_check <zip>... [--line TEXT]` (set `TA_DATABASE_URL` to a scratch database to time `jparser.run`);
 never commit text from those dictionaries. Spec: `docs/superpowers/specs/2026-10-22-yomitan-dictionaries-design.md`.
 
