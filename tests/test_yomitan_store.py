@@ -73,3 +73,20 @@ def test_order_row_is_not_an_admin_setting(db, make_user):
     ys.install(db, parsed("A"))
     ys.set_order(db, ys.order(db), uid)
     assert "dictionary_order" not in [r["key"] for r in server_settings.listing(db)]
+
+
+def test_fetch_sends_one_array_parameter_for_huge_key_sets(db):
+    inst = ys.install(db, parsed("A"))
+    keys = [f"k{i}" for i in range(70_000)] + ["食べる"]
+    got = ys.fetch(db, keys)
+    assert list(got[ys.token(inst.dictionary.id)]) == ["食べる"]
+
+
+def test_install_batches_and_remove_clears_terms(db):
+    e = FlatEntry(("x",), "x", frozenset({"n"}), "g")
+    terms = {f"w{i}": e for i in range(2500)}
+    inst = ys.install(db, parsed("A", terms=terms))
+    tok = ys.token(inst.dictionary.id)
+    assert len(ys.fetch(db, list(terms))[tok]) == 2500
+    ys.remove(db, inst.dictionary.id)
+    assert ys.fetch(db, list(terms)) == {}

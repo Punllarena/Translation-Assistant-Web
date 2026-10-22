@@ -4,7 +4,8 @@ JParser uses (spec "Upload and storage" and "Lookup"). Flushes only; the route c
 from collections.abc import Collection
 from dataclasses import dataclass
 
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import Text, bindparam, delete, func, insert, select
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -98,10 +99,13 @@ def remove(db: Session, dictionary_id: int) -> bool:
 def fetch(db: Session, keys: Collection[str]) -> dict[str, dict[str, DictEntry]]:
     if not keys:
         return {}
-    stmt = select(DictionaryTerm).where(DictionaryTerm.key.in_(list(keys)))
+    t = DictionaryTerm
+    stmt = select(t.dictionary_id, t.key, t.headwords, t.reading, t.pos, t.gloss).where(
+        t.key == func.any(bindparam("keys", list(keys), type_=ARRAY(Text)))
+    )
     out: dict[str, dict[str, DictEntry]] = {}
-    for t in db.scalars(stmt):
-        out.setdefault(token(t.dictionary_id), {})[t.key] = DictEntry(
-            tuple(t.headwords), t.reading, frozenset(t.pos), t.gloss, False, bool(t.pos)
+    for dict_id, key, headwords, reading, pos, gloss in db.execute(stmt):
+        out.setdefault(token(dict_id), {})[key] = DictEntry(
+            tuple(headwords), reading, frozenset(pos), gloss, False, bool(pos)
         )
     return out
