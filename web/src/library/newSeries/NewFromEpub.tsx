@@ -14,6 +14,7 @@ export default function NewFromEpub() {
   const lastAuthor = useRef(""); // the volume Author we last set: a different value means the user edited it
   const prefilled = useRef({ title: "", author: "" }); // Japanese title/author we last prefilled
   const epub = useEpubBook({
+    seriesTitle: value.title, originalTitle: value.originalTitle,
     onPick: () => run.reset(),
     onBook: (b) => {
       lastAuthor.current = b.author;

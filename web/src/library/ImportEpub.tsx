@@ -15,7 +15,7 @@ export default function ImportEpub({ series }: { series: SeriesRow[] }) {
   const queryClient = useQueryClient();
   const [choice, setChoice] = useState<Choice>({ id: "", title: "" });
   const allVolumes = useAllVolumes().data;
-  // The name pre-fill follows the chosen series: an existing one's title and volumes, or the typed title.
+  // The name pre-fill follows the chosen series: an existing one's titles and volumes, or the typed title.
   const chosen = choice.id ? series.find((s) => String(s.id) === choice.id) : undefined;
   const seriesTitle = chosen ? chosen.title : choice.title;
   const volumes = useMemo(
@@ -23,7 +23,8 @@ export default function ImportEpub({ series }: { series: SeriesRow[] }) {
     [chosen, allVolumes],
   );
   const epub = useEpubBook({
-    onPick: () => run.reset(), onBook: (b) => setChoice({ id: "", title: b.title }), seriesTitle, volumes,
+    onPick: () => run.reset(), onBook: (b) => setChoice({ id: "", title: b.title }), seriesTitle,
+    originalTitle: chosen?.original_title ?? "", volumes,
   });
   const run = useMutation({
     mutationFn: () => postForm<Schemas["EpubImportOut"]>("/epub/import", epub.importForm(choice)),

@@ -19,8 +19,9 @@ const NO_VOLUMES: VolumeRef[] = [];
 
 /** The picked EPUB, its inspection, and the volume fields and chapter ticks the import sends.
  *  The name fields follow the chosen series (title and volumes) until the user edits them. */
-export function useEpubBook({ onPick, onBook, seriesTitle = "", volumes = NO_VOLUMES }: {
-  onPick?: () => void; onBook?: (b: Schemas["BookOut"]) => void; seriesTitle?: string; volumes?: VolumeRef[];
+export function useEpubBook({ onPick, onBook, seriesTitle = "", originalTitle = "", volumes = NO_VOLUMES }: {
+  onPick?: () => void; onBook?: (b: Schemas["BookOut"]) => void; seriesTitle?: string; originalTitle?: string;
+  volumes?: VolumeRef[];
 } = {}) {
   const [file, setFile] = useState<File | null>(null);
   const [book, setBook] = useState<Schemas["BookOut"] | null>(null);
@@ -46,9 +47,9 @@ export function useEpubBook({ onPick, onBook, seriesTitle = "", volumes = NO_VOL
   });
   useEffect(() => {
     if (!book || touched.current) return;
-    const p = prefillName(book.title, seriesTitle, volumes);
+    const p = prefillName(book.title, [seriesTitle, originalTitle], volumes);
     setVolumeName({ kind: p.kind, index: p.index ?? "", subtitle: p.subtitle });
-  }, [book, seriesTitle, volumes]);
+  }, [book, seriesTitle, originalTitle, volumes]);
   const editName = (n: VolumeName) => {
     touched.current = true;
     setVolumeName(n);

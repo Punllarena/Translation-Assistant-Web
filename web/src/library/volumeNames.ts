@@ -127,17 +127,19 @@ export function nextVolumeIndex(
 
 /** The EPUB import's starting name: the parsed book title, except that a title naming only
  *  the series (no volume shape) starts as the next Volume, so the template never renders
- *  "Series - Series". `volumes` are the chosen series' own ([] for a new series). */
+ *  "Series - Series". `seriesTitles` are the series' names (translated, then original), so a
+ *  Japanese book title matches its original title; the first that starts the book title is
+ *  stripped. `volumes` are the chosen series' own ([] for a new series). */
 export function prefillName(
   bookTitle: string,
-  seriesTitle: string,
+  seriesTitles: string[],
   volumes: { kind: string; volume_index: string | null }[],
 ): ParsedName {
-  const parsed = parseTitle(bookTitle, seriesTitle);
   const fold = (s: string) => s.normalize("NFKC").trim().toLowerCase();
-  const series = fold(seriesTitle);
-  if (parsed.kind === "" && parsed.index === null && series && fold(parsed.subtitle) === series) {
+  const names = seriesTitles.filter((t) => fold(t));
+  const book = fold(bookTitle);
+  if (names.some((t) => fold(t) === book)) {
     return { kind: "Volume", index: nextVolumeIndex(volumes), subtitle: "" };
   }
-  return parsed;
+  return parseTitle(bookTitle, names.find((t) => book.startsWith(fold(t))) ?? "");
 }

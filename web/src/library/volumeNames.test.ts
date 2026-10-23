@@ -77,16 +77,23 @@ describe("render placeholder lookup", () => {
 describe("prefillName", () => {
   const vols = [{ kind: "Volume", volume_index: "2" }];
   it("a book titled as the series starts as the next Volume", () => {
-    expect(prefillName("Mushoku", "mushoku ", vols)).toEqual({ kind: "Volume", index: "3", subtitle: "" });
+    expect(prefillName("Mushoku", ["mushoku "], vols)).toEqual({ kind: "Volume", index: "3", subtitle: "" });
   });
   it("a new series starts at Volume 1", () => {
-    expect(prefillName("Book", "Book", [])).toEqual({ kind: "Volume", index: "1", subtitle: "" });
+    expect(prefillName("Book", ["Book"], [])).toEqual({ kind: "Volume", index: "1", subtitle: "" });
   });
   it("a volume shape still parses", () => {
-    expect(prefillName("Mushoku - Volume 5", "Mushoku", vols)).toEqual({ kind: "Volume", index: "5", subtitle: "" });
+    expect(prefillName("Mushoku - Volume 5", ["Mushoku"], vols)).toEqual({ kind: "Volume", index: "5", subtitle: "" });
   });
   it("another title stays a subtitle", () => {
-    expect(prefillName("Prologue", "Mushoku", vols)).toEqual({ kind: "", index: null, subtitle: "Prologue" });
-    expect(prefillName("Mushoku", "", vols)).toEqual({ kind: "", index: null, subtitle: "Mushoku" });
+    expect(prefillName("Prologue", ["Mushoku"], vols)).toEqual({ kind: "", index: null, subtitle: "Prologue" });
+    expect(prefillName("Mushoku", [""], vols)).toEqual({ kind: "", index: null, subtitle: "Mushoku" });
+  });
+  it("a book titled as the original title starts as the next Volume", () => {
+    expect(prefillName("負けたら皇女と結婚しないといけない遊戯", ["A game where", "負けたら皇女と結婚しないといけない遊戯"], vols))
+      .toEqual({ kind: "Volume", index: "3", subtitle: "" });
+  });
+  it("the original title is stripped before the volume shape", () => {
+    expect(prefillName("無職転生 2 少年期", ["Mushoku", "無職転生"], vols)).toEqual({ kind: "Volume", index: "2", subtitle: "少年期" });
   });
 });
