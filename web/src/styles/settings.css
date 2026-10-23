@@ -7,6 +7,9 @@
 .inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
 .inline-form .grow { flex: 1 1 280px; }
 .row-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px; }
+.kind-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.kind-pick select { flex: 1 1 8em; min-width: 0; }
+.kind-pick input { flex: 1 1 8em; min-width: 0; }
 .panel-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 16px; border-top: 1px solid var(--line); }
 .file-btn { position: relative; }
 .file-btn:focus-within { outline: 2px solid var(--accent-text); outline-offset: 2px; }

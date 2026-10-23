@@ -30,7 +30,7 @@ progress::-webkit-progress-value { background: var(--accent-text); border-radius
 progress::-moz-progress-bar { background: var(--accent-text); border-radius: 99px; }
 
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.field > span:first-child { font-size: 13px; font-weight: 500; }
+.field > span:first-child, .field > label:first-child { font-size: 13px; font-weight: 500; }
 .hint { margin: 0; font-size: 13px; color: var(--muted); }
 .check { display: flex; align-items: flex-start; gap: 10px; min-height: 28px; }
 .check input { margin-top: 3px; flex: none; }
