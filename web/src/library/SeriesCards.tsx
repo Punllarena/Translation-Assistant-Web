@@ -4,7 +4,7 @@ import { sizeLabel, type SeriesCard } from "./shelf";
 function Cover({ card }: { card: SeriesCard }) {
   return card.coverImageId != null
     ? <img className="cover" src={`/api/images/${card.coverImageId}`} alt="" loading="lazy" />
-    : <span className="cover cover-tile" aria-hidden="true">{card.series.title}</span>;
+    : <span className="cover cover-tile" aria-hidden="true"><span>{card.series.title}</span></span>;
 }
 
 function Progress({ value }: { value: number }) {
@@ -19,7 +19,7 @@ export function Shelf({ cards }: { cards: SeriesCard[] }) {
     <ul className="shelf">
       {cards.map((c) => (
         <li key={c.series.id}>
-          <Link to={`/series/${c.series.id}`} aria-label={c.series.title}>
+          <Link to={`/series/${c.series.id}`} aria-label={c.series.title} title={c.series.title}>
             <Cover card={c} />
             <span className="shelf-title">{c.series.title}</span>
             <span className="muted shelf-size">{sizeLabel(c)}</span>
