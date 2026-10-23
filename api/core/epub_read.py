@@ -310,18 +310,23 @@ def _extract_inline(node) -> str:
       - everything else recurses into children (so ruby/gaiji/bold still
         resolve when nested inside further tags).
     """
+    return _render_inline(node.children)
+
+
+def _render_inline(nodes) -> str:
     parts = []
-    for child in node.children:
+    for child in nodes:
         if not hasattr(child, "name") or child.name is None:
             parts.append(str(child))
             continue
         if child.name == "ruby":
             rb = child.find("rb")
             if rb is not None:
-                base = rb.get_text()
+                base = _extract_inline(rb)
             else:
-                base = "".join(
-                    str(c) for c in child.children
+                # Rendered, not str(): Kobo wraps base characters in koboSpan tags.
+                base = _render_inline(
+                    c for c in child.children
                     if not (hasattr(c, "name") and c.name in ("rt", "rp"))
                 )
             reading = "".join(rt.get_text() for rt in child.find_all("rt"))

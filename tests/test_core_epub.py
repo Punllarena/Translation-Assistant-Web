@@ -261,6 +261,19 @@ class TestExtractChapterText:
         path, href = _make_chapter_epub(tmp_path, body)
         assert extract_chapter_content(path, href)[0] == "漢字(かんじ)"
 
+    def test_ruby_base_wrapped_in_kobo_spans(self, tmp_path):
+        body = (
+            '<p>部屋に<ruby><span class="koboSpan" id="kobo.26.1">蠟</span>'
+            '<span class="koboSpan" id="kobo.27.1">燭</span><rt>ろうそく</rt></ruby>が</p>'
+        )
+        path, href = _make_chapter_epub(tmp_path, body)
+        assert extract_chapter_content(path, href)[0] == "部屋に蠟燭(ろうそく)が"
+
+    def test_ruby_base_keeps_bold_marker(self, tmp_path):
+        body = '<p><ruby><span class="bold">漢字</span><rt>かんじ</rt></ruby></p>'
+        path, href = _make_chapter_epub(tmp_path, body)
+        assert extract_chapter_content(path, href)[0] == "**漢字**(かんじ)"
+
     def test_no_paragraphs_returns_empty_string(self, tmp_path):
         path, href = _make_chapter_epub(tmp_path, "<div>No p tags here</div>")
         assert extract_chapter_content(path, href)[0] == ""

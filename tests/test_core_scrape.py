@@ -254,6 +254,10 @@ class TestParaText:
         result = _para_text(_p("<ruby>漢<rp>(</rp><rt>かん</rt><rp>)</rp></ruby>"))
         assert result == "漢(かん)"
 
+    def test_ruby_base_wrapped_in_tags(self):
+        result = _para_text(_p('<ruby><span>魔</span><span>王</span><rt>まおう</rt></ruby>'))
+        assert result == "魔王(まおう)"
+
 
 _CHAPTER_HTML_RUBY = """
 <html><body>

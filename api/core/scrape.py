@@ -92,8 +92,8 @@ def _para_text(p) -> str:
                     base = rb.get_text()
                 else:
                     base = "".join(
-                        str(c) for c in node.children
-                        if not (hasattr(c, "name") and c.name in ("rt", "rp"))
+                        c.get_text() if c.name else str(c) for c in node.children
+                        if c.name not in ("rt", "rp")
                     )
                 reading = "".join(rt.get_text() for rt in node.find_all("rt"))
                 parts.append(f"{base}({reading})" if reading else base)
