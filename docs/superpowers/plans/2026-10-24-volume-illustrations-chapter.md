@@ -418,7 +418,7 @@ Expected: PASS
 **Interfaces:**
 - Consumes: `publish.volume_images`, `wp.build_illustrations_payloads`, `wp_http.publish_illustrations`, `publish.freeze_volume_name`.
 - Produces:
-  - `upload(db: Session, c: httpx.Client, doc: Document, endpoint: str, key: str, progress: Callable[[int, int], None] | None = None) -> dict`. It returns `{"page_url", "created", "batches", "images"}`, raises `publish.NotReady` (no images) or `WPPublishError`, and on success writes `wp_status="publish"`, `wp_post_url=page_url`, `wp_published_at=now`, `wp_scheduled_for=None`, and leaves `wp_chapter_index` None.
+  - `upload(db: Session, c: httpx.Client, doc: Document, endpoint: str, key: str, progress: Callable[[int, int], None] | None = None) -> dict`. It returns `{"page_url", "created", "batches", "images"}`, raises `publish.NotReady` (no images) or `WPPublishError`, calls `freeze_volume_name` after the first batch succeeds (as the job does today), and on success writes `wp_status="publish"`, `wp_post_url=page_url`, `wp_published_at=now`, `wp_scheduled_for=None`, and leaves `wp_chapter_index` None.
   - `POST /documents/{document_id}/wp/illustrations` with body `{"confirm_republish": bool}` → 202 `JobOut`, kind `wp_illustrations`, params `{"document_id", "series_id"}`.
 
 Details:
