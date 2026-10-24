@@ -211,12 +211,14 @@ def extract_chapter_content(
     output, only the count, since build_new_file()'s sentence-splitting is
     local per input line.
 
-    budget (remaining bytes, mutated in place) is charged each image reference's
-    size before anything is read (EpubBudgetExceeded when it would go negative); each
-    distinct image is read once and repeated references share its bytes.
+    budget (remaining bytes, mutated in place) is charged each file's size before it is
+    parsed and each image reference's size before anything is read (EpubBudgetExceeded
+    when it would go negative); each distinct image is read once and repeated references
+    share its bytes.
 
-    soups (zip path -> parsed file, filled in place) lets one import parse a file holding
-    several chapters once; pass the same dict only with the same source.
+    soups (filled in place) holds the last file parsed, so an import reading chapters in
+    book order parses, and charges, a file holding several chapters once; pass the same
+    dict only with the same source.
     """
     try:
         zf = zipfile.ZipFile(source)
@@ -233,8 +235,13 @@ def extract_chapter_content(
         for piece in pieces:
             soup = soups.get(piece.href) if soups is not None else None
             if soup is None:
+                try:  # each parse decompresses the file again, so it counts too
+                    charge(budget, zf.getinfo(piece.href).file_size)
+                except KeyError:
+                    pass  # read_text reports the missing file
                 soup = BeautifulSoup(read_text(zf, piece.href), "html.parser")
                 if soups is not None:
+                    soups.clear()  # the last file only: chapters run in book order
                     soups[piece.href] = soup
             base_dir = posixpath.dirname(piece.href)
             for el in units(soup, piece.start, piece.end):

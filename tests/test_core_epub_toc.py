@@ -1,4 +1,6 @@
 """open_book / extract_chapter_content split chapters at table-of-contents anchors."""
+import zipfile
+
 from api.core import epub_read
 from api.core.epub_read import _toc_entry, extract_chapter_content, open_book
 from api.core.text import build_new_file, parse_file_content
@@ -95,8 +97,22 @@ def test_soup_cache_parses_a_shared_file_once(tmp_path, monkeypatch):
 
     monkeypatch.setattr(epub_read, "read_text", spy)
     soups: dict = {}
-    for title in ("Chapter 2", "Chapter 3", "Chapter 4"):
+    extract_chapter_content(path, _chapter(book, "Prologue")["pieces"], soups=soups)
+    assert list(soups) == ["OEBPS/text/p8.xhtml"]  # only the last file is kept
+    reads.clear()
+    for title in ("Chapter 1", "Chapter 2", "Chapter 3", "Chapter 4"):
         cached = extract_chapter_content(path, _chapter(book, title)["pieces"], soups=soups)
         assert cached == extract_chapter_content(path, _chapter(book, title)["pieces"])
+    assert reads.count("OEBPS/text/p8.xhtml") == 1  # uncached only; cached hit the Prologue's
     assert reads.count("OEBPS/text/p10.xhtml") == 1 + 3  # once cached, three times uncached
     assert list(soups) == ["OEBPS/text/p10.xhtml"]
+
+
+def test_a_cached_file_is_charged_once(tmp_path):
+    path = fx.split_book(tmp_path)
+    book = open_book(path)
+    budget, soups = [10**6], {}
+    for title in ("Chapter 2", "Chapter 3", "Chapter 4"):
+        extract_chapter_content(path, _chapter(book, title)["pieces"], budget, soups)
+    with zipfile.ZipFile(path) as zf:
+        assert budget == [10**6 - zf.getinfo("OEBPS/text/p10.xhtml").file_size]

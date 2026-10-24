@@ -978,8 +978,11 @@ def test_image_refs_are_charged_to_the_budget_before_reading():
     budget = [5 * 604]
     with pytest.raises(EpubBudgetExceeded):
         extract_chapter_content(io.BytesIO(data), href, budget)
-    budget = [5 * 604]
-    _, images = extract_chapter_content(io.BytesIO(_many_refs_book(5)[0]), href, budget)
+    small = _many_refs_book(5)[0]
+    with zipfile.ZipFile(io.BytesIO(small)) as zf:  # the chapter file is charged too
+        page = zf.getinfo(href).file_size
+    budget = [page + 5 * 604]
+    _, images = extract_chapter_content(io.BytesIO(small), href, budget)
     assert len(images) == 5 and budget == [0]
 
 

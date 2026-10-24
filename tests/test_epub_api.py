@@ -5,6 +5,7 @@ import pytest
 
 from api.core.epub_build import build_epub
 from api.models import Document, DocumentImage, Series, Volume
+from tests.fixtures import epub as fx
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 32
 
@@ -140,6 +141,20 @@ def test_chapter_files_count_against_the_budget(app_client, me, db, monkeypatch)
         one = zf.getinfo(hrefs[0]).file_size
     monkeypatch.setattr("api.routers.epub.MAX_UNCOMPRESSED", one + 1)
     assert _import(app_client, data, hrefs).status_code == 413
+
+
+def test_a_file_holding_several_chapters_is_charged_once(app_client, me, monkeypatch, tmp_path):
+    data = fx.split_book(tmp_path).read_bytes()
+    chapters = app_client.post("/epub/inspect", files=upload(data)).json()["chapters"]
+    hrefs = [c["href"] for c in chapters if c["href"].startswith("OEBPS/text/p10.xhtml#")]
+    assert len(hrefs) == 3
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:  # p10 has no images; the cover attaches
+        size = sum(zf.getinfo(p).file_size
+                   for p in ("OEBPS/text/p10.xhtml", "OEBPS/images/cover.jpg"))
+    monkeypatch.setattr("api.routers.epub.MAX_UNCOMPRESSED", size + 1)
+    out = _import(app_client, data, hrefs)
+    assert out.status_code == 201
+    assert out.json()["imported"] == ["Chapter 2", "Chapter 3", "Chapter 4"]
 
 
 def test_oversized_text_entry_is_422(app_client, me, monkeypatch):

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from api.core.epub_build import build_epub
 from api.core.epub_read import EpubError, extract_chapter_content, open_book
 from api.core.epub_runs import Piece
-from api.core.epub_safety import MAX_UNCOMPRESSED, EpubBudgetExceeded, charge
+from api.core.epub_safety import MAX_UNCOMPRESSED, EpubBudgetExceeded
 from api.core.text import (
     build_epub_content,
     build_new_file,
@@ -147,11 +147,7 @@ def _extract(
     data: io.BytesIO, pieces: tuple[Piece, ...], budget: list[int], soups: dict,
 ) -> tuple[list[str], list[str], list[dict]]:
     """(raw, translated, images) of one chapter, charged to the import's budget."""
-    # A chapter's files are decompressed again for every chapter, so they count too.
-    with zipfile.ZipFile(data) as zf:
-        for path in dict.fromkeys(piece.href for piece in pieces):
-            charge(budget, zf.getinfo(path).file_size)
-    # Images are charged per reference (each is a stored row) before they are read.
+    # Each file parsed, and each image reference (a stored row), is charged before reading.
     text, images = extract_chapter_content(data, pieces, budget, soups)
     text = text.replace("\x00", "")  # Postgres text cannot hold NUL
     raw, translated, _ = parse_file_content(build_new_file(text))
