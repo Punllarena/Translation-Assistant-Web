@@ -3,6 +3,7 @@
 The link download is the SSRF-sensitive part: every hop, redirects included, passes
 ``check_url`` before it is sent, and the body is read with a hard cap."""
 
+import time
 from urllib.parse import urlsplit
 
 import httpx
@@ -14,7 +15,8 @@ from api.mt.urls import check_user_url
 from api.uploads import sniff_image
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
-TIMEOUT = 20.0
+TIMEOUT = 20.0  # per connect / read
+TOTAL_SECONDS = 30.0  # the whole download
 MAX_REDIRECTS = 3
 PAGE_LINK = ("That link is a web page, not an image. Open the image, right-click it and "
              "copy the image address.")
@@ -38,7 +40,8 @@ def _check(request: httpx.Request) -> None:
 def client(transport: httpx.BaseTransport | None = None) -> httpx.Client:
     return httpx.Client(
         transport=transport, timeout=TIMEOUT, follow_redirects=True,
-        max_redirects=MAX_REDIRECTS, headers={"User-Agent": "Mozilla/5.0"},
+        max_redirects=MAX_REDIRECTS,
+        headers={"User-Agent": "Mozilla/5.0", "Accept-Encoding": "identity"},
         event_hooks={"request": [_check]},
     )
 
@@ -49,15 +52,20 @@ def fetch_image(c: httpx.Client, url: str) -> tuple[bytes, str]:
     if any(ord(ch) < 32 or ord(ch) == 127 for ch in url):
         raise CoverFetchError(422, "The address contains control characters.")
     host = urlsplit(url).hostname or url
+    deadline = time.monotonic() + TOTAL_SECONDS
     try:
         with c.stream("GET", url) as r:
             if r.status_code != 200:
                 raise CoverFetchError(502, f"{host} answered HTTP {r.status_code}.")
             data = bytearray()
-            for chunk in r.iter_bytes():
+            # raw bytes (identity encoding asked for): the cap counts what arrives, and a
+            # compressed body cannot expand past it within one chunk
+            for chunk in r.iter_raw():
                 data += chunk
                 if len(data) > MAX_IMAGE_BYTES:
                     raise CoverFetchError(413, f"The image is larger than {MAX_IMAGE_BYTES} bytes.")
+                if time.monotonic() > deadline:  # a slow drip stays under the read timeout
+                    raise CoverFetchError(502, f"{host} took too long to send the image.")
             content_type = r.headers.get("content-type", "")
     except httpx.TooManyRedirects:
         raise CoverFetchError(422, "That address redirects too many times.") from None

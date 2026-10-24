@@ -39,7 +39,12 @@ def site(monkeypatch):
         answer = pages.get(str(request.url))
         if answer is None:
             return httpx.Response(404)
-        return answer(request) if callable(answer) else answer
+        if callable(answer):
+            return answer(request)
+        if answer.is_stream_consumed:  # built with content=: re-serve as a
+            return httpx.Response(answer.status_code, headers=answer.headers,  # raw stream
+                                  stream=httpx.ByteStream(answer.content))
+        return answer
 
     def check(url, allow_private, label):
         host = httpx.URL(url).host
@@ -216,3 +221,12 @@ def test_deleting_the_volume_takes_its_cover(app_client, db, vol):
     _put(app_client, v1.id)
     assert app_client.delete(f"/volumes/{v1.id}").status_code == 204
     assert db.query(VolumeCover).count() == 0
+
+
+def test_a_download_past_the_deadline_is_502(app_client, vol, site, monkeypatch):
+    pages, _ = site
+    monkeypatch.setattr(covers, "TOTAL_SECONDS", -1)
+    pages["https://img.example/slow.png"] = httpx.Response(200, content=PNG)
+    r = app_client.post(f"/volumes/{vol[1].id}/cover/url",
+                        json={"url": "https://img.example/slow.png"})
+    assert r.status_code == 502 and "too long" in r.json()["detail"]
