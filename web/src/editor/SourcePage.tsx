@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useBlocker, useNavigate, useParams } from "react-router";
 import { api, ApiError, call, type Schemas } from "../api/client";
 import { invalidateLibrary } from "../library/queries";
+import { shownTitle } from "../library/shelf";
 import CodeEditor, { setMarks } from "./CodeEditor";
 import { cutsFromText, firstTextDifference, insertMarker, SPLIT_MARKER } from "./cuts";
 import FindBar from "./FindBar";
@@ -114,7 +115,7 @@ function SourceBody({ id, mode, data }: { id: number; mode: "edit" | "split"; da
   return (
     <main>
       <p><Link to={`/documents/${id}`}>← Back to the editor</Link></p>
-      <h1>{mode === "edit" ? "Edit source" : "Split chapter"} — {data.document.title}</h1>
+      <h1>{mode === "edit" ? "Edit source" : "Split chapter"} — {shownTitle(data.document)}</h1>
       <p className="muted">
         {mode === "edit"
           ? "One line per paragraph; a line starting with $ continues the previous one. Translations stay with their line position."

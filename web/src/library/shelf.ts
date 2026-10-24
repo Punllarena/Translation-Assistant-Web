@@ -16,7 +16,12 @@ export interface SeriesCard {
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 export const byVolumeOrder = (a: Volume, b: Volume) => a.volume_order - b.volume_order || a.id - b.id;
-export const bySeriesOrder = (a: Doc, b: Doc) => a.series_order - b.series_order || a.id - b.id;
+type Titled = Pick<Doc, "title" | "chapter_title">;
+/** The title a chapter shows, as the desktop does: its chapter_title (where a translated title lives), else its own name. */
+export const shownTitle = (d: Titled) => d.chapter_title || d.title;
+/** The field Rename writes: the one shownTitle reads. */
+export const titleField = (d: Titled): "chapter_title" | "title" => (d.chapter_title ? "chapter_title" : "title");
+export const bySeriesOrder =(a: Doc, b: Doc) => a.series_order - b.series_order || a.id - b.id;
 
 /** Σtranslated·100 / Σlines, floored; 0 when there are no lines. */
 export function progressOf(docs: Doc[]): number {
