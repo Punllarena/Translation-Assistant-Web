@@ -208,3 +208,31 @@ def test_deleting_a_chapter_renumbers_the_rest(app_client, db, lib):
     assert app_client.delete(f"/documents/{d['a1'].id}").status_code == 204
     del d["a1"]
     assert _orders(db, d) == {"a2": 1, "b1": 2}
+
+
+def test_illustrations_chapter_stays_first_in_its_volume(app_client, db, lib):
+    series, va, vb, d = lib
+    d["a2"].is_illustrations = True
+    db.flush()
+
+    def first_in_a():
+        db.expire_all()
+        docs = db.scalars(
+            select(Document).where(Document.volume_id == va.id).order_by(Document.series_order)
+        ).all()
+        return docs[0].id
+
+    ids = [d["a1"].id, d["b1"].id, d["a2"].id]
+    r = app_client.put(f"/series/{series.id}/order", json={"document_ids": ids})
+    assert r.status_code == 200
+    assert first_in_a() == d["a2"].id
+    assert _orders(db, d) == {"a2": 1, "a1": 2, "b1": 3}
+
+    r = app_client.post(
+        "/documents", json={"title": "new", "series_id": series.id, "volume_id": va.id}
+    )
+    assert r.status_code == 201
+    assert first_in_a() == d["a2"].id
+
+    assert app_client.post(f"/series/{series.id}/renumber").status_code == 200
+    assert first_in_a() == d["a2"].id

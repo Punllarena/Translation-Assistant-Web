@@ -6,6 +6,7 @@ from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.deps import current_user, db_session, owned_ref, scoped
 from api.library import (
     arrange,
+    chapter_numbers,
     check_line_count,
     next_series_order,
     send_to_volume_end,
@@ -88,9 +89,17 @@ def list_documents(
         .where(Document.user_id == user.id)
         .order_by(Document.updated_at.desc(), Document.id.desc())
     )
+    rows = list(rows)
+    syosetu = set(
+        db.scalars(
+            select(Series.id).where(Series.user_id == user.id, Series.syosetu_url != "")
+        )
+    )
+    numbers = chapter_numbers([row[0] for row in rows], syosetu)
     return [
         DocumentListItem(
             **DocumentOut.model_validate(doc).model_dump(),
+            chapter_number=numbers[doc.id],
             line_count=lc,
             translated_count=tc,
             image_count=ic,

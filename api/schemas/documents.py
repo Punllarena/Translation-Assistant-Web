@@ -40,6 +40,7 @@ class DocumentOut(BaseModel):
     series_id: int
     volume_id: int | None
     series_order: int
+    is_illustrations: bool
     source_language: str
     source_url: str
     last_position: int
@@ -54,6 +55,7 @@ class DocumentOut(BaseModel):
 class DocumentListItem(DocumentOut):
     """A picker row: the document plus what the picker shows about its progress."""
 
+    chapter_number: int | None = None
     line_count: int
     translated_count: int
     image_count: int

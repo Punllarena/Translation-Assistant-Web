@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     and_,
+    false,
     func,
     literal,
 )
@@ -199,6 +200,10 @@ class Document(Base):
     chapter_title: Mapped[str] = mapped_column(Text, nullable=False, default="")
     source_language: Mapped[str] = mapped_column(String(16), nullable=False, default="ja")
     series_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # The volume's Illustrations chapter: first in its volume, outside chapter numbers.
+    is_illustrations: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     source_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     last_position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Reserved: the WordPress plugin's response carries page/post URLs but no post id,
@@ -225,6 +230,12 @@ class Document(Base):
     images: Mapped[list["DocumentImage"]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
     )
+
+
+Index(
+    "uq_documents_volume_illustrations", Document.volume_id, unique=True,
+    postgresql_where=Document.is_illustrations.is_(True),
+)
 
 
 class Line(Base):

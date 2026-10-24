@@ -122,9 +122,55 @@ def arrange(db: Session, series: Series) -> list[Document]:
             )
         )
     }
-    docs.sort(key=lambda d: rank.get(d.volume_id, len(rank)))  # stable
+    # stable; a volume's Illustrations chapter leads it
+    docs.sort(key=lambda d: (rank.get(d.volume_id, len(rank)), not d.is_illustrations))
     renumber(docs)
     return docs
+
+
+def chapter_numbers(docs: list[Document], syosetu: set[int]) -> dict[int, int | None]:
+    """Display chapter numbers: series_order, less the Illustrations chapters before it
+    (a syosetu series keeps its own numbering); None for an Illustrations chapter."""
+    out: dict[int, int | None] = {}
+    skipped: dict[int, int] = {}
+    for doc in sorted(docs, key=lambda d: (d.series_id, d.series_order, d.id)):
+        if doc.is_illustrations:
+            out[doc.id] = None
+            skipped[doc.series_id] = skipped.get(doc.series_id, 0) + 1
+        elif doc.series_id in syosetu:
+            out[doc.id] = doc.series_order
+        else:
+            out[doc.id] = doc.series_order - skipped.get(doc.series_id, 0)
+    return out
+
+
+def chapter_number(db: Session, doc: Document) -> int | None:
+    """One chapter's display number (see ``chapter_numbers``)."""
+    if doc.is_illustrations:
+        return None
+    if db.scalar(select(Series.syosetu_url).where(Series.id == doc.series_id)):
+        return doc.series_order
+    before = db.scalar(
+        select(func.count()).where(
+            Document.series_id == doc.series_id,
+            Document.is_illustrations,
+            Document.series_order < doc.series_order,
+        )
+    )
+    return doc.series_order - before
+
+
+def previous_chapter(db: Session, doc: Document) -> Document | None:
+    """The chapter before ``doc``: in a syosetu series the one numbered exactly one less,
+    elsewhere the nearest earlier chapter that is not an Illustrations chapter."""
+    q = select(Document).where(Document.series_id == doc.series_id)
+    if db.scalar(select(Series.syosetu_url).where(Series.id == doc.series_id)):
+        q = q.where(Document.series_order == doc.series_order - 1).order_by(Document.id)
+    else:
+        q = q.where(
+            Document.series_order < doc.series_order, Document.is_illustrations.is_(False)
+        ).order_by(Document.series_order.desc(), Document.id.desc())
+    return db.scalar(q.limit(1))
 
 
 def send_to_volume_end(
