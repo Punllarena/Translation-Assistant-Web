@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { api, ApiError, call, errorMessage } from "../api/client";
+import IllustrationsPublish from "../publish/IllustrationsPublish";
 import PublishDialog from "../publish/PublishDialog";
 import { ConfirmDialog, PromptDialog } from "../ui/Dialog";
 import Menu from "../ui/Menu";
@@ -16,7 +17,7 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState<Open>(null);
   const [conflict, setConflict] = useState<string | null>(null); // the re-fetch 409, asking to force
-  const [coverError, setCoverError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // cover and Illustrations-mark failures
   const file = useRef<HTMLInputElement>(null);
   const id = { params: { path: { document_id: doc.id } } };
   const changed = () => invalidateLibrary(queryClient);
@@ -59,8 +60,15 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
         );
       }
     },
-    onMutate: () => setCoverError(null),
-    onError: (e) => setCoverError(e.message),
+    onMutate: () => setError(null),
+    onError: (e) => setError(e.message),
+    onSettled: changed,
+  });
+  const mark = useMutation({
+    mutationFn: (is_illustrations: boolean) =>
+      call(api.PATCH("/documents/{document_id}", { ...id, body: { is_illustrations } })),
+    onMutate: () => setError(null),
+    onError: (e) => setError(e.message),
     onSettled: changed,
   });
   const exportUrl = (format: string) => `/api/documents/${doc.id}/export?format=${format}`;
@@ -79,6 +87,9 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
             <a role="menuitem" className="btn" href={exportUrl("md-ruby")} download onClick={close}>Export Ruby Markdown</a>
             {doc.source_url && item("Re-fetch…", () => { refetch.reset(); setOpen("refetch"); }, close)}
             {item("Publish…", () => setOpen("publish"), close)}
+            {doc.is_illustrations
+              ? item("Unmark Illustrations", () => mark.mutate(false), close)
+              : doc.line_count === 0 && item("Mark as Illustrations", () => mark.mutate(true), close)}
             {item("Set cover…", () => file.current?.click(), close)}
             {doc.has_cover && item("Clear cover", () => cover.mutate(null), close)}
             <Link role="menuitem" className="btn" to={`/documents/${doc.id}/split`}>Split…</Link>
@@ -93,7 +104,7 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
           e.target.value = "";
           if (picked) cover.mutate(picked);
         }} />
-      {coverError && <span className="error" role="alert">{coverError}</span>}
+      {error && <span className="error" role="alert">{error}</span>}
       {open === "rename" && (
         <PromptDialog title="Rename chapter" label="Title" initial={doc.title} confirmLabel="Rename"
           busy={rename.isPending} error={rename.error?.message} onClose={closeAll}
@@ -107,7 +118,9 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
         <ConfirmDialog title="Replace anyway?" confirmLabel="Replace anyway" danger busy={refetch.isPending}
           message={conflict} error={refetch.error?.message} onConfirm={() => refetch.mutate(true)} onClose={closeAll} />
       ))}
-      {open === "publish" && <PublishDialog doc={doc} onClose={closeAll} />}
+      {open === "publish" && (doc.is_illustrations
+        ? <IllustrationsPublish doc={doc} onClose={closeAll} />
+        : <PublishDialog doc={doc} onClose={closeAll} />)}
       {open === "move" && <MoveDialog ids={[doc.id]} currentSeriesId={doc.series_id} currentVolumeId={doc.volume_id} onClose={closeAll} />}
       {open === "delete" && (
         <ConfirmDialog title="Delete chapter" confirmLabel="Delete" danger busy={remove.isPending}

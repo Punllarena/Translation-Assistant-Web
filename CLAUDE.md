@@ -60,7 +60,7 @@ limits in `epub_safety.py`: 64 MiB upload, 4 MiB per text entry, 32 MiB parsed p
 budget charged per image reference before reading, 900 chapters) are synchronous; per-volume EPUB build (`epub_build.py`). Form titles
 with NUL are 422. Phase 6b: publishing and statistics. WordPress config is a `wordpress` credential plus `wp_*` user settings
 (`api/wp_prefs.py`); `api/publish.py` builds chapters and records results; single publish is a request with a
-server-enforced re-publish 409 (`confirm_republish`), batch publish and volume illustrations are jobs
+server-enforced re-publish 409 (`confirm_republish`), batch publish and the Illustrations page are jobs
 (`api/publish_job.py`); one `wp_publish` and one `wp_illustrations` job may be active per user (409 otherwise).
 Every WordPress call passes `check_user_url` unless `TA_WP_ALLOW_PRIVATE_URLS=true`, and the client never follows
 redirects. Images over 40 megapixels (`MAX_PIXELS`, `api/core/images.py`) are sent as-is without decoding. A
@@ -106,7 +106,7 @@ merge, split, and EPUB import. Syosetu-sourced series keep syosetu's chapter num
 `documents.updated_at` untouched (`renumber()` writes those rows in SQL). `POST /documents/export/zip`
 exports ticked chapters; `GET /volumes` feeds the Move-to dialogs. Library dialogs (`web/src/ui/Dialog.tsx`: `ConfirmDialog`,
 `PromptDialog`) replace native `prompt`/`confirm`, and none of them closes while its action is busy. Deferred work (WordPress
-volume indexing, the EPUB illustrations chapter) is tracked in `docs/TODO.md`.
+volume indexing, the plugin's Illustrations page) is tracked in `docs/TODO.md`.
 
 Syosetu heading volumes: the fetch job puts each chapter in the volume of its `p-eplist__chapter-title` heading, per the
 series' `syosetu_volume_mode` (`all` / `marker` with `syosetu_volume_marker` / `off`); the rules are pure, in
@@ -130,6 +130,14 @@ New series: the `/new` page (`web/src/library/newSeries/`) offers Syosetu, EPUB 
 is a one-chapter series numbered 1 whose chapter URL is the series URL. `/epub/import` with `new_series=true` refuses a taken title
 (409) instead of reusing the series. EPUB export: a volume with no `epub_author` uses the series' `author_romaji`; `original_title`
 (with `original_author`) is written as `dc:source`.
+
+Volume Illustrations chapter: EPUB import splits chapters by the table of contents, not by file (`api/core/epub_runs.py`,
+fed by `epub_read.py`), and gathers the picked image-only pages into one chapter titled "Illustrations" (the picker shows them
+as one row, `web/src/library/epubRows.ts`). `documents.is_illustrations` marks it: at most one per volume, text-free, never in
+a syosetu series (rules and 409 messages in `api/illustrations.py`; Mark/Unmark is a PATCH). `arrange()` puts it first in its
+volume, and it stands outside `chapter_number` (`api/library.py`) and the unlock chain. It publishes as the volume's
+illustrations page through `POST /documents/{id}/wp/illustrations` (the `wp_illustrations` job, `confirm_republish` 409);
+batch publish uploads it the same way. Spec: `docs/superpowers/specs/2026-10-24-volume-illustrations-chapter-design.md`.
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)

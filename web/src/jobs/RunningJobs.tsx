@@ -11,7 +11,7 @@ const LABELS: Record<string, string> = {
   dict_download: "Dictionary download",
   syosetu_fetch: "Syosetu fetch",
   wp_publish: "WordPress publish",
-  wp_illustrations: "Volume illustrations",
+  wp_illustrations: "Illustrations upload",
 };
 
 /** Where a job lives, so the list can send the user back to its page. */

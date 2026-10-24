@@ -24,8 +24,10 @@ export function volumeGroups(seriesId: number, docs: Doc[], volumes: Volume[]): 
   return groups;
 }
 
-export function chapterNumber(g: VolumeGroup, doc: Doc, syosetu: boolean): number {
-  return syosetu ? doc.series_order : g.docs.findIndex((d) => d.id === doc.id) + 1;
+/** The number shown for `doc`: none for the Illustrations chapter, which stands outside the numbering. */
+export function chapterNumber(g: VolumeGroup, doc: Doc, syosetu: boolean): number | null {
+  if (doc.is_illustrations) return null;
+  return syosetu ? doc.series_order : g.docs.filter((d) => !d.is_illustrations).findIndex((d) => d.id === doc.id) + 1;
 }
 
 export function pickVolume(param: string | null, groups: VolumeGroup[]): VolumeKey | null {

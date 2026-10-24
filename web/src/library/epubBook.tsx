@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Schemas } from "../api/client";
+import { bookRows } from "./epubRows";
 import { appendSeries, type Choice } from "./SeriesChoice";
 import { postForm } from "./upload";
 import VolumeNameFields, { kindOptions, type VolumeName } from "./VolumeNameFields";
@@ -62,12 +63,18 @@ export function useEpubBook({ onPick, onBook, seriesTitle = "", originalTitle = 
     if (f) inspect.mutate(f);
     else inspect.reset();
   };
-  const toggle = (href: string, on: boolean) => {
+  const toggle = (hrefs: string[], on: boolean) => {
     const next = new Set(checked);
-    if (on) next.add(href);
-    else next.delete(href);
+    for (const href of hrefs) {
+      if (on) next.add(href);
+      else next.delete(href);
+    }
     setChecked(next);
   };
+  // the picker's rows, so the Illustrations pages count once
+  const rows = book ? bookRows(book.chapters) : [];
+  const selected = rows.filter((r) => (r.kind === "chapter" ? checked.has(r.href) : r.hrefs.every((h) => checked.has(h)))).length;
+  const counts = { selected, unchecked: rows.length - selected };
   const importForm = (choice: Choice) => {
     const form = new FormData();
     form.append("file", file as File);
@@ -79,7 +86,7 @@ export function useEpubBook({ onPick, onBook, seriesTitle = "", originalTitle = 
     book?.chapters.filter((c) => checked.has(c.href)).forEach((c) => form.append("hrefs", c.href));
     return form;
   };
-  return { file, book, checked, volumeName, setVolumeName: editName, meta, setMeta, inspect, pick, toggle, importForm };
+  return { file, book, checked, counts, volumeName, setVolumeName: editName, meta, setMeta, inspect, pick, toggle, importForm };
 }
 
 export type EpubBook = ReturnType<typeof useEpubBook>;
@@ -118,13 +125,25 @@ export function EpubFields({ epub, kinds = kindOptions([]) }: { epub: EpubBook; 
       </div>
       <fieldset className="checklist">
         <legend className="field-legend"><span>Chapters</span><span className="hint">Short pages without images start unchecked</span></legend>
-        {book.chapters.map((c) => (
-          <label key={c.href} className={checked.has(c.href) ? "check-row" : "check-row dim"}>
-            <input type="checkbox" checked={checked.has(c.href)} onChange={(e) => epub.toggle(c.href, e.target.checked)} />
-            <span className="title">{c.order}. {c.title}</span>
-            <span className="muted">{c.char_count.toLocaleString()} chars{c.image_count ? ` · ${c.image_count} images` : ""}</span>
-          </label>
-        ))}
+        {bookRows(book.chapters).map((row, i, rows) => {
+          if (row.kind === "illustrations") {
+            const on = row.hrefs.every((h) => checked.has(h));
+            return (
+              <label key="illustrations" className={on ? "check-row" : "check-row dim"}>
+                <input type="checkbox" checked={on} onChange={(e) => epub.toggle(row.hrefs, e.target.checked)} />
+                <span className="title">Illustrations · {row.pages} pages · {row.images} images</span>
+              </label>
+            );
+          }
+          const n = rows[0].kind === "illustrations" ? i : i + 1;
+          return (
+            <label key={row.href} className={checked.has(row.href) ? "check-row" : "check-row dim"}>
+              <input type="checkbox" checked={checked.has(row.href)} onChange={(e) => epub.toggle([row.href], e.target.checked)} />
+              <span className="title">{n}. {row.title}</span>
+              <span className="muted">{row.charCount.toLocaleString()} chars{row.imageCount ? ` · ${row.imageCount} images` : ""}</span>
+            </label>
+          );
+        })}
       </fieldset>
     </>
   );

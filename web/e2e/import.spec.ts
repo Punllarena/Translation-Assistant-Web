@@ -58,6 +58,28 @@ test("EPUB import: inspect, pick chapters, import", async ({ page }) => {
   await expect(page.getByText("Neko chapter").first()).toBeVisible();
 });
 
+test("EPUB import: image-only pages are one Illustrations row", async ({ page }) => {
+  await openImport(page);
+  await page.getByLabel("EPUB file").setInputFiles(path.join(here, "fixtures/illustrated.epub"));
+  const plates = page.getByRole("checkbox", { name: /^Illustrations/ });
+  await expect(plates).toHaveCount(1);
+  await expect(plates).toHaveAccessibleName("Illustrations · 2 pages · 2 images");
+  await expect(plates).toBeChecked();
+  await expect(page.getByText(/1\. Tori chapter/)).toBeVisible();
+  await expect(page.getByText("1 chapters selected · 1 unchecked")).toBeVisible(); // a short page starts unchecked
+  await page.getByRole("checkbox", { name: /Tori chapter/ }).check();
+  await plates.uncheck();
+  await expect(page.getByText("1 chapters selected · 1 unchecked")).toBeVisible();
+  await plates.check();
+  await expect(page.getByText("2 chapters selected · 0 unchecked")).toBeVisible();
+  await page.getByLabel("New series title").last().fill("Import Illustrated");
+  await page.getByRole("button", { name: "Import", exact: true }).last().click();
+  await expect(page.getByRole("status").getByText("Imported: 2")).toBeVisible();
+  await page.getByRole("link", { name: "Open series" }).click();
+  await expect(page.getByRole("link", { name: "Open Illustrations" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open Tori chapter" })).toBeVisible();
+});
+
 test("New volume can import an EPUB into the open series", async ({ page }) => {
   await openImport(page);
   await openSeries(page, "E2E epub volume series");

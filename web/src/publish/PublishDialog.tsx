@@ -37,7 +37,7 @@ export default function PublishDialog({ doc, onClose }: { doc: Doc; onClose: () 
     },
     onSuccess: (r) => { setResult(r); return invalidateLibrary(queryClient); },
   });
-  const chapter = doc.series_order === 0 ? "Synopsis" : `Chapter ${doc.series_order}`;
+  const chapter = doc.chapter_number === 0 ? "Synopsis" : `Chapter ${doc.chapter_number}`;
   const statusText = status.isPending ? "checking…" : status.data ? (LABEL[status.data.status] ?? status.data.status) : "unknown";
   const title = doc.chapter_title || doc.title;
   return (
@@ -65,7 +65,7 @@ export default function PublishDialog({ doc, onClose }: { doc: Doc; onClose: () 
             {status.data?.remote_error && <span className="muted"> (cached — {status.data.remote_error})</span>}</p>
           {status.data?.status === "publish" && <p className="muted">Republishing will overwrite the live chapter.</p>}
           {status.data?.previous_scheduled && (
-            <p className="box warn">Chapter {doc.series_order - 1} is still scheduled and hasn't gone live yet.</p>
+            <p className="box warn">Chapter {(doc.chapter_number ?? 0) - 1} is still scheduled and hasn't gone live yet.</p>
           )}
           <label className="check"><input type="checkbox" checked={scheduling} onChange={(e) => setSchedule(e.target.checked)} /><span>Schedule for later</span></label>
           <label className="field"><span>When</span>

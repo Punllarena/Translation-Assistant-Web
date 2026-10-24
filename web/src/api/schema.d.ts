@@ -511,6 +511,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/documents/{document_id}/wp/illustrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Illustrations
+         * @description The Illustrations chapter's Publish: the volume's illustrations page, as a job. The
+         *     plugin has no status lookup for that page, so the stored status guards re-publishing.
+         */
+        post: operations["publish_illustrations_documents__document_id__wp_illustrations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}/wp/publish": {
         parameters: {
             query?: never;
@@ -1493,23 +1514,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/volumes/{volume_id}/wp/illustrations": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Publish Volume Illustrations */
-        post: operations["publish_volume_illustrations_volumes__volume_id__wp_illustrations_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/words": {
         parameters: {
             query?: never;
@@ -1824,6 +1828,8 @@ export interface components {
             href: string;
             /** Image Count */
             image_count: number;
+            /** Image Only */
+            image_only: boolean;
             /** Order */
             order: number;
             /** Title */
@@ -2005,6 +2011,8 @@ export interface components {
          * @description A picker row: the document plus what the picker shows about its progress.
          */
         DocumentListItem: {
+            /** Chapter Number */
+            chapter_number?: number | null;
             /** Chapter Title */
             chapter_title: string;
             /** Cover Image Id */
@@ -2020,6 +2028,8 @@ export interface components {
             id: number;
             /** Image Count */
             image_count: number;
+            /** Is Illustrations */
+            is_illustrations: boolean;
             /** Last Position */
             last_position: number;
             /** Line Count */
@@ -2065,6 +2075,8 @@ export interface components {
             created_at: string;
             /** Id */
             id: number;
+            /** Is Illustrations */
+            is_illustrations: boolean;
             /** Last Position */
             last_position: number;
             /** Series Id */
@@ -2097,6 +2109,8 @@ export interface components {
         DocumentUpdate: {
             /** Chapter Title */
             chapter_title?: string | null;
+            /** Is Illustrations */
+            is_illustrations?: boolean | null;
             /** Last Position */
             last_position?: number | null;
             /** Series Id */
@@ -2204,6 +2218,14 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** IllustrationsIn */
+        IllustrationsIn: {
+            /**
+             * Confirm Republish
+             * @default false
+             */
+            confirm_republish: boolean;
         };
         /** ImageOut */
         ImageOut: {
@@ -4073,6 +4095,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_illustrations_documents__document_id__wp_illustrations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IllustrationsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
                 };
             };
             /** @description Validation Error */
@@ -6064,37 +6121,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    publish_volume_illustrations_volumes__volume_id__wp_illustrations_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                volume_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JobOut"];
                 };
             };
             /** @description Validation Error */
