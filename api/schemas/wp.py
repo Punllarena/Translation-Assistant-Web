@@ -31,6 +31,10 @@ class PublishIn(BaseModel):
     confirm_republish: bool = False
 
 
+class IllustrationsIn(BaseModel):
+    confirm_republish: bool = False
+
+
 class PublishOut(BaseModel):
     created: bool
     updated: bool

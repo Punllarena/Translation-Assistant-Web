@@ -1,16 +1,24 @@
 """Rules for a volume's Illustrations chapter: a text-free chapter, at most one per volume,
 always inside a volume of a non-syosetu series. Each check raises ``IllustrationsRule``
-whose message is the 409 detail."""
+whose message is the 409 detail. Also its WordPress upload (``upload``)."""
 
+from collections.abc import Callable
+from datetime import UTC, datetime
+
+import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from api import publish
+from api.core import wp, wp_http
 from api.core.text import line_has_content
+from api.core.wp import WPPublishError
 from api.models import Document, DocumentImage, Line, Series, User, Volume
 
 HAS_ONE = "this volume already has an Illustrations chapter"
 TITLE = "Illustrations"
+NO_IMAGES = "This volume has no illustrations to publish."
 
 
 class IllustrationsRule(Exception):
@@ -90,3 +98,52 @@ def add_images(
         for img in fresh
     )
     return doc
+
+
+def has_images(db: Session, volume_id: int) -> bool:
+    """Whether ``upload`` would find anything to send (the volume_images filter, no bytes)."""
+    return db.scalar(
+        select(DocumentImage.id).join(Document, Document.id == DocumentImage.document_id)
+        .where(Document.volume_id == volume_id,
+               or_(DocumentImage.is_cover, DocumentImage.exclude_export.is_(False)))
+        .limit(1)
+    ) is not None
+
+
+def upload(
+    db: Session, c: httpx.Client, doc: Document, endpoint: str, key: str,
+    progress: Callable[[int, int], None] | None = None,
+) -> dict:
+    """Send the volume's illustrations page for the marked ``doc``: its own images first (it
+    sorts first in the volume), then the rest of the volume's, in batches under the host's
+    body limit. Records the result on ``doc`` like a published chapter, without a number."""
+    series = doc.series
+    if series is None or doc.volume_id is None:
+        raise publish.NotReady(NO_IMAGES)
+    publish.check_series(series)
+    volume = db.get(Volume, doc.volume_id)
+    inline, cover = publish.volume_images(db, volume.id)
+    if not inline and cover is None:
+        raise publish.NotReady(NO_IMAGES)
+    payloads = wp.build_illustrations_payloads(
+        {"series_title": series.title, "volume_title": volume.wp_name},
+        publish.series_meta(series), inline, api_key=key, cover=cover)
+    if progress:
+        progress(0, len(payloads))
+    first: dict | None = None
+    for i, p in enumerate(payloads, start=1):
+        try:
+            result = wp_http.publish_illustrations(c, endpoint, p)
+        except WPPublishError as exc:
+            raise WPPublishError(f"batch {i}/{len(payloads)}: {exc.message}",
+                                 exc.status_code) from exc
+        if first is None:
+            publish.freeze_volume_name(db, volume.id)
+            first = result  # the desktop reports the first ("replace") answer
+        if progress:
+            progress(i, len(payloads))
+    page_url = str(first.get("page_url") or "")
+    doc.wp_status, doc.wp_post_url = "publish", page_url
+    doc.wp_published_at, doc.wp_scheduled_for = datetime.now(UTC), None
+    return {"page_url": page_url, "created": bool(first.get("created")),
+            "batches": len(payloads), "images": len(inline) + (cover is not None)}

@@ -1,6 +1,6 @@
 """The WordPress jobs (spec §9, §10): batch publish/schedule (desktop _BatchPublishWorker)
-and volume illustrations (desktop _IllustrationsPublishWorker). Each re-reads the user's
-config, so a credential change between enqueue and run is honoured."""
+and the Illustrations chapter's upload (desktop _IllustrationsPublishWorker). Each re-reads
+the user's config, so a credential change between enqueue and run is honoured."""
 
 import logging
 from datetime import datetime
@@ -8,12 +8,12 @@ from datetime import datetime
 import httpx
 from sqlalchemy.orm import Session
 
-from api import publish, wp_prefs
-from api.core import wp, wp_http
+from api import illustrations, publish, wp_prefs
+from api.core import wp_http
 from api.core.wp import WPPublishError
 from api.jobs import JobContext, JobError, handler
 from api.library import chapter_number
-from api.models import Document, Volume
+from api.models import Document
 from api.wp_prefs import WpPrefs
 
 log = logging.getLogger(__name__)
@@ -41,6 +41,10 @@ def _publish_one(db: Session, c: httpx.Client, user_id: int, item: dict, endpoin
         if doc.wp_status in publish.LIVE and not confirm:  # ruling 6
             raise publish.NotReady(
                 "already published or scheduled; tick Overwrite to publish it again")
+        if doc.is_illustrations:  # no schedule slot: the endpoint takes no date
+            out = illustrations.upload(db, c, doc, endpoint, key)
+            return {**row, "ok": True, "created": out["created"], "post_url": out["page_url"],
+                    "password": None, "unlock_chapter_index": None}
         ch = publish.build_chapter(db, doc, prefs)
         result = wp_http.publish(c, endpoint, publish.payload(
             ch, key, scheduled=scheduled, attribution=prefs.wp_attribution_enabled))
@@ -76,32 +80,15 @@ def publish_batch(ctx: JobContext) -> dict:
 
 @handler("wp_illustrations")
 def publish_illustrations(ctx: JobContext) -> dict:
-    volume = ctx.db.get(Volume, ctx.params["volume_id"])
-    series = volume.series if volume is not None else None
-    if series is None or series.user_id != ctx.job.user_id:
-        raise JobError("the volume no longer exists")
+    doc = ctx.db.get(Document, ctx.params["document_id"])
+    if doc is None or doc.user_id != ctx.job.user_id or not doc.is_illustrations:
+        raise JobError("the Illustrations chapter no longer exists")
     endpoint, key = _config(ctx)
+
+    def progress(done: int, total: int) -> None:
+        ctx.progress(done, total, f"Batch {done} of {total}" if done else "Uploading")
     try:
-        publish.check_series(series)
-    except publish.NotReady as exc:
+        with http_client() as c:
+            return illustrations.upload(ctx.db, c, doc, endpoint, key, progress)
+    except (publish.NotReady, WPPublishError) as exc:
         raise JobError(str(exc)) from exc
-    inline, cover = publish.volume_images(ctx.db, volume.id)
-    if not inline and cover is None:
-        raise JobError("This volume has no illustrations to publish.")
-    payloads = wp.build_illustrations_payloads(
-        {"series_title": series.title, "volume_title": volume.wp_name},
-        publish.series_meta(series), inline, api_key=key, cover=cover)
-    ctx.progress(0, len(payloads), "Uploading")
-    first: dict | None = None
-    with http_client() as c:
-        for i, p in enumerate(payloads, start=1):
-            try:
-                result = wp_http.publish_illustrations(c, endpoint, p)
-            except WPPublishError as exc:
-                raise JobError(f"batch {i}/{len(payloads)}: {exc.message}") from exc
-            if first is None:
-                publish.freeze_volume_name(ctx.db, volume.id)
-            first = first or result  # the desktop reports the first ("replace") answer
-            ctx.progress(i, len(payloads), f"Batch {i} of {len(payloads)}")
-    return {"page_url": str(first.get("page_url") or ""), "created": bool(first.get("created")),
-            "batches": len(payloads), "images": len(inline) + (cover is not None)}

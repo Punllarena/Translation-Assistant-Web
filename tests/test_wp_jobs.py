@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from api import jobs, publish_job
-from api.models import DocumentImage, Volume
+from api.models import DocumentImage, Job, Volume
 
 SITE = "https://blog.example.com"
 PUBLISH = "/wp-json/ta-publisher/v1/publish"
@@ -152,54 +152,117 @@ def test_passwords_are_kept_in_the_job_result(app_client, me, ready, make_doc, w
     assert "k" * 12 not in json.dumps(app_client.get(f"/jobs/{jid}").json())
 
 
-def test_illustrations_upload_in_batches(app_client, me, ready, make_doc, wp_site, db, monkeypatch):
-    monkeypatch.setattr("api.core.wp._ILLUS_BATCH_BYTES", 50)  # cover (4) + a (40) fit; b splits
-    vol = Volume(series_id=ready.id, subtitle="Vol 1")
+def plates(me, series, make_doc, db, images=(("a.png", b"A" * 30),), cover=False, subtitle="Vol 1"):
+    """A volume whose first chapter is a marked, text-free Illustrations chapter holding `images`."""
+    vol = Volume(series_id=series.id, subtitle=subtitle)
     db.add(vol)
     db.flush()
-    doc = make_doc(me, ["一"], series=ready, order=1, volume=vol)
-    db.add_all([
-        DocumentImage(document_id=doc.id, anchor_position=0, src_path="a.png", data=b"A" * 30),
-        DocumentImage(document_id=doc.id, anchor_position=0, src_path="b.png", data=b"B" * 30),
-        DocumentImage(document_id=doc.id, anchor_position=0, src_path="c.jpg", data=b"C", is_cover=True),
-    ])
+    doc = make_doc(me, [], series=series, order=1, volume=vol, title="Illustrations")
+    doc.is_illustrations = True
+    db.add_all(DocumentImage(document_id=doc.id, anchor_position=0, src_path=src, data=data)
+               for src, data in images)
+    if cover:
+        db.add(DocumentImage(document_id=doc.id, anchor_position=0, src_path="c.jpg", data=b"C", is_cover=True))
     db.flush()
-    r = app_client.post(f"/volumes/{vol.id}/wp/illustrations")
-    assert r.status_code == 202
+    return vol, doc
+
+
+def test_illustrations_chapter_uploads_in_batches_own_images_first(
+        app_client, me, ready, make_doc, wp_site, db, monkeypatch):
+    monkeypatch.setattr("api.core.wp._ILLUS_BATCH_BYTES", 50)  # cover (4) + a (40) fit; then one per batch
+    vol, doc = plates(me, ready, make_doc, db, [("a.png", b"A" * 30), ("b.png", b"B" * 30)], cover=True)
+    text = make_doc(me, ["一"], series=ready, order=2, volume=vol)
+    db.add(DocumentImage(document_id=text.id, anchor_position=0, src_path="t.png", data=b"T" * 30))
+    db.flush()
+    r = app_client.post(f"/documents/{doc.id}/wp/illustrations", json={})
+    assert r.status_code == 202 and r.json()["kind"] == "wp_illustrations"
     jobs.run_next()
     job = app_client.get(f"/jobs/{r.json()['id']}").json()
-    assert job["state"] == "done" and job["result"]["batches"] == 2 and job["result"]["images"] == 3
-    modes = [(p, b["mode"], "cover" in b) for p, b in wp_site["posted"]]
-    assert modes == [(ILLUS, "replace", True), (ILLUS, "append", False)]
+    assert job["state"] == "done" and job["result"]["batches"] == 3 and job["result"]["images"] == 4
+    sent = [(p, b["mode"], "cover" in b, [i["filename"] for i in b["images"]]) for p, b in wp_site["posted"]]
+    assert sent == [(ILLUS, "replace", True, ["a.png"]), (ILLUS, "append", False, ["b.png"]),
+                    (ILLUS, "append", False, ["t.png"])]
+    db.refresh(doc)
+    assert (doc.wp_status, doc.wp_post_url, doc.wp_chapter_index) == ("publish", "pg", None)
+    assert doc.wp_published_at is not None and doc.wp_scheduled_for is None
+    db.refresh(vol)
+    assert vol.wp_volume_title == wp_site["posted"][0][1]["volume_title"] == "Volume - Vol 1"
 
 
-def test_illustrations_need_images_and_your_volume(app_client, me, ready, make_user, make_series, db, wp_site):
-    vol = Volume(series_id=ready.id, subtitle="Empty")
-    db.add(vol)
-    theirs = make_series(make_user(email="o@example.com"), "T")
-    other = Volume(series_id=theirs.id, subtitle="Theirs")
-    db.add(other)
-    db.flush()
-    r = app_client.post(f"/volumes/{vol.id}/wp/illustrations")
+def test_illustrations_endpoint_rules(app_client, me, ready, make_doc, make_user, make_series, wp_site, db):
+    vol, doc = plates(me, ready, make_doc, db)
+    url = f"/documents/{doc.id}/wp/illustrations"
+    theirs = make_doc(make_user(email="o@example.com"), [])
+    assert app_client.post(f"/documents/{theirs.id}/wp/illustrations", json={}).status_code == 404
+    text = make_doc(me, ["一"], series=ready, order=2, volume=vol)
+    r = app_client.post(f"/documents/{text.id}/wp/illustrations", json={})
+    assert r.status_code == 422 and "Illustrations chapter" in r.json()["detail"]
+    _, bare_doc = plates(me, make_series(me, "Bare"), make_doc, db)
+    r = app_client.post(f"/documents/{bare_doc.id}/wp/illustrations", json={})
+    assert r.status_code == 422 and "Bare" in r.json()["detail"]
+    _, empty = plates(me, ready, make_doc, db, images=(), subtitle="Vol 2")
+    r = app_client.post(f"/documents/{empty.id}/wp/illustrations", json={})
     assert r.status_code == 422 and "no illustrations" in r.json()["detail"]
-    assert app_client.post(f"/volumes/{other.id}/wp/illustrations").status_code == 404
+    # a queued batch that lists the chapter holds the upload
+    assert app_client.post("/wp/batch", json={"document_ids": [doc.id], "schedule": False}).status_code == 202
+    r = app_client.post(url, json={})
+    assert r.status_code == 409 and r.json()["detail"] == "an illustrations upload is already queued or running"
+    jobs.run_next()
+    db.refresh(doc)
+    assert doc.wp_status == "publish"
+    r = app_client.post(url, json={})
+    assert r.status_code == 409
+    assert r.json()["detail"] == "already published; publishing again overwrites the illustrations page"
+    assert app_client.post(url, json={"confirm_republish": True}).status_code == 202
+    r = app_client.post(url, json={"confirm_republish": True})
+    assert r.status_code == 409 and r.json()["detail"] == "an illustrations upload is already queued or running"
+    # nor may a batch take the chapter while its upload is queued
+    r = app_client.post("/wp/batch", json={"document_ids": [doc.id, text.id], "schedule": False,
+                                           "confirm_republish": True})
+    assert r.status_code == 409 and r.json()["detail"] == "an illustrations upload is already queued or running"
+    assert app_client.post("/wp/batch", json={"document_ids": [text.id], "schedule": False}).status_code == 202
 
 
-def test_one_illustrations_upload_at_a_time(app_client, me, ready, make_doc, wp_site, db):
-    vol = Volume(series_id=ready.id, subtitle="Vol 1")
-    db.add(vol)
-    db.flush()
-    doc = make_doc(me, ["一"], series=ready, order=1, volume=vol)
-    db.add(DocumentImage(document_id=doc.id, anchor_position=0, src_path="a.png", data=b"A"))
-    db.flush()
-    assert app_client.post(f"/volumes/{vol.id}/wp/illustrations").status_code == 202
-    r = app_client.post(f"/volumes/{vol.id}/wp/illustrations")
-    assert r.status_code == 409 and "already queued" in r.json()["detail"]
+def test_batch_routes_illustrations_chapter_to_upload(app_client, me, ready, make_doc, wp_site, db):
+    vol, doc = plates(me, ready, make_doc, db)
+    text = make_doc(me, ["一"], series=ready, order=2, volume=vol)
+    jid = app_client.post("/wp/batch", json={"document_ids": [text.id, doc.id], "schedule": False}).json()["id"]
+    jobs.run_next()
+    rows = app_client.get(f"/jobs/{jid}").json()["result"]["chapters"]
+    assert [(x["document_id"], x["ok"], x["illustrations"], x["chapter_number"]) for x in rows] == [
+        (doc.id, True, True, None), (text.id, True, False, 1)]
+    assert rows[0]["post_url"] == "pg" and rows[0]["password"] is None
+    assert [p for p, _ in wp_site["posted"]] == [ILLUS, PUBLISH]
+    db.refresh(doc)
+    assert (doc.wp_status, doc.wp_post_url, doc.wp_chapter_index) == ("publish", "pg", None)
+
+
+def test_batch_gives_illustrations_no_slot(app_client, me, ready, make_doc, wp_site, db):
+    vol, doc = plates(me, ready, make_doc, db)
+    texts = [make_doc(me, [f"行{i}"], series=ready, order=i + 1, volume=vol) for i in (1, 2)]
+    r = app_client.post("/wp/batch", json={
+        "document_ids": [d.id for d in (doc, *texts)], "schedule": True,
+        "start": "2026-11-01T20:00:00+09:00", "chapters_per_day": 2, "tz": "Asia/Tokyo"})
+    assert r.status_code == 202
+    params = db.get(Job, r.json()["id"]).params_json["chapters"]
+    assert params[0] == {"document_id": doc.id, "scheduled_for": None}
+    # the same slots test_batch_schedules_in_order_and_records_each gives its first two chapters
+    assert [p["scheduled_for"] for p in params[1:]] == ["2026-11-01T20:00:00+09:00", "2026-11-01T21:00:00+09:00"]
+    jobs.run_next()
+    dates = [(p, b.get("publish_date")) for p, b in wp_site["posted"]]
+    assert dates == [(ILLUS, None), (PUBLISH, "2026-11-01T11:00:00Z"), (PUBLISH, "2026-11-01T12:00:00Z")]
+    db.refresh(doc)
+    assert doc.wp_status == "publish" and doc.wp_scheduled_for is None
+
+
+def test_volume_illustrations_route_is_gone(app_client, me, ready, make_doc, wp_site, db):
+    vol, _ = plates(me, ready, make_doc, db)
+    assert app_client.post(f"/volumes/{vol.id}/wp/illustrations").status_code in (404, 405)
 
 
 def test_batch_rows_carry_display_numbers_and_flag_illustrations(
         app_client, me, ready, make_doc, wp_site, db):
-    illus = make_doc(me, ["絵"], series=ready, order=1, title="Illustrations")
+    illus = make_doc(me, [], series=ready, order=1, title="Illustrations")
     illus.is_illustrations = True
     docs = [make_doc(me, [f"行{i}"], series=ready, order=i + 1) for i in (1, 2)]
     db.flush()
@@ -210,5 +273,5 @@ def test_batch_rows_carry_display_numbers_and_flag_illustrations(
     rows = app_client.get(f"/jobs/{r.json()['id']}").json()["result"]["chapters"]
     assert [(x["chapter_number"], x["illustrations"], x["ok"]) for x in rows] == [
         (None, True, False), (1, False, True), (2, False, True)]
-    assert "Illustrations chapter" in rows[0]["error"]
+    assert "no illustrations" in rows[0]["error"]  # routed to the upload, which has no images
     assert [b["chapter_index"] for _, b in wp_site["posted"]] == [1, 2]
