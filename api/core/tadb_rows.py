@@ -183,9 +183,12 @@ def _import_documents(
     id_map: dict[int, Document] = {}
     oneshots: dict[str, Series | None] = {}
     fresh: set[int] = set()  # oneshot series created by this import
+    present = _existing_chapters(db, user_id)
+    left_out: set[int] = set()  # desktop chapters read but not imported
 
     for row in conn.execute("SELECT * FROM documents"):
         progress.step(1, "chapters")
+        left_out.add(row["id"])
         label = f"row {row['id']}"
         series_title = _get(row, "documents", "series_title", "")
         vol_title = _get(row, "documents", "volume_title", "")
@@ -208,14 +211,10 @@ def _import_documents(
                 _skip(report, "documents", label, f"volume {vol_title!r} was not imported")
                 continue
         series_id = series.id
-        existing = db.scalar(
-            select(Document).where(
-                Document.user_id == user_id,
-                Document.series_id == series_id,
-                Document.title == row["title"],
-            )
-        )
-        if existing is not None:
+        url = _get(row, "documents", "source_url", "")
+        key = ("url", series_id, url) if url else (
+            "name", series_id, volume.id if volume else None, row["title"])
+        if key in present:
             # A forced re-import of a ta.db that has been worked in since: keep the
             # chapter already here (it may have newer translations) and add only new ones.
             report.already_present["documents"] += 1
@@ -232,7 +231,7 @@ def _import_documents(
             source_language=_get(row, "documents", "source_language", "ja"),
             # Alone in a series made for it, a chapter is chapter 1.
             series_order=1 if series_id in fresh else _get(row, "documents", "series_order", 0),
-            source_url=_get(row, "documents", "source_url", ""),
+            source_url=url,
             last_position=_get(row, "documents", "last_position", 0),
             wp_status=_get(row, "documents", "wp_status", ""),
             wp_post_url=_get(row, "documents", "wp_post_url", ""),
@@ -243,6 +242,18 @@ def _import_documents(
         )
         if _add(db, doc, "documents", f"row {row['id']}", report):
             id_map[row["id"]] = doc
+            left_out.discard(row["id"])
+
+    # A left-out chapter's lines and images go with it, reported once per chapter.
+    taken_along: dict[int, list[int]] = {}  # desktop id -> [lines, images]
+
+    def along(table: str, row: sqlite3.Row) -> bool:
+        if row["document_id"] not in left_out:
+            return False
+        report.skipped[table] += 1
+        counts = taken_along.setdefault(row["document_id"], [0, 0])
+        counts[table == "document_images"] += 1
+        return True
 
     line_counts: dict[int, int] = {}
     batch: list[tuple[str, dict]] = []
@@ -250,7 +261,8 @@ def _import_documents(
         progress.step(1, "lines")  # report() throttles, so per row is cheap
         doc = id_map.get(row["document_id"])
         if doc is None:
-            _orphan(report, "lines", row, f"document_id {row['document_id']}")
+            if not along("lines", row):
+                _orphan(report, "lines", row, f"document_id {row['document_id']}")
             continue
         n = line_counts[doc.id] = line_counts.get(doc.id, 0) + 1
         if n > MAX_LINES:
@@ -288,7 +300,8 @@ def _import_documents(
         progress.step(1, "images")
         doc = id_map.get(row["document_id"])
         if doc is None:
-            _orphan(report, "document_images", row, f"document_id {row['document_id']}")
+            if not along("document_images", row):
+                _orphan(report, "document_images", row, f"document_id {row['document_id']}")
             continue
         if row["data"] is not None and len(row["data"]) > MAX_IMAGE_BYTES:
             _skip(report, "document_images", f"row {row['id']}",
@@ -311,7 +324,30 @@ def _import_documents(
             taken.add(doc.volume_id)
             continue
         _add_image(db, doc, row, report, excluded=True)
+    for desktop_id, (n_lines, n_images) in sorted(taken_along.items()):
+        parts = [_count(n, word) for n, word in ((n_lines, "line"), (n_images, "image")) if n]
+        report.messages.append(
+            f"documents row {desktop_id}: skipped along with it: {' and '.join(parts)}")
     progress.step(0, "images")  # the final count lands even with no images
+
+
+def _count(n: int, word: str) -> str:
+    return f"{n} {word}" if n == 1 else f"{n} {word}s"
+
+
+def _existing_chapters(db: Session, user_id: int) -> set[tuple]:
+    """The account's chapters before this import, as the keys a desktop row is matched by:
+    ("url", series, source_url) for one with a source URL, ("name", series, volume, title)
+    for every one. Chapters this import adds are never in it, so two desktop chapters that
+    share a title (an afterword in each volume, a recurring arc title) both land."""
+    keys: set[tuple] = set()
+    rows = db.execute(select(Document.series_id, Document.volume_id, Document.title,
+                             Document.source_url).where(Document.user_id == user_id))
+    for series_id, volume_id, title, url in rows:
+        if url:
+            keys.add(("url", series_id, url))
+        keys.add(("name", series_id, volume_id, title))
+    return keys
 
 
 def _add_image(db: Session, doc: Document, row: sqlite3.Row, report: ImportReport, *,
