@@ -45,11 +45,15 @@ To do:
 
 The library redesign numbers chapters **per volume** (Volume 1 Chapter 1…x, then Volume 2
 Chapter 1…) and keeps each volume a contiguous run of `series_order`. Moving a chapter between
-volumes renumbers `series_order`. Publishing still reads the series-wide `series_order`:
+volumes renumbers `series_order`. Publishing reads the series-wide `chapter_number`
+(`chapter_number` / `chapter_numbers` in `api/library.py`): `series_order` less the Illustrations
+chapters before it, so the Illustrations chapter never takes a number. It is still series-wide, not
+per volume:
 
-- `api/publish.py:141`: `wp_chapter_index = series_order`
-- `api/publish.py:98`: password / unlock-after window computed from `series_order`
-- `api/publish.py:167-171`: "previous chapter" found as `series_order - 1`
+- `api/publish.py:98`: `build_chapter` takes `chapter_number(db, doc)` as the chapter's WordPress
+  number (`doc_meta["series_order"]`) and computes the password / unlock-after window from it
+- `api/publish.py:181`: the confirm dialog's "previous chapter" is `previous_chapter` in
+  `api/library.py`, the nearest earlier chapter that is not an Illustrations chapter
 
 To do:
 

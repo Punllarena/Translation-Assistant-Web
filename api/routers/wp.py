@@ -32,6 +32,8 @@ router = api_router(tags=["wp"])
 http_client = wp_http.client  # the seam tests replace
 PROBE_SLUG = "ta-web-connection-test"
 UPLOAD_BUSY = "an illustrations upload is already queued or running"
+# The SPA asks to overwrite on this exact message (web/src/publish/wp.ts ILLUSTRATIONS_LIVE).
+ILLUSTRATIONS_LIVE = "already published; publishing again overwrites the illustrations page"
 ACTIVE = ("queued", "running")
 
 
@@ -201,8 +203,7 @@ def publish_illustrations(
     if doc.volume_id is None or not illustrations.has_images(db, doc.volume_id):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, illustrations.NO_IMAGES)
     if doc.wp_status in publish.LIVE and not body.confirm_republish:
-        raise HTTPException(status.HTTP_409_CONFLICT,
-                            "already published; publishing again overwrites the illustrations page")
+        raise HTTPException(status.HTTP_409_CONFLICT, ILLUSTRATIONS_LIVE)
     if _active(db, user.id, "wp_illustrations") or any(
         c["document_id"] == doc.id
         for j in _active(db, user.id, "wp_publish") for c in j.params_json["chapters"]

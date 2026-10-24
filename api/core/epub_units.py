@@ -2,7 +2,7 @@
 TOC anchors, and inline text rendering (ruby, alt text, bold). Split out of epub_read.py."""
 from bs4 import BeautifulSoup
 
-from api.core.epub_runs import Piece, units
+from api.core.epub_runs import Piece
 
 
 def anchors(xhtml: str, wanted: set[str]) -> list[str]:
@@ -13,13 +13,14 @@ def anchors(xhtml: str, wanted: set[str]) -> list[str]:
     return list(dict.fromkeys(tag["id"] for tag in tags))
 
 
-def count(pieces: tuple[Piece, ...], soup_of) -> tuple[int, int]:
-    """(characters of paragraph text, illustrations) over a chapter's pieces."""
+def count(pieces: tuple[Piece, ...], index_of) -> tuple[int, int]:
+    """(characters of paragraph text, illustrations) over a chapter's pieces; index_of
+    gives a file's UnitIndex, or None for a broken file."""
     chars = images = 0
     for piece in pieces:
-        if (soup := soup_of(piece.href)) is None:
+        if (index := index_of(piece.href)) is None:
             continue
-        for el in units(soup, piece.start, piece.end):
+        for el in index.between(piece.start, piece.end):
             if illustration_src(el):
                 images += 1
             elif el.name == "p":

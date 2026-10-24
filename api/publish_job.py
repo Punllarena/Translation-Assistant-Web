@@ -80,7 +80,9 @@ def publish_batch(ctx: JobContext) -> dict:
 
 @handler("wp_illustrations")
 def publish_illustrations(ctx: JobContext) -> dict:
-    doc = ctx.db.get(Document, ctx.params["document_id"])
+    # .get: a job queued before the Illustrations chapter carried {volume_id} instead
+    doc_id = ctx.params.get("document_id")
+    doc = ctx.db.get(Document, doc_id) if doc_id is not None else None
     if doc is None or doc.user_id != ctx.job.user_id or not doc.is_illustrations:
         raise JobError("the Illustrations chapter no longer exists")
     endpoint, key = _config(ctx)

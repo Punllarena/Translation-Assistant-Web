@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from api.core.text import natural_key
 from api.deps import current_user, db_session, scoped
 from api.errors import conflict
+from api.illustrations import unmark_syosetu
 from api.library import arrange, chapters, renumber
 from api.models import Document, Series, User
 from api.routing import api_router
@@ -65,6 +66,9 @@ def update_series(
                 setattr(series, field, value)
     except IntegrityError as exc:
         raise conflict(exc, TITLE_TAKEN) from exc
+    if changes.get("syosetu_url"):
+        unmark_syosetu(db, series)  # a syosetu series has no Illustrations chapter
+        db.flush()
     return series
 
 

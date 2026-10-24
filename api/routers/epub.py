@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from api.core.epub_build import build_epub
 from api.core.epub_read import EpubError, extract_chapter_content, open_book
 from api.core.epub_runs import Piece
-from api.core.epub_safety import MAX_UNCOMPRESSED, EpubBudgetExceeded
+from api.core.epub_safety import MAX_CHAPTERS, MAX_UNCOMPRESSED, EpubBudgetExceeded
 from api.core.text import (
     build_epub_content,
     build_new_file,
@@ -50,8 +50,6 @@ from api.volume_order import place
 router = api_router(tags=["epub"])
 
 MAX_EPUB_BYTES = 64 * 1024 * 1024  # plan ruling 3; Caddy allows the same on /api/epub/*
-# Starlette's multipart max_fields is 1000 and counts the other form fields too.
-MAX_CHAPTERS = 900
 
 
 def _over_budget() -> HTTPException:
@@ -179,6 +177,13 @@ def _import_chapter(
     return doc
 
 
+def _spine_order(hrefs: list[str], known: dict[str, dict]) -> list[str]:
+    """The posted hrefs in reading order whatever order the client sent; an href that is
+    not a chapter keeps its place, so it still reports its own error."""
+    ordered = iter(sorted((h for h in hrefs if h in known), key=lambda h: known[h]["order"]))
+    return [next(ordered) if h in known else h for h in hrefs]
+
+
 @router.post("/epub/import", response_model=EpubImportOut, status_code=status.HTTP_201_CREATED)
 def import_epub(
     file: UploadFile = File(...),
@@ -240,7 +245,7 @@ def import_epub(
     gather = not series.syosetu_url  # syosetu numbering has no Illustrations chapter
     cover_href = book["cover_href"]
     order = next_series_order(db, series.id)
-    for href in hrefs:
+    for href in _spine_order(hrefs, known):
         chapter = known.get(href)
         if chapter is None:
             errors.append(ChapterError(title=href, message="not a chapter of this EPUB"))
@@ -253,9 +258,9 @@ def import_epub(
             with db.begin_nested():
                 raw, translated, images = content = _extract(
                     data, chapter["pieces"], budget, soups)
-                if gather and chapter["image_only"] and images and not raw:
-                    if any(img["src_path"] != cover_href for img in images):
-                        plates.extend(images)  # a cover-only page is dropped
+                if gather and images and not raw:  # what it extracts to wins
+                    # the cover is the volume's cover, not a plate; a cover-only page is dropped
+                    plates.extend(img for img in images if img["src_path"] != cover_href)
                     continue
                 doc = _import_chapter(db, user, series, volume, title, order, content)
         except EpubBudgetExceeded:  # not per chapter: the whole import rolls back

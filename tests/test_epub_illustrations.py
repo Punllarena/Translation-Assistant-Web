@@ -3,6 +3,7 @@ import zipfile
 
 from api.core.epub_build import build_epub
 from api.models import Document, DocumentImage, Series
+from api.routers import epub as epub_router
 from tests.fixtures import epub as fx
 from tests.test_epub_api import PNG, upload
 
@@ -114,3 +115,49 @@ def test_budget_still_trips_413(app_client, me, db, monkeypatch, tmp_path):
     assert _import(app_client, data, hrefs).status_code == 201
     monkeypatch.setattr("api.routers.epub.MAX_UNCOMPRESSED", total - 1)
     assert _import(app_client, data, hrefs, volume_index="2").status_code == 413
+
+
+def test_extraction_wins_even_when_not_flagged_image_only(
+        app_client, me, db, monkeypatch, tmp_path):
+    real = epub_router.open_book
+
+    def unflagged(source):
+        book = real(source)
+        for chapter in book["chapters"]:
+            chapter["image_only"] = False
+        return book
+
+    monkeypatch.setattr(epub_router, "open_book", unflagged)
+    data = fx.split_book(tmp_path).read_bytes()
+    out = _import(app_client, data, _hrefs(app_client, data, "plate1", "Prologue")).json()
+    assert out["imported"] == ["Prologue", "Illustrations"]
+    (marked,) = _marked(db)
+    assert _images(db, marked.id) == PLATES[:1]
+
+
+def _with_page(src, dst, name: str, body: str) -> bytes:
+    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(dst, "w") as zout:
+        for info in zin.infolist():
+            data = zin.read(info.filename)
+            if info.filename == f"OEBPS/text/{name}.xhtml":
+                data = f"<html><body>{body}</body></html>".encode()
+            zout.writestr(info, data)
+    return dst.read_bytes()
+
+
+def test_the_cover_is_not_repeated_among_the_plates(app_client, me, db, tmp_path):
+    data = _with_page(fx.split_book(tmp_path), tmp_path / "both.epub", "plate1",
+                      fx._img("cover.jpg") + fx._img("plate1.jpg"))
+    out = _import(app_client, data, _hrefs(app_client, data, "plate1", "Prologue")).json()
+    assert out["imported"] == ["Prologue", "Illustrations"]
+    (marked,) = _marked(db)
+    assert _images(db, marked.id) == PLATES[:1]  # the cover is the volume's cover only
+
+
+def test_plates_follow_the_spine_whatever_order_is_posted(app_client, me, db, tmp_path):
+    data = fx.split_book(tmp_path).read_bytes()
+    hrefs = _hrefs(app_client, data, "plate1", "plate2", "plate3", "Prologue")
+    out = _import(app_client, data, [*reversed(hrefs), "nope.xhtml"]).json()
+    assert out["errors"] == [{"title": "nope.xhtml", "message": "not a chapter of this EPUB"}]
+    (marked,) = _marked(db)
+    assert _images(db, marked.id) == PLATES

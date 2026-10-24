@@ -275,3 +275,12 @@ def test_batch_rows_carry_display_numbers_and_flag_illustrations(
         (None, True, False), (1, False, True), (2, False, True)]
     assert "no illustrations" in rows[0]["error"]  # routed to the upload, which has no images
     assert [b["chapter_index"] for _, b in wp_site["posted"]] == [1, 2]
+
+
+def test_illustrations_job_queued_before_deploy_fails_cleanly(me, ready, make_doc, wp_site, db):
+    vol, _ = plates(me, ready, make_doc, db)
+    job = jobs.enqueue(db, me.id, "wp_illustrations", {"volume_id": vol.id, "series_id": ready.id})
+    jobs.run_next()
+    db.refresh(job)
+    assert (job.state, job.message) == ("failed", "the Illustrations chapter no longer exists")
+    assert wp_site["posted"] == []

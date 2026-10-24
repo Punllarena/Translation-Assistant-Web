@@ -6,8 +6,7 @@ import type { Doc } from "../library/shelf";
 import { invalidateLibrary } from "../library/queries";
 import { ConfirmDialog, Modal } from "../ui/Dialog";
 import { confirmLabel } from "./label";
-
-const LIVE = ["publish", "future"];
+import { asksOverwrite } from "./wp";
 
 /** Publish the volume's Illustrations chapter as its illustrations page: the confirm, the overwrite
  *  question when the page is already live, then the job's progress. A job still running from before
@@ -15,7 +14,7 @@ const LIVE = ["publish", "future"];
 export default function IllustrationsPublish({ doc, onClose }: { doc: Doc; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [newJob, setNewJob] = useState<number | null>(null);
-  const [conflict, setConflict] = useState<string | null>(null); // the 409, asking to overwrite
+  const [conflict, setConflict] = useState<string | null>(null); // the already-published 409
   const active = useQuery({
     queryKey: ["jobs", "active", "wp_illustrations", doc.id], gcTime: 0,
     queryFn: () => call(api.GET("/jobs", { params: { query: { active: true } } })),
@@ -30,7 +29,7 @@ export default function IllustrationsPublish({ doc, onClose }: { doc: Doc; onClo
       try {
         return await post();
       } catch (e) {
-        if (confirm_republish || !(e instanceof ApiError) || e.status !== 409 || !LIVE.includes(doc.wp_status)) throw e;
+        if (confirm_republish || !(e instanceof ApiError) || !asksOverwrite(e.status, e.message)) throw e;
         setConflict(e.message);
         return null;
       }

@@ -8,6 +8,9 @@ MAX_UNCOMPRESSED = 256 * 1024 * 1024  # cap what a book may expand to
 MAX_TEXT_ENTRY = 4 * 1024 * 1024  # one XML/XHTML file BeautifulSoup will parse
 # ponytail: 32 MiB of XML/XHTML parsed per open_book; giant omnibus EPUBs are refused
 MAX_PARSED_TEXT = 32 * 1024 * 1024
+# chapters per book (open_book refuses more; the TOC may hold 4x as many entries). The
+# import form posts one field per chapter and Starlette's multipart max_fields is 1000.
+MAX_CHAPTERS = 900
 
 _MB = 1024 * 1024
 

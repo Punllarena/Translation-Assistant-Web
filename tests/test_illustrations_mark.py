@@ -1,6 +1,6 @@
 import pytest
 
-from api.models import Document, Volume
+from api.models import Document, DocumentImage, Volume
 
 
 def _vol(db, series, order, name):
@@ -138,6 +138,22 @@ def test_deleting_its_volume_unmarks_it(app_client, db, lib):
     assert a.volume_id is None and not a.is_illustrations
 
 
+def _pics(db, doc, *names):
+    for name in names:
+        db.add(DocumentImage(document_id=doc.id, anchor_position=0, is_cover=False,
+                             src_path=name, data=name.encode()))
+    db.flush()
+
+
+def _held(db, doc_id):
+    rows = db.query(DocumentImage).filter_by(document_id=doc_id)
+    return [im.src_path for im in rows.order_by(DocumentImage.anchor_position, DocumentImage.id)]
+
+
+def _merge(client, s, ids, into):
+    return client.post(f"/series/{s.id}/volumes/merge", json={"volume_ids": ids, "into": into})
+
+
 def test_volume_merge_keeps_one_illustrations_chapter(app_client, db, me, make_doc, lib):
     s, v1, v2, d = lib
     v3 = _vol(db, s, 3, "V3")
@@ -145,17 +161,19 @@ def test_volume_merge_keeps_one_illustrations_chapter(app_client, db, me, make_d
     db.flush()
     for doc in (d["a"], d["d"], e):
         assert _mark(app_client, doc).status_code == 200
+    _pics(db, e, "e1")
+    _pics(db, d["a"], "x", "e1", "y")  # e1 is already held: dropped
+    _pics(db, d["d"], "y", "z")
 
-    def merge(ids, into):
-        return app_client.post(f"/series/{s.id}/volumes/merge",
-                               json={"volume_ids": ids, "into": into})
-
-    # into's own wins
-    assert merge([v1.id, v2.id, v3.id], v3.id).status_code == 200
+    # into's own wins; the others' images follow its own, by volume_order, and they go
+    assert _merge(app_client, s, [v1.id, v2.id, v3.id], v3.id).status_code == 200
     db.expire_all()
-    marked = [x.id for x in db.query(Document).filter_by(series_id=s.id)
-              if x.is_illustrations]
-    assert marked == [e.id]
+    docs = db.query(Document).filter_by(series_id=s.id).all()
+    assert [x.id for x in docs if x.is_illustrations] == [e.id]
+    assert {x.id for x in docs} == {e.id, d["b"].id, d["t"].id}
+    assert _held(db, e.id) == ["e1", "x", "y", "z"]
+    assert db.query(DocumentImage).filter(
+        DocumentImage.document_id.in_([d["a"].id, d["d"].id])).count() == 0
 
 
 def test_volume_merge_without_into_mark_keeps_first_by_volume_order(
@@ -166,10 +184,56 @@ def test_volume_merge_without_into_mark_keeps_first_by_volume_order(
     db.flush()
     for doc in (d["a"], d["d"]):
         _mark(app_client, doc)
-    r = app_client.post(f"/series/{s.id}/volumes/merge",
-                        json={"volume_ids": [v1.id, v2.id, v3.id], "into": v3.id})
+    _pics(db, d["a"], "a1")
+    _pics(db, d["d"], "d1")
+    r = _merge(app_client, s, [v1.id, v2.id, v3.id], v3.id)
     assert r.status_code == 200
     db.expire_all()
     marked = [x.id for x in db.query(Document).filter_by(series_id=s.id)
               if x.is_illustrations]
     assert marked == [d["a"].id]
+    assert db.get(Document, d["d"].id) is None
+    assert _held(db, d["a"].id) == ["a1", "d1"]
+
+
+def test_volume_merge_keeps_text_chapter_numbers(app_client, db, me, make_doc, make_series):
+    s = make_series(me, "Numbers")
+    v1, v2 = _vol(db, s, 1, "V1"), _vol(db, s, 2, "V2")
+    i1 = make_doc(me, [], series=s, volume=v1, order=1, title="i1")
+    make_doc(me, ["one"], series=s, volume=v1, order=2, title="c1")
+    make_doc(me, ["two"], series=s, volume=v1, order=3, title="c2")
+    i2 = make_doc(me, [], series=s, volume=v2, order=4, title="i2")
+    make_doc(me, ["three"], series=s, volume=v2, order=5, title="c3")
+    db.flush()
+    for doc in (i1, i2):
+        assert _mark(app_client, doc).status_code == 200
+    _pics(db, i2, "plate")
+
+    def numbers():
+        rows = [r for r in app_client.get("/documents").json() if r["series_id"] == s.id]
+        return {r["title"]: r["chapter_number"] for r in rows if not r["is_illustrations"]}
+
+    before = numbers()
+    assert before == {"c1": 1, "c2": 2, "c3": 3}
+    assert _merge(app_client, s, [v1.id, v2.id], v1.id).status_code == 200
+    assert numbers() == before
+
+
+def test_a_marked_chapter_cannot_move_to_a_syosetu_series(app_client, db, me, make_series, lib):
+    s, v1, v2, d = lib
+    _mark(app_client, d["a"])
+    web = make_series(me, "Web")
+    web.syosetu_url = "https://ncode.syosetu.com/n1/"
+    db.flush()
+    r = app_client.patch(f"/documents/{d['a'].id}", json={"series_id": web.id})
+    assert r.status_code == 409
+    assert r.json()["detail"] == "a syosetu series has no Illustrations chapter"
+
+
+def test_becoming_a_syosetu_series_unmarks_it(app_client, db, lib):
+    s, v1, v2, d = lib
+    _mark(app_client, d["a"])
+    r = app_client.patch(f"/series/{s.id}", json={"syosetu_url": "https://ncode.syosetu.com/n2/"})
+    assert r.status_code == 200
+    db.expire_all()
+    assert not db.get(Document, d["a"].id).is_illustrations

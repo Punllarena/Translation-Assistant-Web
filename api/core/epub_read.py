@@ -15,8 +15,9 @@ from urllib.parse import unquote
 
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
-from api.core.epub_runs import Piece, plan_chapters, units
+from api.core.epub_runs import Piece, UnitIndex, plan_chapters
 from api.core.epub_safety import (
+    MAX_CHAPTERS,
     EpubError,
     TextBudgetExceeded,
     charge,
@@ -146,6 +147,8 @@ def open_book(source: str | Path | IO[bytes]) -> dict:
         title = title_el.get_text(strip=True) if title_el else ""
 
         toc = _read_toc(zf, opf, opf_dir, parsed)
+        if len(toc) > 4 * MAX_CHAPTERS:
+            raise EpubError(f"the EPUB has more than {MAX_CHAPTERS} chapters")
         cover_href = _find_cover_href(opf, opf_dir)
         metadata = _find_metadata(opf)
 
@@ -161,23 +164,27 @@ def open_book(source: str | Path | IO[bytes]) -> dict:
                     texts[href] = None  # broken entry: counts nothing, so it is dropped
             return texts[href]
 
-        last: dict[str, BeautifulSoup | None] = {}  # chapters run in spine order
+        last: dict[str, UnitIndex | None] = {}  # chapters run in spine order
 
-        def soup_of(href: str) -> BeautifulSoup | None:
+        def index_of(href: str) -> UnitIndex | None:
             if href not in last:
                 xhtml = text_of(href)
                 last.clear()
-                last[href] = BeautifulSoup(xhtml, "html.parser") if xhtml else None
+                last[href] = UnitIndex(BeautifulSoup(xhtml, "html.parser")) if xhtml else None
             return last[href]
 
         spine = [href for href in _spine(opf, opf_dir) if text_of(href) is not None]
-        found = {
-            href: anchors(texts[href], {f for _, h, f in toc if h == href and f is not None})
-            for href in spine
-        }
+        wanted: dict[str, set[str]] = {}
+        for _, h, f in toc:
+            if f is not None:
+                wanted.setdefault(h, set()).add(f)
+        found = {href: anchors(texts[href], wanted.get(href, set())) for href in spine}
+        plan = plan_chapters(spine, toc, found)
+        if len(plan) > MAX_CHAPTERS:
+            raise EpubError(f"the EPUB has more than {MAX_CHAPTERS} chapters")
         chapters = []
-        for planned in plan_chapters(spine, toc, found):
-            char_count, image_count = count(planned.pieces, soup_of)
+        for planned in plan:
+            char_count, image_count = count(planned.pieces, index_of)
             if not (char_count or image_count):
                 continue
             chapters.append({
@@ -191,7 +198,7 @@ def open_book(source: str | Path | IO[bytes]) -> dict:
 
 def extract_chapter_content(
     source: str | Path | IO[bytes], href: str | Sequence[Piece],
-    budget: list[int] | None = None, soups: dict[str, BeautifulSoup] | None = None,
+    budget: list[int] | None = None, soups: dict[str, UnitIndex] | None = None,
 ) -> tuple[str, list[dict]]:
     """
     Returns (text, images) for one chapter: a plain href is the whole file, otherwise
@@ -216,9 +223,9 @@ def extract_chapter_content(
     when it would go negative); each distinct image is read once and repeated references
     share its bytes.
 
-    soups (filled in place) holds the last file parsed, so an import reading chapters in
-    book order parses, and charges, a file holding several chapters once; pass the same
-    dict only with the same source.
+    soups (filled in place) holds the last file parsed, as its UnitIndex, so an import
+    reading chapters in book order parses, and charges, a file holding several chapters
+    once; pass the same dict only with the same source.
     """
     try:
         zf = zipfile.ZipFile(source)
@@ -233,18 +240,18 @@ def extract_chapter_content(
         read_once: dict[str, bytes] = {}
         offset = 0  # keeps counting across pieces
         for piece in pieces:
-            soup = soups.get(piece.href) if soups is not None else None
-            if soup is None:
+            index = soups.get(piece.href) if soups is not None else None
+            if index is None:
                 try:  # each parse decompresses the file again, so it counts too
                     charge(budget, zf.getinfo(piece.href).file_size)
                 except KeyError:
                     pass  # read_text reports the missing file
-                soup = BeautifulSoup(read_text(zf, piece.href), "html.parser")
+                index = UnitIndex(BeautifulSoup(read_text(zf, piece.href), "html.parser"))
                 if soups is not None:
                     soups.clear()  # the last file only: chapters run in book order
-                    soups[piece.href] = soup
+                    soups[piece.href] = index
             base_dir = posixpath.dirname(piece.href)
-            for el in units(soup, piece.start, piece.end):
+            for el in index.between(piece.start, piece.end):
                 src = illustration_src(el)
                 if src:
                     resolved_src = _resolve(base_dir, src)

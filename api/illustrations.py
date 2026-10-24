@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 
 import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from api import publish
@@ -19,6 +19,7 @@ from api.models import Document, DocumentImage, Line, Series, User, Volume
 HAS_ONE = "this volume already has an Illustrations chapter"
 TITLE = "Illustrations"
 NO_IMAGES = "This volume has no illustrations to publish."
+SYOSETU = "a syosetu series has no Illustrations chapter"
 
 
 class IllustrationsRule(Exception):
@@ -40,8 +41,8 @@ def volume_has_one(db: Session, volume_id: int, besides: int | None = None) -> b
 
 def check_mark(db: Session, doc: Document) -> None:
     """Marking ``doc`` is allowed: syosetu-free series, no text, in a volume with none yet."""
-    if db.scalar(select(Series.syosetu_url).where(Series.id == doc.series_id)):
-        raise IllustrationsRule("a syosetu series has no Illustrations chapter")
+    if _syosetu(db, doc.series_id):
+        raise IllustrationsRule(SYOSETU)
     texts = db.scalars(select(Line.raw_text).where(Line.document_id == doc.id))
     if any(line_has_content(t) for t in texts):
         raise IllustrationsRule("only a chapter with no text can be the Illustrations chapter")
@@ -51,14 +52,59 @@ def check_mark(db: Session, doc: Document) -> None:
         raise IllustrationsRule(HAS_ONE)
 
 
-def check_move(doc: Document, volume_id: int | None, db: Session) -> None:
-    """A marked chapter may only move to another volume that has no Illustrations chapter."""
+def _syosetu(db: Session, series_id: int) -> bool:
+    return bool(db.scalar(select(Series.syosetu_url).where(Series.id == series_id)))
+
+
+def check_move(
+    doc: Document, volume_id: int | None, db: Session, series_id: int | None = None,
+) -> None:
+    """A marked chapter may only move to another volume, of a non-syosetu series
+    (``series_id``, default its own), that has no Illustrations chapter."""
     if not doc.is_illustrations:
         return
+    if _syosetu(db, doc.series_id if series_id is None else series_id):
+        raise IllustrationsRule(SYOSETU)
     if volume_id is None:
         raise IllustrationsRule("the Illustrations chapter must stay in a volume")
     if volume_id != doc.volume_id and volume_has_one(db, volume_id, besides=doc.id):
         raise IllustrationsRule(HAS_ONE)
+
+
+def unmark_syosetu(db: Session, series: Series) -> None:
+    """A series that just became a syosetu series keeps its Illustrations chapters as
+    ordinary chapters (the caller arranges)."""
+    if series.syosetu_url:
+        db.execute(update(Document).where(
+            Document.series_id == series.id, Document.is_illustrations.is_(True),
+        ).values(is_illustrations=False))
+
+
+def merge_into(db: Session, keep_id: int, losers: list[int]) -> None:
+    """Fold the losing Illustrations chapters' images into ``keep_id`` after its own, in
+    order (fresh rows, so they also sort after it by id), skipping a src_path it already
+    holds and a second cover, then delete the losers with their remaining rows."""
+    own = db.execute(select(DocumentImage.src_path, DocumentImage.is_cover)
+                     .where(DocumentImage.document_id == keep_id)).all()
+    held = {src for src, _ in own}
+    has_cover = any(cover for _, cover in own)
+    top = db.scalar(select(func.max(DocumentImage.anchor_position))
+                    .where(DocumentImage.document_id == keep_id)) or 0
+    for doc_id in losers:
+        rows = db.scalars(select(DocumentImage).where(DocumentImage.document_id == doc_id)
+                          .order_by(DocumentImage.anchor_position, DocumentImage.id))
+        for img in rows:
+            if img.src_path in held or (img.is_cover and has_cover):
+                continue
+            held.add(img.src_path)
+            has_cover = has_cover or img.is_cover
+            db.add(DocumentImage(
+                document_id=keep_id, anchor_position=max(img.anchor_position, top),
+                is_cover=img.is_cover, src_path=img.src_path, data=img.data,
+                exclude_export=img.exclude_export,
+            ))
+            db.flush()  # one at a time: ids follow the order
+    db.execute(delete(Document).where(Document.id.in_(losers)))
 
 
 def check_no_text(doc: Document, raw: list[str]) -> None:

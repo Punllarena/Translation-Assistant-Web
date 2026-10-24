@@ -40,17 +40,19 @@ def plan_chapters(
     anchors: dict[str, list[str]],
 ) -> list[Planned]:
     index = {href: i for i, href in enumerate(spine)}
+    # {fragment: position} per file: membership and order without scanning lists
+    where = {href: {f: n for n, f in enumerate(ids)} for href, ids in anchors.items()}
 
     on_spine: list[tuple[str, str, str | None]] = []
     off_spine: list[tuple[str, str, str | None]] = []
     for title, href, fragment in toc:
-        if fragment is not None and fragment not in anchors.get(href, []):
+        if fragment is not None and fragment not in where.get(href, {}):
             fragment = None
         (on_spine if href in index else off_spine).append((title, href, fragment))
 
     def order(entry: tuple[str, str, str | None]) -> tuple[int, int]:
         _, href, fragment = entry
-        return index[href], anchors[href].index(fragment) if fragment is not None else -1
+        return index[href], where[href][fragment] if fragment is not None else -1
 
     starts: list[tuple[str, str, str | None]] = []
     seen: set[tuple[str, str | None]] = set()
@@ -97,23 +99,41 @@ def plan_chapters(
     return planned
 
 
-def units(soup: BeautifulSoup, start: str | None, end: str | None) -> list[Tag]:
-    """The reader's paragraph/image units between two element ids, in document order."""
-    position = {id(tag): n for n, tag in enumerate(soup.find_all(True))}
-    unit_list = soup.find_all(["p", "image"])
-    unit_ids = {id(tag) for tag in unit_list}
+class UnitIndex:
+    """One parsed file's paragraph/image units, built once so cutting many chapters out
+    of the same file stays linear: the units in document order, and for every tag the
+    number of units before it, plus the first element carrying each id."""
 
-    def boundary(element_id: str | None, default: int) -> int:
-        if element_id is None:
+    def __init__(self, soup: BeautifulSoup) -> None:
+        self.soup = soup
+        self.units: list[Tag] = []
+        self._before: dict[int, int] = {}  # id(tag) -> units ahead of it in the document
+        self._by_id: dict[str, Tag] = {}
+        for tag in soup.find_all(True):
+            self._before[id(tag)] = len(self.units)
+            if (element_id := tag.get("id")) is not None:
+                self._by_id.setdefault(element_id, tag)
+            if tag.name in ("p", "image"):
+                self.units.append(tag)
+        self._unit_ids = {id(tag) for tag in self.units}
+
+    def _boundary(self, element_id: str | None, default: int) -> int:
+        if element_id is None or (el := self._by_id.get(element_id)) is None:
             return default
-        el = soup.find(id=element_id)
-        if el is None:
-            return default
-        node = el
-        while node is not None and id(node) not in unit_ids:
+        node = el  # an id inside a unit cuts at that whole unit
+        while node is not None and id(node) not in self._unit_ids:
             node = node.parent
-        return position[id(node if node is not None else el)]
+        return self._before[id(node if node is not None else el)]
 
-    low = boundary(start, -1)
-    high = boundary(end, len(position) + 1)
-    return [t for t in unit_list if low <= position[id(t)] < high]
+    def between(self, start: str | None, end: str | None) -> list[Tag]:
+        low = self._boundary(start, 0)
+        high = self._boundary(end, len(self.units))
+        return self.units[low:high]
+
+
+def units(
+    soup: BeautifulSoup, start: str | None, end: str | None, index: UnitIndex | None = None,
+) -> list[Tag]:
+    """The reader's paragraph/image units between two element ids, in document order.
+    Pass the file's UnitIndex when cutting several pieces from one soup."""
+    return (index or UnitIndex(soup)).between(start, end)

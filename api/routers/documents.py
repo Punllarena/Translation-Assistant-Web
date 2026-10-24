@@ -166,7 +166,7 @@ def update_document(
     volume_changed = "volume_id" in changes and changes["volume_id"] != doc.volume_id
     try:
         if (volume_changed or moving) and changes.get("is_illustrations") is not False:
-            check_move(doc, changes.get("volume_id"), db)
+            check_move(doc, changes.get("volume_id"), db, series_id)
         mark = changes.pop("is_illustrations", None)
         for field, value in changes.items():
             setattr(doc, field, value)

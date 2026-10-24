@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 from api.deps import current_user, db_session, scoped, scoped_volume
 from api.errors import conflict
 from api.fetch_job import FETCH_BUSY, fetch_active
-from api.illustrations import HAS_ONE, IllustrationsRule, check_move, rule_conflict
+from api.illustrations import (
+    HAS_ONE,
+    IllustrationsRule,
+    check_move,
+    merge_into,
+    rule_conflict,
+)
 from api.library import arrange, send_to_volume_end
 from api.models import Document, DocumentImage, Series, User, Volume, VolumeSyosetuGroup
 from api.routing import api_router
@@ -209,9 +215,8 @@ def merge_volumes(
         .where(Document.volume_id.in_(ids), Document.is_illustrations.is_(True))
         .order_by(Volume.id != body.into, Volume.volume_order, Volume.id)
     ).all()
-    if len(marked) > 1:
-        db.execute(update(Document).where(Document.id.in_([m[0] for m in marked[1:]]))
-                   .values(is_illustrations=False))
+    if len(marked) > 1:  # the others' images join it; an empty numbered chapter would not
+        merge_into(db, marked[0][0], [m[0] for m in marked[1:]])
     db.execute(update(Document).where(Document.volume_id.in_(others))
                .values(volume_id=body.into))
     db.execute(update(VolumeSyosetuGroup).where(VolumeSyosetuGroup.volume_id.in_(others))
