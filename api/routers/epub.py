@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import DataError
 from sqlalchemy.orm import Session
 
+from api import covers
 from api.core.epub_build import build_epub
 from api.core.epub_read import EpubError, extract_chapter_content, open_book
 from api.core.epub_runs import Piece
@@ -168,7 +169,7 @@ def _import_chapter(
     write_lines(db, doc.id, lines_to_db_rows(raw, translated))
     db.add_all(
         DocumentImage(
-            document_id=doc.id, anchor_position=img["anchor_position"], is_cover=False,
+            document_id=doc.id, anchor_position=img["anchor_position"],
             src_path=img["src_path"], data=img["data"],
         )
         for img in images
@@ -282,12 +283,7 @@ def import_epub(
         detail = "; ".join(f"{e.title} — {e.message}" for e in errors) or "no chapters"
         raise _unprocessable(f"nothing imported: {detail}")
 
-    if cover_href and first_doc is not None and not db.scalar(
-        select(DocumentImage.id)
-        .join(Document, Document.id == DocumentImage.document_id)
-        .where(Document.volume_id == volume.id, DocumentImage.is_cover.is_(True))
-        .limit(1)
-    ):
+    if cover_href and first_doc is not None and covers.volume_cover(db, volume.id) is None:
         try:
             cover = zipfile.ZipFile(data).read(cover_href)
         except (zipfile.BadZipFile, KeyError, ValueError, RuntimeError, NotImplementedError,
@@ -297,10 +293,7 @@ def import_epub(
             budget[0] -= len(cover)
             if budget[0] < 0:
                 raise _over_budget()
-            db.add(DocumentImage(
-                document_id=first_doc.id, anchor_position=0, is_cover=True,
-                src_path=cover_href, data=cover,
-            ))
+            covers.set_cover(db, volume.id, cover, cover_href)
     db.flush()
     arrange(db, series)  # chapters added to an earlier volume move ahead of later ones
     db.flush()
@@ -326,17 +319,16 @@ def export_volume(
     volume = scoped_volume(db, volume_id, user.id)
     docs = db.scalars(select(Document).where(Document.volume_id == volume.id)
                       .order_by(Document.series_order, Document.id))
-    chapters, cover, incomplete = [], None, []
+    chapters, incomplete = [], []
+    cover = None
+    if (row := covers.volume_cover(db, volume.id)) is not None:
+        media = mimetypes.guess_type(row.src_path)[0] or "application/octet-stream"
+        cover = {"data": row.data, "media_type": media}
     for doc in docs:
         raw, translated = line_arrays(db, doc.id)
         images = list(db.scalars(select(DocumentImage).where(DocumentImage.document_id == doc.id)
                                  .order_by(DocumentImage.anchor_position, DocumentImage.id)))
-        inline = [im for im in images if not im.is_cover and not im.exclude_export]
-        if cover is None:
-            row = next((im for im in images if im.is_cover), None)
-            if row is not None:
-                media = mimetypes.guess_type(row.src_path)[0] or "application/octet-stream"
-                cover = {"data": row.data, "media_type": media}
+        inline = [im for im in images if not im.exclude_export]
         has_text = any(line_has_content(r) for r in raw)
         if not has_text and not inline:
             continue  # nothing to show; it must not block the volume (desktop)

@@ -17,9 +17,10 @@ from sqlalchemy import (
     false,
     func,
     literal,
+    select,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 from sqlalchemy.sql.elements import ColumnElement
 
 from api.core import volume_names
@@ -116,6 +117,10 @@ class Volume(Base):
     # What WordPress was first sent as volume_title; the plugin keys pages on it, so it
     # never changes once set. None = never published.
     wp_volume_title: Mapped[str | None] = mapped_column(Text)
+    # The series cover is this volume's cover (at most one per series, index below).
+    is_series_cover: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     series: Mapped[Series] = relationship(back_populates="volumes")
 
     @classmethod
@@ -155,6 +160,10 @@ class Volume(Base):
 Index(
     "uq_volumes_kind_index", Volume.series_id, func.lower(Volume.kind), Volume.volume_index,
     unique=True, postgresql_where=Volume.volume_index.is_not(None),
+)
+Index(
+    "uq_volumes_series_cover", Volume.series_id,
+    unique=True, postgresql_where=Volume.is_series_cover.is_(True),
 )
 Index(
     "uq_volumes_kind_subtitle", Volume.series_id, func.lower(Volume.kind), Volume.subtitle,
@@ -269,12 +278,33 @@ class DocumentImage(Base):
         ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
     )
     anchor_position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    is_cover: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     src_path: Mapped[str] = mapped_column(Text, nullable=False)
     data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     exclude_export: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     document: Mapped[Document] = relationship(back_populates="images")
+
+
+class VolumeCover(Base):
+    """A volume's cover image; replacing it makes a new row, so its id is a cache key."""
+
+    __tablename__ = "volume_covers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    volume_id: Mapped[int] = mapped_column(
+        ForeignKey("volumes.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    src_path: Mapped[str] = mapped_column(Text, nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+Volume.cover_id = column_property(
+    select(VolumeCover.id).where(VolumeCover.volume_id == Volume.id)
+    .correlate_except(VolumeCover).scalar_subquery()
+)
 
 
 class MtCache(Base):

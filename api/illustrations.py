@@ -7,14 +7,14 @@ from datetime import UTC, datetime
 
 import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from api import publish
 from api.core import wp, wp_http
 from api.core.text import line_has_content
 from api.core.wp import WPPublishError
-from api.models import Document, DocumentImage, Line, Series, User, Volume
+from api.models import Document, DocumentImage, Line, Series, User, Volume, VolumeCover
 
 HAS_ONE = "this volume already has an Illustrations chapter"
 TITLE = "Illustrations"
@@ -83,24 +83,21 @@ def unmark_syosetu(db: Session, series: Series) -> None:
 def merge_into(db: Session, keep_id: int, losers: list[int]) -> None:
     """Fold the losing Illustrations chapters' images into ``keep_id`` after its own, in
     order (fresh rows, so they also sort after it by id), skipping a src_path it already
-    holds and a second cover, then delete the losers with their remaining rows."""
-    own = db.execute(select(DocumentImage.src_path, DocumentImage.is_cover)
-                     .where(DocumentImage.document_id == keep_id)).all()
-    held = {src for src, _ in own}
-    has_cover = any(cover for _, cover in own)
+    holds, then delete the losers with their remaining rows."""
+    held = set(db.scalars(select(DocumentImage.src_path)
+                          .where(DocumentImage.document_id == keep_id)))
     top = db.scalar(select(func.max(DocumentImage.anchor_position))
                     .where(DocumentImage.document_id == keep_id)) or 0
     for doc_id in losers:
         rows = db.scalars(select(DocumentImage).where(DocumentImage.document_id == doc_id)
                           .order_by(DocumentImage.anchor_position, DocumentImage.id))
         for img in rows:
-            if img.src_path in held or (img.is_cover and has_cover):
+            if img.src_path in held:
                 continue
             held.add(img.src_path)
-            has_cover = has_cover or img.is_cover
             db.add(DocumentImage(
                 document_id=keep_id, anchor_position=max(img.anchor_position, top),
-                is_cover=img.is_cover, src_path=img.src_path, data=img.data,
+                src_path=img.src_path, data=img.data,
                 exclude_export=img.exclude_export,
             ))
             db.flush()  # one at a time: ids follow the order
@@ -139,7 +136,7 @@ def add_images(
         db.add(doc)
         db.flush()
     db.add_all(
-        DocumentImage(document_id=doc.id, anchor_position=0, is_cover=False,
+        DocumentImage(document_id=doc.id, anchor_position=0,
                       src_path=img["src_path"], data=img["data"])
         for img in fresh
     )
@@ -150,10 +147,10 @@ def has_images(db: Session, volume_id: int) -> bool:
     """Whether ``upload`` would find anything to send (the volume_images filter, no bytes)."""
     return db.scalar(
         select(DocumentImage.id).join(Document, Document.id == DocumentImage.document_id)
-        .where(Document.volume_id == volume_id,
-               or_(DocumentImage.is_cover, DocumentImage.exclude_export.is_(False)))
+        .where(Document.volume_id == volume_id, DocumentImage.exclude_export.is_(False))
         .limit(1)
-    ) is not None
+    ) is not None or db.scalar(
+        select(VolumeCover.id).where(VolumeCover.volume_id == volume_id)) is not None
 
 
 def upload(

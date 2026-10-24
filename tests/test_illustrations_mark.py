@@ -140,7 +140,7 @@ def test_deleting_its_volume_unmarks_it(app_client, db, lib):
 
 def _pics(db, doc, *names):
     for name in names:
-        db.add(DocumentImage(document_id=doc.id, anchor_position=0, is_cover=False,
+        db.add(DocumentImage(document_id=doc.id, anchor_position=0,
                              src_path=name, data=name.encode()))
     db.flush()
 

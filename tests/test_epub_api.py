@@ -4,7 +4,7 @@ import zipfile
 import pytest
 
 from api.core.epub_build import build_epub
-from api.models import Document, DocumentImage, Series, Volume
+from api.models import Document, DocumentImage, Series, Volume, VolumeCover
 from tests.fixtures import epub as fx
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 32
@@ -44,8 +44,8 @@ def test_import_creates_series_volume_chapters_and_cover(app_client, me, db):
     vid = out["volume_id"]
     assert [(d.chapter_title, d.volume_id) for d in docs] == [("One", vid), ("Two", vid)]
     assert db.get(Volume, out["volume_id"]).epub_author == "Author"
-    covers = db.query(DocumentImage).filter_by(document_id=docs[0].id, is_cover=True).count()
-    assert covers == 1
+    assert db.query(VolumeCover).filter_by(volume_id=vid).count() == 1
+    assert db.query(DocumentImage).count() == 0  # the book's only image is its cover
 
 
 def test_reimport_skips_chapters_already_in_the_volume(app_client, me):
@@ -191,7 +191,7 @@ def test_repeated_refs_to_a_small_image_store_one_row_per_reference(app_client, 
     data = _refs_book(3)
     out = _import(app_client, data, _book_hrefs(app_client, data)).json()
     assert out["imported"] == ["A"] and out["errors"] == []
-    rows = (db.query(DocumentImage).filter_by(is_cover=False)
+    rows = (db.query(DocumentImage)
             .order_by(DocumentImage.anchor_position).all())
     assert [r.anchor_position for r in rows] == [1, 2, 3]
     assert {r.src_path for r in rows} == {"OEBPS/images/pic.png"}

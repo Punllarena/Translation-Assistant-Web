@@ -61,14 +61,14 @@ def test_list_reports_progress_and_only_mine(app_client, db, me, make_user, make
     half.lines[0].translated_text = "A"
     make_doc(me, ["a", "", "b"], title="Blanks ignored")
     pictures = make_doc(me, [], title="Pictures")
-    db.add(DocumentImage(document_id=pictures.id, src_path="p.png", data=b"x", is_cover=True))
+    db.add(DocumentImage(document_id=pictures.id, src_path="p.png", data=b"x"))
     make_doc(make_user(email="other@example.com"), ["z"], title="Theirs")
     db.flush()
     rows = {d["title"]: d for d in app_client.get("/documents").json()}
     assert set(rows) == {"Half", "Blanks ignored", "Pictures"}
     assert (rows["Half"]["progress"], rows["Half"]["line_count"]) == (50, 2)
     assert rows["Blanks ignored"]["progress"] == 100
-    assert (rows["Pictures"]["progress"], rows["Pictures"]["has_cover"]) == (100, True)
+    assert (rows["Pictures"]["progress"], rows["Pictures"]["image_count"]) == (100, 1)
 
 
 def test_moving_series_appends_and_leaves_volume(app_client, db, me, make_series, make_doc):
@@ -131,16 +131,3 @@ def test_create_line_count_is_capped(app_client, me, make_series, monkeypatch):
 )
 def test_integer_fields_are_bounded(app_client, me, method, path, body):
     assert getattr(app_client, method)(path, json=body).status_code == 422
-
-
-def test_list_reports_the_cover_image_id(app_client, db, me, make_doc):
-    plain = make_doc(me, [], title="Plain")
-    covered = make_doc(me, [], title="Covered")
-    db.add(DocumentImage(document_id=plain.id, src_path="i.png", data=b"x", is_cover=False))
-    first = DocumentImage(document_id=covered.id, src_path="c1.png", data=b"x", is_cover=True)
-    second = DocumentImage(document_id=covered.id, src_path="c2.png", data=b"x", is_cover=True)
-    db.add_all([first, second])
-    db.flush()
-    rows = {d["title"]: d for d in app_client.get("/documents").json()}
-    assert rows["Covered"]["cover_image_id"] == min(first.id, second.id)
-    assert rows["Plain"]["cover_image_id"] is None

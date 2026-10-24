@@ -24,7 +24,7 @@ def _hrefs(client, data: bytes, *titles: str) -> list[str]:
 
 
 def _images(db, doc_id: int) -> list[str]:
-    rows = db.query(DocumentImage).filter_by(document_id=doc_id, is_cover=False)
+    rows = db.query(DocumentImage).filter_by(document_id=doc_id)
     return [im.src_path for im in rows.order_by(DocumentImage.id)]
 
 
@@ -109,7 +109,7 @@ def test_budget_still_trips_413(app_client, me, db, monkeypatch, tmp_path):
     hrefs = _hrefs(app_client, data, "plate1", "plate2", "plate3")
     with zipfile.ZipFile(tmp_path / "split.epub") as zf:
         pages = [f"OEBPS/text/plate{n}.xhtml" for n in (1, 2, 3)]
-        cover = ["OEBPS/images/cover.jpg"]  # attached to the first document
+        cover = ["OEBPS/images/cover.jpg"]  # the volume cover
         total = sum(zf.getinfo(p).file_size for p in pages + PLATES + cover)
     monkeypatch.setattr("api.routers.epub.MAX_UNCOMPRESSED", total)
     assert _import(app_client, data, hrefs).status_code == 201

@@ -24,7 +24,7 @@ from api.core.tadb_schema import (
     _skip,
 )
 from api.core.tadb_volumes import _volume_meta, find_or_add_volume
-from api.models import Document, DocumentImage, Series, Volume
+from api.models import Document, DocumentImage, Series, Volume, VolumeCover
 
 # The same caps every other import path enforces (api/library.py MAX_LINES, image uploads
 # in api/routers/volumes.py): a browser upload is user input now, not an operator's CLI file.
@@ -283,6 +283,7 @@ def _import_documents(
             batch = []
     insert_lines(db, batch, report)
 
+    covers: list[tuple] = []  # desktop chapter covers in a volume, placed after the loop
     for row in conn.execute("SELECT * FROM document_images"):
         progress.step(1, "images")
         doc = id_map.get(row["document_id"])
@@ -293,13 +294,33 @@ def _import_documents(
             _skip(report, "document_images", f"row {row['id']}",
                   f"image larger than {MAX_IMAGE_BYTES} bytes")
             continue
-        image = DocumentImage(
-            document_id=doc.id,
-            anchor_position=_get(row, "document_images", "anchor_position", 0),
-            is_cover=bool(_get(row, "document_images", "is_cover", 0)),
-            src_path=row["src_path"],
-            data=row["data"],
-            exclude_export=bool(_get(row, "document_images", "exclude_export", 0)),
-        )
-        _add(db, image, "document_images", f"row {row['id']}", report)
+        is_cover = bool(_get(row, "document_images", "is_cover", 0))
+        anchor = _get(row, "document_images", "anchor_position", 0)
+        if is_cover and doc.volume_id is not None:
+            covers.append((doc.series_order, doc.id, anchor, row["id"], doc, row))
+            continue
+        _add_image(db, doc, row, report, excluded=is_cover)
+    # The volume is the home of covers: the first desktop cover per volume (by chapter order)
+    # becomes its cover unless it has one; any other stays an image, excluded from export.
+    taken = set(db.scalars(select(VolumeCover.volume_id).where(
+        VolumeCover.volume_id.in_({c[4].volume_id for c in covers}))))
+    for *_, doc, row in sorted(covers, key=lambda c: c[:4]):
+        cover = VolumeCover(volume_id=doc.volume_id, src_path=row["src_path"], data=row["data"])
+        if doc.volume_id not in taken and _add(
+                db, cover, "volume_covers", f"row {row['id']}", report):
+            taken.add(doc.volume_id)
+            continue
+        _add_image(db, doc, row, report, excluded=True)
     progress.step(0, "images")  # the final count lands even with no images
+
+
+def _add_image(db: Session, doc: Document, row: sqlite3.Row, report: ImportReport, *,
+               excluded: bool) -> None:
+    image = DocumentImage(
+        document_id=doc.id,
+        anchor_position=_get(row, "document_images", "anchor_position", 0),
+        src_path=row["src_path"],
+        data=row["data"],
+        exclude_export=excluded or bool(_get(row, "document_images", "exclude_export", 0)),
+    )
+    _add(db, image, "document_images", f"row {row['id']}", report)
