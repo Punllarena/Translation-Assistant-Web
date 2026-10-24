@@ -95,6 +95,8 @@ class VolumeOut(BaseModel):
     epub_illustrator: str
     epub_publisher: str
     epub_identifier: str
+    cover_id: int | None = None
+    is_series_cover: bool
 
     @field_validator("volume_index", mode="before")
     @classmethod
@@ -102,9 +104,18 @@ class VolumeOut(BaseModel):
         return format_index(value) if isinstance(value, Decimal) else value
 
 
-class CoverOut(BaseModel):
+class VolumeCoverOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    document_id: int
+    volume_id: int
     src_path: str
+
+
+class CoverUrl(BaseModel):
+    url: str = Field(min_length=1, max_length=2000)
+
+
+class SeriesCoverVolume(BaseModel):
+    volume_id: int | None
+

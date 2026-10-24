@@ -1,8 +1,8 @@
 import { ApiError, errorMessage } from "../api/client";
 
-/** POST multipart form data (the generated client types JSON bodies only). */
-export async function postForm<T>(path: string, form: FormData): Promise<T> {
-  const response = await fetch(`/api${path}`, { method: "POST", body: form });
+/** POST (or PUT) multipart form data (the generated client types JSON bodies only). */
+export async function postForm<T>(path: string, form: FormData, method: "POST" | "PUT" = "POST"): Promise<T> {
+  const response = await fetch(`/api${path}`, { method, body: form });
   if (!response.ok) {
     throw new ApiError(
       response.status,

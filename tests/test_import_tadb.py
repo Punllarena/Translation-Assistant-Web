@@ -14,6 +14,7 @@ from api.models import (
     Series,
     UserSetting,
     Volume,
+    VolumeCover,
 )
 from tests.fixtures.tadb import DESKTOP_DDL
 from tests.fixtures.tadb import add_chapter as _add_chapter
@@ -38,10 +39,9 @@ def test_import_loads_the_whole_library(db, make_user, tmp_path):
     lines = db.query(Line).filter_by(document_id=doc.id).order_by(Line.line_number).all()
     assert [row.raw_text for row in lines] == ["一行目", "二行目"]
     assert lines[0].translated_text == "Line one"
-    image = db.query(DocumentImage).filter_by(document_id=doc.id).one()
-    assert image.is_cover is True and image.exclude_export is True
-    assert image.anchor_position == 5 and image.src_path == "cover.jpg"
-    assert bytes(image.data) == b"\xff\xd8\xff"
+    assert db.query(DocumentImage).filter_by(document_id=doc.id).count() == 0
+    cover = db.query(VolumeCover).filter_by(volume_id=doc.volume_id).one()  # chapter → volume
+    assert cover.src_path == "cover.jpg" and bytes(cover.data) == b"\xff\xd8\xff"
     assert doc.series_order == 7 and doc.wp_status == "publish"
     assert doc.last_position == 3 and doc.source_url == "https://src/1"
     assert doc.chapter_title == "Chapter 1 - The Start"
@@ -212,7 +212,8 @@ def test_older_database_without_optional_columns_imports(db, make_user, tmp_path
     assert doc.series_order == 7
     assert db.query(Line).filter_by(document_id=doc.id).first().translated_at is None
     image = db.query(DocumentImage).filter_by(document_id=doc.id).one()
-    assert image.exclude_export is False and image.anchor_position == 5
+    # a cover on a chapter with no volume has no volume to go to: kept, excluded from export
+    assert image.exclude_export is True and image.anchor_position == 5
 
 
 def test_rows_failing_validation_are_reported_not_dropped_silently(db, make_user, tmp_path):
@@ -698,3 +699,18 @@ def test_glossary_rows_of_a_missing_profile_are_reported(db, make_user, tmp_path
     report = import_tadb(db, path, make_user().id)
     assert report.skipped["glossary"] == 1
     assert any("profile_id 99" in m for m in report.messages)
+
+
+def test_a_later_cover_in_the_volume_stays_an_excluded_image(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _add_chapter(path, "Chapter 2")  # series_order 9, after chapter 1's 7, same volume
+    conn = sqlite3.connect(path)
+    conn.execute("INSERT INTO document_images (document_id, anchor_position, is_cover, src_path,"
+                  " data, exclude_export) VALUES (2, 0, 1, 'later.jpg', X'FFD8FF', 0)")
+    conn.commit()
+    conn.close()
+    user = make_user()
+    import_tadb(db, path, user.id)
+    later = db.query(DocumentImage).one()
+    assert (later.src_path, later.exclude_export) == ("later.jpg", True)
+    assert db.query(VolumeCover).one().src_path == "cover.jpg"

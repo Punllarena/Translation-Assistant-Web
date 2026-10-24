@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from api import publish
-from api.models import DocumentImage
+from api.models import DocumentImage, Volume, VolumeCover
 from api.routers import wp as wp_router
 
 SITE = "https://blog.example.com"
@@ -144,10 +144,13 @@ def test_unpublishable_chapters_are_422(app_client, me, ready, make_doc, wp_site
 
 def test_inline_images_and_cover_ride_along(app_client, me, ready, make_doc, wp_site, db):
     _, posted = wp_site
-    doc = make_doc(me, ["一", "二"], series=ready, order=1)
+    vol = Volume(series_id=ready.id, subtitle="V1")
+    db.add(vol)
+    db.flush()
+    doc = make_doc(me, ["一", "二"], series=ready, order=1, volume=vol)
     db.add_all([
         DocumentImage(document_id=doc.id, anchor_position=1, src_path="i/a.png", data=b"A"),
-        DocumentImage(document_id=doc.id, anchor_position=0, src_path="i/c.jpg", data=b"C", is_cover=True),  # noqa: E501
+        VolumeCover(volume_id=vol.id, src_path="i/c.jpg", data=b"C"),
         DocumentImage(document_id=doc.id, anchor_position=0, src_path="i/x.png", data=b"X", exclude_export=True),  # noqa: E501
     ])
     db.flush()
@@ -251,14 +254,35 @@ def test_numbers_match_a_volume_without_illustrations(
 
 def test_cover_goes_with_first_numbered_chapter(app_client, me, ready, make_doc, wp_site, db):
     _, posted = wp_site
-    illus = make_doc(me, ["絵"], series=ready, order=1, title="Illustrations")
+    vol = Volume(series_id=ready.id, subtitle="V1")
+    db.add(vol)
+    db.flush()
+    illus = make_doc(me, ["絵"], series=ready, order=1, title="Illustrations", volume=vol)
     illus.is_illustrations = True
-    first = make_doc(me, ["一"], series=ready, order=2)
-    db.add(DocumentImage(document_id=first.id, anchor_position=0, src_path="c.jpg",
-                         data=b"C", is_cover=True))
+    first = make_doc(me, ["一"], series=ready, order=2, volume=vol)
+    db.add(VolumeCover(volume_id=vol.id, src_path="c.jpg", data=b"C"))
     db.flush()
     assert app_client.post(f"/documents/{first.id}/wp/publish", json={}).status_code == 200
     assert posted[0]["chapter_index"] == 1 and posted[0].get("cover")
+
+
+def test_chapter_one_sends_the_chosen_series_cover(app_client, me, ready, make_doc, wp_site, db):
+    _, posted = wp_site
+    v1 = Volume(series_id=ready.id, subtitle="V1", volume_order=1)
+    v2 = Volume(series_id=ready.id, subtitle="V2", volume_order=2)
+    db.add_all([v1, v2])
+    db.flush()
+    db.add_all([VolumeCover(volume_id=v1.id, src_path="one.jpg", data=b"1"),
+                VolumeCover(volume_id=v2.id, src_path="two.jpg", data=b"2")])
+    first = make_doc(me, ["一"], series=ready, order=1, volume=v1)
+    second = make_doc(me, ["二"], series=ready, order=2, volume=v2)
+    db.flush()
+    assert app_client.put(f"/series/{ready.id}/cover-volume",
+                          json={"volume_id": v2.id}).status_code == 204
+    app_client.post(f"/documents/{first.id}/wp/publish", json={})
+    app_client.post(f"/documents/{second.id}/wp/publish", json={})
+    assert posted[0]["cover"]["filename"] == "two.jpg"
+    assert "cover" not in posted[1]  # chapter 1 only
 
 
 def test_refresh_status_skips_the_illustrations_chapter(

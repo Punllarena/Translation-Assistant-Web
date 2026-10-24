@@ -5,14 +5,14 @@ helpers. Used by api/routers/wp.py and api/publish_job.py."""
 from dataclasses import dataclass
 from datetime import UTC, datetime, tzinfo
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from api import server_settings
+from api import covers, server_settings
 from api.core import wp
 from api.core.images import shrink_image
 from api.library import chapter_number, previous_chapter
-from api.models import ApiCredential, Document, DocumentImage, Line, Series, Volume
+from api.models import ApiCredential, Document, DocumentImage, Line, Series, Volume, VolumeCover
 from api.mt.urls import check_user_url
 from api.security import decrypt_secret
 from api.wp_prefs import WpPrefs
@@ -66,11 +66,12 @@ def series_meta(series: Series) -> dict:
             "syosetu_url": series.syosetu_url}
 
 
-def image_dict(im: DocumentImage) -> dict:
+def image_dict(im: DocumentImage | VolumeCover) -> dict:
     """The desktop's in-place shrink: downscaled bytes get a .jpg name."""
     data = shrink_image(im.data)
     src = im.src_path if data is im.data else im.src_path.rsplit(".", 1)[0] + ".jpg"
-    return {"id": im.id, "anchor_position": im.anchor_position, "src_path": src, "data": data}
+    return {"id": im.id, "anchor_position": getattr(im, "anchor_position", 0), "src_path": src,
+            "data": data}
 
 
 @dataclass(frozen=True)
@@ -107,16 +108,16 @@ def build_chapter(db: Session, doc: Document, prefs: WpPrefs) -> Chapter:
         raise NotReady("No translated lines to publish.")
     images = db.scalars(select(DocumentImage).where(DocumentImage.document_id == doc.id)
                         .order_by(DocumentImage.anchor_position, DocumentImage.id)).all()
-    inline = [image_dict(im) for im in images if not im.is_cover and not im.exclude_export]
-    cover = next((im for im in images if im.is_cover), None)
+    inline = [image_dict(im) for im in images if not im.exclude_export]
+    # the series cover rides on chapter 1 only (build_payload), so only then is it read
+    cover = covers.effective_series_cover(db, series.id) if number == 1 else None
     volume = db.get(Volume, doc.volume_id) if doc.volume_id else None
     return Chapter(
         doc_meta={"series_title": series.title, "series_order": number,
                   "chapter_title": doc.chapter_title or doc.title,  # ruling 11
                   "volume_title": volume.wp_name if volume else ""},
         series_meta=series_meta(series), lines=lines, inline_images=inline,
-        # build_payload sends the cover with chapter 1 only, so only that one is shrunk
-        cover_image=image_dict(cover) if cover is not None and number == 1 else None,
+        cover_image=image_dict(cover) if cover is not None else None,
         password=password, unlock_chapter_index=unlock,
         prev_wp_chapter_index=doc.wp_chapter_index,
     )
@@ -206,14 +207,12 @@ def batch_slots(start: datetime, n: int, per_day: int, default_time: str,
 
 def volume_images(db: Session, volume_id: int) -> tuple[list[dict], dict | None]:
     """The desktop _on_publish_volume_illustrations gathering: every chapter's images in
-    reading order, the first cover, the rest unless excluded from export; shrunk.
+    reading order unless excluded from export, and the volume's cover; shrunk.
     ponytail: the volume's art is held in memory at once; stream batches if volumes outgrow it."""
     rows = db.scalars(
         select(DocumentImage).join(Document, Document.id == DocumentImage.document_id)
-        .where(Document.volume_id == volume_id,
-               or_(DocumentImage.is_cover, DocumentImage.exclude_export.is_(False)))
+        .where(Document.volume_id == volume_id, DocumentImage.exclude_export.is_(False))
         .order_by(Document.series_order, Document.id, DocumentImage.anchor_position,
                   DocumentImage.id)).all()
-    cover = next((im for im in rows if im.is_cover), None)
-    inline = [image_dict(im) for im in rows if not im.is_cover and not im.exclude_export]
-    return inline, image_dict(cover) if cover is not None else None
+    cover = covers.volume_cover(db, volume_id)
+    return [image_dict(im) for im in rows], image_dict(cover) if cover is not None else None

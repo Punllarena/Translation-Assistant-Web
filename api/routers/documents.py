@@ -70,8 +70,6 @@ def list_documents(
         select(
             DocumentImage.document_id,
             func.count().label("image_count"),
-            func.bool_or(DocumentImage.is_cover).label("has_cover"),
-            func.min(DocumentImage.id).filter(DocumentImage.is_cover).label("cover_image_id"),
         )
         .group_by(DocumentImage.document_id)
         .subquery()
@@ -82,8 +80,6 @@ def list_documents(
             func.coalesce(lines.c.line_count, 0),
             func.coalesce(lines.c.translated_count, 0),
             func.coalesce(images.c.image_count, 0),
-            func.coalesce(images.c.has_cover, False),
-            images.c.cover_image_id,
         )
         .outerjoin(lines, lines.c.document_id == Document.id)
         .outerjoin(images, images.c.document_id == Document.id)
@@ -104,11 +100,9 @@ def list_documents(
             line_count=lc,
             translated_count=tc,
             image_count=ic,
-            has_cover=hc,
-            cover_image_id=cid,
             progress=progress(lc, tc, ic),
         )
-        for doc, lc, tc, ic, hc, cid in rows
+        for doc, lc, tc, ic in rows
     ]
 
 

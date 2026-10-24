@@ -5,6 +5,7 @@ from api.models.content import (
     MtCache,
     Series,
     Volume,
+    VolumeCover,
     VolumeSyosetuGroup,
     WorkSession,
 )
@@ -26,5 +27,5 @@ __all__ = [
     "ApiCredential", "CustomWord", "Dictionary", "DictionaryTerm", "Document", "DocumentImage",
     "GlossaryEntry",
     "Invite", "Job", "Line", "MtCache", "Series", "ServerSetting", "Session", "Shortcut",
-    "User", "UserSetting", "Volume", "VolumeSyosetuGroup", "WorkSession",
+    "User", "UserSetting", "Volume", "VolumeCover", "VolumeSyosetuGroup", "WorkSession",
 ]

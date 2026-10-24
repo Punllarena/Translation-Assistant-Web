@@ -108,3 +108,14 @@
   .vol-head > .cover { width: 56px; }
   .ch-grip, .ch-prog, .ch-edited, .ch-wp { display: none; }
 }
+
+/* Volume details: the cover section */
+.cover-field { border: 0; padding: 0; margin: 0; min-width: 0; }
+.cover-field legend { padding: 0 0 6px; font-size: 13px; font-weight: 500; }
+.cover-field-row { display: flex; gap: 14px; align-items: flex-start; }
+.cover-field-row > .cover { width: 96px; flex: none; }
+.cover-field-row > .cover-tile { font-size: 12px; }
+.cover-field-actions { display: flex; flex: 1; flex-direction: column; gap: 8px; min-width: 0; }
+.cover-url { display: flex; gap: 8px; }
+.cover-url input { flex: 1; min-width: 0; }
+@media (max-width: 480px) { .cover-field-row { flex-direction: column; } }

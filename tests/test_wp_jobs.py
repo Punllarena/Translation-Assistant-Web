@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from api import jobs, publish_job
-from api.models import DocumentImage, Job, Volume
+from api.models import DocumentImage, Job, Volume, VolumeCover
 
 SITE = "https://blog.example.com"
 PUBLISH = "/wp-json/ta-publisher/v1/publish"
@@ -162,7 +162,7 @@ def plates(me, series, make_doc, db, images=(("a.png", b"A" * 30),), cover=False
     db.add_all(DocumentImage(document_id=doc.id, anchor_position=0, src_path=src, data=data)
                for src, data in images)
     if cover:
-        db.add(DocumentImage(document_id=doc.id, anchor_position=0, src_path="c.jpg", data=b"C", is_cover=True))
+        db.add(VolumeCover(volume_id=vol.id, src_path="c.jpg", data=b"C"))
     db.flush()
     return vol, doc
 

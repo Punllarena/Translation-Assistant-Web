@@ -11,7 +11,7 @@ export const groupTitle = (g: VolumeGroup) => g.volume?.label ?? "No volume";
 
 export function VolumeCover({ group }: { group: VolumeGroup }) {
   return group.coverImageId != null
-    ? <img className="cover" src={`/api/images/${group.coverImageId}`} alt="" loading="lazy" />
+    ? <img className="cover" src={`/api/covers/${group.coverImageId}`} alt="" loading="lazy" />
     : <span className="cover cover-tile" aria-hidden="true">{groupTitle(group)}</span>;
 }
 

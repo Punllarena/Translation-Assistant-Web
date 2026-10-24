@@ -1,4 +1,4 @@
-from fastapi import Depends, File, HTTPException, UploadFile, status
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -14,11 +14,10 @@ from api.illustrations import (
     rule_conflict,
 )
 from api.library import arrange, send_to_volume_end
-from api.models import Document, DocumentImage, Series, User, Volume, VolumeSyosetuGroup
+from api.models import Document, Series, User, Volume, VolumeCover, VolumeSyosetuGroup
 from api.routing import api_router
 from api.schemas.documents import DocumentIds, DocumentOut
 from api.schemas.volumes import (
-    CoverOut,
     VolumeCreate,
     VolumeIds,
     VolumeMerge,
@@ -26,13 +25,11 @@ from api.schemas.volumes import (
     VolumeUpdate,
     check_name,
 )
-from api.uploads import read_capped, sniff_image
 from api.volume_order import place, reorder, sort_by_number
 
 router = api_router(tags=["volumes"])
 
 NAME_TAKEN = "a volume with that kind and number exists in this series"
-MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 
 @router.get("/volumes", response_model=list[VolumeOut])
@@ -221,7 +218,20 @@ def merge_volumes(
                .values(volume_id=body.into))
     db.execute(update(VolumeSyosetuGroup).where(VolumeSyosetuGroup.volume_id.in_(others))
                .values(volume_id=body.into))
-    db.execute(delete(Volume).where(Volume.id.in_(others)))
+    # one cover survives: into's, else the first merged-away volume's by volume order
+    if db.scalar(select(VolumeCover.id).where(VolumeCover.volume_id == body.into)) is None:
+        moved = db.scalar(
+            select(VolumeCover.id).join(Volume, Volume.id == VolumeCover.volume_id)
+            .where(VolumeCover.volume_id.in_(others))
+            .order_by(Volume.volume_order, Volume.id).limit(1))
+        if moved is not None:
+            db.execute(update(VolumeCover).where(VolumeCover.id == moved)
+                       .values(volume_id=body.into))
+    took_flag = db.scalar(select(Volume.id).where(
+        Volume.id.in_(others), Volume.is_series_cover.is_(True)).limit(1)) is not None
+    db.execute(delete(Volume).where(Volume.id.in_(others)))  # their covers cascade
+    if took_flag:  # after the delete: one flagged volume per series
+        db.execute(update(Volume).where(Volume.id == body.into).values(is_series_cover=True))
     db.flush()
     db.expire_all()
     arrange(db, series)
@@ -265,40 +275,3 @@ def assign_documents(
     send_to_volume_end(db, volume.series, docs, volume.id)
     db.flush()
     return docs
-
-
-@router.put("/documents/{document_id}/cover", response_model=CoverOut)
-def set_cover(
-    document_id: int,
-    file: UploadFile = File(...),
-    user: User = Depends(current_user),
-    db: Session = Depends(db_session),
-) -> DocumentImage:
-    """Designate a chapter's cover (the desktop replace_document_cover): any previous
-    cover on the chapter is replaced."""
-    doc = scoped(db, Document, document_id, user.id)
-    data = read_capped(file, MAX_IMAGE_BYTES)
-    ext = sniff_image(data)
-    if ext is None:
-        raise HTTPException(
-            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "cover must be a PNG, JPEG, GIF or WebP image"
-        )
-    db.execute(
-        delete(DocumentImage).where(DocumentImage.document_id == doc.id, DocumentImage.is_cover)
-    )
-    cover = DocumentImage(
-        document_id=doc.id, anchor_position=0, is_cover=True, src_path=f"cover.{ext}", data=data
-    )
-    db.add(cover)
-    db.flush()
-    return cover
-
-
-@router.delete("/documents/{document_id}/cover", status_code=status.HTTP_204_NO_CONTENT)
-def clear_cover(
-    document_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
-) -> None:
-    doc = scoped(db, Document, document_id, user.id)
-    db.execute(
-        delete(DocumentImage).where(DocumentImage.document_id == doc.id, DocumentImage.is_cover)
-    )

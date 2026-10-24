@@ -22,8 +22,8 @@ describe("volumeGroups", () => {
   });
 
   it("computes cover and progress per group", () => {
-    const D = [doc(1, 1, 1, { line_count: 4, translated_count: 1, cover_image_id: 8 })];
-    const [g] = volumeGroups(1, D, [volume(1, 1, 1)]);
+    const D = [doc(1, 1, 1, { line_count: 4, translated_count: 1 })];
+    const [g] = volumeGroups(1, D, [{ ...volume(1, 1, 1), cover_id: 8 }]);
     expect([g.coverImageId, g.progress]).toEqual([8, 25]);
   });
 });

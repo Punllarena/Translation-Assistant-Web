@@ -9,7 +9,6 @@ class ImageOut(BaseModel):
     id: int
     document_id: int
     anchor_position: int
-    is_cover: bool
     exclude_export: bool
     src_path: str
 

@@ -3,7 +3,7 @@ import { sizeLabel, type SeriesCard } from "./shelf";
 
 function Cover({ card }: { card: SeriesCard }) {
   return card.coverImageId != null
-    ? <img className="cover" src={`/api/images/${card.coverImageId}`} alt="" loading="lazy" />
+    ? <img className="cover" src={`/api/covers/${card.coverImageId}`} alt="" loading="lazy" />
     : <span className="cover cover-tile" aria-hidden="true"><span>{card.series.title}</span></span>;
 }
 

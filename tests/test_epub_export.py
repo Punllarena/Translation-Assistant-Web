@@ -1,7 +1,7 @@
 import io
 
 from api.core.epub_read import extract_chapter_content, open_book
-from api.models import DocumentImage, Volume
+from api.models import Volume, VolumeCover
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 32
 
@@ -17,10 +17,9 @@ def volume(db, series, title="Vol 1"):
 def test_a_finished_volume_round_trips(app_client, db, me, make_series, make_doc):
     s = make_series(me, "S")
     v = volume(db, s)
-    d1 = make_doc(me, ["一行目です。"], series=s, order=1, volume=v, translated=True)
+    make_doc(me, ["一行目です。"], series=s, order=1, volume=v, translated=True)
     make_doc(me, ["二行目です。"], series=s, order=2, volume=v, translated=True)
-    db.add(DocumentImage(document_id=d1.id, anchor_position=0, is_cover=True,
-                         src_path="cover.png", data=PNG))
+    db.add(VolumeCover(volume_id=v.id, src_path="cover.png", data=PNG))
     db.flush()
     r = app_client.get(f"/volumes/{v.id}/export/epub")
     assert r.status_code == 200 and r.headers["content-type"] == "application/epub+zip"

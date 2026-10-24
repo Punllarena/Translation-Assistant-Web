@@ -9,6 +9,7 @@ from api.config import get_settings
 from api.routers import (
     admin,
     auth,
+    covers,
     credentials,
     dictionary,
     documents,
@@ -77,6 +78,7 @@ def create_app() -> FastAPI:
     app.include_router(exports.router)  # before documents: literal POST path
     app.include_router(documents.router)
     app.include_router(volumes.router)
+    app.include_router(covers.router)
     app.include_router(lines.router)
     app.include_router(memory.router)
     app.include_router(spell.router)

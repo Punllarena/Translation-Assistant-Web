@@ -1,7 +1,6 @@
 import pytest
-from sqlalchemy import select
 
-from api.models import Document, DocumentImage, Volume
+from api.models import Document, Volume
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 
@@ -78,44 +77,6 @@ def test_assign_refuses_strays_and_changes_nothing(
     assert db.get(Document, mine.id).volume_id is None
 
 
-def test_cover_upload_replaces_the_previous_one(app_client, db, me, make_doc):
-    doc = make_doc(me, ["a"])
-    for _ in range(2):
-        r = app_client.put(
-            f"/documents/{doc.id}/cover", files={"file": ("c.png", PNG, "image/png")}
-        )
-        assert r.status_code == 200
-    covers = db.scalars(select(DocumentImage).where(DocumentImage.document_id == doc.id)).all()
-    assert [(c.is_cover, c.src_path, c.anchor_position) for c in covers] == [
-        (True, "cover.png", 0)
-    ]
-
-
-def test_cover_must_really_be_an_image(app_client, me, make_doc):
-    doc = make_doc(me)
-    r = app_client.put(
-        f"/documents/{doc.id}/cover", files={"file": ("c.png", b"<svg/>", "image/png")}
-    )
-    assert r.status_code == 415
-
-
-def test_cover_size_is_capped(app_client, me, make_doc, monkeypatch):
-    from api.routers import volumes
-
-    monkeypatch.setattr(volumes, "MAX_IMAGE_BYTES", 8)
-    doc = make_doc(me)
-    r = app_client.put(f"/documents/{doc.id}/cover", files={"file": ("c.png", PNG, "image/png")})
-    assert r.status_code == 413
-
-
-def test_clear_cover_is_idempotent(app_client, db, me, make_doc):
-    doc = make_doc(me)
-    app_client.put(f"/documents/{doc.id}/cover", files={"file": ("c.png", PNG, "image/png")})
-    assert app_client.delete(f"/documents/{doc.id}/cover").status_code == 204
-    assert app_client.delete(f"/documents/{doc.id}/cover").status_code == 204
-    assert db.scalars(select(DocumentImage).where(DocumentImage.document_id == doc.id)).all() == []
-
-
 @pytest.fixture
 def theirs(db, me, make_user, make_series, make_doc):
     other = make_user(email="other@example.com")
@@ -134,8 +95,6 @@ def theirs(db, me, make_user, make_series, make_doc):
         ("PATCH", "/volumes/{volume}", {"json": {"subtitle": "x"}}),
         ("DELETE", "/volumes/{volume}", {}),
         ("POST", "/volumes/{volume}/documents", {"json": {"document_ids": [1]}}),
-        ("PUT", "/documents/{doc}/cover", {"files": {"file": ("c.png", PNG, "image/png")}}),
-        ("DELETE", "/documents/{doc}/cover", {}),
     ],
 )
 def test_another_users_objects_are_404(app_client, theirs, method, path, kwargs):

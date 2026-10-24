@@ -139,6 +139,17 @@ volume, and it stands outside `chapter_number` (`api/library.py`) and the unlock
 illustrations page through `POST /documents/{id}/wp/illustrations` (the `wp_illustrations` job, `confirm_republish` 409);
 batch publish uploads it the same way. Spec: `docs/superpowers/specs/2026-10-24-volume-illustrations-chapter-design.md`.
 
+Volume covers: covers live on volumes, never on chapters (`document_images` has no cover flag; migration `44f4d937ee05`
+moved each volume's first chapter cover onto the volume and kept other chapter covers as images excluded from export).
+`volume_covers` holds one row per volume; replacing makes a new row, so `GET /covers/{id}` is cached for good. `VolumeOut`
+carries `cover_id` (a `column_property`; `api/covers.py` `forget` reloads it after a change) and `is_series_cover` (at most
+one per series, `uq_volumes_series_cover`, set by `PUT /series/{id}/cover-volume`). The series cover is the flagged
+volume's cover, else the first volume's by `volume_order` that has one (`covers.effective_series_cover`, its SPA twin
+`seriesCover` in `web/src/library/shelf.ts`); WordPress gets it with chapter 1. `POST /volumes/{id}/cover/url` downloads
+a direct image address (`check_user_url` on every hop, no private-address override, 3 redirects, 10 MiB); an HTML answer is
+a 422 telling the user to copy the image address. Merging volumes keeps one cover and moves the series choice to the kept
+volume; deleting a volume deletes its cover. Spec: `docs/superpowers/specs/2026-10-24-volume-covers-design.md`.
+
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
 
