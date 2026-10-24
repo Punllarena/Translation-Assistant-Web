@@ -12,6 +12,7 @@ from api import publish, wp_prefs
 from api.core import wp, wp_http
 from api.core.wp import WPPublishError
 from api.jobs import JobContext, JobError, handler
+from api.library import chapter_number
 from api.models import Document, Volume
 from api.wp_prefs import WpPrefs
 
@@ -33,7 +34,8 @@ def _publish_one(db: Session, c: httpx.Client, user_id: int, item: dict, endpoin
         return {"document_id": item["document_id"], "ok": False,
                 "error": "the chapter no longer exists"}
     scheduled = datetime.fromisoformat(item["scheduled_for"]) if item["scheduled_for"] else None
-    row = {"document_id": doc.id, "title": doc.title, "series_order": doc.series_order,
+    row = {"document_id": doc.id, "title": doc.title,
+           "chapter_number": chapter_number(db, doc), "illustrations": doc.is_illustrations,
            "scheduled_for": item["scheduled_for"]}
     try:
         if doc.wp_status in publish.LIVE and not confirm:  # ruling 6
@@ -47,7 +49,7 @@ def _publish_one(db: Session, c: httpx.Client, user_id: int, item: dict, endpoin
     except Exception:  # one bad chapter must not stop the rest
         log.exception("publishing document %s failed", doc.id)
         return {**row, "ok": False, "error": "publishing this chapter failed"}
-    written = publish.record(doc, result, scheduled)
+    written = publish.record(doc, result, scheduled, ch.doc_meta["series_order"])
     if written:
         publish.freeze_volume_name(db, doc.volume_id)
     return {**row, "ok": True, "created": bool(result.get("created")),

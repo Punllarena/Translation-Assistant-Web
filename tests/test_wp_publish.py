@@ -209,3 +209,84 @@ def test_batch_slots_fill_each_day_then_roll_over():
     start = datetime(2026, 7, 20, 20, tzinfo=tokyo)
     slots = publish.batch_slots(start, 4, 2, "20:00", tokyo)
     assert [s.strftime("%d %H:%M") for s in slots] == ["20 20:00", "20 21:00", "21 20:00", "21 21:00"]  # noqa: E501
+
+
+def _publish_three(app_client, me, make_series, make_doc, db, posted, name, *, illustrations):
+    s = make_series(me, name)
+    s.wp_series_slug, s.wp_series_title_short = "sword", "SotW"
+    db.flush()
+    start = 1
+    if illustrations:
+        make_doc(me, ["絵"], series=s, order=1, title="Illustrations").is_illustrations = True
+        start = 2
+    docs = [make_doc(me, [f"行{i}"], series=s, order=start + i - 1) for i in (1, 2, 3)]
+    docs[2].wp_chapter_index = 1  # a stale index from an earlier publish
+    db.flush()
+    posted.clear()
+    out = []
+    for d in docs:
+        body = app_client.post(f"/documents/{d.id}/wp/publish", json={}).json()
+        db.refresh(d)
+        out.append((posted[-1].get("chapter_index"), posted[-1].get("password"),
+                    posted[-1].get("unlock_chapter_index"),
+                    posted[-1].get("previous_chapter_index"), body["unlock_chapter_index"],
+                    d.wp_chapter_index))
+    return out
+
+
+def test_numbers_match_a_volume_without_illustrations(
+        app_client, me, ready, make_series, make_doc, wp_site, db):
+    _, posted = wp_site
+    app_client.put("/settings", json={"wp_password_enabled": True, "wp_unlock_after": 1})
+    plain = _publish_three(app_client, me, make_series, make_doc, db, posted, "Plain",
+                           illustrations=False)
+    marked = _publish_three(app_client, me, make_series, make_doc, db, posted, "Marked",
+                            illustrations=True)
+    strip = lambda rows: [(a, c, d, e, f) for a, _p, c, d, e, f in rows]  # noqa: E731
+    assert strip(plain) == strip(marked)
+    assert [r[0] for r in marked] == [1, 2, 3] and [r[5] for r in marked] == [1, 2, 3]
+    assert marked[2][3] == 1 and bool(marked[2][1])
+    assert [bool(r[1]) for r in marked] == [bool(r[1]) for r in plain]
+
+
+def test_cover_goes_with_first_numbered_chapter(app_client, me, ready, make_doc, wp_site, db):
+    _, posted = wp_site
+    illus = make_doc(me, ["絵"], series=ready, order=1, title="Illustrations")
+    illus.is_illustrations = True
+    first = make_doc(me, ["一"], series=ready, order=2)
+    db.add(DocumentImage(document_id=first.id, anchor_position=0, src_path="c.jpg",
+                         data=b"C", is_cover=True))
+    db.flush()
+    assert app_client.post(f"/documents/{first.id}/wp/publish", json={}).status_code == 200
+    assert posted[0]["chapter_index"] == 1 and posted[0].get("cover")
+
+
+def test_refresh_status_skips_the_illustrations_chapter(
+        app_client, me, ready, make_doc, monkeypatch, db):
+    calls = []
+
+    def handle(request):
+        calls.append(request.url.path)
+        return httpx.Response(200, json={"status": "publish", "post_url": "x"})
+
+    monkeypatch.setattr(wp_router, "http_client",
+                        lambda: wp_router.wp_http.client(transport=httpx.MockTransport(handle)))
+    monkeypatch.setattr("api.publish.check_user_url", lambda url, allow, label: None)
+    illus = make_doc(me, ["絵"], series=ready, order=1, title="Illustrations")
+    illus.is_illustrations = True
+    illus.wp_status = "future"
+    db.flush()
+    r = app_client.post(f"/documents/{illus.id}/wp/status")
+    assert r.status_code == 200 and calls == []
+    assert r.json()["status"] == "future" and r.json()["previous_scheduled"] is False
+
+
+def test_chapter_publish_refuses_illustrations_chapter(
+        app_client, me, ready, make_doc, wp_site, db):
+    _, posted = wp_site
+    illus = make_doc(me, ["絵"], series=ready, order=1, title="Illustrations")
+    illus.is_illustrations = True
+    db.flush()
+    r = app_client.post(f"/documents/{illus.id}/wp/publish", json={})
+    assert r.status_code == 422 and "Illustrations chapter" in r.json()["detail"]
+    assert posted == []

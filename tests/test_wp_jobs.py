@@ -59,7 +59,7 @@ def test_batch_schedules_in_order_and_records_each(app_client, me, ready, make_d
     job = app_client.get(f"/jobs/{r.json()['id']}").json()
     assert job["state"] == "done"
     rows = job["result"]["chapters"]
-    assert [x["series_order"] for x in rows] == [1, 2, 3] and all(x["ok"] for x in rows)
+    assert [x["chapter_number"] for x in rows] == [1, 2, 3] and all(x["ok"] for x in rows)
     dates = [b["publish_date"] for _, b in wp_site["posted"]]
     assert dates == ["2026-11-01T11:00:00Z", "2026-11-01T12:00:00Z", "2026-11-02T12:00:00Z"]
     for d in docs:
@@ -195,3 +195,20 @@ def test_one_illustrations_upload_at_a_time(app_client, me, ready, make_doc, wp_
     assert app_client.post(f"/volumes/{vol.id}/wp/illustrations").status_code == 202
     r = app_client.post(f"/volumes/{vol.id}/wp/illustrations")
     assert r.status_code == 409 and "already queued" in r.json()["detail"]
+
+
+def test_batch_rows_carry_display_numbers_and_flag_illustrations(
+        app_client, me, ready, make_doc, wp_site, db):
+    illus = make_doc(me, ["絵"], series=ready, order=1, title="Illustrations")
+    illus.is_illustrations = True
+    docs = [make_doc(me, [f"行{i}"], series=ready, order=i + 1) for i in (1, 2)]
+    db.flush()
+    r = app_client.post("/wp/batch", json={
+        "document_ids": [d.id for d in (illus, *docs)], "schedule": False})
+    assert r.status_code == 202
+    jobs.run_next()
+    rows = app_client.get(f"/jobs/{r.json()['id']}").json()["result"]["chapters"]
+    assert [(x["chapter_number"], x["illustrations"], x["ok"]) for x in rows] == [
+        (None, True, False), (1, False, True), (2, False, True)]
+    assert "Illustrations chapter" in rows[0]["error"]
+    assert [b["chapter_index"] for _, b in wp_site["posted"]] == [1, 2]

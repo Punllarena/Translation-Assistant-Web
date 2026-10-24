@@ -13,6 +13,7 @@ from api import jobs, publish, wp_prefs
 from api.core import wp_http
 from api.core.wp import WPPublishError
 from api.deps import current_user, db_session, owned_ref, parse_zone, scoped, scoped_volume, zone
+from api.library import chapter_number
 from api.models import Document, DocumentImage, Job, Series, User
 from api.routing import api_router
 from api.schemas.jobs import JobOut
@@ -74,9 +75,13 @@ def refresh_status(
     previous chapter is still scheduled (with the auto slot after it)."""
     doc, series, endpoint, key = _chapter_context(db, document_id, user.id)
     cached, remote_error = doc.wp_status, ""
+    if doc.is_illustrations:  # not a numbered chapter: nothing to ask WordPress about
+        return WpStatusOut(cached_status=cached, status=cached, post_url=doc.wp_post_url,
+                           remote_error="", previous_scheduled=False, suggested_slot=None)
     try:
         with http_client() as c:
-            remote = wp_http.check_status(c, endpoint, key, series.wp_series_slug, doc.series_order)
+            remote = wp_http.check_status(c, endpoint, key, series.wp_series_slug,
+                                         chapter_number(db, doc))
             publish.apply_remote_status(doc, remote)
     except WPPublishError as exc:
         remote_error = exc.message
@@ -100,7 +105,8 @@ def publish_chapter(
     with http_client() as c:
         live = doc.wp_status in publish.LIVE
         try:
-            remote = wp_http.check_status(c, endpoint, key, series.wp_series_slug, doc.series_order)
+            remote = wp_http.check_status(c, endpoint, key, series.wp_series_slug,
+                                         chapter_number(db, doc))
             live = live or remote.get("status") in publish.LIVE
         except WPPublishError:
             pass  # WordPress could not be asked: the cached status decides, as on the desktop
@@ -114,7 +120,7 @@ def publish_chapter(
                 ch, key, scheduled=body.scheduled_for, attribution=prefs.wp_attribution_enabled))
         except WPPublishError as exc:
             raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
-    written = publish.record(doc, result, body.scheduled_for)
+    written = publish.record(doc, result, body.scheduled_for, ch.doc_meta["series_order"])
     if written:
         publish.freeze_volume_name(db, doc.volume_id)
     db.flush()
