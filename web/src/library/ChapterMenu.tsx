@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
-import { api, ApiError, call, errorMessage } from "../api/client";
+import { api, ApiError, call } from "../api/client";
 import IllustrationsPublish from "../publish/IllustrationsPublish";
 import PublishDialog from "../publish/PublishDialog";
 import { ConfirmDialog, PromptDialog } from "../ui/Dialog";
@@ -17,8 +17,7 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState<Open>(null);
   const [conflict, setConflict] = useState<string | null>(null); // the re-fetch 409, asking to force
-  const [error, setError] = useState<string | null>(null); // cover and Illustrations-mark failures
-  const file = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null); // Illustrations-mark failures
   const id = { params: { path: { document_id: doc.id } } };
   const changed = () => invalidateLibrary(queryClient);
   const closeAll = () => { setOpen(null); setConflict(null); };
@@ -47,23 +46,6 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
     mutationFn: () => call(api.DELETE("/documents/{document_id}", id)),
     onSuccess: async () => { await changed(); closeAll(); },
   });
-  const cover = useMutation({
-    mutationFn: async (picked: File | null) => {
-      if (!picked) return call(api.DELETE("/documents/{document_id}/cover", id));
-      const form = new FormData();
-      form.append("file", picked);
-      const response = await fetch(`/api/documents/${doc.id}/cover`, { method: "PUT", body: form });
-      if (!response.ok) {
-        throw new ApiError(
-          response.status,
-          response.status === 413 ? "File too large" : errorMessage(await response.json().catch(() => null)),
-        );
-      }
-    },
-    onMutate: () => setError(null),
-    onError: (e) => setError(e.message),
-    onSettled: changed,
-  });
   const mark = useMutation({
     mutationFn: (is_illustrations: boolean) =>
       call(api.PATCH("/documents/{document_id}", { ...id, body: { is_illustrations } })),
@@ -90,20 +72,12 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
             {doc.is_illustrations
               ? item("Unmark Illustrations", () => mark.mutate(false), close)
               : doc.line_count === 0 && item("Mark as Illustrations", () => mark.mutate(true), close)}
-            {item("Set cover…", () => file.current?.click(), close)}
-            {doc.has_cover && item("Clear cover", () => cover.mutate(null), close)}
             <Link role="menuitem" className="btn" to={`/documents/${doc.id}/split`}>Split…</Link>
             {item("Move to…", () => setOpen("move"), close)}
             {item("Delete", () => { remove.reset(); setOpen("delete"); }, close, "danger")}
           </>
         )}
       </Menu>
-      <input ref={file} type="file" hidden accept="image/png,image/jpeg,image/gif,image/webp"
-        aria-label={`Cover for ${doc.title}`} onChange={(e) => {
-          const picked = e.target.files?.[0];
-          e.target.value = "";
-          if (picked) cover.mutate(picked);
-        }} />
       {error && <span className="error" role="alert">{error}</span>}
       {open === "rename" && (
         <PromptDialog title="Rename chapter" label="Title" initial={doc.title} confirmLabel="Rename"

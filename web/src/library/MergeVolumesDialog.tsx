@@ -32,6 +32,9 @@ export default function MergeVolumesDialog({ seriesId, volumes, onClose, onMerge
           ))}
         </fieldset>
         <p className="muted">The other {others} {others === 1 ? "volume is" : "volumes are"} deleted; their chapters move into it.</p>
+        {volumes.filter((v) => v.cover_id != null).length > 1 && (
+          <p className="muted">Only one cover is kept: the kept volume's, else the first other volume's.</p>
+        )}
         {merge.isError && <p className="error" role="alert">{merge.error.message}</p>}
       </div>
       <div className="dlg-foot">

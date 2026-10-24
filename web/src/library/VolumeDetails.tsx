@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { api, call, type Schemas } from "../api/client";
 import { Modal } from "../ui/Dialog";
 import type { SeriesRow, Volume } from "./shelf";
+import VolumeCoverField from "./VolumeCoverField";
 import VolumeNameFields, { type VolumeName } from "./VolumeNameFields";
 import { render } from "./volumeNames";
 import { invalidateLibrary } from "./queries";
@@ -13,7 +14,7 @@ const EPUB_FIELDS = [
   ["epub_identifier", "Identifier"], ["epub_description", "Description"],
 ] as const;
 
-/** The volume's title and EPUB metadata, in a dialog. */
+/** The volume's cover, title and EPUB metadata, in a dialog. */
 export default function VolumeDetails({ volume, series, kinds, onClose }: {
   volume: Volume; series: SeriesRow; kinds: string[]; onClose: () => void;
 }) {
@@ -38,6 +39,7 @@ export default function VolumeDetails({ volume, series, kinds, onClose }: {
     <Modal title="Volume details" onClose={onClose} busy={save.isPending} onSubmit={submit}>
       <div className="dlg-head"><h2>Volume details</h2></div>
       <div className="dlg-body">
+        <VolumeCoverField volume={volume} />
         <VolumeNameFields value={name} onChange={setName} kinds={kinds} />
         {volume.wp_volume_title && (
           <label className="field"><span>WordPress volume name</span>

@@ -210,6 +210,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/covers/{cover_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Cover
+         * @description The cover's bytes, served like /images/{id}: type from the bytes, cached for good
+         *     (a replaced cover is a new id).
+         */
+        get: operations["get_cover_covers__cover_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/credentials": {
         parameters: {
             query?: never;
@@ -369,28 +390,6 @@ export interface paths {
         head?: never;
         /** Update Document */
         patch: operations["update_document_documents__document_id__patch"];
-        trace?: never;
-    };
-    "/documents/{document_id}/cover": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Set Cover
-         * @description Designate a chapter's cover (the desktop replace_document_cover): any previous
-         *     cover on the chapter is replaced.
-         */
-        put: operations["set_cover_documents__document_id__cover_put"];
-        post?: never;
-        /** Clear Cover */
-        delete: operations["clear_cover_documents__document_id__cover_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/documents/{document_id}/export": {
@@ -942,6 +941,26 @@ export interface paths {
         patch: operations["update_series_series__series_id__patch"];
         trace?: never;
     };
+    "/series/{series_id}/cover-volume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Choose Series Cover
+         * @description Make ``volume_id``'s cover the series cover; null clears the choice.
+         */
+        put: operations["choose_series_cover_series__series_id__cover_volume_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/series/{series_id}/export/markdown": {
         parameters: {
             query?: never;
@@ -1477,6 +1496,47 @@ export interface paths {
         patch: operations["update_volume_volumes__volume_id__patch"];
         trace?: never;
     };
+    "/volumes/{volume_id}/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload Cover
+         * @description Set the volume's cover from a file; any previous cover is replaced.
+         */
+        put: operations["upload_cover_volumes__volume_id__cover_put"];
+        post?: never;
+        /** Clear Cover */
+        delete: operations["clear_cover_volumes__volume_id__cover_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/volumes/{volume_id}/cover/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fetch Cover
+         * @description Download the image at a direct image address and keep it as the volume's cover.
+         */
+        post: operations["fetch_cover_volumes__volume_id__cover_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/volumes/{volume_id}/documents": {
         parameters: {
             query?: never;
@@ -1800,13 +1860,13 @@ export interface components {
             /** File */
             file: string;
         };
-        /** Body_set_cover_documents__document_id__cover_put */
-        Body_set_cover_documents__document_id__cover_put: {
+        /** Body_upload_admin_dictionary__kind__post */
+        Body_upload_admin_dictionary__kind__post: {
             /** File */
             file: string;
         };
-        /** Body_upload_admin_dictionary__kind__post */
-        Body_upload_admin_dictionary__kind__post: {
+        /** Body_upload_cover_volumes__volume_id__cover_put */
+        Body_upload_cover_volumes__volume_id__cover_put: {
             /** File */
             file: string;
         };
@@ -1875,14 +1935,10 @@ export interface components {
                 [key: string]: components["schemas"]["PeriodChange"];
             };
         };
-        /** CoverOut */
-        CoverOut: {
-            /** Document Id */
-            document_id: number;
-            /** Id */
-            id: number;
-            /** Src Path */
-            src_path: string;
+        /** CoverUrl */
+        CoverUrl: {
+            /** Url */
+            url: string;
         };
         /** CredentialCreate */
         CredentialCreate: {
@@ -2015,15 +2071,11 @@ export interface components {
             chapter_number?: number | null;
             /** Chapter Title */
             chapter_title: string;
-            /** Cover Image Id */
-            cover_image_id?: number | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
-            /** Has Cover */
-            has_cover: boolean;
             /** Id */
             id: number;
             /** Image Count */
@@ -2237,8 +2289,6 @@ export interface components {
             exclude_export: boolean;
             /** Id */
             id: number;
-            /** Is Cover */
-            is_cover: boolean;
             /** Src Path */
             src_path: string;
         };
@@ -2515,6 +2565,11 @@ export interface components {
         SaveResult: {
             /** Missing */
             missing: number[];
+        };
+        /** SeriesCoverVolume */
+        SeriesCoverVolume: {
+            /** Volume Id */
+            volume_id: number | null;
         };
         /** SeriesCreate */
         SeriesCreate: {
@@ -2812,6 +2867,15 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VolumeCoverOut */
+        VolumeCoverOut: {
+            /** Id */
+            id: number;
+            /** Src Path */
+            src_path: string;
+            /** Volume Id */
+            volume_id: number;
+        };
         /** VolumeCreate */
         VolumeCreate: {
             /**
@@ -2896,6 +2960,8 @@ export interface components {
         };
         /** VolumeOut */
         VolumeOut: {
+            /** Cover Id */
+            cover_id?: number | null;
             /** Epub Author */
             epub_author: string;
             /** Epub Description */
@@ -2914,6 +2980,8 @@ export interface components {
             full_title: string;
             /** Id */
             id: number;
+            /** Is Series Cover */
+            is_series_cover: boolean;
             /** Kind */
             kind: string;
             /** Label */
@@ -3412,6 +3480,35 @@ export interface operations {
             };
         };
     };
+    get_cover_covers__cover_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cover_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_credentials_credentials_get: {
         parameters: {
             query?: never;
@@ -3797,70 +3894,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DocumentOut"];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    set_cover_documents__document_id__cover_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                document_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_set_cover_documents__document_id__cover_put"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CoverOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    clear_cover_documents__document_id__cover_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                document_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -4947,6 +4980,39 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SeriesOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    choose_series_cover_series__series_id__cover_volume_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesCoverVolume"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -6055,6 +6121,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VolumeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_cover_volumes__volume_id__cover_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                volume_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_cover_volumes__volume_id__cover_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeCoverOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_cover_volumes__volume_id__cover_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                volume_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fetch_cover_volumes__volume_id__cover_url_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                volume_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoverUrl"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeCoverOut"];
                 };
             };
             /** @description Validation Error */

@@ -29,7 +29,12 @@ export function progressOf(docs: Doc[]): number {
   return lines > 0 ? Math.floor((done * 100) / lines) : 0;
 }
 
-export const firstCover = (docs: Doc[]): number | null => docs.find((d) => d.cover_image_id != null)?.cover_image_id ?? null;
+/** The series cover: the chosen volume's cover, else the first volume's (in order) that has one.
+ *  `vols` must be in volume order. */
+export function seriesCover(vols: Volume[]): number | null {
+  const chosen = vols.find((v) => v.is_series_cover)?.cover_id;
+  return chosen ?? vols.find((v) => v.cover_id != null)?.cover_id ?? null;
+}
 
 export function seriesCards(series: SeriesRow[], docs: Doc[], volumes: Volume[], filter: string): SeriesCard[] {
   const needle = filter.trim().toLowerCase();
@@ -39,13 +44,11 @@ export function seriesCards(series: SeriesRow[], docs: Doc[], volumes: Volume[],
     .map((s) => {
       const own = docs.filter((d) => d.series_id === s.id).sort(bySeriesOrder);
       const vols = volumes.filter((v) => v.series_id === s.id).sort(byVolumeOrder);
-      const first = vols[0];
-      const cover = (first && firstCover(own.filter((d) => d.volume_id === first.id))) ?? firstCover(own);
       let editedAt: string | null = null;
       for (const d of own) if (editedAt === null || d.updated_at > editedAt) editedAt = d.updated_at;
       return {
         series: s,
-        coverImageId: cover,
+        coverImageId: seriesCover(vols),
         volumeCount: vols.length,
         chapterCount: own.length,
         progress: progressOf(own),

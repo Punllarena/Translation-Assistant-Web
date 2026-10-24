@@ -43,6 +43,12 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
     onSettled: changed,
     onSuccess: () => setOpen((o) => (o === "sort" ? null : o)),
   });
+  const chooseCover = useMutation({
+    mutationFn: () => call(api.PUT("/series/{series_id}/cover-volume", {
+      params: { path: { series_id: series.id } }, body: { volume_id: volume!.id },
+    })),
+    onSettled: changed,
+  });
   const remove = useMutation({
     mutationFn: () => call(api.DELETE("/volumes/{volume_id}", { params: { path: { volume_id: volume!.id } } })),
     onSuccess: async () => { await changed(); setOpen(null); },
@@ -57,7 +63,7 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
   const renumberButton = !syosetu && (
     <button type="button" disabled={renumber.isPending} onClick={() => renumber.mutate()}>Renumber by title</button>
   );
-  const error = epub.error ?? (open === "renumber" ? null : renumber.error);
+  const error = epub.error ?? chooseCover.error ?? (open === "renumber" ? null : renumber.error);
   return (
     <div className={volume ? "vol-head" : "vol-head loose"}>
       {volume && <VolumeCover group={group} />}
@@ -83,6 +89,10 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
                 {(close) => (
                   <>
                     <button type="button" role="menuitem" onClick={() => { close(); setOpen("details"); }}>Edit volume details</button>
+                    {volume.cover_id != null && !volume.is_series_cover && (
+                      <button type="button" role="menuitem"
+                        onClick={() => { close(); chooseCover.mutate(); }}>Use as series cover</button>
+                    )}
                     {!syosetu && (
                       <button type="button" role="menuitem"
                         onClick={() => { close(); renumber.reset(); setOpen("renumber"); }}>Renumber all volumes by title</button>
@@ -109,7 +119,8 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
       {open === "details" && volume && <VolumeDetails volume={volume} series={series} kinds={kinds} onClose={() => setOpen(null)} />}
       {open === "delete" && volume && (
         <ConfirmDialog title="Delete volume" confirmLabel="Delete volume" danger busy={remove.isPending}
-          message={`Delete volume "${volume.label}"? Its chapters stay in the series.`} error={remove.error?.message}
+          message={`Delete volume "${volume.label}"? Its chapters stay in the series.${
+            volume.cover_id != null ? " Its cover is deleted with it." : ""}`} error={remove.error?.message}
           onConfirm={() => remove.mutate()} onClose={() => setOpen(null)} />
       )}
       {open === "renumber" && (

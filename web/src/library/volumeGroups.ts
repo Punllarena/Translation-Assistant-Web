@@ -1,4 +1,4 @@
-import { byVolumeOrder, bySeriesOrder, firstCover, progressOf, type Doc, type Volume } from "./shelf";
+import { byVolumeOrder, bySeriesOrder, progressOf, type Doc, type Volume } from "./shelf";
 
 export type VolumeKey = number | "none";
 
@@ -11,7 +11,7 @@ export interface VolumeGroup {
 }
 
 function group(key: VolumeKey, volume: Volume | null, docs: Doc[]): VolumeGroup {
-  return { key, volume, docs, coverImageId: firstCover(docs), progress: progressOf(docs) };
+  return { key, volume, docs, coverImageId: volume?.cover_id ?? null, progress: progressOf(docs) };
 }
 
 export function volumeGroups(seriesId: number, docs: Doc[], volumes: Volume[]): VolumeGroup[] {
