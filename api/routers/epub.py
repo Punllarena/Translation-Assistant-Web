@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from api.core.epub_build import build_epub
 from api.core.epub_read import EpubError, extract_chapter_content, open_book
+from api.core.epub_runs import Piece
 from api.core.epub_safety import MAX_UNCOMPRESSED, EpubBudgetExceeded, charge
 from api.core.text import (
     build_epub_content,
@@ -29,6 +30,7 @@ from api.core.text import (
 )
 from api.core.volume_names import ParsedName, index_fits, quantize_index
 from api.deps import current_user, db_session, owned_ref, scoped_volume
+from api.illustrations import TITLE, add_images
 from api.library import (
     arrange,
     check_line_count,
@@ -141,17 +143,27 @@ def _volume_name(kind: str, index: str, subtitle: str) -> ParsedName:
     return ParsedName(kind, number, subtitle)
 
 
-def _import_chapter(
-    db: Session, user: User, series: Series, volume: Volume, data: io.BytesIO,
-    title: str, href: str, order: int, budget: list[int],
-) -> tuple[Document, bool]:
-    """One chapter into one document; the caller wraps this in a savepoint."""
-    # The chapter file is decompressed again for every chapter, so it counts too.
-    charge(budget, zipfile.ZipFile(data).getinfo(href).file_size)
+def _extract(
+    data: io.BytesIO, pieces: tuple[Piece, ...], budget: list[int], soups: dict,
+) -> tuple[list[str], list[str], list[dict]]:
+    """(raw, translated, images) of one chapter, charged to the import's budget."""
+    # A chapter's files are decompressed again for every chapter, so they count too.
+    with zipfile.ZipFile(data) as zf:
+        for path in dict.fromkeys(piece.href for piece in pieces):
+            charge(budget, zf.getinfo(path).file_size)
     # Images are charged per reference (each is a stored row) before they are read.
-    text, images = extract_chapter_content(data, href, budget)
+    text, images = extract_chapter_content(data, pieces, budget, soups)
     text = text.replace("\x00", "")  # Postgres text cannot hold NUL
     raw, translated, _ = parse_file_content(build_new_file(text))
+    return raw, translated, images
+
+
+def _import_chapter(
+    db: Session, user: User, series: Series, volume: Volume, title: str, order: int,
+    content: tuple[list[str], list[str], list[dict]],
+) -> Document:
+    """One chapter into one document; the caller wraps this in a savepoint."""
+    raw, translated, images = content
     check_line_count(raw)
     doc = Document(
         user_id=user.id, series_id=series.id, volume_id=volume.id,
@@ -168,7 +180,7 @@ def _import_chapter(
         for img in images
     )
     db.flush()
-    return doc, not raw
+    return doc
 
 
 @router.post("/epub/import", response_model=EpubImportOut, status_code=status.HTTP_201_CREATED)
@@ -227,6 +239,10 @@ def import_epub(
     errors: list[ChapterError] = []
     first_doc: Document | None = None
     budget = [MAX_UNCOMPRESSED]  # chapter-file + image bytes left for this import
+    soups: dict = {}  # each chapter file parsed once per import
+    plates: list[dict] = []  # image-only chapters' images, for the Illustrations chapter
+    gather = not series.syosetu_url  # syosetu numbering has no Illustrations chapter
+    cover_href = book["cover_href"]
     order = next_series_order(db, series.id)
     for href in hrefs:
         chapter = known.get(href)
@@ -239,8 +255,13 @@ def import_epub(
             continue
         try:
             with db.begin_nested():
-                doc, is_empty = _import_chapter(
-                    db, user, series, volume, data, title, href, order, budget)
+                raw, translated, images = content = _extract(
+                    data, chapter["pieces"], budget, soups)
+                if gather and chapter["image_only"] and images and not raw:
+                    if any(img["src_path"] != cover_href for img in images):
+                        plates.extend(images)  # a cover-only page is dropped
+                    continue
+                doc = _import_chapter(db, user, series, volume, title, order, content)
         except EpubBudgetExceeded:  # not per chapter: the whole import rolls back
             raise _over_budget() from None
         except (EpubError, ValueError, KeyError, DataError, HTTPException) as exc:
@@ -250,14 +271,16 @@ def import_epub(
         first_doc = first_doc or doc
         order += 1
         imported.append(title)
-        if is_empty:
+        if not raw:
             empty.append(title)
+    if (illustrations := add_images(db, user, series, volume, plates, order)) is not None:
+        first_doc = first_doc or illustrations
+        imported.append(TITLE)
 
     if new_series and not imported:  # roll back, so the title is not claimed
         detail = "; ".join(f"{e.title} — {e.message}" for e in errors) or "no chapters"
         raise _unprocessable(f"nothing imported: {detail}")
 
-    cover_href = book["cover_href"]
     if cover_href and first_doc is not None and not db.scalar(
         select(DocumentImage.id)
         .join(Document, Document.id == DocumentImage.document_id)

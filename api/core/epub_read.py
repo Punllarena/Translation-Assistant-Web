@@ -11,6 +11,7 @@ import zipfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import IO
+from urllib.parse import unquote
 
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
@@ -23,6 +24,7 @@ from api.core.epub_safety import (
     read_text,
     unreadable,
 )
+from api.core.epub_units import anchors, count, illustration_src, para_text
 from api.core.text import build_new_file, parse_file_content
 
 # OPF/NCX are XML parsed with html.parser on purpose (as the desktop does).
@@ -169,13 +171,13 @@ def open_book(source: str | Path | IO[bytes]) -> dict:
             return last[href]
 
         spine = [href for href in _spine(opf, opf_dir) if text_of(href) is not None]
-        anchors = {
-            href: _anchors(texts[href], {f for _, h, f in toc if h == href and f is not None})
+        found = {
+            href: anchors(texts[href], {f for _, h, f in toc if h == href and f is not None})
             for href in spine
         }
         chapters = []
-        for planned in plan_chapters(spine, toc, anchors):
-            char_count, image_count = _count(planned.pieces, soup_of)
+        for planned in plan_chapters(spine, toc, found):
+            char_count, image_count = count(planned.pieces, soup_of)
             if not (char_count or image_count):
                 continue
             chapters.append({
@@ -187,31 +189,9 @@ def open_book(source: str | Path | IO[bytes]) -> dict:
         return {"title": title, "chapters": chapters, "cover_href": cover_href, **metadata}
 
 
-def _anchors(xhtml: str, wanted: set[str]) -> list[str]:
-    """The wanted ids that exist in the file, in document order."""
-    if not wanted:
-        return []
-    tags = BeautifulSoup(xhtml, "html.parser").find_all(id=wanted)
-    return list(dict.fromkeys(tag["id"] for tag in tags))
-
-
-def _count(pieces: tuple[Piece, ...], soup_of) -> tuple[int, int]:
-    """(characters of paragraph text, illustrations) over a chapter's pieces."""
-    chars = images = 0
-    for piece in pieces:
-        if (soup := soup_of(piece.href)) is None:
-            continue
-        for el in units(soup, piece.start, piece.end):
-            if _illustration_src(el):
-                images += 1
-            elif el.name == "p":
-                chars += len(_para_text(el))
-    return chars, images
-
-
 def extract_chapter_content(
     source: str | Path | IO[bytes], href: str | Sequence[Piece],
-    budget: list[int] | None = None,
+    budget: list[int] | None = None, soups: dict[str, BeautifulSoup] | None = None,
 ) -> tuple[str, list[dict]]:
     """
     Returns (text, images) for one chapter: a plain href is the whole file, otherwise
@@ -234,6 +214,9 @@ def extract_chapter_content(
     budget (remaining bytes, mutated in place) is charged each image reference's
     size before anything is read (EpubBudgetExceeded when it would go negative); each
     distinct image is read once and repeated references share its bytes.
+
+    soups (zip path -> parsed file, filled in place) lets one import parse a file holding
+    several chapters once; pass the same dict only with the same source.
     """
     try:
         zf = zipfile.ZipFile(source)
@@ -248,10 +231,14 @@ def extract_chapter_content(
         read_once: dict[str, bytes] = {}
         offset = 0  # keeps counting across pieces
         for piece in pieces:
-            soup = BeautifulSoup(read_text(zf, piece.href), "html.parser")
+            soup = soups.get(piece.href) if soups is not None else None
+            if soup is None:
+                soup = BeautifulSoup(read_text(zf, piece.href), "html.parser")
+                if soups is not None:
+                    soups[piece.href] = soup
             base_dir = posixpath.dirname(piece.href)
             for el in units(soup, piece.start, piece.end):
-                src = _illustration_src(el)
+                src = illustration_src(el)
                 if src:
                     resolved_src = _resolve(base_dir, src)
                     data = read_once.get(resolved_src)
@@ -271,89 +258,18 @@ def extract_chapter_content(
                 if el.name == "image":
                     continue
 
-                para_text = _para_text(el)
-                if not para_text:
+                paragraph = para_text(el)
+                if not paragraph:
                     continue
-                text_paragraphs.append(para_text)
-                para_raw_lines, _, _ = parse_file_content(build_new_file(para_text))
+                text_paragraphs.append(paragraph)
+                para_raw_lines, _, _ = parse_file_content(build_new_file(paragraph))
                 offset += len(para_raw_lines)
 
     return "\n".join(text_paragraphs), images
 
 
-def _illustration_src(el) -> str:
-    """
-    The image source of a standalone illustration, or "" if el isn't one.
-
-    Two shapes in the wild: a reflowable <p><img src=".."/></p>, and the
-    fixed-layout <svg><image xlink:href=".."/></svg> that Japanese publishers
-    use for full-page colour plates. SVG2 allows a plain href, so accept both.
-    """
-    if el.name == "image":
-        return el.get("xlink:href") or el.get("href") or ""
-    if _is_standalone_illustration(el):
-        img = el.find("img")
-        return img.get("src", "") if img is not None else ""
-    return ""
-
-
-def _is_standalone_illustration(p) -> bool:
-    """True if a <p>'s only meaningful child is a single <img>."""
-    children = [c for c in p.children if not (isinstance(c, str) and not c.strip())]
-    return len(children) == 1 and getattr(children[0], "name", None) == "img"
-
-
-def _para_text(p) -> str:
-    if _is_standalone_illustration(p):
-        return ""
-    return _extract_inline(p).strip()
-
-
-def _extract_inline(node) -> str:
-    """
-    Recursively render a tag's text content:
-      - <ruby>base<rt>reading</rt></ruby> -> "base(reading)"
-      - <img alt="..."> -> alt text
-      - class="bold" -> "**...**" (inline text convention, same approach as
-        ruby -- the translator sees the markers and may wrap the matching
-        English substring the same way if they want bold to survive export)
-      - everything else recurses into children (so ruby/gaiji/bold still
-        resolve when nested inside further tags).
-    """
-    return _render_inline(node.children)
-
-
-def _render_inline(nodes) -> str:
-    parts = []
-    for child in nodes:
-        if not hasattr(child, "name") or child.name is None:
-            parts.append(str(child))
-            continue
-        if child.name == "ruby":
-            rb = child.find("rb")
-            if rb is not None:
-                base = _extract_inline(rb)
-            else:
-                # Rendered, not str(): Kobo wraps base characters in koboSpan tags.
-                base = _render_inline(
-                    c for c in child.children
-                    if not (hasattr(c, "name") and c.name in ("rt", "rp"))
-                )
-            reading = "".join(rt.get_text() for rt in child.find_all("rt"))
-            parts.append(f"{base}({reading})" if reading else base)
-        elif child.name == "img":
-            alt = child.get("alt", "")
-            if alt:
-                parts.append(alt)
-        elif "bold" in (child.get("class") or []):
-            parts.append(f"**{_extract_inline(child)}**")
-        else:
-            parts.append(_extract_inline(child))
-    return "".join(parts)
-
-
 def _toc_entry(title: str, base_dir: str, href: str) -> tuple[str, str, str | None]:
-    return title, _resolve(base_dir, href), href.partition("#")[2] or None
+    return title, _resolve(base_dir, href), unquote(href.partition("#")[2]) or None
 
 
 def _read_toc(

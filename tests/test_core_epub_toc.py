@@ -1,5 +1,6 @@
 """open_book / extract_chapter_content split chapters at table-of-contents anchors."""
-from api.core.epub_read import extract_chapter_content, open_book
+from api.core import epub_read
+from api.core.epub_read import _toc_entry, extract_chapter_content, open_book
 from api.core.text import build_new_file, parse_file_content
 from tests.fixtures import epub as fx
 from tests.test_core_epub import _make_epub3
@@ -76,3 +77,26 @@ def test_plain_book_is_unchanged(tmp_path):
     ]
     assert extract_chapter_content(path, "OEBPS/text/ch1.xhtml")[0] == "Hello world."
     assert extract_chapter_content(path, book["chapters"][1]["pieces"])[0] == "More text here."
+
+
+def test_toc_fragment_is_percent_decoded():
+    assert _toc_entry("T", "OEBPS", "p.xhtml#ch%201")[2] == "ch 1"
+
+
+def test_soup_cache_parses_a_shared_file_once(tmp_path, monkeypatch):
+    path = fx.split_book(tmp_path)
+    book = open_book(path)
+    reads: list[str] = []
+    real = epub_read.read_text
+
+    def spy(zf, p, *rest):
+        reads.append(p)
+        return real(zf, p, *rest)
+
+    monkeypatch.setattr(epub_read, "read_text", spy)
+    soups: dict = {}
+    for title in ("Chapter 2", "Chapter 3", "Chapter 4"):
+        cached = extract_chapter_content(path, _chapter(book, title)["pieces"], soups=soups)
+        assert cached == extract_chapter_content(path, _chapter(book, title)["pieces"])
+    assert reads.count("OEBPS/text/p10.xhtml") == 1 + 3  # once cached, three times uncached
+    assert list(soups) == ["OEBPS/text/p10.xhtml"]
