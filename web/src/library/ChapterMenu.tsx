@@ -7,7 +7,7 @@ import PublishDialog from "../publish/PublishDialog";
 import { ConfirmDialog, PromptDialog } from "../ui/Dialog";
 import Menu from "../ui/Menu";
 import MoveDialog from "./MoveDialog";
-import type { Doc } from "./shelf";
+import { shownTitle, titleField, type Doc } from "./shelf";
 import { invalidateLibrary } from "./queries";
 
 type Open = null | "rename" | "refetch" | "publish" | "move" | "delete";
@@ -21,8 +21,9 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
   const id = { params: { path: { document_id: doc.id } } };
   const changed = () => invalidateLibrary(queryClient);
   const closeAll = () => { setOpen(null); setConflict(null); };
+  const title = shownTitle(doc);
   const rename = useMutation({
-    mutationFn: (title: string) => call(api.PATCH("/documents/{document_id}", { ...id, body: { title } })),
+    mutationFn: (t: string) => call(api.PATCH("/documents/{document_id}", { ...id, body: { [titleField(doc)]: t } })),
     onSuccess: async () => { await changed(); closeAll(); },
   });
   const refetch = useMutation({
@@ -59,7 +60,7 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
   );
   return (
     <>
-      <Menu label="⋯" buttonLabel={`Actions for ${doc.title}`}>
+      <Menu label="⋯" buttonLabel={`Actions for ${title}`}>
         {(close) => (
           <>
             <Link role="menuitem" className="btn" to={`/documents/${doc.id}`}>Open</Link>
@@ -80,9 +81,10 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
       </Menu>
       {error && <span className="error" role="alert">{error}</span>}
       {open === "rename" && (
-        <PromptDialog title="Rename chapter" label="Title" initial={doc.title} confirmLabel="Rename"
+        <PromptDialog title="Rename chapter" label="Title" initial={title} confirmLabel="Rename"
+          note={title !== doc.title && <>Original title: <span lang={doc.source_language}>{doc.title}</span></>}
           busy={rename.isPending} error={rename.error?.message} onClose={closeAll}
-          onSubmit={(t) => (t.trim() === doc.title ? closeAll() : rename.mutate(t.trim()))} />
+          onSubmit={(t) => (t.trim() === title ? closeAll() : rename.mutate(t.trim()))} />
       )}
       {open === "refetch" && (conflict === null ? (
         <ConfirmDialog title="Re-fetch chapter" confirmLabel="Re-fetch" busy={refetch.isPending}
@@ -98,7 +100,7 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
       {open === "move" && <MoveDialog ids={[doc.id]} currentSeriesId={doc.series_id} currentVolumeId={doc.volume_id} onClose={closeAll} />}
       {open === "delete" && (
         <ConfirmDialog title="Delete chapter" confirmLabel="Delete" danger busy={remove.isPending}
-          message={`Delete "${doc.title}"? This can't be undone.`} error={remove.error?.message}
+          message={`Delete "${title}"? This can't be undone.`} error={remove.error?.message}
           onConfirm={() => remove.mutate()} onClose={closeAll} />
       )}
     </>

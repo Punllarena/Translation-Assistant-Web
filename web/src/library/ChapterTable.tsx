@@ -11,7 +11,7 @@ import ChapterMenu from "./ChapterMenu";
 import { downloadBlob } from "./download";
 import MoveDialog from "./MoveDialog";
 import { moveItem } from "./order";
-import type { Doc, SeriesRow } from "./shelf";
+import { shownTitle, type Doc, type SeriesRow } from "./shelf";
 import { invalidateLibrary } from "./queries";
 import { chapterNumber, seriesOrder, type VolumeGroup } from "./volumeGroups";
 import { CHAPTER_MIME } from "./VolumeList";
@@ -133,12 +133,12 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
                   )}
                 </td>
                 <td className="ch-check">
-                  <input type="checkbox" aria-label={`Select ${d.title}`} checked={ticked.has(d.id)}
+                  <input type="checkbox" aria-label={`Select ${shownTitle(d)}`} checked={ticked.has(d.id)}
                     onChange={(e) => toggle(d.id, e.target.checked)} />
                 </td>
                 <td className="ch-num muted">{chapterNumber(group, d, syosetu) ?? ""}</td>
                 <td className="ch-title">
-                  <Link className="row-link" to={`/documents/${d.id}`} aria-label={`Open ${d.title}`}>{d.title}</Link>
+                  <Link className="row-link" to={`/documents/${d.id}`} aria-label={`Open ${shownTitle(d)}`}>{shownTitle(d)}</Link>
                 </td>
                 <td className={d.progress >= 100 ? "ch-prog ok" : "ch-prog"}>{d.progress}%</td>
                 <td className="ch-edited muted">{new Date(d.updated_at).toLocaleDateString()}</td>

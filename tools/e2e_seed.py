@@ -164,6 +164,16 @@ def main() -> None:
             db.flush()
             write_lines(db, ch.id, [{"line_number": 0, "prefix": "%", "raw_text": "巻です。",
                                      "translated_text": ""}])
+        # chapter-title.spec: a chapter whose chapter_title (shown) differs from its title
+        dt = Series(user_id=user.id, title="E2E display title series")
+        db.add(dt)
+        db.flush()
+        ch = Document(user_id=user.id, title="原題の章", chapter_title="Shown chapter title",
+                      series_id=dt.id, series_order=1)
+        db.add(ch)
+        db.flush()
+        write_lines(db, ch.id, [{"line_number": 0, "prefix": "%", "raw_text": "題です。",
+                                 "translated_text": ""}])
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)

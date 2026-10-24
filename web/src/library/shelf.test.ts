@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { seriesCards, sizeLabel, type Doc, type SeriesRow, type Volume } from "./shelf";
+import { seriesCards, shownTitle, sizeLabel, titleField, type Doc, type SeriesRow, type Volume } from "./shelf";
 
 const series = (id: number, title: string) => ({ id, title }) as SeriesRow;
 const volume = (id: number, series_id: number, volume_order: number, o: Partial<Volume> = {}) =>
@@ -54,5 +54,19 @@ describe("sizeLabel", () => {
     expect(sizeLabel(c(1, 21))).toBe("1 vol · 21 ch");
     expect(sizeLabel(c(0, 212))).toBe("212 ch");
     expect(sizeLabel(c(3, 5))).toBe("3 vols · 5 ch");
+  });
+});
+
+describe("shownTitle", () => {
+  it("shows the chapter title when there is one, and Rename writes that field", () => {
+    const d = { title: "第二話　出会い", chapter_title: "Chapter 2: The Meeting" };
+    expect(shownTitle(d)).toBe("Chapter 2: The Meeting");
+    expect(titleField(d)).toBe("chapter_title");
+  });
+
+  it("falls back to the chapter's own name", () => {
+    const d = { title: "Chapter 1", chapter_title: "" };
+    expect(shownTitle(d)).toBe("Chapter 1");
+    expect(titleField(d)).toBe("title");
   });
 });

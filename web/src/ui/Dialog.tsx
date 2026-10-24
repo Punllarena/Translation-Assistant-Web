@@ -45,6 +45,8 @@ export function ConfirmDialog(p: {
 
 export function PromptDialog(p: {
   title: string; label: string; initial?: string; confirmLabel: string; busy?: boolean;
+  /** A line under the heading, such as what is being renamed. */
+  note?: ReactNode;
   error?: string | null; onSubmit: (value: string) => void; onClose: () => void;
 }) {
   const [value, setValue] = useState(p.initial ?? "");
@@ -54,7 +56,7 @@ export function PromptDialog(p: {
       e.preventDefault();
       if (!empty && !p.busy) p.onSubmit(value);
     }}>
-      <div className="dlg-head"><h2>{p.title}</h2></div>
+      <div className="dlg-head"><h2>{p.title}</h2>{p.note && <p className="muted">{p.note}</p>}</div>
       <div className="dlg-body">
         <label className="field">
           <span>{p.label}</span>

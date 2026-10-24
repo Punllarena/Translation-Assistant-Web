@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import SpellMenu from "./SpellMenu";
 import { useSpell } from "./useSpell";
 import { api, call, type Schemas } from "../api/client";
+import { shownTitle } from "../library/shelf";
 import type { Misspelling } from "./LineCard";
 import CardList from "./CardList";
 import CodeEditor, { insertAtCursor, setMarks } from "./CodeEditor";
@@ -181,7 +182,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const useText = (t: string) => { ed.setText(n, t); view.current?.focus(); };
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
-      <StatusBar title={data.document.title} line={n + 1} total={lines.length}
+      <StatusBar title={shownTitle(data.document)} line={n + 1} total={lines.length}
         percent={stats.percent} words={stats.words}
         phrase={ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null}
         save={ed.save} onRetry={() => void ed.store.flush()} notice={notice ?? gone}
