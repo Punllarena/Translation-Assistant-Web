@@ -136,7 +136,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
                   <input type="checkbox" aria-label={`Select ${d.title}`} checked={ticked.has(d.id)}
                     onChange={(e) => toggle(d.id, e.target.checked)} />
                 </td>
-                <td className="ch-num muted">{chapterNumber(group, d, syosetu)}</td>
+                <td className="ch-num muted">{chapterNumber(group, d, syosetu) ?? ""}</td>
                 <td className="ch-title">
                   <Link className="row-link" to={`/documents/${d.id}`} aria-label={`Open ${d.title}`}>{d.title}</Link>
                 </td>

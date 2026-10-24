@@ -62,6 +62,13 @@ def sent_titles(wp):
     return [b["doc_meta"]["volume_title"] if "doc_meta" in b else b["volume_title"] for _, b in wp["posted"]]
 
 
+def marked(me, make_doc, s, v, db):
+    doc = make_doc(me, [], series=s, order=0, volume=v, title="Illustrations")
+    doc.is_illustrations = True
+    db.flush()
+    return doc
+
+
 def test_first_chapter_publish_freezes_name(app_client, vol, wp, db):
     v, _, doc = vol
     assert v.wp_volume_title is None
@@ -71,13 +78,13 @@ def test_first_chapter_publish_freezes_name(app_client, vol, wp, db):
     assert v.wp_volume_title == NAME
 
 
-def test_frozen_name_survives_renames(app_client, vol, wp, db):
+def test_frozen_name_survives_renames(app_client, me, make_doc, vol, wp, db):
     v, s, doc = vol
     app_client.post(f"/documents/{doc.id}/wp/publish", json={})
     assert app_client.patch(f"/volumes/{v.id}", json={"subtitle": "New"}).status_code == 200
     assert app_client.patch(f"/series/{s.id}", json={"volume_title_template": "{kind} {index}: {subtitle}"}).status_code == 200
     app_client.post(f"/documents/{doc.id}/wp/publish", json={"confirm_republish": True})
-    r = app_client.post(f"/volumes/{v.id}/wp/illustrations")
+    r = app_client.post(f"/documents/{marked(me, make_doc, s, v, db).id}/wp/illustrations", json={})
     assert r.status_code == 202
     jobs.run_next()
     assert sent_titles(wp) == [NAME, NAME, NAME]
@@ -100,9 +107,9 @@ def test_batch_publish_freezes_name(app_client, vol, wp, db):
     assert v.wp_volume_title == NAME
 
 
-def test_illustrations_first_publish_freezes(app_client, vol, wp, db):
-    v, _, _ = vol
-    r = app_client.post(f"/volumes/{v.id}/wp/illustrations")
+def test_illustrations_first_publish_freezes(app_client, me, make_doc, vol, wp, db):
+    v, s, _ = vol
+    r = app_client.post(f"/documents/{marked(me, make_doc, s, v, db).id}/wp/illustrations", json={})
     assert r.status_code == 202
     jobs.run_next()
     assert sent_titles(wp) == [NAME]

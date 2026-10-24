@@ -68,7 +68,7 @@ export default function NewVolumeDialog({ series, volumes, onCreated, onClose }:
             {epub.file && <span className="muted mono">{epub.file.name}</span>}
             <EpubFields epub={epub} kinds={kinds} />
             {epub.book && (
-              <span className="muted">{epub.checked.size} chapters selected · {epub.book.chapters.length - epub.checked.size} unchecked</span>
+              <span className="muted">{epub.counts.selected} chapters selected · {epub.counts.unchecked} unchecked</span>
             )}
           </>
         )}

@@ -35,6 +35,12 @@ describe("chapterNumber", () => {
     expect(chapterNumber(g, D[1], false)).toBe(2);
     expect(chapterNumber(g, D[1], true)).toBe(41);
   });
+
+  it("chapterNumber skips the illustrations chapter", () => {
+    const D = [doc(1, 1, 1, { is_illustrations: true }), doc(2, 1, 1), doc(3, 1, 1)];
+    const [g] = volumeGroups(1, D, [volume(1, 1, 1)]);
+    expect(D.map((d) => chapterNumber(g, d, false))).toEqual([null, 1, 2]);
+  });
 });
 
 describe("pickVolume", () => {

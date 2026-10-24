@@ -7,7 +7,7 @@ import { invalidateLibrary } from "../library/queries";
 import { browserZone, defaultSlot, fromLocalInput, toLocalInput } from "../time";
 
 interface Row {
-  document_id: number; title?: string; series_order?: number; scheduled_for?: string | null;
+  document_id: number; title?: string; chapter_number?: number | null; illustrations?: boolean; scheduled_for?: string | null;
   ok: boolean; error?: string; password?: string | null; unlock_chapter_index?: number | null;
 }
 
@@ -20,7 +20,7 @@ function Summary({ job }: { job: Job }) {
       <ul>
         {rows.map((r) => (
           <li key={r.document_id} className={r.ok ? "" : "error"}>
-            {r.ok ? "✓" : "✗"} ch {r.series_order ?? "?"} {r.title ?? ""}: {r.ok ? when(r) : r.error}
+            {r.ok ? "✓" : "✗"} {r.illustrations ? "Illustrations" : `ch ${r.chapter_number ?? "?"} ${r.title ?? ""}`}: {r.ok ? when(r) : r.error}
             {r.password && <> — password <code>{r.password}</code></>}
             {r.unlock_chapter_index != null && <> — chapter {r.unlock_chapter_index} unlocked</>}
           </li>

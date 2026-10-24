@@ -50,7 +50,7 @@ export default function ImportEpub({ series }: { series: SeriesRow[] }) {
           <EpubFields epub={epub} />
           <div className="inline-form">
             <button className="primary" disabled={!seriesChosen(choice) || !epub.checked.size || run.isPending}>Import</button>
-            <span className="muted">{epub.checked.size} chapters selected · {book.chapters.length - epub.checked.size} unchecked</span>
+            <span className="muted">{epub.counts.selected} chapters selected · {epub.counts.unchecked} unchecked</span>
           </div>
         </>
       )}

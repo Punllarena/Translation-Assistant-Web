@@ -7,6 +7,7 @@ class BookChapter(BaseModel):
     href: str
     char_count: int
     image_count: int
+    image_only: bool
 
 
 class BookOut(BaseModel):

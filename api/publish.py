@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from api import server_settings
 from api.core import wp
 from api.core.images import shrink_image
+from api.library import chapter_number, previous_chapter
 from api.models import ApiCredential, Document, DocumentImage, Line, Series, Volume
 from api.mt.urls import check_user_url
 from api.security import decrypt_secret
@@ -92,10 +93,13 @@ def build_chapter(db: Session, doc: Document, prefs: WpPrefs) -> Chapter:
     if series is None:
         raise NotReady("Only a chapter in a series can be published.")
     check_series(series)
+    if doc.is_illustrations:
+        raise NotReady("Publish the Illustrations chapter from its own Publish action.")
+    number = chapter_number(db, doc)
     password = unlock = None
     if wp.resolve_wp_password_enabled(series.wp_password_enabled, prefs.wp_password_enabled):
         unlock_after = series.wp_unlock_after or prefs.wp_unlock_after
-        password, unlock = wp.compute_password_fields(doc.series_order, unlock_after)
+        password, unlock = wp.compute_password_fields(number, unlock_after)
     lines = [{"prefix": p, "translated_text": t} for p, t in db.execute(
         select(Line.prefix, Line.translated_text)
         .where(Line.document_id == doc.id).order_by(Line.line_number))]
@@ -107,12 +111,12 @@ def build_chapter(db: Session, doc: Document, prefs: WpPrefs) -> Chapter:
     cover = next((im for im in images if im.is_cover), None)
     volume = db.get(Volume, doc.volume_id) if doc.volume_id else None
     return Chapter(
-        doc_meta={"series_title": series.title, "series_order": doc.series_order,
+        doc_meta={"series_title": series.title, "series_order": number,
                   "chapter_title": doc.chapter_title or doc.title,  # ruling 11
                   "volume_title": volume.wp_name if volume else ""},
         series_meta=series_meta(series), lines=lines, inline_images=inline,
         # build_payload sends the cover with chapter 1 only, so only that one is shrunk
-        cover_image=image_dict(cover) if cover is not None and doc.series_order == 1 else None,
+        cover_image=image_dict(cover) if cover is not None and number == 1 else None,
         password=password, unlock_chapter_index=unlock,
         prev_wp_chapter_index=doc.wp_chapter_index,
     )
@@ -129,7 +133,7 @@ def payload(ch: Chapter, api_key: str, *, scheduled: datetime | None, attributio
     )
 
 
-def record(doc: Document, result: dict, scheduled: datetime | None) -> bool:
+def record(doc: Document, result: dict, scheduled: datetime | None, number: int | None) -> bool:
     """The desktop persist_publish_result (ruling 7). False when WordPress reported
     neither created nor updated (its 409 "already there")."""
     if not (result.get("created") or result.get("updated")):
@@ -138,7 +142,7 @@ def record(doc: Document, result: dict, scheduled: datetime | None) -> bool:
     doc.wp_post_url = str(result.get("post_url") or "")
     doc.wp_published_at = scheduled or datetime.now(UTC)
     doc.wp_scheduled_for = scheduled
-    doc.wp_chapter_index = doc.series_order
+    doc.wp_chapter_index = number
     return True
 
 
@@ -174,9 +178,7 @@ def suggested_slot(db: Session, doc: Document, prefs: WpPrefs,
     """The confirm dialog's logic: (previous chapter still scheduled, the auto slot)."""
     if doc.series_order <= 0:
         return False, None
-    prev = db.scalar(select(Document).where(
-        Document.user_id == doc.user_id, Document.series_id == doc.series_id,
-        Document.series_order == doc.series_order - 1).order_by(Document.id).limit(1))
+    prev = previous_chapter(db, doc)
     if prev is None or prev.wp_status != "future":
         return False, None
     if prev.wp_published_at is None:

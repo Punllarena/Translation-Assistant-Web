@@ -29,6 +29,7 @@ class DocumentUpdate(Patch):
     source_url: str | None = None
     source_language: str | None = Field(default=None, min_length=2, max_length=16)
     last_position: int | None = Field(default=None, ge=0, le=2**31 - 1)
+    is_illustrations: bool | None = None
 
 
 class DocumentOut(BaseModel):
@@ -40,6 +41,7 @@ class DocumentOut(BaseModel):
     series_id: int
     volume_id: int | None
     series_order: int
+    is_illustrations: bool
     source_language: str
     source_url: str
     last_position: int
@@ -54,6 +56,7 @@ class DocumentOut(BaseModel):
 class DocumentListItem(DocumentOut):
     """A picker row: the document plus what the picker shows about its progress."""
 
+    chapter_number: int | None = None
     line_count: int
     translated_count: int
     image_count: int

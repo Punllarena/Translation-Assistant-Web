@@ -4,8 +4,10 @@ from sqlalchemy.orm import Session
 
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.deps import current_user, db_session, owned_ref, scoped
+from api.illustrations import IllustrationsRule, check_mark, check_move, rule_conflict
 from api.library import (
     arrange,
+    chapter_numbers,
     check_line_count,
     next_series_order,
     send_to_volume_end,
@@ -88,9 +90,17 @@ def list_documents(
         .where(Document.user_id == user.id)
         .order_by(Document.updated_at.desc(), Document.id.desc())
     )
+    rows = list(rows)
+    syosetu = set(
+        db.scalars(
+            select(Series.id).where(Series.user_id == user.id, Series.syosetu_url != "")
+        )
+    )
+    numbers = chapter_numbers([row[0] for row in rows], syosetu)
     return [
         DocumentListItem(
             **DocumentOut.model_validate(doc).model_dump(),
+            chapter_number=numbers[doc.id],
             line_count=lc,
             translated_count=tc,
             image_count=ic,
@@ -154,14 +164,27 @@ def update_document(
     if moving:
         changes["series_order"] = next_series_order(db, series_id)
     volume_changed = "volume_id" in changes and changes["volume_id"] != doc.volume_id
-    for field, value in changes.items():
-        setattr(doc, field, value)
-    db.flush()
+    try:
+        if (volume_changed or moving) and changes.get("is_illustrations") is not False:
+            check_move(doc, changes.get("volume_id"), db, series_id)
+        mark = changes.pop("is_illustrations", None)
+        for field, value in changes.items():
+            setattr(doc, field, value)
+        db.flush()
+        if mark is not None:
+            if mark:
+                check_mark(db, doc)  # before the flag is set: the unique index must not trip
+            doc.is_illustrations = mark
+            db.flush()
+    except IllustrationsRule as exc:
+        raise rule_conflict(exc) from None
     if moving:
         arrange(db, db.get(Series, old_series_id))
         arrange(db, db.get(Series, series_id))
     elif volume_changed:
         send_to_volume_end(db, db.get(Series, series_id), [doc], doc.volume_id)
+    elif mark is not None:
+        arrange(db, db.get(Series, series_id))
     db.flush()
     return doc
 
@@ -189,6 +212,8 @@ def merge(
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "document_ids: no such item"
         ) from None
+    except IllustrationsRule as exc:
+        raise rule_conflict(exc) from None
     except RestructureError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from None
 

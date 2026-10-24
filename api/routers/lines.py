@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from api.core.text import DEFAULT_PARSE_CHARS, replace_and_parse, split_parse_chars
 from api.deps import current_user, db_session, scoped
+from api.illustrations import IllustrationsRule, check_no_text, rule_conflict
 from api.library import replace_raw_lines
 from api.models import Document, GlossaryEntry, Line, User, UserSetting
 from api.routing import api_router
@@ -136,5 +137,9 @@ def replace_source(
     # The client joins its lines with "\n", so split on that alone: str.splitlines would
     # also break on \v, \x1c-\x1e, \x85, U+2028 and U+2029, and drop a trailing blank line.
     raw = body.text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    try:
+        check_no_text(doc, raw)
+    except IllustrationsRule as exc:
+        raise rule_conflict(exc) from None
     replace_raw_lines(db, doc, raw, body.force)
     return doc

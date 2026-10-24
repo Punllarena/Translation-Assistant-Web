@@ -10,6 +10,7 @@ line_number) rather than deleted and re-inserted, so every line keeps its
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
+from api.illustrations import check_no_text
 from api.library import arrange, chapters, renumber
 from api.models import Document, DocumentImage, Line, Series
 
@@ -56,7 +57,13 @@ def merge_documents(
         raise NotOwned
     if len({doc.series_id for doc in docs}) != 1:
         raise RestructureError("cannot merge documents from different series")
-    docs.sort(key=lambda doc: (doc.series_order, doc.id))
+    marked = next((doc for doc in docs if doc.is_illustrations), None)
+    if marked is not None:  # the merged chapter is the Illustrations chapter: no text in any part
+        for doc in docs:
+            raw = list(db.scalars(select(Line.raw_text).where(Line.document_id == doc.id)))
+            check_no_text(marked, raw)
+    # a marked chapter survives, so the merged chapter keeps the mark and its place
+    docs.sort(key=lambda doc: (not doc.is_illustrations, doc.series_order, doc.id))
     target, others = docs[0], docs[1:]
 
     offset = _line_end(db, target.id)

@@ -14,6 +14,7 @@ from api.core.syosetu_volumes import heading_sequence, marker_of, offered_marker
 from api.core.text import build_new_file, parse_file_content
 from api.deps import current_user, db_session, scoped
 from api.fetch_job import FETCH_BUSY, existing_orders, fetch_active
+from api.illustrations import IllustrationsRule, check_no_text, rule_conflict
 from api.library import replace_raw_lines
 from api.models import Document, Job, Series, User
 from api.routing import api_router
@@ -174,5 +175,9 @@ def refetch(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "this chapter has no source URL")
     title, content = _fetch(doc.source_url, server_settings.effective(db).syosetu_delay_seconds)
     raw, _, _ = parse_file_content(build_new_file(f"{title}\n\n{content}" if title else content))
+    try:
+        check_no_text(doc, raw)
+    except IllustrationsRule as exc:
+        raise rule_conflict(exc) from None
     replace_raw_lines(db, doc, raw, body.force)
     return doc

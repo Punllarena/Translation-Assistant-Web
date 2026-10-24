@@ -10,3 +10,10 @@ export function tocUrl(endpoint: string, slug: string): string {
   if (base.endsWith(ENDPOINT_PATH)) base = base.slice(0, -ENDPOINT_PATH.length);
   return `${base}/${slug}/`;
 }
+
+/** The 409 detail for an Illustrations page already live (api/routers/wp.py ILLUSTRATIONS_LIVE);
+ *  only this one asks to overwrite, not the "upload busy" 409. */
+export const ILLUSTRATIONS_LIVE = "already published; publishing again overwrites the illustrations page";
+
+export const asksOverwrite = (status: number, message: string): boolean =>
+  status === 409 && message === ILLUSTRATIONS_LIVE;
