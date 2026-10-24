@@ -29,6 +29,7 @@ class DocumentUpdate(Patch):
     source_url: str | None = None
     source_language: str | None = Field(default=None, min_length=2, max_length=16)
     last_position: int | None = Field(default=None, ge=0, le=2**31 - 1)
+    is_illustrations: bool | None = None
 
 
 class DocumentOut(BaseModel):

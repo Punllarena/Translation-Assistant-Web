@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from api.deps import current_user, db_session, scoped, scoped_volume
 from api.errors import conflict
 from api.fetch_job import FETCH_BUSY, fetch_active
+from api.illustrations import HAS_ONE, IllustrationsRule, check_move, rule_conflict
 from api.library import arrange, send_to_volume_end
 from api.models import Document, DocumentImage, Series, User, Volume, VolumeSyosetuGroup
 from api.routing import api_router
@@ -164,6 +165,12 @@ def delete_volume(
     """Chapters survive, unassigned: documents.volume_id is ON DELETE SET NULL."""
     volume = scoped_volume(db, volume_id, user.id)
     series = volume.series
+    # the Illustrations chapter must live in a volume; it survives as an ordinary chapter
+    db.execute(
+        update(Document)
+        .where(Document.volume_id == volume.id, Document.is_illustrations.is_(True))
+        .values(is_illustrations=False)
+    )
     db.delete(volume)
     db.flush()
     db.expire_all()
@@ -195,6 +202,16 @@ def merge_volumes(
     if fetch_active(db, user.id, series.id):
         raise HTTPException(status.HTTP_409_CONFLICT, FETCH_BUSY)
     others = ids - {body.into}
+    # one Illustrations chapter per volume: keep into's, else the first by volume_order
+    marked = db.execute(
+        select(Document.id, Document.volume_id)
+        .join(Volume, Volume.id == Document.volume_id)
+        .where(Document.volume_id.in_(ids), Document.is_illustrations.is_(True))
+        .order_by(Volume.id != body.into, Volume.volume_order, Volume.id)
+    ).all()
+    if len(marked) > 1:
+        db.execute(update(Document).where(Document.id.in_([m[0] for m in marked[1:]]))
+                   .values(is_illustrations=False))
     db.execute(update(Document).where(Document.volume_id.in_(others))
                .values(volume_id=body.into))
     db.execute(update(VolumeSyosetuGroup).where(VolumeSyosetuGroup.volume_id.in_(others))
@@ -233,6 +250,13 @@ def assign_documents(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "document_ids: every chapter must be yours and in this volume's series",
         )
+    try:
+        for doc in docs:
+            check_move(doc, volume.id, db)
+        if sum(doc.is_illustrations for doc in docs) > 1:
+            raise IllustrationsRule(HAS_ONE)
+    except IllustrationsRule as exc:
+        raise rule_conflict(exc) from None
     send_to_volume_end(db, volume.series, docs, volume.id)
     db.flush()
     return docs
