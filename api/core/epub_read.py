@@ -1,14 +1,20 @@
 """EPUB reader ported from the desktop ``translation_assistant/epub.py``; the builder is
 in epub_build.py. Zip/XML handling only via stdlib zipfile + the already-installed
-beautifulsoup4. Archive-safety checks and limits are ours, in epub_safety.py."""
+beautifulsoup4. Archive-safety checks and limits are ours, in epub_safety.py.
+
+Departure from the desktop: chapters are cut at table-of-contents anchors (epub_runs.py),
+not one per file, so a chapter can start mid-file and run across several files, and
+off-TOC pages continue the chapter before them."""
 import posixpath
 import warnings
 import zipfile
+from collections.abc import Sequence
 from pathlib import Path
 from typing import IO
 
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
+from api.core.epub_runs import Piece, plan_chapters, units
 from api.core.epub_safety import (
     EpubError,
     TextBudgetExceeded,
@@ -31,39 +37,8 @@ def _resolve(base_dir: str, href: str) -> str:
     return posixpath.normpath(posixpath.join(base_dir, href))
 
 
-def _dedupe_by_href(entries: list[tuple[str, str]]) -> list[tuple[str, str]]:
-    """
-    Keep the first entry per resolved href.
-
-    A nested TOC (Part -> Section#fragment) flattens to several entries that
-    all resolve to the same file once the #fragment is stripped. Since
-    extract_chapter_content() extracts the WHOLE file, keeping all of them would
-    create N documents each holding the entire file's text. One document per
-    unique file is the correct degradation for a whole-file text extractor.
-    """
-    seen = set()
-    result = []
-    for title, href in entries:
-        if href in seen:
-            continue
-        seen.add(href)
-        result.append((title, href))
-    return result
-
-
-def _order_by_spine(
-    opf: BeautifulSoup, opf_dir: str, toc_entries: list[tuple[str, str]]
-) -> list[tuple[str, str]]:
-    """
-    Reading order comes from the spine, titles from the TOC.
-
-    The TOC is only a navigation subset: image-only front/back matter (colour
-    plates, frontispiece, character sheet, afterword art) is routinely left out
-    of it, so listing TOC entries alone silently drops those pages and every
-    illustration on them. Pages the spine doesn't reference are appended at the
-    end so a TOC-only-but-off-spine entry still survives.
-    """
-    title_by_href = {href: title for title, href in toc_entries}
+def _spine(opf: BeautifulSoup, opf_dir: str) -> list[str]:
+    """Reading order: the spine's zip paths, minus the nav document and repeats."""
     nav_ids = {
         item.get("id")
         for item in opf.find_all("item", attrs={"properties": lambda v: v and "nav" in v.split()})
@@ -74,22 +49,13 @@ def _order_by_spine(
         if item.get("id") and item.get("href")
     }
     spine = opf.find("spine")
-    ordered: list[tuple[str, str]] = []
-    seen: set[str] = set()
+    hrefs: list[str] = []
     for ref in spine.find_all("itemref") if spine is not None else []:
         idref = ref.get("idref", "")
-        if idref in nav_ids:
-            continue
         href = href_by_id.get(idref)
-        if href is None or href in seen:
-            continue
-        seen.add(href)
-        # Off-TOC pages have no title of their own (their <title> is usually the
-        # book title, repeated on every page), so name them after the file.
-        fallback = posixpath.splitext(posixpath.basename(href))[0]
-        ordered.append((title_by_href.get(href) or fallback, href))
-    ordered.extend((title, href) for title, href in toc_entries if href not in seen)
-    return ordered
+        if idref not in nav_ids and href is not None and href not in hrefs:
+            hrefs.append(href)
+    return hrefs
 
 
 def _find_cover_href(opf: BeautifulSoup, opf_dir: str) -> str | None:
@@ -149,9 +115,11 @@ def _find_metadata(opf: BeautifulSoup) -> dict:
 
 def open_book(source: str | Path | IO[bytes]) -> dict:
     """
-    Returns {"title": str, "chapters": [{"order": int, "title": str,
-    "href": str, "char_count": int}, ...]} in TOC order. hrefs are resolved
-    to full zip-internal paths.
+    Returns {"title": str, "chapters": [{"order", "title", "href", "char_count",
+    "image_count", "image_only", "pieces"}, ...], "cover_href", ...metadata} in reading
+    order. href is the chapter's key (zip path, plus "#fragment" when it starts at a TOC
+    anchor); pieces are what extract_chapter_content() reads. Chapters with neither text
+    nor images are dropped and the rest numbered 1..N.
 
     Raises EpubError if the file isn't a zip / has no OPF / has neither an
     EPUB3 nav doc nor an EPUB2 toc.ncx.
@@ -175,37 +143,80 @@ def open_book(source: str | Path | IO[bytes]) -> dict:
         title_el = opf.find("dc:title")
         title = title_el.get_text(strip=True) if title_el else ""
 
-        toc_entries = _dedupe_by_href(_read_toc(zf, opf, opf_dir, parsed))
-        entries = _order_by_spine(opf, opf_dir, toc_entries)
+        toc = _read_toc(zf, opf, opf_dir, parsed)
         cover_href = _find_cover_href(opf, opf_dir)
         metadata = _find_metadata(opf)
 
+        texts: dict[str, str | None] = {}  # each file read (and charged) once
+
+        def text_of(href: str) -> str | None:
+            if href not in texts:
+                try:
+                    texts[href] = read_text(zf, href, parsed)
+                except TextBudgetExceeded:
+                    raise
+                except EpubError:
+                    texts[href] = None  # broken entry: counts nothing, so it is dropped
+            return texts[href]
+
+        last: dict[str, BeautifulSoup | None] = {}  # chapters run in spine order
+
+        def soup_of(href: str) -> BeautifulSoup | None:
+            if href not in last:
+                xhtml = text_of(href)
+                last.clear()
+                last[href] = BeautifulSoup(xhtml, "html.parser") if xhtml else None
+            return last[href]
+
+        spine = [href for href in _spine(opf, opf_dir) if text_of(href) is not None]
+        anchors = {
+            href: _anchors(texts[href], {f for _, h, f in toc if h == href and f is not None})
+            for href in spine
+        }
         chapters = []
-        for order, (chap_title, href) in enumerate(entries, start=1):
-            try:
-                xhtml = read_text(zf, href, parsed)
-            except TextBudgetExceeded:
-                raise
-            except EpubError:
-                continue  # broken TOC entry — skip rather than fail the whole import
-            soup = BeautifulSoup(xhtml, "html.parser")
-            char_count = len(soup.get_text().strip())
-            image_count = sum(1 for el in soup.find_all(["p", "image"]) if _illustration_src(el))
+        for planned in plan_chapters(spine, toc, anchors):
+            char_count, image_count = _count(planned.pieces, soup_of)
+            if not (char_count or image_count):
+                continue
             chapters.append({
-                "order": order, "title": chap_title, "href": href,
+                "order": len(chapters) + 1, "title": planned.title, "href": planned.key,
                 "char_count": char_count, "image_count": image_count,
+                "image_only": image_count > 0 and char_count == 0, "pieces": planned.pieces,
             })
 
         return {"title": title, "chapters": chapters, "cover_href": cover_href, **metadata}
 
 
+def _anchors(xhtml: str, wanted: set[str]) -> list[str]:
+    """The wanted ids that exist in the file, in document order."""
+    if not wanted:
+        return []
+    tags = BeautifulSoup(xhtml, "html.parser").find_all(id=wanted)
+    return list(dict.fromkeys(tag["id"] for tag in tags))
+
+
+def _count(pieces: tuple[Piece, ...], soup_of) -> tuple[int, int]:
+    """(characters of paragraph text, illustrations) over a chapter's pieces."""
+    chars = images = 0
+    for piece in pieces:
+        if (soup := soup_of(piece.href)) is None:
+            continue
+        for el in units(soup, piece.start, piece.end):
+            if _illustration_src(el):
+                images += 1
+            elif el.name == "p":
+                chars += len(_para_text(el))
+    return chars, images
+
+
 def extract_chapter_content(
-    source: str | Path | IO[bytes], href: str, budget: list[int] | None = None,
+    source: str | Path | IO[bytes], href: str | Sequence[Piece],
+    budget: list[int] | None = None,
 ) -> tuple[str, list[dict]]:
     """
-    Returns (text, images).
-    text: joined-paragraph string, ready
-    for core.build_new_file().
+    Returns (text, images) for one chapter: a plain href is the whole file, otherwise
+    the pieces open_book() planned, read in order.
+    text: joined-paragraph string, ready for core.build_new_file().
     images: [{"anchor_position": int, "src_path": str, "data": bytes}, ...]
     in chapter order. Does not include the cover -- that comes from
     open_book()'s cover_href, read separately.
@@ -231,42 +242,41 @@ def extract_chapter_content(
 
     with unreadable(), zf:
         check_archive(zf)
-        xhtml = read_text(zf, href)
-        soup = BeautifulSoup(xhtml, "html.parser")
-
+        pieces = (Piece(href, None, None),) if isinstance(href, str) else tuple(href)
         text_paragraphs: list[str] = []
         images: list[dict] = []
         read_once: dict[str, bytes] = {}
-        offset = 0
-        base_dir = posixpath.dirname(href)
+        offset = 0  # keeps counting across pieces
+        for piece in pieces:
+            soup = BeautifulSoup(read_text(zf, piece.href), "html.parser")
+            base_dir = posixpath.dirname(piece.href)
+            for el in units(soup, piece.start, piece.end):
+                src = _illustration_src(el)
+                if src:
+                    resolved_src = _resolve(base_dir, src)
+                    data = read_once.get(resolved_src)
+                    if data is None:
+                        try:
+                            size = zf.getinfo(resolved_src).file_size
+                        except KeyError:
+                            continue  # broken manifest reference -- skip, not fatal
+                        charge(budget, size)
+                        data = read_once[resolved_src] = zf.read(resolved_src)
+                    else:
+                        charge(budget, len(data))
+                    images.append({
+                        "anchor_position": offset, "src_path": resolved_src, "data": data,
+                    })
+                    continue
+                if el.name == "image":
+                    continue
 
-        for el in soup.find_all(["p", "image"]):
-            src = _illustration_src(el)
-            if src:
-                resolved_src = _resolve(base_dir, src)
-                data = read_once.get(resolved_src)
-                if data is None:
-                    try:
-                        size = zf.getinfo(resolved_src).file_size
-                    except KeyError:
-                        continue  # broken manifest reference -- skip, not fatal
-                    charge(budget, size)
-                    data = read_once[resolved_src] = zf.read(resolved_src)
-                else:
-                    charge(budget, len(data))
-                images.append({
-                    "anchor_position": offset, "src_path": resolved_src, "data": data,
-                })
-                continue
-            if el.name == "image":
-                continue
-
-            para_text = _para_text(el)
-            if not para_text:
-                continue
-            text_paragraphs.append(para_text)
-            para_raw_lines, _, _ = parse_file_content(build_new_file(para_text))
-            offset += len(para_raw_lines)
+                para_text = _para_text(el)
+                if not para_text:
+                    continue
+                text_paragraphs.append(para_text)
+                para_raw_lines, _, _ = parse_file_content(build_new_file(para_text))
+                offset += len(para_raw_lines)
 
     return "\n".join(text_paragraphs), images
 
@@ -342,10 +352,14 @@ def _render_inline(nodes) -> str:
     return "".join(parts)
 
 
+def _toc_entry(title: str, base_dir: str, href: str) -> tuple[str, str, str | None]:
+    return title, _resolve(base_dir, href), href.partition("#")[2] or None
+
+
 def _read_toc(
     zf: zipfile.ZipFile, opf: BeautifulSoup, opf_dir: str, parsed: list[int],
-) -> list[tuple[str, str]]:
-    """Returns [(chapter_title, resolved_href), ...] in TOC order."""
+) -> list[tuple[str, str, str | None]]:
+    """Returns [(chapter_title, resolved_href, fragment or None), ...] in TOC order."""
     nav_item = opf.find("item", attrs={"properties": lambda v: v and "nav" in v.split()})
     if nav_item is not None:
         nav_href = _resolve(opf_dir, nav_item["href"])
@@ -362,7 +376,7 @@ def _read_toc(
         if toc_nav is None:
             raise EpubError("EPUB3 nav document has no <nav> element")
         return [
-            (a.get_text(strip=True), _resolve(nav_dir, a["href"]))
+            _toc_entry(a.get_text(strip=True), nav_dir, a["href"])
             for a in toc_nav.find_all("a") if a.get("href")
         ]
 
@@ -383,5 +397,5 @@ def _read_toc(
             continue
         label_el = navpoint.find("text")
         title = label_el.get_text(strip=True) if label_el else ""
-        entries.append((title, _resolve(ncx_dir, content_el["src"])))
+        entries.append(_toc_entry(title, ncx_dir, content_el["src"]))
     return entries
