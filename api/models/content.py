@@ -76,6 +76,15 @@ class Series(Base):
     volume_title_template: Mapped[str] = mapped_column(
         Text, nullable=False, default="", server_default=""
     )
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(
+        Text, nullable=False, default="ongoing", server_default="ongoing"
+    )
+    source: Mapped[str] = mapped_column(
+        Text, nullable=False, default="other", server_default="other"
+    )
+    # newest chapter post date syosetu showed at the last chapter-list read
+    syosetu_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -7,9 +7,13 @@ from api.core.volume_names import validate_template
 from api.core.wp_summary import MAX_SUMMARY_CHARS
 from api.schemas.common import Credit, Patch, Title
 
+SeriesStatus = Literal["ongoing", "on_hold", "dropped", "completed"]
+SeriesSource = Literal["syosetu", "epub", "other"]
+
 
 class SeriesCreate(BaseModel):
     title: Title
+    status: SeriesStatus = "ongoing"
     syosetu_url: str = ""
     original_title: Credit = ""
     original_author: Credit = ""
@@ -20,6 +24,8 @@ class SeriesUpdate(Patch):
     NULLABLE: ClassVar[frozenset[str]] = frozenset({"wp_password_enabled", "wp_unlock_after"})
 
     title: Title | None = None
+    status: SeriesStatus | None = None
+    source: SeriesSource | None = None
     syosetu_url: str | None = None
     original_title: Credit | None = None
     original_author: Credit | None = None
@@ -59,4 +65,8 @@ class SeriesOut(BaseModel):
     syosetu_volume_marker: str
     volume_title_template: str
     volume_title_template_effective: str
+    archived_at: datetime | None
+    status: str
+    source: str
+    syosetu_updated_at: datetime | None
     created_at: datetime

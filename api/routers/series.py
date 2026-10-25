@@ -1,5 +1,5 @@
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -38,7 +38,8 @@ def get_series(
 def create_series(
     body: SeriesCreate, user: User = Depends(current_user), db: Session = Depends(db_session)
 ) -> Series:
-    series = Series(user_id=user.id, **body.model_dump())
+    source = "syosetu" if body.syosetu_url.strip() else "other"
+    series = Series(user_id=user.id, source=source, **body.model_dump())
     try:
         with db.begin_nested():
             db.add(series)
@@ -84,6 +85,28 @@ def delete_series(
     """The series' chapters are deleted with it (lines and images by their cascades)."""
     db.delete(scoped(db, Series, series_id, user.id))
     db.flush()
+
+
+@router.post("/{series_id}/archive", response_model=SeriesOut)
+def archive_series(
+    series_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
+) -> Series:
+    series = scoped(db, Series, series_id, user.id)
+    if series.archived_at is None:  # archiving twice keeps the first stamp
+        series.archived_at = func.now()
+        db.flush()
+        db.refresh(series)
+    return series
+
+
+@router.post("/{series_id}/unarchive", response_model=SeriesOut)
+def unarchive_series(
+    series_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
+) -> Series:
+    series = scoped(db, Series, series_id, user.id)
+    series.archived_at = None
+    db.flush()
+    return series
 
 
 def _refuse_syosetu(series: Series) -> None:
