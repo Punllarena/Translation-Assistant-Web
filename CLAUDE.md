@@ -96,7 +96,7 @@ by row. `GET /import/tadb/pending` lets the import card resume; the header's run
 `GET /jobs?active=true`.
 
 Library redesign: the Library (`/`) lists series only, as a bookshelf or a list (`ta.libraryView` in `localStorage`, helper
-`web/src/library/viewPref.ts`). A series opens at `/series/:id?tab=volumes|tools|settings&volume=<id>|none`: Volumes is a
+`web/src/library/viewPref.ts`). A series opens at `/series/:id?tab=volumes|glossary|tools|settings|wordpress&volume=<id>|none`: Volumes is a
 two-pane view (volume list, then the selected volume's chapters with a selection bar and per-row ⋯ menu; "No volume" holds
 loose chapters), and its grouping and numbering helpers live in `web/src/library/volumeGroups.ts`. `documents.series_id` is
 `NOT NULL` and deleting a series cascades to its volumes and chapters. `arrange()` (`api/library.py`) keeps each volume a
@@ -151,12 +151,14 @@ a 422 telling the user to copy the image address. Merging volumes keeps one cove
 volume; deleting a volume deletes its cover. Spec: `docs/superpowers/specs/2026-10-24-volume-covers-design.md`.
 
 Series summary: the desktop's chapter 0 is `series.wp_summary` (columns added by migration `6fd2c71c71da`), edited on the series'
-WordPress tab (`?tab=wordpress`, `web/src/library/SeriesWp.tsx`, status rules in `summaryStatus.ts`). Saving it sets
-`wp_summary_pending`; `api/wp_summary.send` posts it as chapter index 0 just before the next chapter of that series in single,
-batch and Illustrations publishes, and a failure is stored in `wp_summary_error` without failing the chapter. Text helpers are
+WordPress tab (`?tab=wordpress`, `web/src/library/SeriesWp.tsx`, status rules in `summaryStatus.ts`). Saving a changed non-blank text sets
+`wp_summary_pending` (blank clears it); `api/wp_summary.send` posts it as chapter index 0 just before the next chapter of that series in single,
+batch (once per series) and Illustrations publishes, only when the text is still the one sent (an edit meanwhile stays pending), and a failure is stored in `wp_summary_error` without failing the chapter. Text helpers are
 pure, in `api/core/wp_summary.py`. `build_chapter` refuses a chapter numbered 0 or holding `wp_chapter_index` 0
 (`publish.SUMMARY_MOVED`). Migration `b7e3a1c95d42` (move_series_summaries) and the ta.db importer (`api/core/tadb_summary.py`)
-turn live chapter-0 documents into the summary. Spec: `docs/superpowers/specs/2026-10-25-series-wordpress-tab-design.md`.
+turn live chapter-0 documents into the summary; the migration also clears a non-live index 0 to NULL, and the importer
+stores `wp_chapter_index` NULL for any imported chapter whose desktop value is 0 and caps the summary (the line caps, and none
+written over 100,000 characters). Spec: `docs/superpowers/specs/2026-10-25-series-wordpress-tab-design.md`.
 
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)

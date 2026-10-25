@@ -18,13 +18,33 @@ from alembic import op
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-from api.core.wp_summary import lines_to_summary
-
 # revision identifiers, used by Alembic.
 revision: str = 'b7e3a1c95d42'
 down_revision: str | Sequence[str] | None = '6fd2c71c71da'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+
+
+def lines_to_summary(lines: list[dict]) -> str:
+    """Frozen copy of the helper at the time of this revision: `$` lines continue the
+    previous paragraph; paragraphs are joined by a blank line."""
+    groups: list[str] = []
+    i = 0
+    while i < len(lines):
+        if lines[i].get("prefix") == "$":
+            i += 1
+            continue
+        group = [lines[i]["translated_text"]]
+        i += 1
+        while i < len(lines) and lines[i].get("prefix") == "$":
+            group.append(lines[i]["translated_text"])
+            i += 1
+        text = " ".join(t for t in group if t.strip())
+        if text:
+            groups.append(text)
+    return (chr(10) * 2).join(groups)
+
 
 _LIVE = "('publish', 'future')"
 
