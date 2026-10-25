@@ -2624,12 +2624,6 @@ export interface components {
              */
             original_title: string;
             /**
-             * Status
-             * @default ongoing
-             * @enum {string}
-             */
-            status: "ongoing" | "on_hold" | "dropped" | "completed";
-            /**
              * Syosetu Url
              * @default
              */

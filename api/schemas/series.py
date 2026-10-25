@@ -13,7 +13,6 @@ SeriesSource = Literal["syosetu", "epub", "other"]
 
 class SeriesCreate(BaseModel):
     title: Title
-    status: SeriesStatus = "ongoing"
     syosetu_url: str = ""
     original_title: Credit = ""
     original_author: Credit = ""
