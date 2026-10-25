@@ -26,6 +26,8 @@ export function Modal({ title, onClose, onSubmit, busy, children }: {
 export function ConfirmDialog(p: {
   title: string; message: ReactNode; confirmLabel: string; danger?: boolean; busy?: boolean;
   error?: string | null; onConfirm: () => void; onClose: () => void;
+  /** An extra action between Cancel and the confirm button. */
+  secondary?: { label: string; onClick: () => void };
 }) {
   return (
     <Modal title={p.title} onClose={p.onClose} busy={p.busy}>
@@ -36,6 +38,7 @@ export function ConfirmDialog(p: {
       </div>
       <div className="dlg-foot">
         <button type="button" disabled={p.busy} onClick={p.onClose}>Cancel</button>
+        {p.secondary && <button type="button" disabled={p.busy} onClick={p.secondary.onClick}>{p.secondary.label}</button>}
         <button type="button" className={p.danger ? "primary danger" : "primary"} disabled={p.busy}
           onClick={p.onConfirm}>{p.confirmLabel}</button>
       </div>
