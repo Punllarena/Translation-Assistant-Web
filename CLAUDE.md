@@ -111,7 +111,7 @@ volume indexing, the plugin's Illustrations page) is tracked in `docs/TODO.md`.
 Syosetu heading volumes: the fetch job puts each chapter in the volume of its `p-eplist__chapter-title` heading, per the
 series' `syosetu_volume_mode` (`all` / `marker` with `syosetu_volume_marker` / `off`); the rules are pure, in
 `api/core/syosetu_volumes.py`, and read the heading sequence stored in `series.syosetu_headings` (written by the fetch job
-and regroup, never by the chapter-list GET). Heading→volume links live in `volume_syosetu_groups` (hidden, so renamed
+and regroup; the chapter-list GET and the volume-headings preview write only `syosetu_updated_at`). Heading→volume links live in `volume_syosetu_groups` (hidden, so renamed
 volumes keep receiving chapters; a merged volume holds several). `POST /series/{id}/syosetu/volume-headings`
 (`api/syosetu_regroup.py`) previews or applies a setting change: it never deletes volumes and never moves chapters out of
 volumes with no heading link. `POST /series/{id}/volumes/merge` merges volumes into one (the Volumes tab's Select mode).
@@ -149,6 +149,13 @@ volume's cover, else the first volume's by `volume_order` that has one (`covers.
 a direct image address (`check_user_url` on every hop, no private-address override, 3 redirects, 10 MiB); an HTML answer is
 a 422 telling the user to copy the image address. Merging volumes keeps one cover and moves the series choice to the kept
 volume; deleting a volume deletes its cover. Spec: `docs/superpowers/specs/2026-10-24-volume-covers-design.md`.
+
+Library filters: `series.status` (`ongoing` / `on_hold` / `dropped` / `completed`, default ongoing; `SeriesCreate` takes none, PATCH sets it),
+`source` (`syosetu` / `epub` / `other`, set at creation: `POST /series` from a `syosetu_url`, EPUB import, ta.db import by URL; the Settings tab edits it),
+`archived_at` and `syosetu_updated_at` (syosetu's latest chapter post date). `POST /series/{id}/archive|unarchive` set and clear `archived_at`;
+archiving hides a series only from the Library's default filter, never from the API lists, its chapters or the series page, which shows
+an "Archived" note with Unarchive. The Library's sort, direction and filters are pure in `web/src/library/libraryQuery.ts` and persist in
+`localStorage` via `libraryPrefs.ts` (`ta.librarySort`, `ta.libraryFilters`). Spec: `docs/superpowers/specs/2026-10-25-library-filters-sort-archive-design.md`.
 
 Series summary: the desktop's chapter 0 is `series.wp_summary` (columns added by migration `6fd2c71c71da`), edited on the series'
 WordPress tab (`?tab=wordpress`, `web/src/library/SeriesWp.tsx`, status rules in `summaryStatus.ts`). Saving a changed non-blank text sets

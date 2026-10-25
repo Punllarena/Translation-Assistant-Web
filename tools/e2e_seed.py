@@ -174,6 +174,21 @@ def main() -> None:
         db.flush()
         write_lines(db, ch.id, [{"line_number": 0, "prefix": "%", "raw_text": "題です。",
                                  "translated_text": ""}])
+        # library-filters.spec: two series that differ in status and source, one chapter each
+        for fs_title, fs_status, fs_source, fs_url in (
+            ("Filter spec ongoing", "ongoing", "syosetu", "https://ncode.syosetu.com/n9999zz/"),
+            ("Filter spec dropped", "dropped", "epub", None),
+        ):
+            fs = Series(user_id=user.id, title=fs_title, status=fs_status, source=fs_source,
+                        syosetu_url=fs_url)
+            db.add(fs)
+            db.flush()
+            ch = Document(user_id=user.id, title=f"{fs_title} chapter one", series_id=fs.id,
+                          series_order=1)
+            db.add(ch)
+            db.flush()
+            write_lines(db, ch.id, [{"line_number": 0, "prefix": "%", "raw_text": "絞込です。",
+                                     "translated_text": ""}])
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)
