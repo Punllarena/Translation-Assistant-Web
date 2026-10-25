@@ -105,11 +105,15 @@ def _series_with_url(db: Session, series_id: int, user_id: int) -> Series:
 def _read_index(series: Series) -> list[dict]:
     try:
         with _slot(), http_client() as c:
-            return scrape.fetch_series_index(c, series.syosetu_url)
+            index = scrape.fetch_series_index(c, series.syosetu_url)
     except scrape.ScrapeError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    latest = scrape.latest_post(index)
+    if latest is not None:
+        series.syosetu_updated_at = latest
+    return index
 
 
 @router.get("/series/{series_id}/syosetu/chapters", response_model=ChapterList)
@@ -117,7 +121,8 @@ def list_chapters(
     series_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
 ) -> ChapterList:
     """The index with each chapter's heading, plus the heading markers the series could
-    start volumes at. Reads only: the stored heading sequence is the fetch job's."""
+    start volumes at. Reads the index; writes only `syosetu_updated_at` (the stored
+    heading sequence is the fetch job's)."""
     series = _series_with_url(db, series_id, user.id)
     index = _read_index(series)
     have = existing_orders(db, series.id)

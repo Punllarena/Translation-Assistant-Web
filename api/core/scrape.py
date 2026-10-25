@@ -2,9 +2,12 @@
 the fetch_* functions. The QThread workers are gone (the jobs worker replaces them).
 HTTP goes through an injected httpx.Client so tests replay recorded HTML (spec §12)."""
 
+import re
 import threading
 import time
+from datetime import datetime
 from urllib.parse import urljoin, urlparse
+from zoneinfo import ZoneInfo
 
 import httpx
 from bs4 import BeautifulSoup
@@ -141,6 +144,33 @@ _INDEX_NODES = (
 )
 
 
+_JST = ZoneInfo("Asia/Tokyo")
+_POSTED = re.compile(r"\d{4}/\d{1,2}/\d{1,2} \d{1,2}:\d{2}")
+
+
+def _posted_at(anchor) -> datetime | None:
+    """The chapter's post date (JST) from its index row, or None. A revision marker
+    sits after the post date in the same cell, so the first match is the post date."""
+    row = anchor.find_parent("div", class_="p-eplist__sublist")
+    cell_selector = "div.p-eplist__update"
+    if row is None:
+        row = anchor.find_parent("dl", class_="novel_sublist2")
+        cell_selector = "dt.long_update"
+    cell = row.select_one(cell_selector) if row is not None else None
+    match = _POSTED.search(cell.get_text(" ")) if cell is not None else None
+    if match is None:
+        return None
+    try:
+        return datetime.strptime(match.group(), "%Y/%m/%d %H:%M").replace(tzinfo=_JST)
+    except ValueError:
+        return None
+
+
+def latest_post(chapters: list[dict]) -> datetime | None:
+    """The newest post date among the chapters, or None when none has one."""
+    return max((ch["posted_at"] for ch in chapters if ch.get("posted_at")), default=None)
+
+
 def _extract_chapters(
     soup: BeautifulSoup, base: str, group: str | None
 ) -> tuple[list[dict], str | None]:
@@ -160,7 +190,8 @@ def _extract_chapters(
             continue
         title = el.get_text(strip=True)
         chapter_url = urljoin(base, href)
-        chapters.append({"num": num, "title": title, "url": chapter_url, "group": group})
+        chapters.append({"num": num, "title": title, "url": chapter_url, "group": group,
+                         "posted_at": _posted_at(el)})
     return chapters, group
 
 
@@ -221,7 +252,7 @@ def _walk_index(c: httpx.Client, url: str) -> tuple[BeautifulSoup, list[dict]]:
 
 def _short_story(soup: BeautifulSoup, url: str) -> list[dict]:
     title, _ = _novel_header(soup)
-    return [{"num": 1, "title": title, "url": url, "group": None}]
+    return [{"num": 1, "title": title, "url": url, "group": None, "posted_at": None}]
 
 
 def fetch_series_index(c: httpx.Client, url: str) -> list[dict]:

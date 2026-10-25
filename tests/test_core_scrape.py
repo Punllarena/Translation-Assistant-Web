@@ -1,4 +1,7 @@
 """Tests for api/core/scrape.py, ported from the desktop tests/test_scraper.py."""
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import httpx
 import pytest
 from bs4 import BeautifulSoup
@@ -74,6 +77,7 @@ def test_fetch_series_index_parses_chapters():
         "title": "第一話　始まり",
         "url": "https://novel18.syosetu.com/n7696mg/1/",
         "group": None,
+        "posted_at": None,
     }
     assert chapters[2]["num"] == 3
     assert chapters[2]["title"] == "第三話　決意"
@@ -90,6 +94,7 @@ def test_fetch_series_index_parses_chapters_old_format():
         "title": "第一話　始まり",
         "url": "https://novel18.syosetu.com/n7696mg/1/",
         "group": None,
+        "posted_at": None,
     }
 
 
@@ -188,7 +193,8 @@ def test_read_novel_short_story():
     assert info["title"] == "一夜の話"
     assert info["author"] == "鈴木"
     assert info["short_story"] is True
-    assert info["chapters"] == [{"num": 1, "title": "一夜の話", "url": url, "group": None}]
+    assert info["chapters"] == [
+        {"num": 1, "title": "一夜の話", "url": url, "group": None, "posted_at": None}]
 
 
 def test_read_novel_missing_author():
@@ -220,7 +226,7 @@ def test_index_of_short_story_is_one_chapter():
 
     with scrape.client(transport=httpx.MockTransport(handle)) as c:
         got = fetch_series_index(c, url)
-    assert got == [{"num": 1, "title": "一夜の話", "url": url, "group": None}]
+    assert got == [{"num": 1, "title": "一夜の話", "url": url, "group": None, "posted_at": None}]
     assert len(hits) == 1
 
 
@@ -343,3 +349,42 @@ def test_throttle_spaces_calls(monkeypatch):
 def test_malformed_urls_are_value_errors(url):
     with pytest.raises(ValueError):
         scrape.validate_url(url)
+
+
+_DATED = """<div class="p-eplist">
+<div class="p-eplist__sublist"><a href="/n1/1/" class="p-eplist__subtitle">一</a>
+  <div class="p-eplist__update">2024/01/02 09:00</div></div>
+<div class="p-eplist__sublist"><a href="/n1/2/" class="p-eplist__subtitle">二</a>
+  <div class="p-eplist__update">2024/03/04 18:30
+    <span title="2025/05/06 07:00 改稿">（<u>改稿</u>）</span></div></div>
+<div class="p-eplist__sublist"><a href="/n1/3/" class="p-eplist__subtitle">三</a>
+  <div class="p-eplist__update">not a date</div></div>
+</div>"""
+
+_DATED_OLD = """<div class="index_box"><dl class="novel_sublist2">
+<dd class="subtitle"><a href="/n1/1/">一</a></dd>
+<dt class="long_update">2023/07/08 12:00</dt>
+</dl></div>"""
+
+
+def test_index_reads_post_dates_and_ignores_revisions():
+    with one("https://ncode.syosetu.com/n1/", _DATED) as c:
+        chs = fetch_series_index(c, "https://ncode.syosetu.com/n1/")
+    jst = ZoneInfo("Asia/Tokyo")
+    assert [ch["posted_at"] for ch in chs] == [
+        datetime(2024, 1, 2, 9, 0, tzinfo=jst), datetime(2024, 3, 4, 18, 30, tzinfo=jst), None]
+    assert scrape.latest_post(chs) == datetime(2024, 3, 4, 18, 30, tzinfo=jst)
+
+
+def test_old_format_reads_post_dates():
+    with one("https://ncode.syosetu.com/n1/", _DATED_OLD) as c:
+        chs = fetch_series_index(c, "https://ncode.syosetu.com/n1/")
+    assert [ch["posted_at"] for ch in chs] == [
+        datetime(2023, 7, 8, 12, 0, tzinfo=ZoneInfo("Asia/Tokyo"))]
+
+
+def test_rows_without_dates_have_none():
+    with one("https://ncode.syosetu.com/n7696mg/", _TOC_HTML) as c:
+        chs = fetch_series_index(c, "https://ncode.syosetu.com/n7696mg/")
+    assert {ch["posted_at"] for ch in chs} == {None}
+    assert scrape.latest_post(chs) is None

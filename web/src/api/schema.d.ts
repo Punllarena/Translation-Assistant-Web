@@ -941,6 +941,23 @@ export interface paths {
         patch: operations["update_series_series__series_id__patch"];
         trace?: never;
     };
+    "/series/{series_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive Series */
+        post: operations["archive_series_series__series_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/series/{series_id}/cover-volume": {
         parameters: {
             query?: never;
@@ -1135,7 +1152,8 @@ export interface paths {
         /**
          * List Chapters
          * @description The index with each chapter's heading, plus the heading markers the series could
-         *     start volumes at. Reads only: the stored heading sequence is the fetch job's.
+         *     start volumes at. Reads the index; writes only `syosetu_updated_at` (the stored
+         *     heading sequence is the fetch job's).
          */
         get: operations["list_chapters_series__series_id__syosetu_chapters_get"];
         put?: never;
@@ -1178,6 +1196,23 @@ export interface paths {
          *     the setting and moves the existing chapters to match.
          */
         post: operations["volume_headings_series__series_id__syosetu_volume_headings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unarchive Series */
+        post: operations["unarchive_series_series__series_id__unarchive_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2589,6 +2624,12 @@ export interface components {
              */
             original_title: string;
             /**
+             * Status
+             * @default ongoing
+             * @enum {string}
+             */
+            status: "ongoing" | "on_hold" | "dropped" | "completed";
+            /**
              * Syosetu Url
              * @default
              */
@@ -2598,6 +2639,8 @@ export interface components {
         };
         /** SeriesOut */
         SeriesOut: {
+            /** Archived At */
+            archived_at: string | null;
             /** Author Romaji */
             author_romaji: string;
             /**
@@ -2611,6 +2654,18 @@ export interface components {
             original_author: string;
             /** Original Title */
             original_title: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "syosetu" | "epub" | "other";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ongoing" | "on_hold" | "dropped" | "completed";
+            /** Syosetu Updated At */
+            syosetu_updated_at: string | null;
             /** Syosetu Url */
             syosetu_url: string;
             /** Syosetu Volume Marker */
@@ -2661,6 +2716,10 @@ export interface components {
             original_author?: string | null;
             /** Original Title */
             original_title?: string | null;
+            /** Source */
+            source?: ("syosetu" | "epub" | "other") | null;
+            /** Status */
+            status?: ("ongoing" | "on_hold" | "dropped" | "completed") | null;
             /** Syosetu Url */
             syosetu_url?: string | null;
             /** Title */
@@ -5000,6 +5059,37 @@ export interface operations {
             };
         };
     };
+    archive_series_series__series_id__archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     choose_series_cover_series__series_id__cover_volume_put: {
         parameters: {
             query?: never;
@@ -5462,6 +5552,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegroupCounts"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unarchive_series_series__series_id__unarchive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesOut"];
                 };
             };
             /** @description Validation Error */
