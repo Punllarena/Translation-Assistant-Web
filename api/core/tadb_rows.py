@@ -23,6 +23,7 @@ from api.core.tadb_schema import (
     _parse_ts,
     _skip,
 )
+from api.core.tadb_summary import Summaries, is_summary
 from api.core.tadb_volumes import _volume_meta, find_or_add_volume
 from api.models import Document, DocumentImage, Series, Volume, VolumeCover
 
@@ -185,6 +186,7 @@ def _import_documents(
     fresh: set[int] = set()  # oneshot series created by this import
     present = _existing_chapters(db, user_id)
     left_out: set[int] = set()  # desktop chapters read but not imported
+    summaries = Summaries()  # desktop chapter 0s, which become series.wp_summary
 
     for row in conn.execute("SELECT * FROM documents"):
         progress.step(1, "chapters")
@@ -203,6 +205,10 @@ def _import_documents(
             if series is None:
                 _skip(report, "documents", label, "its own series was not created")
                 continue
+        if is_summary(row):
+            summaries.take(row, series)
+            left_out.discard(row["id"])
+            continue
         volume = None
         if vol_title:
             volume = find_or_add_volume(
@@ -259,6 +265,8 @@ def _import_documents(
     batch: list[tuple[str, dict]] = []
     for row in conn.execute("SELECT * FROM lines ORDER BY document_id, line_number"):
         progress.step(1, "lines")  # report() throttles, so per row is cheap
+        if summaries.add_line(row):
+            continue
         doc = id_map.get(row["document_id"])
         if doc is None:
             if not along("lines", row):
@@ -294,10 +302,14 @@ def _import_documents(
             insert_lines(db, batch, report)
             batch = []
     insert_lines(db, batch, report)
+    summaries.finish(report)
 
     covers: list[tuple] = []  # desktop chapter covers in a volume, placed after the loop
     for row in conn.execute("SELECT * FROM document_images"):
         progress.step(1, "images")
+        if row["document_id"] in summaries.series:
+            report.skipped["document_images"] += 1
+            continue
         doc = id_map.get(row["document_id"])
         if doc is None:
             if not along("document_images", row):

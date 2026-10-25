@@ -714,3 +714,73 @@ def test_a_later_cover_in_the_volume_stays_an_excluded_image(db, make_user, tmp_
     later = db.query(DocumentImage).one()
     assert (later.src_path, later.exclude_export) == ("later.jpg", True)
     assert db.query(VolumeCover).one().src_path == "cover.jpg"
+
+
+def _chapter0(path: Path, *, status: str = "publish") -> int:
+    """A desktop chapter 0 of 'My Series' with two paragraphs and an image."""
+    _tweak(
+        path,
+        "INSERT INTO documents (title, series_title, series_order, wp_status, wp_chapter_index) "
+        f"VALUES ('Summary', 'My Series', 0, '{status}', 0)",
+    )
+    conn = sqlite3.connect(path)
+    doc_id = conn.execute("SELECT id FROM documents WHERE title = 'Summary'").fetchone()[0]
+    conn.close()
+    _tweak(
+        path,
+        "INSERT INTO lines (document_id, line_number, prefix, raw_text, translated_text) "
+        f"VALUES ({doc_id}, 0, '%', 'あ', 'First para.')",
+        "INSERT INTO lines (document_id, line_number, prefix, raw_text, translated_text) "
+        f"VALUES ({doc_id}, 1, '%', 'い', 'Second para.')",
+        "INSERT INTO document_images (document_id, anchor_position, is_cover, src_path, data) "
+        f"VALUES ({doc_id}, 0, 0, 'x.jpg', X'FFD8FF')",
+    )
+    return doc_id
+
+
+def test_a_live_chapter_0_becomes_the_series_summary(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _chapter0(path)
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    series = db.query(Series).filter_by(user_id=user.id).one()
+    assert series.wp_summary == "First para.\n\nSecond para."
+    assert series.wp_summary_pending is False
+    assert [d.title for d in db.query(Document).filter_by(user_id=user.id)] == ["Chapter 1"]
+    assert report.skipped["document_images"] == 1
+    assert any("chapter 0 became the summary of 'My Series'" in m for m in report.messages)
+
+
+def test_a_chapter_0_that_is_not_live_imports_as_a_chapter(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _chapter0(path, status="draft")
+    user = make_user()
+    import_tadb(db, path, user.id)
+    series = db.query(Series).filter_by(user_id=user.id).one()
+    assert series.wp_summary == ""
+    titles = sorted(d.title for d in db.query(Document).filter_by(user_id=user.id))
+    assert titles == ["Chapter 1", "Summary"]
+
+
+def test_a_reimport_keeps_an_edited_summary(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _chapter0(path)
+    user = make_user()
+    import_tadb(db, path, user.id)
+    series = db.query(Series).filter_by(user_id=user.id).one()
+    series.wp_summary = "Edited by hand."
+    db.flush()
+    report = import_tadb(db, path, user.id, force=True)
+    db.refresh(series)
+    assert series.wp_summary == "Edited by hand."
+    assert any("kept the summary already on 'My Series'" in m for m in report.messages)
+
+
+def test_dry_run_reports_the_summary_and_writes_nothing(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    _chapter0(path)
+    user = make_user()
+    report = import_tadb(db, path, user.id, dry_run=True)
+    assert any("chapter 0 became the summary" in m for m in report.messages)
+    assert db.query(Series).filter_by(user_id=user.id).count() == 0
+    assert db.query(Document).filter_by(user_id=user.id).count() == 0
