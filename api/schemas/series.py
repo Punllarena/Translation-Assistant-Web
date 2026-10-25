@@ -4,6 +4,7 @@ from typing import ClassVar
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from api.core.volume_names import validate_template
+from api.core.wp_summary import MAX_SUMMARY_CHARS
 from api.schemas.common import Credit, Patch, Title
 
 
@@ -28,6 +29,7 @@ class SeriesUpdate(Patch):
     wp_password_enabled: bool | None = None
     wp_unlock_after: int | None = Field(default=None, ge=0, le=2**31 - 1)
     volume_title_template: str | None = Field(default=None, max_length=300)  # "" resets
+    wp_summary: str | None = Field(default=None, max_length=MAX_SUMMARY_CHARS)
 
     @field_validator("volume_title_template")
     @classmethod
@@ -50,6 +52,9 @@ class SeriesOut(BaseModel):
     wp_series_title_short: str
     wp_password_enabled: bool | None
     wp_unlock_after: int | None
+    wp_summary: str
+    wp_summary_pending: bool
+    wp_summary_error: str
     syosetu_volume_mode: str
     syosetu_volume_marker: str
     volume_title_template: str

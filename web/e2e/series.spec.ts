@@ -36,3 +36,16 @@ test("phrase suggestions: analyze, translate and add a term", async ({ page }) =
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await expect(page.getByRole("cell", { name: "太郎", exact: true })).toHaveCount(0);
 });
+
+test("WordPress tab holds the slug and the series summary; Settings no longer does", async ({ page }) => {
+  await openSeries(page);
+  await page.getByRole("tab", { name: "WordPress" }).click();
+  await expect(page.getByLabel("Series slug")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Series summary (ToC page)" })).toBeVisible();
+  await page.getByLabel("Series summary").fill("First paragraph.\n\nSecond paragraph.");
+  await page.getByRole("button", { name: "Save summary" }).click();
+  await expect(page.getByText("Waiting: goes out with the next chapter you publish.")).toBeVisible();
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await expect(page.getByLabel("Title", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Series slug")).toHaveCount(0);
+});

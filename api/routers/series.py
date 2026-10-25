@@ -7,7 +7,7 @@ from api.core.text import natural_key
 from api.deps import current_user, db_session, scoped
 from api.errors import conflict
 from api.illustrations import unmark_syosetu
-from api.library import arrange, chapters, renumber
+from api.library import arrange, chapters, reject_nul, renumber
 from api.models import Document, Series, User
 from api.routing import api_router
 from api.schemas.documents import DocumentIds, DocumentOut
@@ -60,6 +60,11 @@ def update_series(
         # Another novel: the stored headings and the setting chosen from them don't apply.
         series.syosetu_headings = None
         series.syosetu_volume_mode, series.syosetu_volume_marker = "all", ""
+    if "wp_summary" in changes:
+        reject_nul(changes["wp_summary"])
+        if changes["wp_summary"] != series.wp_summary:
+            series.wp_summary_pending = bool(changes["wp_summary"].strip())
+            series.wp_summary_error = ""
     try:
         with db.begin_nested():
             for field, value in changes.items():

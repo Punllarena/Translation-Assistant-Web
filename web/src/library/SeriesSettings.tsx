@@ -6,7 +6,6 @@ import { byVolumeOrder } from "./shelf";
 import { DEFAULT_TEMPLATE, render, templateError } from "./volumeNames";
 import { ConfirmDialog } from "../ui/Dialog";
 import { invalidateLibrary, useAllVolumes } from "./queries";
-import SeriesWp from "./SeriesWp";
 import type { SeriesRow } from "./shelf";
 
 export default function SeriesSettings({ series, chapterCount }: { series: SeriesRow; chapterCount: number }) {
@@ -48,28 +47,48 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
     });
   };
   return (
-    <>
-      <form className="stack" onSubmit={submit} key={series.id}>
-        <label>Title <input name="title" defaultValue={series.title} required /></label>
-        <label>Japanese title <input name="original_title" defaultValue={series.original_title} maxLength={300} /></label>
-        <label>Author <input name="original_author" defaultValue={series.original_author} maxLength={300} /></label>
-        <label>Author (romaji) <input name="author_romaji" defaultValue={series.author_romaji} maxLength={300} /></label>
-        <label>Series URL <input name="syosetu_url" type="url" defaultValue={series.syosetu_url} /></label>
-        <label>Volume title template
-          <input name="volume_title_template" value={template} placeholder={DEFAULT_TEMPLATE}
-            onChange={(e) => setTemplate(e.target.value)} maxLength={300} aria-invalid={templateProblem !== null} />
-          <span className="hint">Placeholders: {"{series} {kind} {index} {subtitle}"}</span>
-        </label>
-        {templateProblem && <p className="error" role="alert">{templateProblem}</p>}
-        {preview && <p className="muted">Preview: {preview}</p>}
+    <div className="series-sections">
+      <form className="series-sections" onSubmit={submit} key={series.id}>
+        <section className="panel pad">
+          <h2>Details</h2>
+          <div className="row-fields">
+            <label className="field"><span>Title</span><input name="title" defaultValue={series.title} required /></label>
+            <label className="field"><span>Japanese title</span>
+              <input name="original_title" defaultValue={series.original_title} maxLength={300} /></label>
+          </div>
+          <div className="row-fields">
+            <label className="field"><span>Author</span>
+              <input name="original_author" defaultValue={series.original_author} maxLength={300} /></label>
+            <label className="field"><span>Author (romaji)</span>
+              <input name="author_romaji" defaultValue={series.author_romaji} maxLength={300} /></label>
+          </div>
+          <div className="row-fields">
+            <label className="field"><span>Series URL</span>
+              <input name="syosetu_url" type="url" defaultValue={series.syosetu_url} /></label>
+          </div>
+        </section>
+        <section className="panel pad">
+          <h2>Volume titles</h2>
+          <label className="field"><span>Volume title template</span>
+            <input name="volume_title_template" value={template} placeholder={DEFAULT_TEMPLATE}
+              onChange={(e) => setTemplate(e.target.value)} maxLength={300} aria-invalid={templateProblem !== null} />
+          </label>
+          <p className="hint">Placeholders: {"{series} {kind} {index} {subtitle}"}</p>
+          {templateProblem && <p className="error" role="alert">{templateProblem}</p>}
+          {preview && <p className="muted">Preview: {preview}</p>}
+        </section>
         <div className="toolbar">
           <button disabled={save.isPending || templateProblem !== null}>Save</button>
-          <a href={`/api/series/${seriesId}/export/markdown?variant=plain`} download>Markdown ZIP (complete chapters only)</a>
-          <a href={`/api/series/${seriesId}/export/markdown?variant=ruby`} download>Ruby Markdown ZIP (complete chapters only)</a>
         </div>
         {save.error && <p className="error" role="alert">{save.error.message}</p>}
       </form>
-      <SeriesWp series={series} />
+      <section className="panel pad">
+        <h2>Export</h2>
+        <ul className="export-list">
+          <li><a href={`/api/series/${seriesId}/export/markdown?variant=plain`} download>Markdown ZIP (complete chapters only)</a></li>
+          <li><a href={`/api/series/${seriesId}/export/markdown?variant=ruby`} download>Ruby Markdown ZIP (complete chapters only)</a></li>
+        </ul>
+      </section>
       <section className="danger-zone">
         <h2>Danger zone</h2>
         <button type="button" className="danger" onClick={() => { remove.reset(); setConfirming(true); }}>Delete series</button>
@@ -86,6 +105,6 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
           onClose={() => setConfirming(false)}
         />
       )}
-    </>
+    </div>
   );
 }

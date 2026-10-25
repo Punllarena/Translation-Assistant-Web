@@ -23,6 +23,7 @@ from api.core.tadb_schema import (
     _parse_ts,
     _skip,
 )
+from api.core.tadb_summary import Summaries, is_summary
 from api.core.tadb_volumes import _volume_meta, find_or_add_volume
 from api.models import Document, DocumentImage, Series, Volume, VolumeCover
 
@@ -185,6 +186,7 @@ def _import_documents(
     fresh: set[int] = set()  # oneshot series created by this import
     present = _existing_chapters(db, user_id)
     left_out: set[int] = set()  # desktop chapters read but not imported
+    summaries = Summaries(MAX_LINES, MAX_TEXT_CHARS)  # chapter 0s -> series.wp_summary
 
     for row in conn.execute("SELECT * FROM documents"):
         progress.step(1, "chapters")
@@ -203,6 +205,10 @@ def _import_documents(
             if series is None:
                 _skip(report, "documents", label, "its own series was not created")
                 continue
+        if is_summary(row):
+            summaries.take(row, series)
+            left_out.discard(row["id"])
+            continue
         volume = None
         if vol_title:
             volume = find_or_add_volume(
@@ -235,7 +241,9 @@ def _import_documents(
             last_position=_get(row, "documents", "last_position", 0),
             wp_status=_get(row, "documents", "wp_status", ""),
             wp_post_url=_get(row, "documents", "wp_post_url", ""),
-            wp_chapter_index=_get(row, "documents", "wp_chapter_index"),
+            # Index 0 was the desktop's summary slot; build_chapter refuses it, so a chapter
+            # that was not taken as the summary starts unindexed (as the migration does).
+            wp_chapter_index=_get(row, "documents", "wp_chapter_index") or None,
             wp_published_at=_parse_ts(
                 _get(row, "documents", "wp_date"), report, f"documents {label}", "wp_date"
             ),
@@ -259,6 +267,8 @@ def _import_documents(
     batch: list[tuple[str, dict]] = []
     for row in conn.execute("SELECT * FROM lines ORDER BY document_id, line_number"):
         progress.step(1, "lines")  # report() throttles, so per row is cheap
+        if summaries.add_line(row, report):
+            continue
         doc = id_map.get(row["document_id"])
         if doc is None:
             if not along("lines", row):
@@ -294,10 +304,14 @@ def _import_documents(
             insert_lines(db, batch, report)
             batch = []
     insert_lines(db, batch, report)
+    summaries.finish(report)
 
     covers: list[tuple] = []  # desktop chapter covers in a volume, placed after the loop
     for row in conn.execute("SELECT * FROM document_images"):
         progress.step(1, "images")
+        if row["document_id"] in summaries.series:
+            report.skipped["document_images"] += 1
+            continue
         doc = id_map.get(row["document_id"])
         if doc is None:
             if not along("document_images", row):

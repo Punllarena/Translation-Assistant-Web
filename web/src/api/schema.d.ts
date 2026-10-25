@@ -2629,6 +2629,12 @@ export interface components {
             wp_series_slug: string;
             /** Wp Series Title Short */
             wp_series_title_short: string;
+            /** Wp Summary */
+            wp_summary: string;
+            /** Wp Summary Error */
+            wp_summary_error: string;
+            /** Wp Summary Pending */
+            wp_summary_pending: boolean;
             /** Wp Unlock After */
             wp_unlock_after: number | null;
         };
@@ -2667,6 +2673,8 @@ export interface components {
             wp_series_slug?: string | null;
             /** Wp Series Title Short */
             wp_series_title_short?: string | null;
+            /** Wp Summary */
+            wp_summary?: string | null;
             /** Wp Unlock After */
             wp_unlock_after?: number | null;
         };

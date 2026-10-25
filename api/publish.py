@@ -88,6 +88,9 @@ class Chapter:
     prev_wp_chapter_index: int | None
 
 
+SUMMARY_MOVED = "The series summary is published from the series' WordPress tab, not as a chapter."
+
+
 def build_chapter(db: Session, doc: Document, prefs: WpPrefs) -> Chapter:
     """The desktop build_job."""
     series = doc.series
@@ -97,6 +100,8 @@ def build_chapter(db: Session, doc: Document, prefs: WpPrefs) -> Chapter:
     if doc.is_illustrations:
         raise NotReady("Publish the Illustrations chapter from its own Publish action.")
     number = chapter_number(db, doc)
+    if number == 0 or doc.wp_chapter_index == 0:
+        raise NotReady(SUMMARY_MOVED)
     password = unlock = None
     if wp.resolve_wp_password_enabled(series.wp_password_enabled, prefs.wp_password_enabled):
         unlock_after = series.wp_unlock_after or prefs.wp_unlock_after
