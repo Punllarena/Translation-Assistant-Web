@@ -4,9 +4,10 @@ from contextlib import contextmanager
 
 import httpx
 import pytest
+from sqlalchemy import update
 
-from api import jobs, publish, publish_job
-from api.models import DocumentImage, Volume
+from api import jobs, publish, publish_job, wp_summary
+from api.models import DocumentImage, Series, Volume
 from api.routers import wp as wp_router
 
 SITE = "https://blog.example.com"
@@ -126,6 +127,38 @@ def test_batch_sends_each_series_summary_once_before_its_first_chapter(
     db.refresh(ready)
     db.refresh(other)
     assert not ready.wp_summary_pending and not other.wp_summary_pending
+
+
+def test_batch_second_chapter_carries_the_summary_when_the_first_cannot_be_built(
+        app_client, me, ready, make_doc, wp_site, db):
+    ready.wp_summary, ready.wp_summary_pending = "About.", True
+    db.flush()
+    docs = [make_doc(me, [], series=ready, order=1), make_doc(me, ["行"], series=ready, order=2)]
+    r = app_client.post("/wp/batch", json={"document_ids": [d.id for d in docs], "schedule": False, "tz": "UTC"})
+    assert r.status_code == 202
+    jobs.run_next()
+    assert indexes(wp_site) == [0, 2]
+    db.refresh(ready)
+    assert not ready.wp_summary_pending
+
+
+def test_an_edit_made_while_sending_stays_pending(app_client, me, ready, make_doc, wp_site, db):
+    ready.wp_summary, ready.wp_summary_pending = "Old.", True
+    db.flush()
+    c = httpx.Client(transport=httpx.MockTransport(lambda request: (
+        db.execute(update(Series).where(Series.id == ready.id).values(wp_summary="New.")),
+        httpx.Response(200, json=OK))[1]))
+    wp_summary.send(c, ready, SITE + PUBLISH, "k" * 12)
+    db.refresh(ready)
+    assert (ready.wp_summary, ready.wp_summary_pending) == ("New.", True)
+
+
+def test_series_without_slug_sends_nothing_and_keeps_pending(ready, wp_site, db):
+    ready.wp_summary, ready.wp_summary_pending = "About.", True
+    ready.wp_series_slug = ""
+    c = httpx.Client(transport=httpx.MockTransport(lambda request: pytest.fail("sent")))
+    wp_summary.send(c, ready, SITE + PUBLISH, "k" * 12)
+    assert (ready.wp_summary_pending, ready.wp_summary_error) == (True, "")
 
 
 def test_illustrations_job_sends_a_pending_summary_first(app_client, me, ready, make_doc, wp_site, db):
