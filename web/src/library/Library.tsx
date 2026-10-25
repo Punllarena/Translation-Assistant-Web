@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import PageHeader from "../ui/PageHeader";
 import { useAllVolumes, useDocuments, useSeriesList } from "./queries";
 import { CompactList, Shelf } from "./SeriesCards";
+import { DEFAULT_FILTERS, DEFAULT_SORT, filterCards, sortCards } from "./libraryQuery";
 import { seriesCards } from "./shelf";
 import { readView, writeView, type LibraryView } from "./viewPref";
 
@@ -13,7 +14,9 @@ export default function Library() {
   const [filter, setFilter] = useState("");
   const [view, setView] = useState<LibraryView>(() => readView());
   const cards = useMemo(
-    () => (docs.data && series.data && volumes.data ? seriesCards(series.data, docs.data, volumes.data, filter) : []),
+    () => (docs.data && series.data && volumes.data
+      ? sortCards(filterCards(seriesCards(series.data, docs.data, volumes.data), DEFAULT_FILTERS, filter), DEFAULT_SORT)
+      : []),
     [docs.data, series.data, volumes.data, filter],
   );
   const pick = (v: LibraryView) => { setView(v); writeView(v); };

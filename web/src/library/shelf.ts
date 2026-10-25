@@ -11,9 +11,15 @@ export interface SeriesCard {
   chapterCount: number;
   progress: number;
   editedAt: string | null;
+  /** Newest chapter created_at. */
+  addedAt: string | null;
+  /** Newest chapter wp_published_at. */
+  publishedAt: string | null;
+  /** At least one chapter is live on WordPress. */
+  hasPublished: boolean;
 }
 
-const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+export const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 export const byVolumeOrder = (a: Volume, b: Volume) => a.volume_order - b.volume_order || a.id - b.id;
 type Titled = Pick<Doc, "title" | "chapter_title">;
@@ -41,25 +47,32 @@ export function seriesCover(vols: Volume[]): number | null {
   return chosen ?? vols.find((v) => v.cover_id != null)?.cover_id ?? null;
 }
 
-export function seriesCards(series: SeriesRow[], docs: Doc[], volumes: Volume[], filter: string): SeriesCard[] {
-  const needle = filter.trim().toLowerCase();
-  return series
-    .filter((s) => !needle || s.title.toLowerCase().includes(needle))
-    .sort((a, b) => collator.compare(a.title, b.title))
-    .map((s) => {
-      const own = docs.filter((d) => d.series_id === s.id).sort(bySeriesOrder);
-      const vols = volumes.filter((v) => v.series_id === s.id).sort(byVolumeOrder);
-      let editedAt: string | null = null;
-      for (const d of own) if (editedAt === null || d.updated_at > editedAt) editedAt = d.updated_at;
-      return {
-        series: s,
-        coverImageId: seriesCover(vols),
-        volumeCount: vols.length,
-        chapterCount: own.length,
-        progress: progressOf(own),
-        editedAt,
-      };
-    });
+const later = (a: string | null, b: string | null) => (b !== null && (a === null || b > a) ? b : a);
+
+export function seriesCards(series: SeriesRow[], docs: Doc[], volumes: Volume[]): SeriesCard[] {
+  return series.map((s) => {
+    const own = docs.filter((d) => d.series_id === s.id).sort(bySeriesOrder);
+    const vols = volumes.filter((v) => v.series_id === s.id).sort(byVolumeOrder);
+    let editedAt: string | null = null;
+    let addedAt: string | null = null;
+    let publishedAt: string | null = null;
+    for (const d of own) {
+      editedAt = later(editedAt, d.updated_at);
+      addedAt = later(addedAt, d.created_at);
+      publishedAt = later(publishedAt, d.wp_published_at ?? null);
+    }
+    return {
+      series: s,
+      coverImageId: seriesCover(vols),
+      volumeCount: vols.length,
+      chapterCount: own.length,
+      progress: progressOf(own),
+      editedAt,
+      addedAt,
+      publishedAt,
+      hasPublished: own.some((d) => d.wp_status === "publish"),
+    };
+  });
 }
 
 export function sizeLabel(card: SeriesCard): string {
