@@ -53,6 +53,15 @@ class Series(Base):
     wp_series_title_short: Mapped[str] = mapped_column(Text, nullable=False, default="")
     wp_password_enabled: Mapped[bool | None] = mapped_column(Boolean)
     wp_unlock_after: Mapped[int | None] = mapped_column(Integer)
+    # The series' WordPress summary page (the desktop app's chapter 0). Paragraphs are
+    # separated by blank lines; pending = saved but not yet published.
+    wp_summary: Mapped[str] = mapped_column(Text, nullable=False, default="", server_default="")
+    wp_summary_pending: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    wp_summary_error: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
     # Which syosetu chapter-title headings start a volume: 'all', 'marker' (headings that
     # begin with syosetu_volume_marker) or 'off'. syosetu_headings is the index's heading
     # sequence from the last read, [[first_num, heading], ...]; None = never read.

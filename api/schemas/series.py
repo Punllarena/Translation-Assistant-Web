@@ -28,6 +28,7 @@ class SeriesUpdate(Patch):
     wp_password_enabled: bool | None = None
     wp_unlock_after: int | None = Field(default=None, ge=0, le=2**31 - 1)
     volume_title_template: str | None = Field(default=None, max_length=300)  # "" resets
+    wp_summary: str | None = Field(default=None, max_length=100_000)
 
     @field_validator("volume_title_template")
     @classmethod
@@ -50,6 +51,9 @@ class SeriesOut(BaseModel):
     wp_series_title_short: str
     wp_password_enabled: bool | None
     wp_unlock_after: int | None
+    wp_summary: str
+    wp_summary_pending: bool
+    wp_summary_error: str
     syosetu_volume_mode: str
     syosetu_volume_marker: str
     volume_title_template: str
