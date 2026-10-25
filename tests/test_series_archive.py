@@ -78,3 +78,50 @@ def test_migration_backfills_source_from_the_syosetu_url(db, make_user, make_ser
         "SELECT title, source || '/' || status FROM series WHERE user_id = :u"),
         {"u": user.id}).all())
     assert rows == {"Syo": "syosetu/ongoing", "Plain": "other/ongoing"}
+
+
+def test_epub_import_creates_series_with_source_epub(app_client, me, db):
+    from api.models import Series
+    from tests.test_epub_api import _hrefs, _new_form, book, upload
+
+    r = _new_form(app_client, new_series="true", series_title="Fresh A")
+    assert r.status_code == 201
+    assert db.get(Series, r.json()["series_id"]).source == "epub"
+    r = app_client.post("/epub/import", files=upload(book()), data={
+        "series_title": "Fresh B", "volume_kind": "Volume", "hrefs": _hrefs(app_client)})
+    assert r.status_code == 201
+    assert db.get(Series, r.json()["series_id"]).source == "epub"
+
+
+def test_epub_import_into_an_existing_series_keeps_its_source(app_client, me, db, make_series):
+    from api.models import Series
+    from tests.test_epub_api import _hrefs, book, upload
+
+    s = make_series(me, "Existing")
+    r = app_client.post("/epub/import", files=upload(book()), data={
+        "series_id": s.id, "volume_kind": "Volume", "hrefs": _hrefs(app_client)})
+    assert r.status_code == 201
+    assert db.get(Series, s.id).source == "other"
+    r = app_client.post("/epub/import", files=upload(book()), data={
+        "series_title": "Existing", "volume_kind": "Other", "hrefs": _hrefs(app_client)})
+    assert r.status_code == 201 and r.json()["series_id"] == s.id
+    assert db.get(Series, s.id).source == "other"
+
+
+def test_tadb_series_source_follows_the_profile_url(db, make_user, tmp_path):
+    import sqlite3
+
+    from api.core.tadb_import import import_tadb
+    from api.models import Series
+    from tests.fixtures.tadb import desktop_db
+
+    path = desktop_db(tmp_path)
+    conn = sqlite3.connect(path)
+    conn.execute("INSERT INTO series_profiles (series_title, profile_name, syosetu_url) "
+                 "VALUES ('Plain', 'wn', '')")
+    conn.commit()
+    conn.close()
+    user = make_user()
+    import_tadb(db, path, user.id)
+    got = {s.title: s.source for s in db.query(Series).filter_by(user_id=user.id)}
+    assert got == {"My Series": "syosetu", "Plain": "other"}

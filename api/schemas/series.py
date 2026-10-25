@@ -66,7 +66,7 @@ class SeriesOut(BaseModel):
     volume_title_template: str
     volume_title_template_effective: str
     archived_at: datetime | None
-    status: str
-    source: str
+    status: SeriesStatus
+    source: SeriesSource
     syosetu_updated_at: datetime | None
     created_at: datetime
