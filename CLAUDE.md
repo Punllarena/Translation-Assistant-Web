@@ -150,6 +150,14 @@ a direct image address (`check_user_url` on every hop, no private-address overri
 a 422 telling the user to copy the image address. Merging volumes keeps one cover and moves the series choice to the kept
 volume; deleting a volume deletes its cover. Spec: `docs/superpowers/specs/2026-10-24-volume-covers-design.md`.
 
+Series summary: the desktop's chapter 0 is `series.wp_summary` (columns added by migration `6fd2c71c71da`), edited on the series'
+WordPress tab (`?tab=wordpress`, `web/src/library/SeriesWp.tsx`, status rules in `summaryStatus.ts`). Saving it sets
+`wp_summary_pending`; `api/wp_summary.send` posts it as chapter index 0 just before the next chapter of that series in single,
+batch and Illustrations publishes, and a failure is stored in `wp_summary_error` without failing the chapter. Text helpers are
+pure, in `api/core/wp_summary.py`. `build_chapter` refuses a chapter numbered 0 or holding `wp_chapter_index` 0
+(`publish.SUMMARY_MOVED`). Migration `b7e3a1c95d42` (move_series_summaries) and the ta.db importer (`api/core/tadb_summary.py`)
+turn live chapter-0 documents into the summary. Spec: `docs/superpowers/specs/2026-10-25-series-wordpress-tab-design.md`.
+
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
 
