@@ -2,6 +2,9 @@
 
 import re
 
+# The most characters a series summary may hold (the PATCH cap and the importer's).
+MAX_SUMMARY_CHARS = 100_000
+
 _BLANK_LINES = re.compile(r"\n\s*\n")
 
 

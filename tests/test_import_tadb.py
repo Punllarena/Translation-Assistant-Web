@@ -760,6 +760,9 @@ def test_a_chapter_0_that_is_not_live_imports_as_a_chapter(db, make_user, tmp_pa
     assert series.wp_summary == ""
     titles = sorted(d.title for d in db.query(Document).filter_by(user_id=user.id))
     assert titles == ["Chapter 1", "Summary"]
+    # Index 0 would make the chapter unpublishable (build_chapter refuses it).
+    imported = db.query(Document).filter_by(user_id=user.id, title="Summary").one()
+    assert imported.wp_chapter_index is None
 
 
 def test_a_reimport_keeps_an_edited_summary(db, make_user, tmp_path):
@@ -784,3 +787,38 @@ def test_dry_run_reports_the_summary_and_writes_nothing(db, make_user, tmp_path)
     assert any("chapter 0 became the summary" in m for m in report.messages)
     assert db.query(Series).filter_by(user_id=user.id).count() == 0
     assert db.query(Document).filter_by(user_id=user.id).count() == 0
+
+
+def _add_summary_line(path: Path, doc_id: int, number: int, text: str) -> None:
+    conn = sqlite3.connect(path)
+    conn.execute(
+        "INSERT INTO lines (document_id, line_number, prefix, raw_text, translated_text) "
+        "VALUES (?, ?, '%', 'x', ?)", (doc_id, number, text))
+    conn.commit()
+    conn.close()
+
+
+def test_an_oversized_chapter_0_is_not_written_and_is_reported(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    doc_id = _chapter0(path)
+    for i in range(3):  # three lines of 60,000 characters: each fits, together they do not
+        _add_summary_line(path, doc_id, 10 + i, "a" * 60_000)
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    series = db.query(Series).filter_by(user_id=user.id).one()
+    assert series.wp_summary == ""
+    assert any("longer than 100000 characters" in m for m in report.messages)
+
+
+def test_a_nul_summary_line_is_dropped_without_aborting_the_import(db, make_user, tmp_path):
+    path = _desktop_db(tmp_path)
+    doc_id = _chapter0(path)
+    _add_summary_line(path, doc_id, 10, "bad\x00line")
+    _add_summary_line(path, doc_id, 11, "z" * 100_001)
+    user = make_user()
+    report = import_tadb(db, path, user.id)
+    series = db.query(Series).filter_by(user_id=user.id).one()
+    assert series.wp_summary == "First para." + chr(10) * 2 + "Second para."
+    assert report.skipped["lines"] == 2
+    assert sum("were skipped" in m for m in report.messages) == 1
+    assert db.query(Document).filter_by(user_id=user.id).count() == 1

@@ -186,7 +186,7 @@ def _import_documents(
     fresh: set[int] = set()  # oneshot series created by this import
     present = _existing_chapters(db, user_id)
     left_out: set[int] = set()  # desktop chapters read but not imported
-    summaries = Summaries()  # desktop chapter 0s, which become series.wp_summary
+    summaries = Summaries(MAX_LINES, MAX_TEXT_CHARS)  # chapter 0s -> series.wp_summary
 
     for row in conn.execute("SELECT * FROM documents"):
         progress.step(1, "chapters")
@@ -241,7 +241,9 @@ def _import_documents(
             last_position=_get(row, "documents", "last_position", 0),
             wp_status=_get(row, "documents", "wp_status", ""),
             wp_post_url=_get(row, "documents", "wp_post_url", ""),
-            wp_chapter_index=_get(row, "documents", "wp_chapter_index"),
+            # Index 0 was the desktop's summary slot; build_chapter refuses it, so a chapter
+            # that was not taken as the summary starts unindexed (as the migration does).
+            wp_chapter_index=_get(row, "documents", "wp_chapter_index") or None,
             wp_published_at=_parse_ts(
                 _get(row, "documents", "wp_date"), report, f"documents {label}", "wp_date"
             ),
@@ -265,7 +267,7 @@ def _import_documents(
     batch: list[tuple[str, dict]] = []
     for row in conn.execute("SELECT * FROM lines ORDER BY document_id, line_number"):
         progress.step(1, "lines")  # report() throttles, so per row is cheap
-        if summaries.add_line(row):
+        if summaries.add_line(row, report):
             continue
         doc = id_map.get(row["document_id"])
         if doc is None:
