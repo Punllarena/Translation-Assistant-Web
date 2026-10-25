@@ -76,6 +76,9 @@ def fetch_series(ctx: JobContext) -> dict:
             raise JobError(f"could not read the chapter list: {exc}") from exc
         index = [ch for ch in full if ch["num"] in wanted]
         series.syosetu_headings = heading_sequence(full)
+        latest = scrape.latest_post(full)
+        if latest is not None:
+            series.syosetu_updated_at = latest
         place = targets(series.syosetu_headings, wanted,
                         series.syosetu_volume_mode, series.syosetu_volume_marker)
         have = existing_orders(ctx.db, series.id)

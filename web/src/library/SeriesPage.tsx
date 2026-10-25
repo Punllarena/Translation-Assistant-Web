@@ -1,6 +1,6 @@
 import { Link, useParams, useSearchParams } from "react-router";
 import PageHeader from "../ui/PageHeader";
-import { useDocuments, useSeriesList } from "./queries";
+import { useArchive, useDocuments, useSeriesList } from "./queries";
 import SeriesGlossary from "./SeriesGlossary";
 import SeriesSettings from "./SeriesSettings";
 import SeriesTools from "./SeriesTools";
@@ -19,6 +19,7 @@ export default function SeriesPage() {
   const seriesId = Number(useParams().id);
   const [params, setParams] = useSearchParams();
   const all = useSeriesList();
+  const { unarchive } = useArchive(seriesId);
   const docs = useDocuments();
   if (all.isPending || docs.isPending) return <main><p className="muted">Loading…</p></main>;
   const loadError = all.error ?? docs.error;
@@ -36,6 +37,12 @@ export default function SeriesPage() {
     <main>
       <PageHeader title={series.title}
         crumbs={<><Link to="/">Library</Link><span aria-hidden="true">/</span><span>{series.title}</span></>} />
+      {series.archived_at && (
+        <p className="muted">
+          Archived · <button type="button" disabled={unarchive.isPending} onClick={() => unarchive.mutate()}>Unarchive</button>
+          {unarchive.error && <span className="error" role="alert"> {unarchive.error.message}</span>}
+        </p>
+      )}
       <div className="tabs" role="tablist" aria-label="Series sections">
         {TABS.map((t) => (
           <button key={t.id} type="button" role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id}

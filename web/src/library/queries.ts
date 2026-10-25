@@ -1,4 +1,4 @@
-import { useQuery, type QueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api, call } from "../api/client";
 
 export const useDocuments = () =>
@@ -17,4 +17,20 @@ export function invalidateLibrary(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: ["series"] }),
     queryClient.invalidateQueries({ queryKey: ["volumes"] }),
   ]);
+}
+
+/** Archive and unarchive one series; the library lists refetch after either. */
+export function useArchive(seriesId: number) {
+  const queryClient = useQueryClient();
+  const path = { params: { path: { series_id: seriesId } } };
+  return {
+    archive: useMutation({
+      mutationFn: () => call(api.POST("/series/{series_id}/archive", path)),
+      onSuccess: () => invalidateLibrary(queryClient),
+    }),
+    unarchive: useMutation({
+      mutationFn: () => call(api.POST("/series/{series_id}/unarchive", path)),
+      onSuccess: () => invalidateLibrary(queryClient),
+    }),
+  };
 }

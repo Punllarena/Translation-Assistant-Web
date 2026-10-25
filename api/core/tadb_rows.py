@@ -120,10 +120,12 @@ def _import_series(
             # Column names are the desktop's: series_slug / series_title_short,
             # not the wp_-prefixed names this schema uses for them.
             unlock = _get(m, "series_profiles", "wp_unlock_after") if m else None
+            syosetu_url = _get(m, "series_profiles", "syosetu_url", "") if m else ""
             series = Series(
                 user_id=user_id,
                 title=title,
-                syosetu_url=_get(m, "series_profiles", "syosetu_url", "") if m else "",
+                syosetu_url=syosetu_url,
+                source="syosetu" if (syosetu_url or "").strip() else "other",
                 wp_series_slug=_get(m, "series_profiles", "series_slug", "") if m else "",
                 wp_series_title_short=(
                     _get(m, "series_profiles", "series_title_short", "") if m else ""

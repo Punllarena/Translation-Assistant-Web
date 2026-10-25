@@ -5,36 +5,39 @@ const series = (id: number, title: string) => ({ id, title }) as SeriesRow;
 const volume = (id: number, series_id: number, volume_order: number, o: Partial<Volume> = {}) =>
   ({ id, series_id, volume_order, cover_id: null, is_series_cover: false, ...o }) as Volume;
 const doc = (id: number, series_id: number, volume_id: number | null, o: Partial<Doc> = {}) =>
-  ({ id, series_id, volume_id, series_order: id, line_count: 0, translated_count: 0, updated_at: "2026-01-01T00:00:00Z", ...o }) as Doc;
+  ({
+    id, series_id, volume_id, series_order: id, line_count: 0, translated_count: 0,
+    created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", wp_published_at: null, wp_status: null, ...o,
+  }) as Doc;
 
 describe("seriesCards", () => {
   it("handles an empty series", () => {
-    const [c] = seriesCards([series(1, "Empty")], [], [], "");
+    const [c] = seriesCards([series(1, "Empty")], [], []);
     expect([c.chapterCount, c.volumeCount, c.progress, c.coverImageId, c.editedAt]).toEqual([0, 0, 0, null, null]);
+    expect([c.addedAt, c.publishedAt, c.hasPublished]).toEqual([null, null, false]);
     expect(sizeLabel(c)).toBe("0 ch");
   });
 
-  it("orders titles naturally and filters case-insensitively", () => {
+  it("keeps input order and does not filter", () => {
     const S = [series(1, "Vol 10"), series(2, "Vol 9"), series(3, "Other")];
-    expect(seriesCards(S, [], [], "").map((c) => c.series.id)).toEqual([3, 2, 1]);
-    expect(seriesCards(S, [], [], "VOL").map((c) => c.series.id)).toEqual([2, 1]);
+    expect(seriesCards(S, [], []).map((c) => c.series.id)).toEqual([1, 2, 3]);
   });
 
   it("uses the chosen volume's cover", () => {
     const V = [volume(10, 1, 1, { cover_id: 1 }), volume(20, 1, 2, { cover_id: 2, is_series_cover: true })];
-    expect(seriesCards([series(1, "A")], [], V, "")[0].coverImageId).toBe(2);
+    expect(seriesCards([series(1, "A")], [], V)[0].coverImageId).toBe(2);
   });
 
   it("falls back to the first volume with a cover when the chosen one has none", () => {
     const V = [
       volume(30, 1, 3, { cover_id: 3 }), volume(10, 1, 1, { is_series_cover: true }), volume(20, 1, 2, { cover_id: 2 }),
     ];
-    expect(seriesCards([series(1, "A")], [], V, "")[0].coverImageId).toBe(2);
+    expect(seriesCards([series(1, "A")], [], V)[0].coverImageId).toBe(2);
   });
 
   it("is null without volume covers", () => {
-    expect(seriesCards([series(1, "A")], [doc(1, 1, 10)], [volume(10, 1, 1)], "")[0].coverImageId).toBeNull();
-    expect(seriesCards([series(1, "A")], [doc(1, 1, null)], [], "")[0].coverImageId).toBeNull();
+    expect(seriesCards([series(1, "A")], [doc(1, 1, 10)], [volume(10, 1, 1)])[0].coverImageId).toBeNull();
+    expect(seriesCards([series(1, "A")], [doc(1, 1, null)], [])[0].coverImageId).toBeNull();
   });
 
   it("computes progress, counts and editedAt", () => {
@@ -43,8 +46,21 @@ describe("seriesCards", () => {
       doc(2, 1, null, { line_count: 0, translated_count: 0, updated_at: "2026-02-01T00:00:00Z" }),
       doc(3, 2, null, { line_count: 10, translated_count: 10 }),
     ];
-    const [c] = seriesCards([series(1, "A")], D, [volume(10, 1, 1)], "");
+    const [c] = seriesCards([series(1, "A")], D, [volume(10, 1, 1)]);
     expect([c.progress, c.chapterCount, c.volumeCount, c.editedAt]).toEqual([33, 2, 1, "2026-03-01T00:00:00Z"]);
+  });
+
+  it("computes addedAt, publishedAt and hasPublished", () => {
+    const D = [
+      doc(1, 1, null, { created_at: "2026-02-01T00:00:00Z", wp_published_at: "2026-04-01T00:00:00Z", wp_status: "publish" }),
+      doc(2, 1, null, { created_at: "2026-03-01T00:00:00Z", wp_published_at: "2026-05-01T00:00:00Z", wp_status: "future" }),
+      doc(3, 2, null, { created_at: "2026-09-01T00:00:00Z", wp_status: "publish" }),
+    ];
+    const [a, b] = seriesCards([series(1, "A"), series(2, "B")], D, []);
+    expect([a.addedAt, a.publishedAt, a.hasPublished]).toEqual(["2026-03-01T00:00:00Z", "2026-05-01T00:00:00Z", true]);
+    expect([b.addedAt, b.publishedAt, b.hasPublished]).toEqual(["2026-09-01T00:00:00Z", null, true]);
+    const only = seriesCards([series(1, "A")], [doc(1, 1, null, { wp_status: "future" })], [])[0];
+    expect(only.hasPublished).toBe(false);
   });
 });
 

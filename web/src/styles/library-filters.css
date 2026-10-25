@@ -1,0 +1,24 @@
+/* Library bar: sort, filters popover and active-filter chips. */
+.sort-control { display: inline-flex; gap: 4px; align-items: center; }
+.filters { position: relative; }
+.filters-panel {
+  position: absolute; z-index: 20; top: calc(100% + 6px); right: 0; width: min(340px, calc(100vw - 32px));
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; padding: 14px 16px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px var(--shadow);
+}
+.filters-panel fieldset { margin: 0; padding: 0; border: 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.filters-panel legend { padding: 0; margin-bottom: 4px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.filters-panel label { display: flex; align-items: center; gap: 6px; min-height: 28px; }
+
+.filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 16px; }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 2px; padding: 0 2px 0 10px; min-height: 28px; border-radius: 99px;
+  background: var(--accent-soft); color: var(--accent-ink); font-size: 13px; overflow-wrap: anywhere;
+}
+.filter-chip button.icon { width: 24px; min-height: 24px; color: inherit; border-radius: 99px; }
+.filter-count { margin-left: auto; font-size: 13px; }
+
+@media (max-width: 767px) {
+  .filters-panel { position: fixed; left: 16px; right: 16px; top: auto; width: auto; }
+  .filter-chip button.icon { width: 32px; min-height: 32px; }
+}

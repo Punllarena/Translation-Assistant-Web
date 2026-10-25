@@ -1,4 +1,6 @@
 from contextlib import contextmanager
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -11,6 +13,14 @@ from api.routers import scrape as scrape_router
 INDEX = ('<div class="p-eplist__sublist"><a href="/n1/1/">One</a></div>'
          '<div class="p-eplist__sublist"><a href="/n1/2/">Two</a></div>'
          '<div class="p-eplist__sublist"><a href="/n1/3/">Three</a></div>')
+
+DATED = ('<div class="p-eplist__sublist"><a href="/n1/1/">One</a>'
+         '<div class="p-eplist__update">2024/01/02 09:00</div></div>'
+         '<div class="p-eplist__sublist"><a href="/n1/2/">Two</a>'
+         '<div class="p-eplist__update">2024/03/04 18:30 <span title="2025/05/06 07:00 改稿">'
+         '（<u>改稿</u>）</span></div></div>'
+         '<div class="p-eplist__sublist"><a href="/n1/3/">Three</a></div>')
+NEWEST = datetime(2024, 3, 4, 18, 30, tzinfo=ZoneInfo("Asia/Tokyo"))
 
 SERIAL_ROOT = ('<h1 class="p-novel__title">勇者の旅</h1>'
                '<div class="p-novel__author">作者：<a href="/u/1/">山田太郎</a></div>'
@@ -437,3 +447,35 @@ def test_short_story_without_a_title_falls_back_to_chapter_1(
     app_client.post(f"/series/{s.id}/syosetu/fetch", json={"nums": [1]})
     jobs.run_next()
     assert db.query(Document).filter_by(series_id=s.id).one().title == "Chapter 1"
+
+
+def test_chapter_list_records_the_latest_post_date(app_client, me, make_series, site, db):
+    site[0]["https://ncode.syosetu.com/n1/"] = DATED
+    s = make_series(me, "S")
+    s.syosetu_url = "https://ncode.syosetu.com/n1/"
+    db.flush()
+    assert app_client.get(f"/series/{s.id}/syosetu/chapters").status_code == 200
+    db.refresh(s)
+    assert s.syosetu_updated_at == NEWEST
+    assert s.syosetu_headings is None
+
+
+def test_fetch_job_records_the_latest_post_date(app_client, me, make_series, site, db):
+    site[0]["https://ncode.syosetu.com/n1/"] = DATED
+    s = make_series(me, "S")
+    s.syosetu_url = "https://ncode.syosetu.com/n1/"
+    db.flush()
+    app_client.post(f"/series/{s.id}/syosetu/fetch", json={"nums": [1]})
+    assert jobs.run_next() is True
+    db.refresh(s)
+    assert s.syosetu_updated_at == NEWEST
+
+
+def test_a_read_with_no_dates_keeps_the_stored_date(app_client, me, make_series, site, db):
+    s = make_series(me, "S")
+    s.syosetu_url = "https://ncode.syosetu.com/n1/"
+    s.syosetu_updated_at = NEWEST
+    db.flush()
+    assert app_client.get(f"/series/{s.id}/syosetu/chapters").status_code == 200
+    db.refresh(s)
+    assert s.syosetu_updated_at == NEWEST

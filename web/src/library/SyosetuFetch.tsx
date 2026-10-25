@@ -23,7 +23,10 @@ export default function SyosetuFetch({ series }: { series: SeriesRow }) {
   });
   const list = useMutation({
     mutationFn: () => call(api.GET("/series/{series_id}/syosetu/chapters", { params: { path: { series_id: seriesId } } })),
-    onSuccess: (data) => setPicked(new Set(data.chapters.filter((c) => !c.fetched).map((c) => c.num))),
+    onSuccess: (data) => {
+      setPicked(new Set(data.chapters.filter((c) => !c.fetched).map((c) => c.num)));
+      void queryClient.invalidateQueries({ queryKey: ["series"] }); // the listing may record syosetu_updated_at
+    },
   });
   const fetchSelected = useMutation({
     mutationFn: () => call(api.POST("/series/{series_id}/syosetu/fetch", {

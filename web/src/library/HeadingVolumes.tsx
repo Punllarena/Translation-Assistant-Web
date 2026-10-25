@@ -23,6 +23,7 @@ export default function HeadingVolumes({ series, markers }: { series: SeriesRow;
   const preview = useMutation({
     mutationFn: (c: Choice) => post(c, false),
     onSuccess: (counts, c) => {
+      void queryClient.invalidateQueries({ queryKey: ["series"] }); // the preview may record syosetu_updated_at
       if (counts.volumes_created + counts.chapters_moved + counts.volumes_emptied === 0) apply.mutate(c);
       else setPending({ ...c, counts });
     },

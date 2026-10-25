@@ -89,7 +89,7 @@ def _series(
 ) -> Series:
     """Find-or-create; with `credits` (new-series mode) it only creates."""
     if credits is not None:
-        series = Series(user_id=user.id, title=title, **credits)
+        series = Series(user_id=user.id, title=title, source="epub", **credits)
         db.add(series)
         db.flush()
         return series
@@ -97,7 +97,7 @@ def _series(
         return owned_ref(db, Series, series_id, user.id, "series_id")
     series = db.scalar(select(Series).where(Series.user_id == user.id, Series.title == title))
     if series is None:
-        series = Series(user_id=user.id, title=title)
+        series = Series(user_id=user.id, title=title, source="epub")
         db.add(series)
         db.flush()
     return series

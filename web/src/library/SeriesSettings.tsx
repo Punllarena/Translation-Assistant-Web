@@ -5,7 +5,8 @@ import { api, call } from "../api/client";
 import { byVolumeOrder } from "./shelf";
 import { DEFAULT_TEMPLATE, render, templateError } from "./volumeNames";
 import { ConfirmDialog } from "../ui/Dialog";
-import { invalidateLibrary, useAllVolumes } from "./queries";
+import { SOURCE_LABEL, STATUS_LABEL } from "./libraryQuery";
+import { invalidateLibrary, useAllVolumes, useArchive } from "./queries";
 import type { SeriesRow } from "./shelf";
 
 export default function SeriesSettings({ series, chapterCount }: { series: SeriesRow; chapterCount: number }) {
@@ -13,6 +14,8 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const { archive, unarchive } = useArchive(seriesId);
   const [template, setTemplate] = useState(series.volume_title_template);
   const templateProblem = templateError(template);
   const volumes = useAllVolumes();
@@ -23,7 +26,8 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
   const preview = templateProblem ? null : render(template.trim() ? template : DEFAULT_TEMPLATE, { series: series.title, ...sample });
   const chapters = `${chapterCount} ${chapterCount === 1 ? "chapter" : "chapters"}`;
   const save = useMutation({
-    mutationFn: (body: { title: string; original_title: string; original_author: string; author_romaji: string; syosetu_url: string; volume_title_template: string }) =>
+    mutationFn: (body: { title: string; original_title: string; original_author: string; author_romaji: string; syosetu_url: string; volume_title_template: string;
+      status: SeriesRow["status"]; source: SeriesRow["source"] }) =>
       call(api.PATCH("/series/{series_id}", { params: { path: { series_id: seriesId } }, body })),
     onSuccess: () => invalidateLibrary(queryClient),
   });
@@ -44,6 +48,8 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
       author_romaji: String(form.get("author_romaji")),
       syosetu_url: String(form.get("syosetu_url")),
       volume_title_template: template.trim() ? template : "",
+      status: String(form.get("status")) as SeriesRow["status"],
+      source: String(form.get("source")) as SeriesRow["source"],
     });
   };
   return (
@@ -65,6 +71,16 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
           <div className="row-fields">
             <label className="field"><span>Series URL</span>
               <input name="syosetu_url" type="url" defaultValue={series.syosetu_url} /></label>
+          </div>
+          <div className="row-fields">
+            <label className="field"><span>Status</span>
+              <select name="status" defaultValue={series.status}>
+                {Object.entries(STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select></label>
+            <label className="field"><span>Source</span>
+              <select name="source" defaultValue={series.source}>
+                {Object.entries(SOURCE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select></label>
           </div>
         </section>
         <section className="panel pad">
@@ -91,12 +107,28 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
       </section>
       <section className="danger-zone">
         <h2>Danger zone</h2>
+        {series.archived_at
+          ? <button type="button" disabled={unarchive.isPending} onClick={() => unarchive.mutate()}>Unarchive series</button>
+          : <button type="button" onClick={() => { archive.reset(); setArchiving(true); }}>Archive series</button>}
+        {unarchive.error && <p className="error" role="alert">{unarchive.error.message}</p>}
         <button type="button" className="danger" onClick={() => { remove.reset(); setConfirming(true); }}>Delete series</button>
       </section>
+      {archiving && (
+        <ConfirmDialog
+          title="Archive series"
+          message={`Archive "${series.title}"? It leaves the Library but keeps all its chapters. Unarchive brings it back.`}
+          confirmLabel="Archive series"
+          busy={archive.isPending}
+          error={archive.error?.message}
+          onConfirm={() => archive.mutate(undefined, { onSuccess: () => setArchiving(false) })}
+          onClose={() => setArchiving(false)}
+        />
+      )}
       {confirming && (
         <ConfirmDialog
           title="Delete series"
-          message={`Delete "${series.title}" and its ${chapters}? This can't be undone.`}
+          message={`Delete "${series.title}" and its ${chapters}? This can't be undone.${series.archived_at ? "" : " To hide it without losing anything, archive it instead."}`}
+          secondary={series.archived_at ? undefined : { label: "Archive instead", onClick: () => { setConfirming(false); archive.reset(); setArchiving(true); } }}
           confirmLabel={`Delete series and ${chapters}`}
           danger
           busy={remove.isPending}
