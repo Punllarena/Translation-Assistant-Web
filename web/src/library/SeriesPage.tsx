@@ -4,6 +4,7 @@ import { useDocuments, useSeriesList } from "./queries";
 import SeriesGlossary from "./SeriesGlossary";
 import SeriesSettings from "./SeriesSettings";
 import SeriesTools from "./SeriesTools";
+import SeriesWp from "./SeriesWp";
 import VolumesTab from "./VolumesTab";
 
 const TABS = [
@@ -11,6 +12,7 @@ const TABS = [
   { id: "glossary", label: "Glossary" },
   { id: "tools", label: "Tools" },
   { id: "settings", label: "Settings" },
+  { id: "wordpress", label: "WordPress" },
 ] as const;
 
 export default function SeriesPage() {
@@ -45,6 +47,7 @@ export default function SeriesPage() {
         {tab === "glossary" && <SeriesGlossary key={series.id} seriesId={series.id} />}
         {tab === "tools" && <SeriesTools series={series} />}
         {tab === "settings" && <SeriesSettings key={`${series.id}:${series.volume_title_template}`} series={series} chapterCount={chapters.length} />}
+        {tab === "wordpress" && <SeriesWp key={series.id} series={series} />}
       </div>
     </main>
   );
