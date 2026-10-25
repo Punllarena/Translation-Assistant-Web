@@ -111,7 +111,7 @@ volume indexing, the plugin's Illustrations page) is tracked in `docs/TODO.md`.
 Syosetu heading volumes: the fetch job puts each chapter in the volume of its `p-eplist__chapter-title` heading, per the
 series' `syosetu_volume_mode` (`all` / `marker` with `syosetu_volume_marker` / `off`); the rules are pure, in
 `api/core/syosetu_volumes.py`, and read the heading sequence stored in `series.syosetu_headings` (written by the fetch job
-and regroup; the chapter-list GET and the volume-headings preview write only `syosetu_updated_at`). Heading→volume links live in `volume_syosetu_groups` (hidden, so renamed
+and regroup). The chapter-list GET writes only `syosetu_updated_at`; regroup's preview reads the index (writing the heading sequence and the date) only when no heading sequence is stored. Heading→volume links live in `volume_syosetu_groups` (hidden, so renamed
 volumes keep receiving chapters; a merged volume holds several). `POST /series/{id}/syosetu/volume-headings`
 (`api/syosetu_regroup.py`) previews or applies a setting change: it never deletes volumes and never moves chapters out of
 volumes with no heading link. `POST /series/{id}/volumes/merge` merges volumes into one (the Volumes tab's Select mode).

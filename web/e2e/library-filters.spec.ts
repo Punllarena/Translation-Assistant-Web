@@ -48,6 +48,14 @@ test("archive hides a series, Archived → Include finds it, Unarchive brings it
     await page.goto("/");
     await expect(link(page, DROPPED)).toBeVisible();
   } finally {
+    try {
+      const res = await page.request.get("/api/series");
+      const rows = (await res.json()) as { id: number; title: string; archived_at: string | null }[];
+      const row = rows.find((r) => r.title === DROPPED && r.archived_at);
+      if (row) await page.request.post(`/api/series/${row.id}/unarchive`);
+    } catch {
+      // best-effort cleanup must not mask the original failure
+    }
     await page.goto("/");
     await resetPrefs(page);
   }

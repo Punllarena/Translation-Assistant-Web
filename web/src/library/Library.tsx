@@ -59,19 +59,24 @@ export default function Library() {
           <div className="library-empty-actions">{newSeries}{importLink}</div>
         </div>
       )}
-      {!pending && !failed && !empty && cards.length === 0 && (
-        emptyReason(all, filters, filter) === "all-archived" ? (
+      {!pending && !failed && !empty && cards.length === 0 && (() => {
+        const reason = emptyReason(all, filters, filter);
+        return (
+        reason === "all-archived" ? (
           <div className="library-empty">
             <p className="muted">All your series are archived.</p>
             <button type="button" onClick={() => changeFilters({ ...filters, archived: "include" })}>Show archived</button>
           </div>
+        ) : reason === "search" ? (
+          <p className="muted">No series match "{filter}".</p>
         ) : (
           <div className="library-empty">
             <p className="muted">No series match these filters.</p>
             <button type="button" onClick={() => changeFilters(DEFAULT_FILTERS)}>Clear all</button>
           </div>
         )
-      )}
+        );
+      })()}
       {cards.length > 0 && (view === "shelf" ? <Shelf cards={cards} /> : <CompactList cards={cards} />)}
     </main>
   );

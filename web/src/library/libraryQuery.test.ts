@@ -122,6 +122,8 @@ describe("emptyReason", () => {
     const archived = [card({ archived_at: old }), card({ archived_at: old })];
     expect(emptyReason(archived, DEFAULT_FILTERS, "")).toBe("all-archived");
     expect(emptyReason(archived, F({ archived: "include" }), "zzz")).toBe("no-match");
-    expect(emptyReason([card(), card({ archived_at: old })], DEFAULT_FILTERS, "zzz")).toBe("no-match");
+    expect(emptyReason([card(), card({ archived_at: old })], DEFAULT_FILTERS, "zzz")).toBe("search");
+    expect(emptyReason([card()], DEFAULT_FILTERS, "  ")).toBe("no-match");
+    expect(emptyReason([card()], F({ statuses: ["dropped"] }), "zzz")).toBe("no-match");
   });
 });

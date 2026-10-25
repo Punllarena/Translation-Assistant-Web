@@ -127,8 +127,8 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
       {confirming && (
         <ConfirmDialog
           title="Delete series"
-          message={`Delete "${series.title}" and its ${chapters}? This can't be undone. To hide it without losing anything, archive it instead.`}
-          secondary={{ label: "Archive instead", onClick: () => { setConfirming(false); archive.reset(); setArchiving(true); } }}
+          message={`Delete "${series.title}" and its ${chapters}? This can't be undone.${series.archived_at ? "" : " To hide it without losing anything, archive it instead."}`}
+          secondary={series.archived_at ? undefined : { label: "Archive instead", onClick: () => { setConfirming(false); archive.reset(); setArchiving(true); } }}
           confirmLabel={`Delete series and ${chapters}`}
           danger
           busy={remove.isPending}

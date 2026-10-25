@@ -86,8 +86,9 @@ export function activeGroups(f: LibraryFilters): number {
 }
 
 /** Why the Library shows nothing: no series at all, only archived ones hidden, or filters/search excluding all. */
-export function emptyReason(all: SeriesCard[], f: LibraryFilters, _search: string): "none" | "all-archived" | "no-match" {
+export function emptyReason(all: SeriesCard[], f: LibraryFilters, search: string): "none" | "all-archived" | "search" | "no-match" {
   if (all.length === 0) return "none";
   if (f.archived === "hide" && all.every((c) => c.series.archived_at != null)) return "all-archived";
+  if (activeGroups(f) === 0 && search.trim() !== "") return "search";
   return "no-match";
 }
