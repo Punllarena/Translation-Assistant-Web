@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import api.publish_job  # noqa: F401  registers the wp_* handlers
-from api import illustrations, jobs, publish, wp_prefs
+from api import illustrations, jobs, publish, wp_prefs, wp_summary
 from api.core import wp_http
 from api.core.wp import WPPublishError
 from api.deps import current_user, db_session, owned_ref, parse_zone, scoped, zone
@@ -127,6 +127,7 @@ def publish_chapter(
                 status.HTTP_409_CONFLICT,
                 f'"{doc.title}" is already published or scheduled on WordPress; '
                 "publishing again overwrites it.")
+        wp_summary.send(c, series, endpoint, key)
         try:
             result = wp_http.publish(c, endpoint, publish.payload(
                 ch, key, scheduled=body.scheduled_for, attribution=prefs.wp_attribution_enabled))

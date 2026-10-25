@@ -8,7 +8,7 @@ from datetime import datetime
 import httpx
 from sqlalchemy.orm import Session
 
-from api import illustrations, publish, wp_prefs
+from api import illustrations, publish, wp_prefs, wp_summary
 from api.core import wp_http
 from api.core.wp import WPPublishError
 from api.jobs import JobContext, JobError, handler
@@ -27,8 +27,16 @@ def _config(ctx: JobContext) -> tuple[str, str]:
         raise JobError(str(exc)) from exc
 
 
+def _send_summary(c: httpx.Client, doc: Document, endpoint: str, key: str,
+                  sent: set[int]) -> None:
+    """Once per series per batch, before its first chapter."""
+    if doc.series is not None and doc.series_id not in sent:
+        sent.add(doc.series_id)
+        wp_summary.send(c, doc.series, endpoint, key)
+
+
 def _publish_one(db: Session, c: httpx.Client, user_id: int, item: dict, endpoint: str,
-                 key: str, prefs: WpPrefs, confirm: bool) -> dict:
+                 key: str, prefs: WpPrefs, confirm: bool, sent: set[int]) -> dict:
     doc = db.get(Document, item["document_id"])
     if doc is None or doc.user_id != user_id:
         return {"document_id": item["document_id"], "ok": False,
@@ -42,10 +50,12 @@ def _publish_one(db: Session, c: httpx.Client, user_id: int, item: dict, endpoin
             raise publish.NotReady(
                 "already published or scheduled; tick Overwrite to publish it again")
         if doc.is_illustrations:  # no schedule slot: the endpoint takes no date
+            _send_summary(c, doc, endpoint, key, sent)
             out = illustrations.upload(db, c, doc, endpoint, key)
             return {**row, "ok": True, "created": out["created"], "post_url": out["page_url"],
                     "password": None, "unlock_chapter_index": None}
         ch = publish.build_chapter(db, doc, prefs)
+        _send_summary(c, doc, endpoint, key, sent)
         result = wp_http.publish(c, endpoint, publish.payload(
             ch, key, scheduled=scheduled, attribution=prefs.wp_attribution_enabled))
     except (publish.NotReady, WPPublishError) as exc:
@@ -68,11 +78,12 @@ def publish_batch(ctx: JobContext) -> dict:
     prefs = wp_prefs.load(ctx.db, ctx.job.user_id)
     items = ctx.params["chapters"]
     rows: list[dict] = []
+    sent: set[int] = set()
     ctx.progress(0, len(items), "Starting")
     with http_client() as c:
         for i, item in enumerate(items, start=1):
             rows.append(_publish_one(ctx.db, c, ctx.job.user_id, item, endpoint, key, prefs,
-                                     ctx.params["confirm_republish"]))
+                                     ctx.params["confirm_republish"], sent))
             ctx.job.result_json = {"chapters": list(rows)}  # durable with the progress commit
             ctx.progress(i, len(items), f"Chapter {i} of {len(items)}")
     return {"chapters": rows}
@@ -91,6 +102,8 @@ def publish_illustrations(ctx: JobContext) -> dict:
         ctx.progress(done, total, f"Batch {done} of {total}" if done else "Uploading")
     try:
         with http_client() as c:
+            if doc.series is not None:
+                wp_summary.send(c, doc.series, endpoint, key)
             return illustrations.upload(ctx.db, c, doc, endpoint, key, progress)
     except (publish.NotReady, WPPublishError) as exc:
         raise JobError(str(exc)) from exc
