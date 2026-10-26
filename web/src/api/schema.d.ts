@@ -450,6 +450,46 @@ export interface paths {
         patch: operations["save_lines_documents__document_id__lines_patch"];
         trace?: never;
     };
+    "/documents/{document_id}/ollama": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggestions
+         * @description The chapter's unflushed suggestions, in line order.
+         */
+        get: operations["suggestions_documents__document_id__ollama_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{document_id}/ollama/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream
+         * @description Translate the chunk holding the line (reroll: every untranslated line in it).
+         */
+        get: operations["stream_documents__document_id__ollama_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}/refetch": {
         parameters: {
             query?: never;
@@ -853,6 +893,23 @@ export interface paths {
         };
         /** Stream */
         get: operations["stream_mt_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/chunks/{chunk_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chunk Detail */
+        get: operations["chunk_detail_ollama_chunks__chunk_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2050,6 +2107,71 @@ export interface components {
             /** Markers */
             markers: components["schemas"]["Marker"][];
         };
+        /**
+         * ChunkOut
+         * @description One Ollama request: its settings, timings, outcome counters, reasoning and prompt.
+         */
+        ChunkOut: {
+            /** Asked */
+            asked: number;
+            /** Chunk Lines */
+            chunk_lines: number;
+            /** Clamped */
+            clamped: boolean;
+            /** Context Lines */
+            context_lines: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Depth */
+            depth: number;
+            /** Document Id */
+            document_id: number | null;
+            /** Edited Count */
+            edited_count: number;
+            /** Eval Ms */
+            eval_ms: number | null;
+            /** First Line */
+            first_line: number;
+            /** First Token Ms */
+            first_token_ms: number | null;
+            /** Id */
+            id: number;
+            /** Ignored Count */
+            ignored_count: number;
+            /** Job Id */
+            job_id: number | null;
+            /** Last Line */
+            last_line: number;
+            /** Load Ms */
+            load_ms: number | null;
+            /** Model */
+            model: string;
+            /** Ok */
+            ok: boolean;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Preset */
+            preset: string;
+            /** Prompt */
+            prompt: string | null;
+            /** Prompt Ms */
+            prompt_ms: number | null;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Reasoning */
+            reasoning: string | null;
+            /** Series Id */
+            series_id: number | null;
+            /** Source */
+            source: string;
+            /** Total Ms */
+            total_ms: number | null;
+            /** Used Count */
+            used_count: number;
+        };
         /** Comparison */
         Comparison: {
             /** Daily Avg 30 */
@@ -2988,6 +3110,31 @@ export interface components {
              * @default 2
              */
             min_freq: number;
+        };
+        /**
+         * SuggestionOut
+         * @description A line's held suggestion; `stale` when the line's source changed since it was sent.
+         */
+        SuggestionOut: {
+            /** Chunk Id */
+            chunk_id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** First Line */
+            first_line: number;
+            /** Last Line */
+            last_line: number;
+            /** Line Number */
+            line_number: number;
+            /** Model */
+            model: string;
+            /** Stale */
+            stale: boolean;
+            /** Text */
+            text: string;
         };
         /** Suggestions */
         Suggestions: {
@@ -4242,6 +4389,69 @@ export interface operations {
             };
         };
     };
+    suggestions_documents__document_id__ollama_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_documents__document_id__ollama_stream_get: {
+        parameters: {
+            query: {
+                line_number: number;
+                reroll?: boolean;
+            };
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     refetch_documents__document_id__refetch_post: {
         parameters: {
             query?: never;
@@ -4956,7 +5166,7 @@ export interface operations {
     stream_mt_stream_get: {
         parameters: {
             query: {
-                backend: "deepl" | "libretranslate" | "ollama" | "mecab" | "jparser";
+                backend: "deepl" | "libretranslate" | "mecab" | "jparser";
                 document_id: number;
                 line_number: number;
             };
@@ -4972,6 +5182,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chunk_detail_ollama_chunks__chunk_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chunk_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChunkOut"];
+                };
             };
             /** @description Validation Error */
             422: {

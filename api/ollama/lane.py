@@ -75,6 +75,11 @@ class Lanes:
             lane.release()
             self._forget(user_id, lane)
 
+    def busy(self, user_id: int) -> bool:
+        """Someone holds or waits for the user's lane: a new request would wait."""
+        lane = self._lanes.get(user_id)
+        return lane is not None and not lane.idle
+
     def waiting(self, user_id: int) -> bool:
         """A by-hand request is waiting for the lane."""
         lane = self._lanes.get(user_id)

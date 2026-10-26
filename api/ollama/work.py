@@ -141,9 +141,11 @@ def save(
     job_id: int | None,
     p: OllamaPrefs,
     model: str,
-) -> None:
-    """Record every request and keep one suggestion per answered line. Lines translated or edited
-    since the plan are skipped. Flushes only: the caller owns the transaction."""
+) -> list[int]:
+    """Record every request and keep one suggestion per answered line; the new chunk row ids.
+    Lines translated or edited since the plan are skipped. Flushes only: the caller owns the
+    transaction."""
+    chunk_ids: list[int] = []
     answered_by: dict[int, int] = {}  # line number -> chunk row of the last ok request covering it
     for r in requests:
         chunk = OllamaChunk(
@@ -157,6 +159,7 @@ def save(
         )
         db.add(chunk)
         db.flush()
+        chunk_ids.append(chunk.id)
         if r.ok:
             for n in lines:
                 if r.first_line <= n <= r.last_line:
@@ -181,7 +184,7 @@ def save(
             {"line_id": line.id, "chunk_id": answered_by[n], "text": text, "raw_sha": row.raw_sha}
         )
     if not values:
-        return
+        return chunk_ids
     stmt = insert(OllamaSuggestion).values(values)
     db.execute(
         stmt.on_conflict_do_update(
@@ -195,6 +198,7 @@ def save(
         )
     )
     db.flush()
+    return chunk_ids
 
 
 def lines_left(db: Session, user_id: int, item: OllamaQueueItem) -> int:

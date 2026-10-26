@@ -122,53 +122,6 @@ def test_backend_error_is_an_event_names_status_and_caches_nothing(
     assert "secret-key-xyz" not in body and db.query(MtCache).count() == 0
 
 
-def test_ollama_without_own_url_needs_setup_even_with_operator_default(
-        app_client, me, make_doc, wire, db):
-    from api.models import ServerSetting
-
-    install, calls = wire
-    install(lambda r: httpx.Response(200, content=b'{"done":true}\n'))
-    db.add(ServerSetting(key="ollama_url", value="http://operator:11434"))
-    db.flush()
-    app_client.put("/settings", json={"ollama_model": "m"})
-    doc = make_doc(me, ["猫"], translated=False)
-    ev = events(stream(app_client, doc, "ollama").text)
-    assert ev == [("needs_setup",
-                   {"message": "Set an Ollama URL under Settings → Machine translation."})]
-    assert calls == []
-
-
-def test_ollama_streams_chunks_and_caches_only_the_completed_text(
-        app_client, me, make_doc, wire, resolve_to, db):
-    ndjson = (b'{"message":{"content":"a\\n\\nb"},"done":false}\n'
-              b'{"message":{"content":"!"},"done":false}\n{"done":true}\n')
-    wire[0](lambda r: httpx.Response(200, content=ndjson))
-    resolve_to("93.184.216.34", host="ol")
-    app_client.post("/credentials", json={"kind": "ollama", "endpoint_url": "http://ol:11434"})
-    app_client.put("/settings", json={"ollama_model": "qwen3"})
-    doc = make_doc(me, ["猫"], translated=False)
-    ev = events(stream(app_client, doc, "ollama").text)
-    assert ev == [("chunk", {"text": "a\n\nb"}), ("chunk", {"text": "!"}),
-                  ("done", {"cached": False})]
-    row = db.query(MtCache).one()
-    assert row.result_text == "a\n\nb!" and row.backend.startswith("ollama:qwen3:")
-
-
-def test_ollama_failure_mid_stream_caches_nothing(
-        app_client, me, make_doc, wire, resolve_to, db):
-    def handler(r):
-        return httpx.Response(
-            200, content=b'{"message":{"content":"half"},"done":false}\nnot json\n')
-    wire[0](handler)
-    resolve_to("93.184.216.34", host="ol")
-    app_client.post("/credentials", json={"kind": "ollama", "endpoint_url": "http://ol:11434"})
-    app_client.put("/settings", json={"ollama_model": "m"})
-    doc = make_doc(me, ["猫"], translated=False)
-    ev = events(stream(app_client, doc, "ollama").text)
-    assert ev[0] == ("chunk", {"text": "half"}) and ev[-1][0] == "error"
-    assert db.query(MtCache).count() == 0
-
-
 def test_analyzers_send_one_analysis_event(app_client, me, make_doc, monkeypatch):
     monkeypatch.setattr(mt_router.jparser, "run", lambda text: [{"surface": text}])
     doc = make_doc(me, ["猫"], translated=False)
@@ -286,38 +239,10 @@ def test_users_never_send_each_others_deepl_key_or_ollama_url(
     app_client.put("/settings", json={"ollama_model": "m"})
     doc = make_doc(b, ["猫"], translated=False)
     stream(app_client, doc, "deepl")
-    stream(app_client, doc, "ollama")
+    app_client.get("/mt/backends")  # b has no Ollama URL: a's is never pinged
     assert calls[0].headers["Authorization"] == "DeepL-Auth-Key key-of-b"
     assert all(c.url.host != "ollama-a" for c in calls)
     assert all("key-of-a" not in str(c.headers) for c in calls)
-
-
-def test_disconnect_mid_ollama_stream_closes_upstream_and_caches_nothing(wire, db):
-    import asyncio
-
-    closed = []
-
-    class Body(httpx.AsyncByteStream):
-        async def __aiter__(self):
-            yield b'{"message":{"content":"half"},"done":false}\n'
-            await asyncio.sleep(10)  # the model is still thinking when the reader leaves
-            yield b'{"done":true}\n'
-
-        async def aclose(self):
-            closed.append(True)
-
-    wire[0](lambda r: httpx.Response(200, stream=Body()))
-    job = mt_router.Job(backend="ollama", text="猫", src="ja", dst="en", url="http://o",
-                        model="m", prompt="p", cache_key="ollama:m:x")
-
-    async def read_one_then_leave():
-        events = mt_router._events(job)
-        first = await anext(events)
-        await events.aclose()
-        return first
-
-    assert asyncio.run(read_one_then_leave()) == ("chunk", {"text": "half"})
-    assert closed and db.query(MtCache).count() == 0
 
 
 def test_bad_settings_fall_back_to_defaults(app_client, me, wire):
@@ -325,3 +250,14 @@ def test_bad_settings_fall_back_to_defaults(app_client, me, wire):
     app_client.put("/settings", json={"mt_target": "xx", "mt_enabled": ["deepl", "google", 3]})
     body = app_client.get("/mt/backends").json()
     assert body["target"] == "en" and body["enabled"] == ["deepl"]
+
+
+def test_mt_stream_refuses_ollama(app_client, me, make_doc, wire):
+    """Ollama has its own endpoints (api/routers/ollama_editor.py); /mt/backends still lists it."""
+    install, calls = wire
+    install(lambda r: httpx.Response(200, json={"models": []}))
+    doc = make_doc(me, ["猫"], translated=False)
+    assert stream(app_client, doc, "ollama").status_code == 422
+    assert calls == []
+    names = [b["name"] for b in app_client.get("/mt/backends").json()["backends"]]
+    assert "ollama" in names
