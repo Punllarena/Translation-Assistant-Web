@@ -1,14 +1,13 @@
 """Ollama in the editor (spec "The editor"): a chapter's held suggestions, one chunk's detail,
 and by-hand translation of the chunk a line belongs to (SSE).
 
-The stream goes through the user's lane ahead of a run's chunks (priority), but never cuts the
-chunk in flight. Its save runs in its own session and commits, a sanctioned commit outside the
-route boundary like the /mt/stream cache write (CLAUDE.md): the SSE body runs after the response
-has started, when the request's session is no longer ours. The save happens while the lane is
-still held, so a request waiting behind this one sees its results and reuses them.
-
-A client that disconnects mid-chunk abandons it: the upstream request is closed and nothing is
-saved (the answer is only checked once the whole chunk is back).
+A by-hand chunk runs in a server-owned task (`_start`), not in the SSE stream: the stream only
+subscribes, so a client that disconnects (the card moving to the next line, say) leaves the
+chunk running to its save, and a request for another line of the same chunk follows it instead
+of asking again. The task goes through the user's lane ahead of a run's chunks (priority) but
+never cuts the chunk in flight, and saves while it still holds the lane, so a request waiting
+behind it rereads committed rows and reuses them. The save runs in its own session and commits,
+a sanctioned commit outside the route boundary like the /mt/stream cache write (CLAUDE.md).
 """
 
 import asyncio
@@ -163,7 +162,7 @@ def _reread(prep: _Prepared) -> _Fresh:
 
 def _save(prep: _Prepared, plan: Plan, result: ChunkResult) -> list[int]:
     assert prep.ep is not None
-    # Sanctioned commit in its own session: the request's session is no longer ours.
+    # Sanctioned commit in its own session: this runs in a server-owned task, not a request.
     with SessionLocal() as db:
         ids = save(db, prep.user_id, plan, result.requests, result.lines,
                    source="reroll" if prep.reroll else "manual", job_id=None, p=prep.prefs,
@@ -172,90 +171,155 @@ def _save(prep: _Prepared, plan: Plan, result: ChunkResult) -> list[int]:
         return ids
 
 
-async def _live(
-    client: httpx.AsyncClient, ep: Endpoint, plan: Plan, out: list[ChunkResult]
-) -> AsyncIterator[Event]:
-    """translate()'s line and thinking callbacks as events; the result lands in `out`.
-    Closing this generator cancels the translation, which closes the upstream request."""
-    queue: asyncio.Queue[Event | None] = asyncio.Queue()
+class _Chunk:
+    """A by-hand chunk in flight. It belongs to the server, not to a stream: a subscriber
+    replays the events so far and then follows live; leaving only unsubscribes."""
 
-    async def on_line(number: int, text: str) -> None:
-        queue.put_nowait(("line", {"line_number": number, "text": text}))
+    def __init__(self) -> None:
+        self.events: list[Event] = []
+        self.subscribers: set[asyncio.Queue[Event | None]] = set()
+        self.finished = False
 
-    async def on_thinking(text: str) -> None:
-        queue.put_nowait(("thinking", {"text": text}))
+    def emit(self, event: Event) -> None:
+        self.events.append(event)
+        for queue in self.subscribers:
+            queue.put_nowait(event)
 
-    async def run() -> ChunkResult:
-        try:
-            return await translate(client, ep, plan.before, plan.chunk,
-                                   on_line=on_line, on_thinking=on_thinking)
-        finally:
+    def finish(self) -> None:
+        self.finished = True
+        for queue in self.subscribers:
             queue.put_nowait(None)
 
-    task = asyncio.create_task(run())
-    try:
-        while (event := await queue.get()) is not None:
-            yield event
-        out.append(task.result())  # raises what translate() raised
-    finally:
-        if not task.done():
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+    async def follow(self) -> AsyncIterator[Event]:
+        queue: asyncio.Queue[Event | None] = asyncio.Queue()
+        for event in self.events:
+            queue.put_nowait(event)
+        if self.finished:
+            queue.put_nowait(None)
+        else:
+            self.subscribers.add(queue)
+        try:
+            while (event := await queue.get()) is not None:
+                yield event
+        finally:
+            self.subscribers.discard(queue)
 
 
-async def _ask(prep: _Prepared, plan: Plan) -> AsyncIterator[Event]:
-    assert prep.ep is not None
+_Key = tuple[int, int, int, int, bool]  # user, document, first line, last line, reroll
+# The by-hand chunks in flight. In-process, like the lane (api/ollama/lane.py): the app is a
+# single API process.
+_RUNNING: dict[_Key, _Chunk] = {}
+_TASKS: set[asyncio.Task] = set()  # strong references until each task ends
+
+
+def _key(prep: _Prepared, reroll: bool) -> _Key:
+    assert prep.plan is not None
+    chunk = prep.plan.chunk
+    return (prep.user_id, prep.document_id, chunk[0].line_number, chunk[-1].line_number, reroll)
+
+
+async def _translate(
+    chunk: _Chunk, client: httpx.AsyncClient, ep: Endpoint, plan: Plan
+) -> ChunkResult:
+    """translate() with its line and thinking callbacks emitted as events."""
     sent: dict[int, str] = {}
-    out: list[ChunkResult] = []
-    async with http_client() as client:
-        ep = await endpoint.ready(client, prep.ep)
-        async with aclosing(_live(client, ep, plan, out)) as events:
-            async for kind, data in events:
-                if kind == "line":
-                    sent[data["line_number"]] = data["text"]
-                yield (kind, data)
-    result = out[0]
-    # A line shown live from an answer the check then rejected ends with the saved text.
+
+    async def on_line(number: int, text: str) -> None:
+        sent[number] = text
+        chunk.emit(("line", {"line_number": number, "text": text}))
+
+    async def on_thinking(text: str) -> None:
+        chunk.emit(("thinking", {"text": text}))
+
+    result = await translate(client, ep, plan.before, plan.chunk,
+                             on_line=on_line, on_thinking=on_thinking)
+    # A line shown live from an answer the check then rejected ends with the saved text, or
+    # with null when its retried halves failed too.
     for number in sorted(result.lines):
         if sent.get(number) != result.lines[number]:
-            yield ("line", {"line_number": number, "text": result.lines[number]})
-    ids = await run_in_threadpool(_save, prep, plan, result)
-    yield ("saved", {"chunk_ids": ids})
+            chunk.emit(("line", {"line_number": number, "text": result.lines[number]}))
+    for number in sorted(set(result.failed)):
+        if number in sent:
+            chunk.emit(("line", {"line_number": number, "text": None}))
+    return result
+
+
+async def _work(prep: _Prepared, key: _Key, chunk: _Chunk) -> None:
+    """Wait for the lane, then reuse what is saved, or translate and save, in one hold: the
+    commit lands before the next request on the lane rereads."""
+    assert prep.ep is not None
+    try:
+        reason = LANES.wait_reason(prep.user_id)
+        if reason:
+            chunk.emit(("waiting", {"reason": reason}))
+        async with LANES.hold(prep.user_id, priority=True):
+            fresh = await run_in_threadpool(_reread, prep)
+            if fresh.setup:
+                chunk.emit(("needs_setup", {"message": fresh.setup}))
+                return
+            if fresh.plan is None:
+                for number, text in fresh.reused or []:
+                    chunk.emit(("line", {"line_number": number, "text": text}))
+            else:
+                async with http_client() as client:
+                    ep = await endpoint.ready(client, prep.ep)
+                    result = await _translate(chunk, client, ep, fresh.plan)
+                ids = await run_in_threadpool(_save, prep, fresh.plan, result)
+                chunk.emit(("saved", {"chunk_ids": ids}))
+        chunk.emit(("done", {}))
+    except BackendError as exc:
+        chunk.emit(("error", {"message": str(exc)}))
+    except Exception:  # a failed save and the like; the traceback stays server-side
+        log.exception("Ollama by-hand translation failed")
+        chunk.emit(("error", {"message": "Ollama failed"}))
+    finally:
+        if _RUNNING.get(key) is chunk:
+            del _RUNNING[key]
+        chunk.finish()
+
+
+def _ended(task: asyncio.Task) -> None:
+    _TASKS.discard(task)
+    if not task.cancelled() and task.exception() is not None:
+        log.error("Ollama by-hand task failed", exc_info=task.exception())
+
+
+def _start(prep: _Prepared) -> _Chunk:
+    key = _key(prep, prep.reroll)
+    chunk = _RUNNING[key] = _Chunk()
+    task = asyncio.create_task(_work(prep, key, chunk))
+    _TASKS.add(task)
+    task.add_done_callback(_ended)
+    return chunk
+
+
+async def stop() -> None:
+    """At shutdown: cancel the chunks in flight (what is saved stays)."""
+    tasks = list(_TASKS)
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def _events(prep: _Prepared) -> AsyncIterator[Event]:
-    """Every stream ends with exactly one terminal event: done, needs_setup or error."""
+    """Every stream ends with one terminal event: done, needs_setup or error. A request for a
+    line of a chunk already in flight follows that chunk instead of asking again."""
     if prep.plan is None:
         yield ("done", {})
         return
     if prep.ep is None:
         yield ("needs_setup", {"message": prep.setup or "Ollama is not set up"})
         return
-    chunk = prep.plan.chunk
-    yield ("plan", {"first_line": chunk[0].line_number, "last_line": chunk[-1].line_number})
-    if LANES.busy(prep.user_id):
-        yield ("waiting", {})
-    try:
-        async with LANES.hold(prep.user_id, priority=True):
-            fresh = await run_in_threadpool(_reread, prep)
-            if fresh.setup:
-                yield ("needs_setup", {"message": fresh.setup})
-                return
-            if fresh.plan is None:
-                for number, text in fresh.reused or []:
-                    yield ("line", {"line_number": number, "text": text})
-            else:
-                async with aclosing(_ask(prep, fresh.plan)) as events:
-                    async for event in events:
-                        yield event
-    except BackendError as exc:
-        yield ("error", {"message": str(exc)})
-        return
-    except Exception:  # a failed save and the like; the traceback stays server-side
-        log.exception("Ollama by-hand translation failed")
-        yield ("error", {"message": "Ollama failed"})
-        return
-    yield ("done", {})
+    chunk = _RUNNING.get(_key(prep, prep.reroll))
+    if chunk is None and not prep.reroll:
+        chunk = _RUNNING.get(_key(prep, True))  # a reroll in flight answers this line too
+    if chunk is None:
+        chunk = _start(prep)
+    lines = prep.plan.chunk
+    yield ("plan", {"first_line": lines[0].line_number, "last_line": lines[-1].line_number})
+    async with aclosing(chunk.follow()) as events:
+        async for event in events:
+            yield event
 
 
 @router.get("/documents/{document_id}/ollama/stream", response_class=StreamingResponse)

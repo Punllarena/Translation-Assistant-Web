@@ -44,6 +44,7 @@ def wire(monkeypatch, db):
     def session():
         yield db
     monkeypatch.setattr(ollama_editor, "SessionLocal", session)
+    monkeypatch.setattr(ollama_editor, "_RUNNING", {})
     monkeypatch.setattr(get_settings(), "mt_allow_private_urls", True)  # "ol" never resolves
     endpoint._INFO.clear()
     calls = []
@@ -199,7 +200,7 @@ async def test_request_waiting_for_the_lane_reuses_what_the_holder_saved(me, mak
     await asyncio.sleep(0)
     gen = ollama_editor._events(prep)
     assert await anext(gen) == ("plan", {"first_line": 0, "last_line": 1})
-    assert await anext(gen) == ("waiting", {})
+    assert await anext(gen) == ("waiting", {"reason": "run"})
     pending = asyncio.create_task(anext(gen))
     await asyncio.sleep(0.05)
     assert not pending.done()
@@ -262,3 +263,77 @@ def test_rejected_answer_is_halved_and_only_the_checked_lines_are_saved(
     assert lines[-2:] == [{"line_number": 2, "text": "H2"}, {"line_number": 3, "text": "H3"}]
     assert len(ev[-2][1]["chunk_ids"]) == 3 and ev[-1] == ("done", {})
     assert _suggested(db, doc) == {2: "H2", 3: "H3"}
+
+
+async def _settle():
+    await asyncio.gather(*list(ollama_editor._TASKS))
+
+
+async def test_a_disconnect_leaves_the_chunk_running_to_its_save(me, make_doc, db, wire):
+    _set_up(db, me)
+    _, calls = wire
+    doc = make_doc(me, ["a", "b", "c", "d"], translated=False)
+    gen = ollama_editor._events(ollama_editor._prepare(db, me.id, doc.id, 2, False))
+    assert await anext(gen) == ("plan", {"first_line": 2, "last_line": 3})
+    assert (await anext(gen))[0] == "line"
+    await gen.aclose()  # the card moved on
+    await _settle()
+    assert _suggested(db, doc) == {2: "T2", 3: "T3"}
+    rest = [e async for e in ollama_editor._events(
+        ollama_editor._prepare(db, me.id, doc.id, 3, False))]
+    assert rest[1:] == [("line", {"line_number": 3, "text": "T3"}), ("done", {})]
+    assert calls.count("/api/chat") == 1
+
+
+async def test_a_request_for_another_line_follows_the_chunk_in_flight(
+        me, make_doc, db, wire, monkeypatch):
+    _set_up(db, me)
+    doc = make_doc(me, ["a", "b", "c", "d"], translated=False)
+    gate, chats = asyncio.Event(), []
+
+    async def handle(request):
+        if request.url.path == "/api/show":
+            return httpx.Response(200, json=SHOW)
+        chats.append(request)
+        await gate.wait()
+        ids = _asked(json.loads(request.content))
+        answer = json.dumps({"lines": [{"id": n, "text": f"T{n}"} for n in ids]})
+        return httpx.Response(200, content=_ndjson(answer))
+    monkeypatch.setattr(ollama_editor, "http_client",
+                        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+    first = ollama_editor._events(ollama_editor._prepare(db, me.id, doc.id, 2, False))
+    assert await anext(first) == ("plan", {"first_line": 2, "last_line": 3})
+    reading = asyncio.create_task(anext(first))
+    while not chats:
+        await asyncio.sleep(0.01)
+    second = ollama_editor._events(ollama_editor._prepare(db, me.id, doc.id, 3, False))
+    assert await anext(second) == ("plan", {"first_line": 2, "last_line": 3})
+    gate.set()
+    a = [await reading] + [e async for e in first]
+    b = [e async for e in second]
+    assert a == b and a[-1] == ("done", {}) and a[-2][0] == "saved"
+    assert len(chats) == 1 and _suggested(db, doc) == {2: "T2", 3: "T3"}
+    assert ollama_editor._RUNNING == {}
+
+
+def test_a_line_shown_live_then_failed_ends_with_null(
+        app_client, me, make_doc, db, wire, monkeypatch):
+    _set_up(db, me)
+    doc = make_doc(me, ["a", "b", "c", "d"], translated=False)
+
+    def handle(request):
+        if request.url.path == "/api/show":
+            return httpx.Response(200, json=SHOW)
+        ids = _asked(json.loads(request.content))
+        if ids == [2]:
+            answer = {"lines": [{"id": 2, "text": "H2"}]}
+        else:  # the whole chunk shows only line 3; alone, line 3 gets no answer
+            answer = {"lines": [{"id": 3, "text": "X3"}] if len(ids) == 2 else []}
+        return httpx.Response(200, content=_ndjson(json.dumps(answer)))
+    monkeypatch.setattr(ollama_editor, "http_client",
+                        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+    ev = events(_stream(app_client, doc, 2).text)
+    lines = [d for k, d in ev if k == "line"]
+    assert lines[0] == {"line_number": 3, "text": "X3"}
+    assert lines[-1] == {"line_number": 3, "text": None}
+    assert ev[-2][0] == "saved" and _suggested(db, doc) == {2: "H2"}

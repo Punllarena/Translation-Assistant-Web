@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 class _Lane:
     def __init__(self) -> None:
         self.held = False
+        self.holder_priority = False  # the current holder is a by-hand request
         self.priority: deque[asyncio.Future[None]] = deque()
         self.normal: deque[asyncio.Future[None]] = deque()
 
@@ -24,7 +25,7 @@ class _Lane:
 
     async def acquire(self, priority: bool) -> None:
         if not self.held and not self.priority and not self.normal:
-            self.held = True
+            self.held, self.holder_priority = True, priority
             return
         fut: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         queue = self.priority if priority else self.normal
@@ -44,6 +45,7 @@ class _Lane:
             while queue:
                 fut = queue.popleft()
                 if not fut.done():
+                    self.holder_priority = queue is self.priority
                     fut.set_result(None)
                     return
         self.held = False
@@ -79,6 +81,16 @@ class Lanes:
         """Someone holds or waits for the user's lane: a new request would wait."""
         lane = self._lanes.get(user_id)
         return lane is not None and not lane.idle
+
+    def wait_reason(self, user_id: int) -> str | None:
+        """What a new by-hand request would wait behind: "run" (a run's chunk), "manual"
+        (another by-hand request, holding or queued ahead), or None (the lane is free)."""
+        lane = self._lanes.get(user_id)
+        if lane is None or lane.idle:
+            return None
+        if lane.holder_priority or any(not f.done() for f in lane.priority):
+            return "manual"
+        return "run"
 
     def waiting(self, user_id: int) -> bool:
         """A by-hand request is waiting for the lane."""

@@ -46,6 +46,7 @@ from api.routing import CommitOnResponseRoute
 async def lifespan(app: FastAPI):
     if not get_settings().run_jobs_worker:
         yield
+        await ollama_editor.stop()
         return
     await run_in_threadpool(jobs.fail_interrupted)
     await run_in_threadpool(tadb_uploads.sweep)
@@ -61,6 +62,7 @@ async def lifespan(app: FastAPI):
     await task
     await ollama_task
     await tick_task
+    await ollama_editor.stop()  # by-hand chunks in flight
 
 
 def create_app() -> FastAPI:

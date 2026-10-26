@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 
@@ -179,9 +179,12 @@ async def _pause(job_id: int, seconds: float) -> str | None:
 
 
 async def _chunk(
-    job_id: int, client: httpx.AsyncClient, step: _Step, tally: _Tally
+    job_id: int, client: httpx.AsyncClient, step: _Step, tally: _Tally,
+    saved: Callable[[ChunkResult], Awaitable[None]],
 ) -> ChunkResult | str:
-    """Translate one chunk through the lane; retry an unanswered server after a pause."""
+    """Translate one chunk through the lane; retry an unanswered server after a pause. The
+    result is saved before the lane is released, so a by-hand request waiting behind this
+    chunk rereads committed rows."""
     for attempt in range(RETRIES + 1):
         try:
             async with LANES.hold(step.user_id, priority=False):
@@ -189,7 +192,9 @@ async def _chunk(
                 if problem:
                     raise _Failed(problem)
                 ep = await endpoint.ready(client, step.ep)
-                return await translate(client, ep, step.plan.before, step.plan.chunk)
+                result = await translate(client, ep, step.plan.before, step.plan.chunk)
+                await saved(result)
+                return result
         except BackendError as exc:
             if attempt == RETRIES:
                 raise _Failed(str(exc)) from exc
@@ -208,15 +213,18 @@ async def _work(job_id: int, factory: Callable[[], httpx.AsyncClient], tally: _T
             step = await run_in_threadpool(_next, job_id, frozenset(skip))
             if isinstance(step, str):
                 return step
-            result = await _chunk(job_id, client, step, tally)
+
+            async def saved(result: ChunkResult, step: _Step = step) -> None:
+                skip.update(r.line_id for r in step.plan.chunk if r.line_number in result.failed)
+                tally.chunks += 1
+                tally.lines += len(result.lines)
+                tally.failed += len(result.failed)
+                tally.clamped += sum(1 for r in result.requests if r.clamped)
+                await run_in_threadpool(_save, job_id, step, result, tally.lines)
+
+            result = await _chunk(job_id, client, step, tally, saved)
             if isinstance(result, str):
                 return result
-            skip |= {r.line_id for r in step.plan.chunk if r.line_number in result.failed}
-            tally.chunks += 1
-            tally.lines += len(result.lines)
-            tally.failed += len(result.failed)
-            tally.clamped += sum(1 for r in result.requests if r.clamped)
-            await run_in_threadpool(_save, job_id, step, result, tally.lines)
 
 
 async def run_one(

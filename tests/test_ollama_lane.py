@@ -49,3 +49,24 @@ async def test_a_cancelled_waiter_leaves_the_queue():
     await holder
     await asyncio.wait_for(_take(lanes, 1, False, order, "next"), 1)
     assert order == ["first", "next"]
+
+
+async def test_wait_reason_names_the_holder():
+    lanes, order = Lanes(), []
+    assert lanes.wait_reason(1) is None
+    release = asyncio.Event()
+    run = asyncio.create_task(_take(lanes, 1, False, order, "run", release))
+    await asyncio.sleep(0)
+    assert lanes.wait_reason(1) == "run" and lanes.busy(1)
+    by_hand = asyncio.create_task(_take(lanes, 1, True, order, "by hand", release))
+    await asyncio.sleep(0)
+    assert lanes.wait_reason(1) == "manual"  # a by-hand request is queued ahead
+    release.set()
+    await asyncio.gather(run, by_hand)
+    assert lanes.wait_reason(1) is None
+    release = asyncio.Event()
+    holder = asyncio.create_task(_take(lanes, 1, True, order, "by hand 2", release))
+    await asyncio.sleep(0)
+    assert lanes.wait_reason(1) == "manual"
+    release.set()
+    await holder
