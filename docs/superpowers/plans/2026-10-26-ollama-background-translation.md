@@ -396,6 +396,8 @@ def test_one_suggestion_per_line_and_cascade(db, make_user, make_doc):
 - Consumes: `Item`, `cut`, `chunk_index`, `context_before` (Task 3); `OllamaPrefs` (Task 2); models (Task 6);
   `editor_context` and `replace_and_parse` as `display_line` uses them.
 - Produces:
+  - `raw_sha(raw_text: str) -> str` — sha256 hex of `raw_text` with `\r\n`/`\r` turned into `\n` and outer
+    whitespace stripped. The only place the hash is computed; every stale check and every save calls it.
   - `@dataclass(frozen=True) class Row(Item): line_id: int = 0; raw_sha: str = ""`
   - `@dataclass class Plan: document_id: int; series_id: int; before: list[Row]; chunk: list[Row]`
     with `asked` property → rows with `known is None`.
@@ -412,8 +414,9 @@ def test_one_suggestion_per_line_and_cascade(db, make_user, make_doc):
     answered it, **skipping** lines that are now translated or whose `raw_text` hash no longer equals the plan's.
   - `lines_left(db, user_id: int, item: OllamaQueueItem) -> int`
 
-- [ ] **Step 1: Write the failing tests** — `test_rows_known_from_translation_or_current_suggestion` (stale
-  suggestion → `known is None`); `test_next_plan_skips_translated_and_suggested_lines`;
+- [ ] **Step 1: Write the failing tests** — `test_raw_sha_ignores_line_endings_and_outer_whitespace`
+  (`raw_sha("猫\r\n") == raw_sha("猫")`, `raw_sha("猫") != raw_sha("犬")`);
+  `test_rows_known_from_translation_or_current_suggestion` (stale suggestion → `known is None`); `test_next_plan_skips_translated_and_suggested_lines`;
   `test_next_plan_follows_queue_position_and_series_order`; `test_next_chunk_drops_items_whose_target_is_gone`;
   `test_plan_for_line_asks_the_line_even_if_translated`; `test_reroll_asks_all_untranslated_lines`;
   `test_save_replaces_existing_suggestion_and_keeps_stats`; `test_save_skips_lines_changed_since_plan`.
@@ -477,6 +480,10 @@ def test_one_suggestion_per_line_and_cascade(db, make_user, make_doc):
   - `async runner.runner(stop: asyncio.Event, max_runs: int = MAX_RUNS) -> None` — `MAX_RUNS = 4` concurrent
     `run_one` tasks.
   - `http_client()` seam in `runner.py`, like `api/routers/mt.py`.
+  - Single process only: `LANES` is in-process, so it keeps a by-hand stream and a run apart only when both live in
+    the same API process. The unique index stops two *runs* per user, not a run in one process and a by-hand
+    request in another. Put a `# ponytail:` comment on `Lanes` saying so (swap for a per-user Postgres advisory lock
+    if the app ever runs several API processes), next to the one in `api/jobs.py`.
 
 - [ ] **Step 1: Write the failing tests** — `test_priority_waiter_goes_before_queued_run_chunk`;
   `test_general_worker_never_claims_ollama_run` (`jobs.run_next()` returns False with only an `ollama_run` queued);
@@ -511,7 +518,9 @@ def test_one_suggestion_per_line_and_cascade(db, make_user, make_doc):
   - `flush(db, user_id: int, *, document_ids: list[int] | None = None, volume_id: int | None = None,
     series_id: int | None = None) -> int` — none given → everything; sets `ollama_suggestions.text` and the
     affected chunks' `reasoning`/`prompt` to NULL; returns suggestions cleared.
-  - `cleanup(db, user_id: int, now: datetime) -> int` — documents with unflushed suggestions whose every line with
+  - `cleanup(db, user_id: int, now: datetime) -> int` — candidates first: `SELECT DISTINCT lines.document_id FROM
+    ollama_suggestions JOIN lines … WHERE ollama_suggestions.text IS NOT NULL` for the user (the unique `line_id`
+    index and `lines`' primary key serve it; no new `lines` indexes). Then, per candidate, the documents whose every line with
     non-blank `raw_text` has a translation and whose newest `translated_at` < `now - relativedelta(months=3)`
     (use `timedelta(days=91)` if `dateutil` is not a dependency); flushes them; returns chapters cleared.
   - `record_outcomes(db, document_id: int, saved: dict[int, str]) -> None` — for each saved non-empty line with an
