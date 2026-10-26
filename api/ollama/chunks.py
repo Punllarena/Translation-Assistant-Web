@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Item:
-    """One chapter line. `known` is a translation or current suggestion; None means the line is asked."""
+    """One chapter line. `known` is a translation or suggestion; None means the line is asked."""
 
     line_number: int
     prefix: str
@@ -38,7 +38,7 @@ class RequestStats:
 
 
 def paragraphs(items: Sequence[Item]) -> list[list[Item]]:
-    """Empty lines are dropped and end a paragraph; `%` starts one; a `$` with none open starts one."""
+    """Empty lines are dropped and end a paragraph; `%` starts one, as does a `$` with none open."""
     out: list[list[Item]] = []
     current: list[Item] | None = None
     for item in items:

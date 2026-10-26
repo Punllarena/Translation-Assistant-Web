@@ -26,12 +26,15 @@ FORMAT_RULES = (
     "Each line is labelled with its line number in square brackets. Translate only the lines under "
     '"Translate:". Lines under "Context:" and lines marked (done) are already translated: do not '
     "translate or return them. Return every line to translate exactly once, in the same order, as "
-    'JSON {"lines":[{"id":<line number>,"text":<translation>}]}. A line marked $ continues the line '
-    'before it; its text may be "" when its meaning went into the line before.'
+    'JSON {"lines":[{"id":<line number>,"text":<translation>}]}. '
+    'A line marked $ continues the line before it; '
+    'its text may be "" when its meaning went into the line before.'
 )
 
 
-def build_messages(system_prompt: str, src: str, dst: str, before: list[Item], chunk: list[Item]) -> list[dict]:
+def build_messages(
+    system_prompt: str, src: str, dst: str, before: list[Item], chunk: list[Item]
+) -> list[dict]:
     system = system_prompt.replace("{src}", display(src)).replace("{dst}", display(dst))
     parts: list[str] = []
     if before:
