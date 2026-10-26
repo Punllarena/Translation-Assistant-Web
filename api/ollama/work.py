@@ -103,7 +103,7 @@ def next_plan(db: Session, user_id: int, p: OllamaPrefs) -> Plan | None:
 def plan_for_line(
     db: Session, user_id: int, doc: Document, line_number: int, p: OllamaPrefs, *, reroll: bool
 ) -> Plan:
-    """The chunk holding the line; the line is always asked, a reroll asks every untranslated one."""
+    """The chunk holding the line; the line is always asked, reroll asks all untranslated."""
     rows = rows_for(db, user_id, doc)
     chunks = cut(rows, p.chunk_lines)
     n = chunk_index(chunks, line_number)
