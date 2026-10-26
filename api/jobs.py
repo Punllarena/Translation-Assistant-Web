@@ -37,6 +37,8 @@ GONE = (StaleDataError, ObjectDeletedError, InvalidRequestError)
 TERMINAL = {"done", "failed", "cancelled"}
 INTERRUPTED = "interrupted by a server restart; start it again to resume"
 HANDLERS: dict[str, Callable[["JobContext"], dict]] = {}
+# Kinds with their own runner, never claimed here (api/ollama/runner.py).
+SEPARATE_KINDS = frozenset({"ollama_run"})
 stopping = threading.Event()  # set by the lifespan on shutdown
 progress_session = SessionLocal  # report()'s own session; tests swap it
 _clock = time.monotonic
@@ -118,7 +120,7 @@ def enqueue(db: Session, user_id: int, kind: str, params: dict, total: int = 0) 
 def _claim(db: Session) -> Job | None:
     job = db.scalar(
         select(Job)
-        .where(Job.state == "queued")
+        .where(Job.state == "queued", Job.kind.not_in(SEPARATE_KINDS))
         .order_by(Job.id)
         .limit(1)
         .with_for_update(skip_locked=True)

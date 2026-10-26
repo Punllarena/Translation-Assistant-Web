@@ -82,19 +82,26 @@ def _plan(doc: Document, rows: list[Row], chunk: list[Row], p: OllamaPrefs) -> P
     return Plan(doc.id, doc.series_id, cast(list[Row], before), chunk)
 
 
-def next_plan(db: Session, user_id: int, p: OllamaPrefs) -> Plan | None:
+def next_plan(
+    db: Session, user_id: int, p: OllamaPrefs, skip: frozenset[int] = frozenset()
+) -> Plan | None:
+    """The first chunk with a line to ask. Lines in `skip` (line ids that already failed in this
+    run) do not make a chunk worth asking, and keep their item queued for the next run."""
     items = db.scalars(
         select(OllamaQueueItem)
         .where(OllamaQueueItem.user_id == user_id)
         .order_by(OllamaQueueItem.position, OllamaQueueItem.id)
     ).all()
     for item in items:
+        skipped = False
         for doc in _documents(db, user_id, item):
             rows = rows_for(db, user_id, doc)
             for chunk in cut(rows, p.chunk_lines):
-                if any(r.known is None for r in chunk):
+                todo = [r for r in cast(list[Row], chunk) if r.known is None]
+                if any(r.line_id not in skip for r in todo):
                     return _plan(doc, rows, cast(list[Row], chunk), p)
-        if item.kind != "series":  # a series item stays queued: its chapters may still grow
+                skipped = skipped or bool(todo)
+        if item.kind != "series" and not skipped:  # a series item stays: its chapters may grow
             db.delete(item)
     db.flush()
     return None
