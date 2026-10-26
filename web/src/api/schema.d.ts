@@ -1618,6 +1618,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stats/ollama": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ollama Stats */
+        get: operations["get_ollama_stats_stats_ollama_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tm/matches": {
         parameters: {
             query?: never;
@@ -2727,6 +2744,73 @@ export interface components {
             short_story: boolean;
             /** Title */
             title: string;
+        };
+        /** OllamaModelStats */
+        OllamaModelStats: {
+            /** Chunk Lines */
+            chunk_lines: number;
+            /** Context Lines */
+            context_lines: number;
+            /** Model */
+            model: string;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Preset */
+            preset: string;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Runs */
+            runs: number;
+            /** S Per Chunk */
+            s_per_chunk: number | null;
+            /** Tokens Per S */
+            tokens_per_s: number | null;
+            /** Used Or Edited Pct */
+            used_or_edited_pct: number | null;
+        };
+        /** OllamaOutcomes */
+        OllamaOutcomes: {
+            /** Edited */
+            edited: number;
+            /** Ignored */
+            ignored: number;
+            /** Used */
+            used: number;
+        };
+        /** OllamaRun */
+        OllamaRun: {
+            /** Chapters */
+            chapters: number;
+            /** Date */
+            date: string;
+            /** Duration S */
+            duration_s: number | null;
+            /** Job Id */
+            job_id: number;
+            /** Lines */
+            lines: number;
+            /** Lines Per Hour */
+            lines_per_hour: number | null;
+            /** S Per Chunk */
+            s_per_chunk: number | null;
+            /** Tokens Per S */
+            tokens_per_s: number | null;
+        };
+        /** OllamaStatsOut */
+        OllamaStatsOut: {
+            /** By Model */
+            by_model: components["schemas"]["OllamaModelStats"][];
+            /** Chapters 30D */
+            chapters_30d: number;
+            /** Lines 30D */
+            lines_30d: number;
+            outcomes: components["schemas"]["OllamaOutcomes"];
+            /** Retry Rate 30D */
+            retry_rate_30d: number | null;
+            /** Runs */
+            runs: components["schemas"]["OllamaRun"][];
+            /** Tokens Per S 30D */
+            tokens_per_s_30d: number | null;
         };
         /** OrderIn */
         OrderIn: {
@@ -6682,6 +6766,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ollama_stats_stats_ollama_get: {
+        parameters: {
+            query?: {
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OllamaStatsOut"];
                 };
             };
             /** @description Validation Error */

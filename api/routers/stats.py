@@ -11,8 +11,9 @@ from sqlalchemy.orm import Session
 from api.core import stats
 from api.deps import current_user, db_session, zone
 from api.models import Document, Line, Series, User
+from api.ollama import stats as ollama_stats
 from api.routing import api_router
-from api.schemas.stats import StatsOut
+from api.schemas.stats import OllamaStatsOut, StatsOut
 
 router = api_router(tags=["stats"])
 
@@ -52,4 +53,15 @@ def get_stats(
         comparisons={m: stats.compute_period_comparisons(history, m, today) for m in stats.METRICS},
         series=[{"series_id": i, "series": t, "paragraphs": p, "chars": c, "en_words": w,
                  "chapters": n} for i, t, p, c, w, n in by_series],
+    )
+
+
+@router.get("/stats/ollama", response_model=OllamaStatsOut)
+def get_ollama_stats(
+    tz: ZoneInfo = Depends(zone), user: User = Depends(current_user),
+    db: Session = Depends(db_session),
+) -> OllamaStatsOut:
+    return OllamaStatsOut(
+        **ollama_stats.summary(db, user.id), runs=ollama_stats.runs(db, user.id, tz),
+        by_model=ollama_stats.by_model(db, user.id),
     )
