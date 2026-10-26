@@ -1,0 +1,210 @@
+"""Which lines go to Ollama next, and saving what came back (synchronous DB layer)."""
+
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass, replace
+from typing import cast
+
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session
+
+from api.core.text import replace_and_parse
+from api.models import Document, Line
+from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
+from api.ollama.chunks import Item, RequestStats, chunk_index, context_before, cut
+from api.ollama.prefs import OllamaPrefs
+from api.routers.lines import editor_context
+
+
+def raw_sha(raw_text: str) -> str:
+    """The only place the source hash is computed: stale checks and saves both use it."""
+    text = raw_text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class Row(Item):
+    line_id: int = 0
+    raw_sha: str = ""
+
+
+@dataclass
+class Plan:
+    document_id: int
+    series_id: int
+    before: list[Row]
+    chunk: list[Row]
+
+    @property
+    def asked(self) -> list[Row]:
+        return [r for r in self.chunk if r.known is None]
+
+
+def rows_for(db: Session, user_id: int, doc: Document) -> list[Row]:
+    """Every line in order; `known` is the translation, else a suggestion matching the source."""
+    glossary, parse_chars = editor_context(db, user_id, doc)  # once per document
+    lines = db.execute(
+        select(Line, OllamaSuggestion.text, OllamaSuggestion.raw_sha)
+        .outerjoin(OllamaSuggestion, OllamaSuggestion.line_id == Line.id)
+        .where(Line.document_id == doc.id)
+        .order_by(Line.line_number)
+    )
+    rows = []
+    for line, sug_text, sug_sha in lines:
+        sha = raw_sha(line.raw_text)
+        known = None
+        if line.translated_text:
+            known = line.translated_text
+        elif sug_text is not None and sug_sha == sha:
+            known = sug_text
+        text = replace_and_parse(line.raw_text, glossary, parse_chars)[0].strip()
+        rows.append(Row(line.line_number, line.prefix, text, known, line.id, sha))
+    return rows
+
+
+def _documents(db: Session, user_id: int, item: OllamaQueueItem) -> list[Document]:
+    """The item's chapters in reading order; illustrations chapters carry no text."""
+    q = select(Document).where(Document.user_id == user_id, Document.is_illustrations.is_(False))
+    if item.kind == "series":
+        q = q.where(Document.series_id == item.series_id)
+    elif item.kind == "volume":
+        q = q.where(Document.volume_id == item.volume_id)
+    else:
+        docs = {d.id: d for d in db.scalars(q.where(Document.id.in_(item.document_ids or [])))}
+        return [docs[i] for i in item.document_ids if i in docs]
+    return list(db.scalars(q.order_by(Document.series_order, Document.id)))
+
+
+def _plan(doc: Document, rows: list[Row], chunk: list[Row], p: OllamaPrefs) -> Plan:
+    before = context_before(rows, chunk[0].line_number, p.context_lines)
+    return Plan(doc.id, doc.series_id, cast(list[Row], before), chunk)
+
+
+def next_plan(db: Session, user_id: int, p: OllamaPrefs) -> Plan | None:
+    items = db.scalars(
+        select(OllamaQueueItem)
+        .where(OllamaQueueItem.user_id == user_id)
+        .order_by(OllamaQueueItem.position, OllamaQueueItem.id)
+    ).all()
+    for item in items:
+        for doc in _documents(db, user_id, item):
+            rows = rows_for(db, user_id, doc)
+            for chunk in cut(rows, p.chunk_lines):
+                if any(r.known is None for r in chunk):
+                    return _plan(doc, rows, cast(list[Row], chunk), p)
+        if item.kind != "series":  # a series item stays queued: its chapters may still grow
+            db.delete(item)
+    db.flush()
+    return None
+
+
+def plan_for_line(
+    db: Session, user_id: int, doc: Document, line_number: int, p: OllamaPrefs, *, reroll: bool
+) -> Plan:
+    """The chunk holding the line; the line is always asked, a reroll asks every untranslated one."""
+    rows = rows_for(db, user_id, doc)
+    chunks = cut(rows, p.chunk_lines)
+    n = chunk_index(chunks, line_number)
+    if n is None:
+        raise ValueError(f"line {line_number} has no text to translate")
+    translated = set(
+        db.scalars(
+            select(Line.id).where(Line.document_id == doc.id, Line.translated_text != "")
+        )
+    )
+    chunk = [
+        replace(r, known=None)
+        if r.line_number == line_number or (reroll and r.line_id not in translated)
+        else r
+        for r in cast(list[Row], chunks[n])
+    ]
+    return _plan(doc, rows, chunk, p)
+
+
+def save(
+    db: Session,
+    user_id: int,
+    plan: Plan,
+    requests: list[RequestStats],
+    lines: dict[int, str],
+    *,
+    source: str,
+    job_id: int | None,
+    p: OllamaPrefs,
+    model: str,
+) -> None:
+    """Record every request and keep one suggestion per answered line. Lines translated or edited
+    since the plan are skipped. Flushes only: the caller owns the transaction."""
+    answered_by: dict[int, int] = {}  # line number -> chunk row of the last ok request covering it
+    for r in requests:
+        chunk = OllamaChunk(
+            user_id=user_id, series_id=plan.series_id, document_id=plan.document_id, job_id=job_id,
+            source=source, ok=r.ok, clamped=r.clamped, depth=r.depth, model=model,
+            preset=p.preset, chunk_lines=p.chunk_lines, context_lines=p.context_lines,
+            first_line=r.first_line, last_line=r.last_line, asked=r.asked,
+            prompt_tokens=r.prompt_tokens or 0, output_tokens=r.output_tokens or 0,
+            prompt_ms=r.prompt_ms, eval_ms=r.eval_ms, load_ms=r.load_ms, total_ms=r.total_ms,
+            first_token_ms=r.first_token_ms, reasoning=r.reasoning or None, prompt=r.prompt,
+        )
+        db.add(chunk)
+        db.flush()
+        if r.ok:
+            for n in lines:
+                if r.first_line <= n <= r.last_line:
+                    answered_by[n] = chunk.id
+    planned = {r.line_number: r for r in plan.chunk}
+    current = {
+        ln.line_number: ln
+        for ln in db.scalars(
+            select(Line)
+            .join(Document, Document.id == Line.document_id)
+            .where(Line.document_id == plan.document_id, Document.user_id == user_id)
+        )
+    }
+    values = []
+    for n, text in lines.items():
+        row, line = planned.get(n), current.get(n)
+        if row is None or line is None or n not in answered_by:
+            continue
+        if line.translated_text or raw_sha(line.raw_text) != row.raw_sha:
+            continue
+        values.append(
+            {"line_id": line.id, "chunk_id": answered_by[n], "text": text, "raw_sha": row.raw_sha}
+        )
+    if not values:
+        return
+    stmt = insert(OllamaSuggestion).values(values)
+    db.execute(
+        stmt.on_conflict_do_update(
+            index_elements=[OllamaSuggestion.line_id],
+            set_={
+                "chunk_id": stmt.excluded.chunk_id,
+                "text": stmt.excluded.text,
+                "raw_sha": stmt.excluded.raw_sha,
+                "scored": False,
+            },
+        )
+    )
+    db.flush()
+
+
+def lines_left(db: Session, user_id: int, item: OllamaQueueItem) -> int:
+    """Non-blank lines in the item's chapters with no translation and no current suggestion."""
+    ids = [d.id for d in _documents(db, user_id, item)]
+    if not ids:
+        return 0
+    n = 0
+    rows = db.execute(
+        select(Line.raw_text, OllamaSuggestion.text, OllamaSuggestion.raw_sha)
+        .outerjoin(OllamaSuggestion, OllamaSuggestion.line_id == Line.id)
+        .where(Line.document_id.in_(ids), Line.translated_text == "")
+    )
+    for raw, sug_text, sug_sha in rows:
+        if not raw.strip():
+            continue
+        if sug_text is not None and sug_sha == raw_sha(raw):
+            continue
+        n += 1
+    return n
