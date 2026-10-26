@@ -861,6 +861,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ollama/flush": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Flush Suggestions */
+        post: operations["flush_suggestions_ollama_flush_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Queue */
+        get: operations["get_queue_ollama_queue_get"];
+        put?: never;
+        /** Add To Queue */
+        post: operations["add_to_queue_ollama_queue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/queue/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder Queue */
+        put: operations["reorder_queue_ollama_queue_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/queue/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove From Queue */
+        delete: operations["remove_from_queue_ollama_queue__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Now
+         * @description Start a run that works through the queue until it is drained.
+         */
+        post: operations["run_now_ollama_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/scrape/syosetu": {
         parameters: {
             query?: never;
@@ -2278,6 +2367,20 @@ export interface components {
             /** Truncated */
             truncated: boolean;
         };
+        /** FlushIn */
+        FlushIn: {
+            /** Document Ids */
+            document_ids?: number[] | null;
+            /** Series Id */
+            series_id?: number | null;
+            /** Volume Id */
+            volume_id?: number | null;
+        };
+        /** FlushOut */
+        FlushOut: {
+            /** Cleared */
+            cleared: number;
+        };
         /** GlossaryIn */
         GlossaryIn: {
             /** Phrase */
@@ -2548,6 +2651,48 @@ export interface components {
             unlock_chapter_index: number | null;
             /** Updated */
             updated: boolean;
+        };
+        /** QueueItemIn */
+        QueueItemIn: {
+            /** Document Ids */
+            document_ids?: number[];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "series" | "volume" | "documents";
+            /** Series Id */
+            series_id: number;
+            /** Volume Id */
+            volume_id?: number | null;
+        };
+        /** QueueItemOut */
+        QueueItemOut: {
+            /** Document Ids */
+            document_ids: number[];
+            /** Estimate Seconds */
+            estimate_seconds: number | null;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Lines Left */
+            lines_left: number;
+            /** Series Id */
+            series_id: number;
+            /** Series Title */
+            series_title: string;
+            /** Volume Id */
+            volume_id: number | null;
+            /** Volume Label */
+            volume_label: string | null;
+        };
+        /** QueueOrder */
+        QueueOrder: {
+            /** Ids */
+            ids: number[];
         };
         /** Refetch */
         Refetch: {
@@ -4835,6 +4980,174 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    flush_suggestions_ollama_flush_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlushIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlushOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_queue_ollama_queue_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueItemOut"][];
+                };
+            };
+        };
+    };
+    add_to_queue_ollama_queue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueueItemIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_queue_ollama_queue_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueueOrder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueItemOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_from_queue_ollama_queue__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_now_ollama_run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
                 };
             };
         };

@@ -37,6 +37,7 @@ from api.routers import (
 from api.routers import (
     jobs as jobs_routes,
 )
+from api.routers import ollama as ollama_routes
 from api.routing import CommitOnResponseRoute
 
 
@@ -93,6 +94,7 @@ def create_app() -> FastAPI:
     app.include_router(credentials.router)
     app.include_router(mt.router)
     app.include_router(jobs_routes.router)
+    app.include_router(ollama_routes.router)
     app.include_router(epub.router)
     app.include_router(wp.router)
     app.include_router(stats.router)
