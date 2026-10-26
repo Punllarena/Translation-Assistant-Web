@@ -86,10 +86,8 @@ def _configure(db: Session, user_id: int, backend: str, p: Prefs) -> Job:
     if cred_url:  # the user's own endpoint: user input, so guarded against SSRF
         job.url = cred_url
         job.setup = check_user_url(cred_url, settings.mt_allow_private_urls, LABELS[backend])
-    else:  # the operator's default, trusted
-        job.url = (
-            settings.libretranslate_url if backend == "libretranslate" else settings.ollama_url
-        )
+    elif backend == "libretranslate":  # the operator's default, trusted
+        job.url = settings.libretranslate_url
     if backend == "libretranslate":
         job.cache_key = prefs.libretranslate_cache_key(job.url) if job.url else ""
     else:

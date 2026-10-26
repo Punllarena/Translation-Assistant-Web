@@ -35,7 +35,6 @@ def _delay(key, v):
 
 
 VALIDATORS = {
-    "ollama_url": _url,
     "libretranslate_url": _url,
     "mt_allow_private_urls": _bool,
     "wp_allow_private_urls": _bool,
@@ -46,7 +45,6 @@ KEYS = tuple(VALIDATORS)
 
 @dataclass(frozen=True)
 class ServerPrefs:
-    ollama_url: str
     libretranslate_url: str
     mt_allow_private_urls: bool
     wp_allow_private_urls: bool

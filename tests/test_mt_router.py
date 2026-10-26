@@ -122,11 +122,29 @@ def test_backend_error_is_an_event_names_status_and_caches_nothing(
     assert "secret-key-xyz" not in body and db.query(MtCache).count() == 0
 
 
-def test_ollama_streams_chunks_and_caches_only_the_completed_text(
+def test_ollama_without_own_url_needs_setup_even_with_operator_default(
         app_client, me, make_doc, wire, db):
+    from api.models import ServerSetting
+
+    install, calls = wire
+    install(lambda r: httpx.Response(200, content=b'{"done":true}\n'))
+    db.add(ServerSetting(key="ollama_url", value="http://operator:11434"))
+    db.flush()
+    app_client.put("/settings", json={"ollama_model": "m"})
+    doc = make_doc(me, ["猫"], translated=False)
+    ev = events(stream(app_client, doc, "ollama").text)
+    assert ev == [("needs_setup",
+                   {"message": "Set an Ollama URL under Settings → Machine translation."})]
+    assert calls == []
+
+
+def test_ollama_streams_chunks_and_caches_only_the_completed_text(
+        app_client, me, make_doc, wire, resolve_to, db):
     ndjson = (b'{"message":{"content":"a\\n\\nb"},"done":false}\n'
               b'{"message":{"content":"!"},"done":false}\n{"done":true}\n')
     wire[0](lambda r: httpx.Response(200, content=ndjson))
+    resolve_to("93.184.216.34", host="ol")
+    app_client.post("/credentials", json={"kind": "ollama", "endpoint_url": "http://ol:11434"})
     app_client.put("/settings", json={"ollama_model": "qwen3"})
     doc = make_doc(me, ["猫"], translated=False)
     ev = events(stream(app_client, doc, "ollama").text)
@@ -136,11 +154,14 @@ def test_ollama_streams_chunks_and_caches_only_the_completed_text(
     assert row.result_text == "a\n\nb!" and row.backend.startswith("ollama:qwen3:")
 
 
-def test_ollama_failure_mid_stream_caches_nothing(app_client, me, make_doc, wire, db):
+def test_ollama_failure_mid_stream_caches_nothing(
+        app_client, me, make_doc, wire, resolve_to, db):
     def handler(r):
         return httpx.Response(
             200, content=b'{"message":{"content":"half"},"done":false}\nnot json\n')
     wire[0](handler)
+    resolve_to("93.184.216.34", host="ol")
+    app_client.post("/credentials", json={"kind": "ollama", "endpoint_url": "http://ol:11434"})
     app_client.put("/settings", json={"ollama_model": "m"})
     doc = make_doc(me, ["猫"], translated=False)
     ev = events(stream(app_client, doc, "ollama").text)
@@ -183,7 +204,7 @@ def test_backends_report_availability_and_languages(app_client, me, wire, monkey
     by = {b["name"]: b for b in body["backends"]}
     assert set(by) == {"deepl", "libretranslate", "ollama", "mecab", "jparser"}
     assert by["deepl"]["available"] is False and "DeepL" in by["deepl"]["message"]
-    assert by["ollama"]["available"] is False and "model" in by["ollama"]["message"]
+    assert by["ollama"]["available"] is False and "Ollama URL" in by["ollama"]["message"]
 
 
 def test_malformed_200_body_is_one_error_event_and_caches_nothing(app_client, me, make_doc,

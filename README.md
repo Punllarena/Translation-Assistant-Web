@@ -72,7 +72,6 @@ also be set by an admin at **Admin → Server**, which takes precedence.
 | `TA_SESSION_TTL_DAYS`      | Session lifetime.                                                           | `30`                                         | No       |
 | `TA_LOGIN_MAX_ATTEMPTS`    | Failed logins allowed per window.                                           | `10`                                         | No       |
 | `TA_LOGIN_WINDOW_SECONDS`  | Login rate-limit window.                                                    | `300`                                        | No       |
-| `TA_OLLAMA_URL` ★          | Default Ollama server.                                                      | `http://localhost:11434`                     | No       |
 | `TA_LIBRETRANSLATE_URL` ★  | Default LibreTranslate server; empty means not configured.                  | _(empty)_                                    | No       |
 | `TA_MT_ALLOW_PRIVATE_URLS` ★ | Let users point LibreTranslate/Ollama at private or loopback addresses.   | `false`                                      | No       |
 | `TA_WP_ALLOW_PRIVATE_URLS` ★ | Let users point WordPress at a private or loopback address.               | `false`                                      | No       |

@@ -20,7 +20,9 @@ class OllamaChunk(Base):
     document_id: Mapped[int | None] = mapped_column(
         ForeignKey("documents.id", ondelete="SET NULL"), index=True
     )
-    job_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"))
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("jobs.id", ondelete="SET NULL"), index=True
+    )
     source: Mapped[str] = mapped_column(String(8), nullable=False)  # run / manual / reroll
     ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
     clamped: Mapped[bool] = mapped_column(Boolean, nullable=False)
@@ -59,7 +61,7 @@ class OllamaSuggestion(Base):
         ForeignKey("lines.id", ondelete="CASCADE"), nullable=False, unique=True
     )
     chunk_id: Mapped[int] = mapped_column(
-        ForeignKey("ollama_chunks.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("ollama_chunks.id", ondelete="CASCADE"), nullable=False, index=True
     )
     text: Mapped[str | None] = mapped_column(Text)
     raw_sha: Mapped[str] = mapped_column(String(64), nullable=False)
