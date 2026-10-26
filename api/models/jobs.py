@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,7 +11,16 @@ class Job(Base):
     """Long-running work (spec §9). The worker claims queued rows with SKIP LOCKED."""
 
     __tablename__ = "jobs"
-    __table_args__ = (Index("ix_jobs_state_id", "state", "id"),)
+    __table_args__ = (
+        Index("ix_jobs_state_id", "state", "id"),
+        # One Ollama run per user at a time; the queue holds the rest.
+        Index(
+            "uq_jobs_one_ollama_run",
+            "user_id",
+            unique=True,
+            postgresql_where=text("kind = 'ollama_run' AND state IN ('queued', 'running')"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
