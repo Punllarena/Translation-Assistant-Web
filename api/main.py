@@ -6,7 +6,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from api import jobs, tadb_uploads, yomitan_job
 from api.config import get_settings
-from api.ollama import runner
+from api.ollama import runner, schedule, store  # noqa: F401  store registers ollama_cleanup
 from api.routers import (
     admin,
     auth,
@@ -52,11 +52,13 @@ async def lifespan(app: FastAPI):
     stop = asyncio.Event()
     task = asyncio.create_task(jobs.worker(stop))
     ollama_task = asyncio.create_task(runner.runner(stop))
+    tick_task = asyncio.create_task(schedule.ticker(stop))
     yield
     jobs.stopping.set()  # a running job stops at its next progress point
     stop.set()
     await task
     await ollama_task
+    await tick_task
 
 
 def create_app() -> FastAPI:
