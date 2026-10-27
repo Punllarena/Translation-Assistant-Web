@@ -1,3 +1,4 @@
+import asyncio
 import json
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -203,3 +204,21 @@ async def test_whole_chapter_num_ctx_never_steps_down(setup, in_test_db, make_do
     sent = []
     await runner.run_one(job.id, ollama(on_chat=lambda b: sent.append(b["options"]["num_ctx"])))
     assert len(sent) == 2 and sent[0] > 2048 and sent[1] == sent[0]
+
+
+async def test_lines_asked_but_not_answered_are_not_asked_again(setup, in_test_db, monkeypatch):
+    """Not only failed lines: any asked line missing from the result is skipped for the run,
+    so the same chunk can never be asked forever."""
+    _, doc, job = setup()
+    runner.claim(in_test_db)
+    asked = []
+
+    async def nothing(client, ep, before, chunk, **kw):
+        asked.append([i.line_number for i in chunk if i.known is None])
+        return runner.ChunkResult()  # neither answered nor failed
+
+    monkeypatch.setattr(runner, "translate", nothing)
+    await asyncio.wait_for(runner.run_one(job.id, ollama()), 60)  # it used to loop forever
+    in_test_db.refresh(job)
+    assert job.state == "done" and asked == [[0, 1], [2, 3]]
+    assert _suggested(in_test_db, doc) == {}

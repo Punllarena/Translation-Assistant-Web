@@ -208,7 +208,9 @@ async def _chunk(
 
 
 async def _work(job_id: int, factory: Callable[[], httpx.AsyncClient], tally: _Tally) -> str:
-    skip: set[int] = set()  # lines that failed in this run are not asked for again
+    # lines asked in this run and not answered (failed, or left unasked by a stop) are not
+    # asked again, so no chunk can be asked forever
+    skip: set[int] = set()
     window = 0  # the largest num_ctx sent in this run: it never steps down (no model reload)
     async with factory() as client:
         while True:
@@ -219,7 +221,7 @@ async def _work(job_id: int, factory: Callable[[], httpx.AsyncClient], tally: _T
                                          step.p.context_lines))
 
             async def saved(result: ChunkResult, step: _Step = step) -> None:
-                skip.update(r.line_id for r in step.plan.chunk if r.line_number in result.failed)
+                skip.update(r.line_id for r in step.plan.asked if r.line_number not in result.lines)
                 tally.chunks += 1
                 tally.lines += len(result.lines)
                 tally.failed += len(result.failed)
