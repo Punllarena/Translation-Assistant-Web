@@ -17,5 +17,6 @@ def score(suggestion: str, final: str) -> tuple[str, float]:
     a, b = _normalise(suggestion), _normalise(final)
     if a == b:
         return "used", 1.0
-    ratio = difflib.SequenceMatcher(None, a, b).ratio()
+    # no autojunk: past 200 characters it would treat common letters as junk
+    ratio = difflib.SequenceMatcher(None, a, b, autojunk=False).ratio()
     return ("edited" if ratio >= EDITED_MIN else "ignored"), ratio
