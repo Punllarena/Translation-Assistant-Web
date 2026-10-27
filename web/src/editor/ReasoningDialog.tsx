@@ -23,7 +23,7 @@ export default function ReasoningDialog({ chunkId, onClose }: { chunkId: number;
   });
   const c = chunk.data;
   return (
-    <dialog ref={ref} onClose={onClose} aria-label="Ollama reasoning" className="dlg">
+    <dialog ref={ref} onClose={onClose} aria-label="Ollama reasoning">
       <div className="dlg-head">
         <span className="label">Ollama</span>
         <h2>{c ? `Lines ${lineRange(c.first_line, c.last_line)}` : "Chunk"}</h2>

@@ -4,48 +4,16 @@ import { Link } from "react-router";
 import { api, call } from "../api/client";
 import { apply, badge, cardState, initial, lineRange, type StreamState, type Suggestion } from "./ollamaCardState";
 import ReasoningDialog from "./ReasoningDialog";
+import { useSse } from "./useSse";
 
 const EVENTS = ["plan", "waiting", "thinking", "line", "saved", "needs_setup", "error", "done"];
-const TERMINAL = new Set(["needs_setup", "error", "done"]);
+const RUNNING: StreamState = { ...initial, status: "running" };
 
 /** A request for the chunk holding `line`; `n` makes a repeat (Retry, a second click) a new one. */
 type Want = { line: number; reroll: boolean; n: number };
 
-/** The by-hand stream for `want`. Closing it (a new want, the card unmounting) leaves the
- * chunk running on the server; asking again for a line of it follows it. */
-function useOllamaStream(documentId: number, want: Want | null, onSaved: () => void): StreamState {
-  const [state, setState] = useState<StreamState>(initial);
-  const saved = useRef(onSaved);
-  saved.current = onSaved;
-  useEffect(() => {
-    if (!want) { setState(initial); return; }
-    setState({ ...initial, status: "running" });
-    let es: EventSource | null = null;
-    const timer = setTimeout(() => {
-      const params = new URLSearchParams({ line_number: String(want.line), reroll: String(want.reroll) });
-      const source = new EventSource(`/api/documents/${documentId}/ollama/stream?${params}`);
-      es = source;
-      let heard = false;
-      let terminal = false;
-      for (const type of EVENTS) {
-        source.addEventListener(type, (e) => {
-          heard = true;
-          let data: unknown = {};
-          try { data = JSON.parse((e as MessageEvent).data); } catch { /* keep {} */ }
-          setState((s) => apply(s, type, data));
-          if (type === "saved" || type === "done") saved.current();
-          if (TERMINAL.has(type)) { terminal = true; source.close(); }
-        });
-      }
-      source.onerror = () => {
-        if (!terminal) setState((s) => apply(s, "error", { message: heard ? "Connection lost" : "Connection failed" }));
-        source.close();
-      };
-    }, 300);
-    return () => { clearTimeout(timer); es?.close(); };
-  }, [documentId, want]);
-  return state;
-}
+const streamUrl = (documentId: number, want: Want | null) => want && `/api/documents/${documentId}/ollama/stream?${
+  new URLSearchParams({ line_number: String(want.line), reroll: String(want.reroll) })}`;
 
 /** The Ollama card: the line's saved suggestion (Use / Reasoning / Reroll), or by-hand
  * translation of the chunk the line belongs to, streamed line by line. */
@@ -64,14 +32,19 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse }
   const [reasoning, setReasoning] = useState<number | null>(null);
   const translatedRef = useRef(translated);
   translatedRef.current = translated;
-  const loaded = sugs.isSuccess;
+  const loaded = sugs.data !== undefined; // a failed background refetch keeps the data, and the stream
   // On a new line: a line with no translation and no suggestion asks at once; any other waits for a click.
   useEffect(() => {
     if (!loaded) { setWant(null); return; }
     const held = queryClient.getQueryData<Suggestion[]>(["ollama", documentId])?.some((s) => s.line_number === lineNumber);
     setWant(!translatedRef.current && !held ? { line: lineNumber, reroll: false, n: 0 } : null);
   }, [queryClient, documentId, lineNumber, loaded]);
-  const live = useOllamaStream(documentId, want, refresh);
+  // Closing the stream (a new want, the card unmounting) leaves the chunk running on the server;
+  // asking again for a line of it follows it. The server sends saved, then done.
+  const live = useSse<StreamState>({
+    url: streamUrl(documentId, want), nonce: want, events: EVENTS, apply, initial, start: RUNNING,
+    onEvent: (type) => { if (type === "done") refresh(); },
+  });
   const stream = want?.line === lineNumber ? live : initial; // a render before the effect above catches up
   const state = cardState({ suggestion, translated, stream });
   const ask = (reroll: boolean) => setWant({ line: lineNumber, reroll, n: Date.now() });
