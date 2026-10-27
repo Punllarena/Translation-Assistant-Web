@@ -73,10 +73,13 @@ def window_at(s: Schedule, now: datetime) -> tuple[str, datetime] | None:
 
 
 def _start_run(db: Session, user_id: int, key: str, until: datetime) -> None:
+    """One run per window; a run a server restart interrupted does not count, so the window
+    goes on after the restart (the unique index still stops a second active run)."""
     exists_already = db.scalar(
         select(exists().where(
             Job.user_id == user_id, Job.kind == "ollama_run",
             Job.params_json["window"].astext == key,
+            ~((Job.state == "failed") & (Job.message == jobs.INTERRUPTED)),
         ))
     )
     if exists_already:

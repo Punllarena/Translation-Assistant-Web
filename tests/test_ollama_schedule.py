@@ -74,6 +74,23 @@ def test_tick_starts_one_run_per_window(db, user):
     assert len(_runs(db, user)) == 1
 
 
+def test_tick_restarts_a_window_run_a_restart_interrupted(db, user):
+    schedule.tick(db, NOW)
+    (job,) = _runs(db, user)
+    job.state, job.message = "failed", jobs.INTERRUPTED
+    db.flush()
+    schedule.tick(db, NOW)
+    runs = _runs(db, user)
+    assert len(runs) == 2
+    assert runs[-1].state == "queued"
+    assert runs[-1].params_json["window"] == "2026-10-24T23:00:00"
+    # a run that failed for another reason ends the window
+    runs[-1].state, runs[-1].message = "failed", "Ollama is not set up"
+    db.flush()
+    schedule.tick(db, NOW)
+    assert len(_runs(db, user)) == 2
+
+
 def test_tick_skips_empty_queue(db, user):
     for item in db.scalars(select(OllamaQueueItem)):
         db.delete(item)
