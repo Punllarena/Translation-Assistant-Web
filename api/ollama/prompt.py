@@ -60,5 +60,32 @@ def estimate_tokens(text: str) -> int:
 
 
 def num_ctx(messages: list[dict], asked: int) -> int:
+    """The tokens one request needs (prompt, answer, margin): the clamp-and-halve estimate."""
     need = sum(estimate_tokens(m["content"]) for m in messages) + 60 * asked + 512
     return max(2048, math.ceil(need / 1024) * 1024)
+
+
+# Ollama reloads the model whenever num_ctx changes, so the window sent is steady: sized from
+# the preset, not from each chunk's text.
+LINE_TOKENS = 120  # a chunk or context line: its source, a translation and the JSON around it
+CTX_MIN = 2048
+
+
+def _pow2(tokens: int) -> int:
+    return max(CTX_MIN, 1 << max(0, tokens - 1).bit_length())
+
+
+def steady_ctx(system_prompt: str, chunk_lines: int, context_lines: int) -> int:
+    """The window for a preset: its lines times LINE_TOKENS plus the system prompt and a
+    margin, as a power of two (at least CTX_MIN). A whole-chapter preset (chunk_lines 0) has
+    no size of its own: it gets CTX_MIN here and grows with the chapter (``request_ctx``)."""
+    fixed = estimate_tokens(system_prompt) + estimate_tokens(FORMAT_RULES) + 512
+    return _pow2(fixed + (chunk_lines + context_lines) * LINE_TOKENS)
+
+
+def request_ctx(steady: int, need: int, limit: int | None) -> int:
+    """The num_ctx to send: the steady window, or the next power of two above a request that
+    needs more (the caller keeps that as its new steady value, so it never steps down),
+    clamped to the model's context length when known."""
+    ctx = max(steady, _pow2(need))
+    return ctx if limit is None else min(ctx, limit)

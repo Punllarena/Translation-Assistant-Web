@@ -14,7 +14,7 @@ from api.mt.ollama import ModelInfo
 from api.ollama.answer import AnswerError, check, halves
 from api.ollama.chunks import Item, RequestStats, context_before
 from api.ollama.json_lines import LineScanner
-from api.ollama.prompt import FORMAT_SCHEMA, build_messages, num_ctx
+from api.ollama.prompt import FORMAT_SCHEMA, build_messages, num_ctx, request_ctx
 
 _now = time.monotonic  # test seam
 
@@ -36,26 +36,30 @@ class ChunkResult:
     lines: dict[int, str] = field(default_factory=dict)
     failed: list[int] = field(default_factory=list)
     requests: list[RequestStats] = field(default_factory=list)
+    num_ctx: int = 0  # the largest window sent; a run keeps it so the window never steps down
 
 
 async def translate(
     client: httpx.AsyncClient, ep: Endpoint, before: list[Item], chunk: list[Item], *,
     on_line: Callable[[int, str], Awaitable[None]] | None = None,
     on_thinking: Callable[[str], Awaitable[None]] | None = None,
-    depth: int = 0, clamped: bool = False,
+    ctx: int = 0, depth: int = 0, clamped: bool = False,
 ) -> ChunkResult:
-    """BackendError (transport, HTTP, truncated stream) propagates; the caller retries."""
+    """``ctx`` is the steady window (``prompt.steady_ctx``); a request needing more gets the
+    next power of two. BackendError (transport, HTTP, truncated stream) propagates; the caller
+    retries."""
     asked = [i for i in chunk if i.known is None]
     if not asked:
         return ChunkResult()
     messages = build_messages(ep.system_prompt, ep.src, ep.dst, before, chunk)
-    ctx = num_ctx(messages, len(asked))
+    need = num_ctx(messages, len(asked))
     limit = ep.info.context_length
-    if len(asked) > 1 and limit is not None and ctx > limit:
+    if len(asked) > 1 and limit is not None and need > limit:
         return await _split(client, ep, before, chunk, ChunkResult(), on_line, on_thinking,
-                            depth + 1, True)
+                            ctx, depth + 1, True)
 
-    options: dict = {"num_ctx": ctx}
+    sent = request_ctx(ctx, need, limit)
+    options: dict = {"num_ctx": sent}
     if ep.num_thread:
         options["num_thread"] = ep.num_thread
     stats = RequestStats(
@@ -91,30 +95,32 @@ async def translate(
     try:
         lines = check("".join(content), asked)
     except AnswerError:
-        result = ChunkResult(requests=[stats])
+        result = ChunkResult(requests=[stats], num_ctx=sent)
         if len(asked) == 1:
             result.failed.append(asked[0].line_number)
             return result
+        # the halves keep the window just sent, so the model is not reloaded for them
         return await _split(client, ep, before, chunk, result, on_line, on_thinking,
-                            depth + 1, clamped)
+                            sent, depth + 1, clamped)
     stats.ok = True
-    return ChunkResult(lines=lines, requests=[stats])
+    return ChunkResult(lines=lines, requests=[stats], num_ctx=sent)
 
 
-async def _split(client, ep, before, chunk, result, on_line, on_thinking, depth, clamped):
+async def _split(client, ep, before, chunk, result, on_line, on_thinking, ctx, depth, clamped):
     """Translate both halves; the second one sees the first's answers as context."""
     first, second = halves(chunk)
     a = await translate(client, ep, before, first, on_line=on_line, on_thinking=on_thinking,
-                        depth=depth, clamped=clamped)
+                        ctx=ctx, depth=depth, clamped=clamped)
     filled = [replace(i, known=a.lines[i.line_number]) if i.line_number in a.lines else i
               for i in first]
     # at least the original context count, plus the first half so its answers show
     context = context_before(before + filled, second[0].line_number,
                              len(before) + len(first))
     b = await translate(client, ep, context, second, on_line=on_line, on_thinking=on_thinking,
-                        depth=depth, clamped=clamped)
+                        ctx=max(ctx, a.num_ctx), depth=depth, clamped=clamped)
     result.lines.update(a.lines)
     result.lines.update(b.lines)
     result.failed += a.failed + b.failed
     result.requests += a.requests + b.requests
+    result.num_ctx = max(result.num_ctx, a.num_ctx, b.num_ctx)
     return result

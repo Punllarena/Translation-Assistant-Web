@@ -81,6 +81,25 @@ async def test_bad_answer_halves_then_succeeds():
     assert "[2] orig2 => T2" in seen[2]["messages"][1]["content"]
 
 
+async def test_num_ctx_is_the_steady_window_for_every_request():
+    def handler(body):
+        ids = asked_ids(body)
+        if len(ids) == 4:
+            return httpx.Response(200, content=ndjson("not json"))
+        return httpx.Response(200, content=ndjson(answer(*ids)))
+
+    seen = []
+    async with client(handler, seen) as c:
+        r = await translate(c, ep(), [], items(1, 2, 3, 4), ctx=8192)
+    assert [b["options"]["num_ctx"] for b in seen] == [8192, 8192, 8192]
+    assert r.num_ctx == 8192
+
+    seen.clear()
+    async with client(by_ids, seen) as c:
+        r = await translate(c, ep(info=ModelInfo(False, 6000)), [], items(1, 2), ctx=8192)
+    assert seen[0]["options"]["num_ctx"] == 6000  # clamped to the model's context length
+
+
 async def test_single_line_failure_is_recorded_not_raised():
     def handler(body):
         return httpx.Response(200, content=ndjson('{"lines": []}'))

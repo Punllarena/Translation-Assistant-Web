@@ -30,6 +30,7 @@ from api.mt.base import BackendError
 from api.ollama import endpoint
 from api.ollama.lane import LANES
 from api.ollama.prefs import OllamaPrefs
+from api.ollama.prompt import steady_ctx
 from api.ollama.translate import ChunkResult, Endpoint, translate
 from api.ollama.work import Plan, next_plan, save
 
@@ -180,7 +181,7 @@ async def _pause(job_id: int, seconds: float) -> str | None:
 
 async def _chunk(
     job_id: int, client: httpx.AsyncClient, step: _Step, tally: _Tally,
-    saved: Callable[[ChunkResult], Awaitable[None]],
+    saved: Callable[[ChunkResult], Awaitable[None]], ctx: int,
 ) -> ChunkResult | str:
     """Translate one chunk through the lane; retry an unanswered server after a pause. The
     result is saved before the lane is released, so a by-hand request waiting behind this
@@ -192,7 +193,7 @@ async def _chunk(
                 if problem:
                     raise _Failed(problem)
                 ep = await endpoint.ready(client, step.ep)
-                result = await translate(client, ep, step.plan.before, step.plan.chunk)
+                result = await translate(client, ep, step.plan.before, step.plan.chunk, ctx=ctx)
                 await saved(result)
                 return result
         except BackendError as exc:
@@ -208,11 +209,14 @@ async def _chunk(
 
 async def _work(job_id: int, factory: Callable[[], httpx.AsyncClient], tally: _Tally) -> str:
     skip: set[int] = set()  # lines that failed in this run are not asked for again
+    window = 0  # the largest num_ctx sent in this run: it never steps down (no model reload)
     async with factory() as client:
         while True:
             step = await run_in_threadpool(_next, job_id, frozenset(skip))
             if isinstance(step, str):
                 return step
+            ctx = max(window, steady_ctx(step.ep.system_prompt, step.p.chunk_lines,
+                                         step.p.context_lines))
 
             async def saved(result: ChunkResult, step: _Step = step) -> None:
                 skip.update(r.line_id for r in step.plan.chunk if r.line_number in result.failed)
@@ -222,9 +226,10 @@ async def _work(job_id: int, factory: Callable[[], httpx.AsyncClient], tally: _T
                 tally.clamped += sum(1 for r in result.requests if r.clamped)
                 await run_in_threadpool(_save, job_id, step, result, tally.lines)
 
-            result = await _chunk(job_id, client, step, tally, saved)
+            result = await _chunk(job_id, client, step, tally, saved, ctx)
             if isinstance(result, str):
                 return result
+            window = max(ctx, result.num_ctx)
 
 
 async def run_one(

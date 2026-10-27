@@ -12,6 +12,7 @@ from api.config import get_settings
 from api.models import ApiCredential, Line, UserSetting
 from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
 from api.ollama import endpoint, runner
+from api.ollama.prompt import steady_ctx
 from api.security import encrypt_secret
 
 SHOW = json.loads(Path("tests/fixtures/mt/ollama_show.json").read_text(encoding="utf-8"))
@@ -178,3 +179,27 @@ async def test_a_line_that_keeps_failing_is_not_asked_again_in_the_same_run(setu
     assert job.state == "done" and job.result_json["failed"] >= 1
     assert 1 not in _suggested(in_test_db, doc) and 3 in _suggested(in_test_db, doc)
     assert len(seen) < 10
+
+
+async def test_num_ctx_is_steady_for_the_preset(setup, in_test_db):
+    u, _, job = setup()
+    runner.claim(in_test_db)
+    sent = []
+    await runner.run_one(job.id, ollama(on_chat=lambda b: sent.append(b["options"]["num_ctx"])))
+    ep, _ = endpoint.load(in_test_db, u.id)
+    assert sent == [steady_ctx(ep.system_prompt, 2, 1)] * 2
+
+
+async def test_whole_chapter_num_ctx_never_steps_down(setup, in_test_db, make_doc):
+    u, doc, job = setup()
+    setting = in_test_db.get(UserSetting, (u.id, "ollama_preset"))
+    setting.value_json = "large"
+    long = make_doc(u, [f"line {n} " + "x" * 80 for n in range(40)], order=-1,
+                    translated=False)
+    item = in_test_db.scalar(select(OllamaQueueItem).where(OllamaQueueItem.user_id == u.id))
+    item.document_ids = [long.id, doc.id]  # the long chapter first, then the short one
+    in_test_db.flush()
+    runner.claim(in_test_db)
+    sent = []
+    await runner.run_one(job.id, ollama(on_chat=lambda b: sent.append(b["options"]["num_ctx"])))
+    assert len(sent) == 2 and sent[0] > 2048 and sent[1] == sent[0]

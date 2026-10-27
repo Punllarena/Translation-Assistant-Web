@@ -12,6 +12,7 @@ from api.models import ApiCredential, Line, UserSetting
 from api.models.ollama import OllamaChunk, OllamaSuggestion
 from api.ollama import endpoint
 from api.ollama.lane import LANES
+from api.ollama.prompt import steady_ctx
 from api.routers import ollama_editor
 from api.security import encrypt_secret
 
@@ -156,6 +157,27 @@ def test_stream_events_and_saves(app_client, me, make_doc, db, wire):
     ]
     assert chunk.source == "manual" and chunk.job_id is None and chunk.reasoning == "Hmm."
     assert _suggested(db, doc) == {2: "T2", 3: "T3"}
+
+
+def test_stream_sends_the_steady_num_ctx_for_the_prefs(app_client, me, make_doc, db, wire,
+                                                       monkeypatch):
+    _set_up(db, me)
+    sent = []
+
+    def handle(request):
+        if request.url.path == "/api/show":
+            return httpx.Response(200, json=SHOW)
+        body = json.loads(request.content)
+        sent.append(body["options"]["num_ctx"])
+        ids = _asked(body)
+        answer = json.dumps({"lines": [{"id": n, "text": f"T{n}"} for n in ids]})
+        return httpx.Response(200, content=_ndjson(answer))
+    monkeypatch.setattr(ollama_editor, "http_client",
+                        lambda: httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+    doc = make_doc(me, ["a", "b", "c", "d"], translated=False)
+    _stream(app_client, doc, 2)
+    ep, _ = endpoint.load(db, me.id)
+    assert sent == [steady_ctx(ep.system_prompt, 2, 1)]  # what a run with these prefs sends
 
 
 def test_stream_reroll_replaces(app_client, me, make_doc, db, wire):

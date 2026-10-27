@@ -1,5 +1,12 @@
 from api.ollama.chunks import Item
-from api.ollama.prompt import FORMAT_RULES, build_messages, estimate_tokens, num_ctx
+from api.ollama.prompt import (
+    FORMAT_RULES,
+    build_messages,
+    estimate_tokens,
+    num_ctx,
+    request_ctx,
+    steady_ctx,
+)
 
 
 def test_messages_mark_context_done_and_dollar_lines():
@@ -26,3 +33,20 @@ def test_estimate_tokens():
 def test_num_ctx_rounds_up_and_has_a_floor():
     assert num_ctx([{"content": "a"}], 1) == 2048
     assert num_ctx([{"content": "猫" * 3000}], 10) % 1024 == 0
+
+
+def test_steady_ctx_is_a_power_of_two_from_the_preset():
+    small = steady_ctx("You translate {src} to {dst}.", 12, 5)
+    medium = steady_ctx("You translate {src} to {dst}.", 25, 10)
+    assert small == 4096 and medium == 8192
+    assert steady_ctx("s", 0, 0) == 2048  # whole chapter: sized by the chapter instead
+    # the same prefs always give the same value
+    assert steady_ctx("s", 12, 5) == steady_ctx("s", 12, 5)
+    assert steady_ctx("s" * 40000, 12, 5) == 16384
+
+
+def test_request_ctx_keeps_steady_grows_and_clamps():
+    assert request_ctx(4096, 3000, None) == 4096  # fits: no change, no reload
+    assert request_ctx(4096, 5000, None) == 8192  # grows to the next power of two
+    assert request_ctx(8192, 3000, None) == 8192  # never steps down
+    assert request_ctx(8192, 3000, 6000) == 6000  # clamped to the model's context length

@@ -31,6 +31,7 @@ from api.mt.base import BackendError, Event, sse
 from api.ollama import endpoint
 from api.ollama.lane import LANES
 from api.ollama.prefs import OllamaPrefs
+from api.ollama.prompt import steady_ctx
 from api.ollama.translate import ChunkResult, Endpoint, translate
 from api.ollama.work import Plan, plan_for_line, raw_sha, save
 from api.routing import api_router
@@ -219,7 +220,7 @@ def _key(prep: _Prepared, reroll: bool) -> _Key:
 
 
 async def _translate(
-    chunk: _Chunk, client: httpx.AsyncClient, ep: Endpoint, plan: Plan
+    chunk: _Chunk, client: httpx.AsyncClient, ep: Endpoint, plan: Plan, ctx: int
 ) -> ChunkResult:
     """translate() with its line and thinking callbacks emitted as events."""
     sent: dict[int, str] = {}
@@ -231,7 +232,7 @@ async def _translate(
     async def on_thinking(text: str) -> None:
         chunk.emit(("thinking", {"text": text}))
 
-    result = await translate(client, ep, plan.before, plan.chunk,
+    result = await translate(client, ep, plan.before, plan.chunk, ctx=ctx,
                              on_line=on_line, on_thinking=on_thinking)
     # A line shown live from an answer the check then rejected ends with the saved text, or
     # with null when its retried halves failed too.
@@ -263,7 +264,10 @@ async def _work(prep: _Prepared, key: _Key, chunk: _Chunk) -> None:
             else:
                 async with http_client() as client:
                     ep = await endpoint.ready(client, prep.ep)
-                    result = await _translate(chunk, client, ep, fresh.plan)
+                    # the same steady window as a run with these prefs: no model reload
+                    ctx = steady_ctx(ep.system_prompt, prep.prefs.chunk_lines,
+                                     prep.prefs.context_lines)
+                    result = await _translate(chunk, client, ep, fresh.plan, ctx)
                 ids = await run_in_threadpool(_save, prep, fresh.plan, result)
                 chunk.emit(("saved", {"chunk_ids": ids}))
         chunk.emit(("done", {}))
