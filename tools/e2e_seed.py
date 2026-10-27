@@ -240,6 +240,12 @@ def main() -> None:
             db.flush()
             write_lines(db, ch.id, [{"line_number": i, "prefix": "%", "raw_text": raw,
                                      "translated_text": ""} for i, raw in enumerate(raws)])
+        # ... and volume 2 opens with a chapter that has no lines yet
+        nav_vol2 = Volume(series_id=nav.id, kind="Volume", volume_index=Decimal(2), volume_order=2)
+        db.add(nav_vol2)
+        db.flush()
+        db.add(Document(user_id=user.id, title="Nav blank", series_id=nav.id, volume_id=nav_vol2.id,
+                        series_order=len(nav_lines) + 1))
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)
