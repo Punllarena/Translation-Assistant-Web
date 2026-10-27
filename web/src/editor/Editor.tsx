@@ -1,6 +1,6 @@
 import type { EditorView } from "@codemirror/view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router";
 import SpellMenu from "./SpellMenu";
 import { useSpell } from "./useSpell";
@@ -81,7 +81,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     series: { id: seriesId, title: seriesList.data?.find((s) => s.id === seriesId)?.title ?? "Series" },
     volume: { id: volumeId, label: volumes.data?.find((v) => v.id === volumeId)?.label ?? "Volume" },
   };
-  const leave = useLeave(ed.store, setNotice);
+  const { leave, notice: leaveNotice } = useLeave(ed.store, ed.save.state);
   const chapters = useMemo(() => chapterNeighbours(docs.data ?? [], id), [docs.data, id]);
   const listed = docs.data?.find((d) => d.id === id);
   const gone = ed.missing.length
@@ -188,18 +188,59 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   // Every hook stays above this early return; later tasks add theirs here too and read
   // `current?.` (it is undefined for a chapter with no lines).
 
+  const firstLeft = firstUntranslated(lines, ed.texts);
+  // A move to the active line itself only brings its card back into view (activate would change nothing).
+  const returnToActive = () => {
+    document.querySelector(`article[data-index="${ed.active}"]`)?.scrollIntoView({ block: "center" });
+    view.current?.focus();
+  };
+  const goToLine = (i: number) => (i === ed.active ? returnToActive() : activate(i));
+  const imagesToggle = images.data?.length ? (
+    <button type="button" className="icon" aria-label="Images" title="Images"
+      aria-pressed={!imagesCollapsed} onClick={() => saveSetting("images_collapsed", !imagesCollapsed)}><Picture /></button>
+  ) : null;
+  const chapterMenu = (withLines: boolean) => (
+    <Menu label="⋯" buttonLabel="Chapter actions">
+      {(close) => ([
+        ["Edit source", () => void leave(`/documents/${id}/source`)],
+        ["Split chapter", () => void leave(`/documents/${id}/split`)],
+        ...(withLines ? [["Go to line…", () => run("go_to_line")] as const] : []),
+        ["Series glossary", () => void leave(`/series/${seriesId}?tab=glossary`)],
+        ["Series tools", () => void leave(`/series/${seriesId}?tab=tools`)],
+      ] as const).map(([text, act]) => (
+        <button key={text} type="button" role="menuitem" onClick={() => { close(); act(); }}>{text}</button>
+      ))}
+    </Menu>
+  );
+  const statusBar = (line: number | null, phraseText: string | null, tools: ReactNode) => (
+    <StatusBar crumbs={crumbs} line={line} total={lines.length}
+      translated={stats.done} lineCount={stats.total} percent={stats.percent} words={stats.words}
+      phrase={phraseText} save={ed.save} onRetry={() => void ed.store.flush()}
+      notice={leaveNotice ?? notice ?? gone} spellAvailable={spell.available}
+      onLeave={(to) => void leave(to)}
+      nav={listed && <ChapterNav doc={listed} chapters={chapters} onGo={(d) => void leave(`/documents/${d.id}`)} />}
+      tools={tools} />
+  );
+  const chapterEnd = (
+    <ChapterEnd doc={listed} next={chapters.next} seriesId={seriesId} total={stats.total} done={stats.done}
+      words={stats.words} firstLeft={firstLeft} onJump={goToLine} onLeave={(to) => void leave(to)} />
+  );
+
   if (!rows.some((r) => r.kind === "line")) {
-    // an illustration-only chapter still shows its images
+    // an illustration-only or empty chapter still shows its images and the way on
     if (images.isPending) return <main />;
     const only = images.data?.length ? "has only images, no source text" : "has no source text yet";
     return (
-      <main className="editor">
-        <p>This chapter {only}. <Link to={`/documents/${id}/source`}>Edit source</Link></p>
-        {(images.data ?? []).map((image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />)}
-      </main>
+      <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
+        {statusBar(null, null, <>{imagesToggle}{imagesToggle && <span className="sb-divider" aria-hidden="true" />}{chapterMenu(false)}</>)}
+        <main className="editor">
+          <p>This chapter {only}. <Link to={`/documents/${id}/source`}>Edit source</Link></p>
+          {(images.data ?? []).map((image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />)}
+          {chapterEnd}
+        </main>
+      </div>
     );
   }
-  const firstLeft = firstUntranslated(lines, ed.texts);
   const n = current.line_number;
   const editor = (
     <CodeEditor key={n} value={ed.texts[n] ?? ""} label="Translation"
@@ -208,36 +249,17 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const useText = (t: string) => { ed.setText(n, t); view.current?.focus(); };
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
-      <StatusBar crumbs={crumbs} line={n + 1} total={lines.length}
-        translated={stats.done} lineCount={stats.total} percent={stats.percent} words={stats.words}
-        phrase={ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null}
-        save={ed.save} onRetry={() => void ed.store.flush()} notice={notice ?? gone} spellAvailable={spell.available}
-        onLeave={(to) => void leave(to)}
-        nav={listed && <ChapterNav doc={listed} chapters={chapters} onGo={(d) => void leave(`/documents/${d.id}`)} />}
-        tools={<>
+      {statusBar(n + 1, ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>
           <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
           <span className="sb-divider" aria-hidden="true" />
           <button type="button" className="icon" aria-label="Translation memory" title="Translation memory"
             aria-pressed={tmVisible} onClick={() => saveSetting("tm_visible", !tmVisible)}><Memory /></button>
           <button type="button" className="icon" aria-label="Machine translation" title="Machine translation"
             aria-pressed={mtVisible} onClick={() => saveSetting("mt_visible", !mtVisible)}><Translate /></button>
-          {images.data?.length ? (
-            <button type="button" className="icon" aria-label="Images" title="Images"
-              aria-pressed={!imagesCollapsed} onClick={() => saveSetting("images_collapsed", !imagesCollapsed)}><Picture /></button>
-          ) : null}
+          {imagesToggle}
           <span className="sb-divider" aria-hidden="true" />
-          <Menu label="⋯" buttonLabel="Chapter actions">
-            {(close) => ([
-              ["Edit source", () => void leave(`/documents/${id}/source`)],
-              ["Split chapter", () => void leave(`/documents/${id}/split`)],
-              ["Go to line…", () => run("go_to_line")],
-              ["Series glossary", () => void leave(`/series/${seriesId}?tab=glossary`)],
-              ["Series tools", () => void leave(`/series/${seriesId}?tab=tools`)],
-            ] as const).map(([text, act]) => (
-              <button key={text} type="button" role="menuitem" onClick={() => { close(); act(); }}>{text}</button>
-            ))}
-          </Menu>
-        </>} />
+          {chapterMenu(true)}
+        </>)}
       {find.open > 0 && (
         <FindBar key={find.open} needle={find.needle} position={find.at} total={find.total}
           onNeedle={find.setNeedle} onStep={find.step}
@@ -249,13 +271,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
           onActivate={activate} editor={editor} highlight={hit}
           misspelled={spell.misspelled} readings={readings.ruby}
           renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
-        <ChapterEnd doc={listed} next={chapters.next} seriesId={seriesId} total={stats.total} done={stats.done}
-          words={stats.words} firstLeft={firstLeft} onJump={activate} onLeave={(to) => void leave(to)} />
-        <JumpBack active={ed.active} untranslated={firstLeft} onActivate={activate}
-          onReturn={() => {
-            document.querySelector(`article[data-index="${ed.active}"]`)?.scrollIntoView({ block: "center" });
-            view.current?.focus();
-          }} />
+        {chapterEnd}
+        <JumpBack active={ed.active} untranslated={firstLeft} onActivate={goToLine} onReturn={returnToActive} />
       </div>
       {(tmVisible || mtVisible) && (
         <div className="side-col">

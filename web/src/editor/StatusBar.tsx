@@ -15,7 +15,7 @@ interface Props {
   crumbs: Crumbs;
   nav: ReactNode; // left zone: where you are
   tools: ReactNode; // right zone
-  line: number; // 1-based
+  line: number | null; // 1-based; null in a chapter with no lines
   total: number;
   translated: number;
   lineCount: number;
@@ -67,11 +67,11 @@ export default function StatusBar({
       <div className="sb-row">
         <div className="sb-place">{nav}</div>
         <div className="sb-centre">
-          <div className="sb-pill" role="status">
+          <div className="sb-pill">
             <Ring percent={percent} />
             <span>{translated} of {lineCount} lines</span>
             <span>{words.toLocaleString()} words</span>
-            <span className="sb-line" title={`Line ${line} of ${total}`}>at L{line}</span>
+            {line != null && <span className="sb-line" title={`Line ${line} of ${total}`}>at L{line}</span>}
             <span className={save.state === "saved" ? "save-state muted" : "save-state"}>{SAVE_TEXT[save.state]}</span>
           </div>
           {save.state === "error" && <span role="alert" className="error">{save.error}</span>}
