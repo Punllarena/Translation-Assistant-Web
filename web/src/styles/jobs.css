@@ -1,0 +1,26 @@
+.jobs-page .sec { display: flex; flex-direction: column; gap: 12px; }
+.queue-schedule { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.queue-schedule p { margin: 4px 0 0; }
+.queue-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.queue-list, .job-list { list-style: none; margin: 0; padding: 0; }
+.queue-list li, .job-list li { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.queue-list li:last-child, .job-list li:last-child { border-bottom: 0; }
+.queue-list li.dragging { opacity: .5; }
+.queue-list li.drop { outline: 2px dashed var(--accent-text); outline-offset: -2px; }
+.queue-list .grip { cursor: grab; color: var(--muted); user-select: none; }
+.queue-main, .job-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.queue-move { display: flex; gap: 2px; }
+.queue-chapters, .sched-days { display: flex; flex-wrap: wrap; gap: 4px 14px; max-height: 240px; overflow-y: auto; border: 0; padding: 0; margin: 0; }
+.queue-chapters legend, .sched-days legend { width: 100%; padding: 0 0 4px; }
+.sched-times { display: flex; gap: 12px; }
+.sched-times .field { flex: 1; }
+.job-list progress { width: 100%; }
+.job-main summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.job-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.job-state { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.job-state.done { color: var(--ok); }
+.job-state.failed { color: var(--danger); }
+.job-result dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 8px 0 0; font-size: 14px; }
+.job-result dt { color: var(--muted); }
+.job-result dd { margin: 0; }
+.job-result .error { margin: 8px 0 0; }
