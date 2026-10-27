@@ -190,6 +190,42 @@ mode; generated readings show on the active card only. Author ruby (`漢字(か�
 whatever the mode (`web/src/editor/ruby.ts`, `authorRuby`). E2E: `web/e2e/editor-nav.spec.ts` with the `Nav series` seed. Spec:
 `docs/superpowers/specs/2026-10-27-editor-status-bar-reading-aid-design.md`.
 
+Backup and restore: `api/backup/` writes one zip per server — `tables/<name>.csv` (Postgres `COPY ... FORMAT csv, HEADER`,
+so it is version-portable), the `dict/` files that live under `TA_DATA_DIR`, and a `manifest.json` (format 1, the alembic
+revision, row counts, the scrypt KDF and a passphrase check value). Only `api_credentials.secret_enc` is passphrase-locked
+(scrypt; the passphrase must be 12 characters when a backup is created and is never length-checked on restore); everything
+else is as it is. Left out: `sessions`, jobs still `queued`/`running` (any reference to one, e.g. `ollama_chunks.job_id`,
+becomes NULL) and `uploads/`; finished job history stays, chapter passwords in a `wp_publish` result included (they are
+content, not secrets). The export streams in its own `REPEATABLE READ`, read-only transaction.
+
+Restore (`api/backup/restore.py`) validates the whole file first (zip sanity, member names and size caps, a known revision
+not newer than head, the passphrase check value, the table set) and then runs in one transaction on its own connection: drop
+the app tables (`Base.metadata` plus `RETIRED_TABLES`, today `profiles`; a stray table is never exported or dropped), replay
+the migrations to the backup's revision, `COPY` the rows in (header and row count checked), re-encrypt the credentials,
+reset the sequences, upgrade to head. A failure before the commit leaves the old server untouched and nothing after the
+commit may say otherwise. It runs in a background thread, because the `jobs` table is one of the tables it replaces, with its
+status in memory at `GET /restore/status`.
+
+The admission gate (`api/backup/state.py`) counts out-of-request work in flight — a job handler, an Ollama run, a scheduler
+tick, a by-hand Ollama chunk, an `/mt/stream` translation — and a restore begins only when that count is 0 and no job is
+queued or running. The check runs again after the upload, under the same lock that turns maintenance on, so nothing slips in
+between. In maintenance every route but `/restore/status` and `/healthz` answers 503, and the worker, the runner and the tick
+claim nothing. Single process only, like the Ollama lane. The passphrase lives only in the request that uses it: never in
+`jobs.params`, a log or the status route.
+
+Dictionaries: the backup's `dict/` members are validated and staged in `dict.restore/` before the commit; after it, the rename
+to `dict.ready/` is the marker that the database committed, then `dict/` becomes `dict.old/` and `dict.ready/` becomes `dict/`
+(an empty stage removes a file the backup did not carry). A failed swap leaves `dict.ready/` and the status warns;
+`recover_dictionaries()` in the lifespan completes it at the next start and always leaves exactly one directory. Files named
+by `TA_EDICT_PATH` / `TA_CONJUGATIONS_PATH` are never touched.
+
+Routes: `POST /admin/backup` (a native form POST that streams `ta-backup-YYYY-MM-DD.zip`; 409 while restoring or when the
+database is not at head), `POST /admin/restore` (admin, confirm word `RESTORE`) and `POST /setup/restore` (open while no user
+exists), each one streamed upload capped at 4 GiB in Caddy and again in `api/backup/uploads.py` (swept after 24 h), and
+`GET /restore/status` without a login. SPA: Admin → Backup & restore (`web/src/admin/BackupPanel.tsx`), the setup wizard's
+"Start fresh" / "Restore from a backup" choice, and `/restore` outside the setup gate, polling the status while every other
+call is 503. Spec: `docs/superpowers/specs/2026-10-27-backup-restore-design.md`.
+
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
 
@@ -254,6 +290,7 @@ that database each run; conftest refuses any database name not ending in `_test`
   (`_put_sync` in `api/routers/mt.py`), one of the sanctioned commits outside the route boundary; the others are the
   job worker (`JobContext.progress`, `JobContext.report` (job row only, its own session, throttled)
   and `run_next` in `api/jobs.py`) and the Ollama commits: the runner (`api/ollama/runner.py`), the by-hand chunk
-  save (`api/routers/ollama_editor.py`) and the scheduler tick (`api/ollama/schedule.py`), each in its own session. WordPress calls take an injected `httpx.Client`
+  save (`api/routers/ollama_editor.py`) and the scheduler tick (`api/ollama/schedule.py`), each in its own session. The restore owns its own
+  transaction too (`run` in `api/backup/restore.py`: the jobs table it would report to is replaced mid-run). WordPress calls take an injected `httpx.Client`
   the same way (`http_client` seams in `api/routers/wp.py` and `api/publish_job.py`).
 - Tests set `TA_RUN_JOBS_WORKER=false` and drive jobs with `jobs.run_next()`, swapping `api.jobs.SessionLocal` for the test session.
