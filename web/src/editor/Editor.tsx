@@ -21,6 +21,10 @@ import { useReadings } from "./useReadings";
 import StatusBar from "./StatusBar";
 import MtPanels from "./MtPanels";
 import TmPanel from "./TmPanel";
+import ChapterNav from "./ChapterBar";
+import { chapterNeighbours } from "./chapterNav";
+import { useLeave } from "./useLeave";
+import { useAllVolumes, useDocuments } from "../library/queries";
 import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
 import { useBindings, useEditorKeys } from "./useEditorKeys";
@@ -66,6 +70,11 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const [menu, setMenu] = useState<{ x: number; y: number; word: Misspelling } | null>(null);
   const [phrase, setPhrase] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const docs = useDocuments();
+  useAllVolumes();
+  const leave = useLeave(ed.store, setNotice);
+  const chapters = useMemo(() => chapterNeighbours(docs.data ?? [], id), [docs.data, id]);
+  const listed = docs.data?.find((d) => d.id === id);
   const gone = ed.missing.length
     ? `Lines ${ed.missing.map((n) => n + 1).join(", ")} no longer exist (the source was edited elsewhere); reload the chapter`
     : null;
@@ -197,6 +206,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         phrase={ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null}
         save={ed.save} onRetry={() => void ed.store.flush()} notice={notice ?? gone}
         extra={<>
+          {listed && <ChapterNav doc={listed} chapters={chapters} onGo={(d) => void leave(`/documents/${d.id}`)} />}
           <Link to={`/documents/${id}/source`}>Edit source</Link>
           <Link to={`/documents/${id}/split`}>Split</Link>
           <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
