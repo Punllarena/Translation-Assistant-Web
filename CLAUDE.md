@@ -181,6 +181,15 @@ turn live chapter-0 documents into the summary; the migration also clears a non-
 stores `wp_chapter_index` NULL for any imported chapter whose desktop value is 0 and caps the summary (the line caps, and none
 written over 100,000 characters). Spec: `docs/superpowers/specs/2026-10-25-series-wordpress-tab-design.md`.
 
+Editor status bar and reading aid: the status bar groups a breadcrumb, previous/next chapter buttons with the volume's chapter
+list, place, progress and tools; every move out of the chapter (arrows, list, end card) goes through `useLeave`, which flushes the
+save first and refuses to move on a failed save. Floating `JumpBack` buttons and a `ChapterEnd` card follow the cards. `POST /readings`
+(`api/routers/readings.py`) tokenises text with MeCab and returns surfaces and readings only (`available: false` without the
+`mecab` extra); the SPA places them as ruby. The user setting `reading_aid` (`off` / `hiragana` / `katakana` / `romaji`) picks the
+mode; generated readings show on the active card only. Author ruby (`漢字(かんじ)` in the source) renders as `<ruby>` on every card
+whatever the mode (`web/src/editor/ruby.ts`, `authorRuby`). E2E: `web/e2e/editor-nav.spec.ts` with the `Nav series` seed. Spec:
+`docs/superpowers/specs/2026-10-27-editor-status-bar-reading-aid-design.md`.
+
 - Spec: `docs/superpowers/specs/2026-10-10-web-app-port-design.md` (layout §2, phases §15)
 - Plans: `docs/superpowers/plans/` (one per phase)
 
