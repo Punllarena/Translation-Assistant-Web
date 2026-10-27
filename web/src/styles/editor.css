@@ -99,6 +99,7 @@
 }
 
 .chapter-nav .menu { max-height: min(60vh, 480px); overflow-y: auto; }
+.chapter-nav .ch-progress { margin-left: auto; padding-left: 12px; }
 .jump-back { position: sticky; bottom: 16px; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
   margin-top: 8px; pointer-events: none; }
 .jump-back button { pointer-events: auto; box-shadow: 0 8px 24px -10px var(--shadow); }

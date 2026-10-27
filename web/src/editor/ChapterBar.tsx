@@ -22,7 +22,7 @@ export default function ChapterNav({ doc, chapters, onGo }: {
           <button key={d.id} type="button" role="menuitemradio" aria-checked={d.id === doc.id}
             onClick={() => { close(); if (d.id !== doc.id) onGo(d); }}>
             <span>{d.chapter_number != null ? `${d.chapter_number} · ` : ""}{shownTitle(d)}</span>
-            <span className="muted" style={{ marginLeft: "auto", paddingLeft: "var(--space-3, 12px)" }}>{d.progress}%</span>
+            <span className="muted ch-progress">{d.progress}%</span>
           </button>
         ))}
       </Menu>
