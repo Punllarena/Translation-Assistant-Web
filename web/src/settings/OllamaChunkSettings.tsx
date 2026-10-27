@@ -23,6 +23,19 @@ export default function OllamaChunkSettings({ settings: s, message, save, clear 
   const [threadText, setThreadText] = useState(threads === null ? "" : String(threads));
   useEffect(() => { setThreadText(threads === null ? "" : String(threads)); }, [threads]);
 
+  const [chunkText, setChunkText] = useState(chunk === 0 ? "" : String(chunk));
+  const [contextText, setContextText] = useState(String(context));
+  useEffect(() => { setChunkText(chunk === 0 ? "" : String(chunk)); }, [chunk]);
+  useEffect(() => { setContextText(String(context)); }, [context]);
+  // Save a draft on blur/Enter; an empty or invalid one snaps back to the saved value.
+  const commit = (text: string, lo: number, hi: number, saved: number, reset: () => void, apply: (n: number) => void) => {
+    const n = Number(text);
+    if (text.trim() !== "" && Number.isInteger(n) && n >= lo && n <= hi) { if (n !== saved) apply(n); else reset(); }
+    else reset();
+  };
+  const saveChunk = () => commit(chunkText, 1, 500, chunk, () => setChunkText(String(chunk)), (n) => edit(n, context));
+  const saveContext = () => commit(contextText, 0, 50, context, () => setContextText(String(context)), (n) => edit(chunk, n));
+
   const pick = (k: PresetKey) => {
     if (k === "custom") save({ ollama_preset: "custom", ollama_chunk_lines: chunk, ollama_context_lines: context });
     else save({ ollama_preset: k, ollama_chunk_lines: PRESETS[k].chunk, ollama_context_lines: PRESETS[k].context });
@@ -48,13 +61,14 @@ export default function OllamaChunkSettings({ settings: s, message, save, clear 
       <div className="row-fields">
         <label className="field"><span>Chunk size (lines)</span>
           <input type="number" min={1} max={500} aria-label="Ollama chunk size" disabled={wholeChapter}
-            value={wholeChapter ? "" : chunk}
-            onChange={(e) => { const n = Number(e.target.value); if (Number.isInteger(n) && n >= 1 && n <= 500) edit(n, context); }} /></label>
+            value={chunkText} onChange={(e) => setChunkText(e.target.value)} onBlur={saveChunk}
+            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} /></label>
         <label className="check"><input type="checkbox" aria-label="Whole chapter" checked={wholeChapter}
           onChange={(e) => edit(e.target.checked ? 0 : PRESETS.small.chunk, context)} />Whole chapter</label>
         <label className="field"><span>Context lines</span>
-          <input type="number" min={0} max={50} aria-label="Ollama context lines" value={context}
-            onChange={(e) => { const n = Number(e.target.value); if (e.target.value !== "" && Number.isInteger(n) && n >= 0 && n <= 50) edit(chunk, n); }} /></label>
+          <input type="number" min={0} max={50} aria-label="Ollama context lines"
+            value={contextText} onChange={(e) => setContextText(e.target.value)} onBlur={saveContext}
+            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} /></label>
       </div>
       <p className="hint">Context lines are earlier lines sent along for reference and not translated again.</p>
       <details>
