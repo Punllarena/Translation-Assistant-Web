@@ -1,5 +1,6 @@
 import PageHeader from "../ui/PageHeader";
 import { useMe } from "../auth/session";
+import BackupPanel from "./BackupPanel";
 import InvitesPanel from "./InvitesPanel";
 import DictionaryPanel from "./DictionaryPanel";
 import ServerSettingsForm from "./ServerSettingsForm";
@@ -17,6 +18,7 @@ export default function AdminPage() {
         </section>
         <InvitesPanel />
         <DictionaryPanel />
+        <BackupPanel />
       </div>
     </main>
   );

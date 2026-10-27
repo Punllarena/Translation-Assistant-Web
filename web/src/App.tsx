@@ -16,11 +16,13 @@ import StatsPage from "./stats/StatsPage";
 import JobsPage from "./jobs/JobsPage";
 import AdminPage from "./admin/AdminPage";
 import SetupPage from "./setup/SetupPage";
+import RestorePage from "./restore/RestorePage";
 import Shell from "./Shell";
 
 export const router = createBrowserRouter(
   createRoutesFromElements(
     <>
+      <Route path="/restore" element={<RestorePage />} />
       <Route element={<SetupGate />}>
         <Route path="/setup" element={<SetupPage />} />
         <Route path="/login" element={<Login />} />
