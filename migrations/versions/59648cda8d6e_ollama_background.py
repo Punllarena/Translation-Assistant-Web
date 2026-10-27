@@ -90,7 +90,7 @@ def upgrade() -> None:
     )
     op.create_index('uq_jobs_one_ollama_run', 'jobs', ['user_id'], unique=True, postgresql_where=sa.text("kind = 'ollama_run' AND state IN ('queued', 'running')"))
     # ### end Alembic commands ###
-    # Ollama cache keys change shape (they now include the chunk settings); old rows can't match.
+    # Ollama no longer uses mt_cache (it translates through its own chunk endpoints); drop its rows.
     op.execute("DELETE FROM mt_cache WHERE backend LIKE 'ollama:%'")
 
 
