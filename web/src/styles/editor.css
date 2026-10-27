@@ -98,8 +98,12 @@
   .sb-centre, .sb-tools { justify-content: flex-start; }
 }
 
-.chapter-nav .menu { max-height: min(60vh, 480px); overflow-y: auto; }
-.chapter-nav .ch-progress { margin-left: auto; padding-left: 12px; }
+.chapter-nav .menu { max-height: min(60vh, 480px); overflow-y: auto; width: min(30rem, calc(100vw - 32px)); }
+/* rows keep their height in the capped list; long titles stop at two lines */
+.chapter-nav .menu [role^="menuitem"] { flex: none; align-items: flex-start; padding: 8px 10px; text-align: left; }
+.chapter-nav .ch-row-title { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
+.chapter-nav .ch-progress { flex: none; margin-left: auto; padding-left: 12px; }
 .jump-back { position: sticky; bottom: 16px; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
   margin-top: 8px; pointer-events: none; }
 .jump-back button { pointer-events: auto; box-shadow: 0 8px 24px -10px var(--shadow); }

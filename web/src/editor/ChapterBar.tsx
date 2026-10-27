@@ -20,8 +20,8 @@ export default function ChapterNav({ doc, chapters, onGo }: {
         </>}>
         {(close) => volume.map((d) => (
           <button key={d.id} type="button" role="menuitemradio" aria-checked={d.id === doc.id}
-            onClick={() => { close(); if (d.id !== doc.id) onGo(d); }}>
-            <span>{d.chapter_number != null ? `${d.chapter_number} · ` : ""}{shownTitle(d)}</span>
+            title={shownTitle(d)} onClick={() => { close(); if (d.id !== doc.id) onGo(d); }}>
+            <span className="ch-row-title">{d.chapter_number != null ? `${d.chapter_number} · ` : ""}{shownTitle(d)}</span>
             <span className="muted ch-progress">{d.progress}%</span>
           </button>
         ))}
