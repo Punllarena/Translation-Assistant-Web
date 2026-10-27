@@ -23,6 +23,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from api.backup import state
 from api.db import SessionLocal
 from api.deps import current_user, db_session, scoped
 from api.models import Document, Line, User
@@ -246,31 +247,13 @@ async def _translate(
 
 
 async def _work(prep: _Prepared, key: _Key, chunk: _Chunk) -> None:
-    """Wait for the lane, then reuse what is saved, or translate and save, in one hold: the
-    commit lands before the next request on the lane rereads."""
-    assert prep.ep is not None
+    """One by-hand chunk, counted as work in flight until it has saved."""
     try:
-        reason = LANES.wait_reason(prep.user_id)
-        if reason:
-            chunk.emit(("waiting", {"reason": reason}))
-        async with LANES.hold(prep.user_id, priority=True):
-            fresh = await run_in_threadpool(_reread, prep)
-            if fresh.setup:
-                chunk.emit(("needs_setup", {"message": fresh.setup}))
-                return
-            if fresh.plan is None:
-                for number, text in fresh.reused or []:
-                    chunk.emit(("line", {"line_number": number, "text": text}))
-            else:
-                async with http_client() as client:
-                    ep = await endpoint.ready(client, prep.ep)
-                    # the same steady window as a run with these prefs: no model reload
-                    ctx = steady_ctx(ep.system_prompt, prep.prefs.chunk_lines,
-                                     prep.prefs.context_lines)
-                    result = await _translate(chunk, client, ep, fresh.plan, ctx)
-                ids = await run_in_threadpool(_save, prep, fresh.plan, result)
-                chunk.emit(("saved", {"chunk_ids": ids}))
+        with state.work():
+            await _ask(prep, chunk)
         chunk.emit(("done", {}))
+    except state.Maintenance:
+        chunk.emit(("error", {"message": state.IN_PROGRESS}))
     except BackendError as exc:
         chunk.emit(("error", {"message": str(exc)}))
     except Exception:  # a failed save and the like; the traceback stays server-side
@@ -280,6 +263,32 @@ async def _work(prep: _Prepared, key: _Key, chunk: _Chunk) -> None:
         if _RUNNING.get(key) is chunk:
             del _RUNNING[key]
         chunk.finish()
+
+
+async def _ask(prep: _Prepared, chunk: _Chunk) -> None:
+    """Wait for the lane, then reuse what is saved, or translate and save, in one hold: the
+    commit lands before the next request on the lane rereads."""
+    assert prep.ep is not None
+    reason = LANES.wait_reason(prep.user_id)
+    if reason:
+        chunk.emit(("waiting", {"reason": reason}))
+    async with LANES.hold(prep.user_id, priority=True):
+        fresh = await run_in_threadpool(_reread, prep)
+        if fresh.setup:
+            chunk.emit(("needs_setup", {"message": fresh.setup}))
+            return
+        if fresh.plan is None:
+            for number, text in fresh.reused or []:
+                chunk.emit(("line", {"line_number": number, "text": text}))
+        else:
+            async with http_client() as client:
+                ep = await endpoint.ready(client, prep.ep)
+                # the same steady window as a run with these prefs: no model reload
+                ctx = steady_ctx(ep.system_prompt, prep.prefs.chunk_lines,
+                                 prep.prefs.context_lines)
+                result = await _translate(chunk, client, ep, fresh.plan, ctx)
+            ids = await run_in_threadpool(_save, prep, fresh.plan, result)
+            chunk.emit(("saved", {"chunk_ids": ids}))
 
 
 def _ended(task: asyncio.Task) -> None:

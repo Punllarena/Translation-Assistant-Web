@@ -133,6 +133,16 @@ def _reset_login_limiters():
     clear()
 
 
+@pytest.fixture(autouse=True)
+def _reset_restore_state():
+    """The restore status and gate are process-global; no test may see another's restore."""
+    from api.backup import state
+
+    state.reset()
+    yield
+    state.reset()
+
+
 @pytest.fixture
 def login():
     """Return login(client, email, password) -> response."""

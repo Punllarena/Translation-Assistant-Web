@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api import server_settings
+from api.backup import state
 from api.db import SessionLocal
 from api.deps import current_user, db_session, scoped
 from api.models import ApiCredential, Document, Line, User, UserSetting
@@ -137,17 +138,22 @@ async def _translate(job: Job) -> AsyncIterator[Event]:
         run = jparser.run if job.backend == "jparser" else mecab.run
         yield ("analysis", {"entries": await run_in_threadpool(run, job.text)})
         return
-    async with http_client() as client:
-        if job.backend == "deepl":
-            result = await deepl.translate(client, job.key, job.text, job.src, job.dst)
+    try:
+        # The network call and the cache write both stay inside the gate: the write commits
+        # in its own session after the response started, so a restore must not begin under it.
+        with state.work():
+            async with http_client() as client:
+                if job.backend == "deepl":
+                    result = await deepl.translate(client, job.key, job.text, job.src, job.dst)
+                else:
+                    result = await libretranslate.translate(
+                        client, job.url, job.key, job.text, job.src, job.dst
+                    )
             yield ("result", {"text": result})
-        else:
-            result = await libretranslate.translate(
-                client, job.url, job.key, job.text, job.src, job.dst
-            )
-            yield ("result", {"text": result})
-    if result:
-        await _put(job, result)
+            if result:
+                await _put(job, result)
+    except state.Maintenance:
+        raise BackendError(state.IN_PROGRESS) from None
 
 
 async def _events(job: Job) -> AsyncIterator[Event]:

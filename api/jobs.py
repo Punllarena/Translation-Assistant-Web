@@ -25,6 +25,7 @@ from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import ObjectDeletedError, StaleDataError
 
+from api.backup import state
 from api.db import SessionLocal
 from api.models import Job
 
@@ -139,41 +140,51 @@ def _gone(db: Session, job_id: int) -> bool:
 
 def run_next() -> bool:
     """Run the oldest queued job to completion. False when there was none."""
-    with SessionLocal() as db:
-        job = _claim(db)
-        if job is None:
-            return False
-        job_id, kind = job.id, job.kind
-        fn = HANDLERS.get(kind)
-        try:
-            if fn is None:
-                raise JobError(f"unknown job kind {kind!r}")
-            result = fn(JobContext(db, job))
-            job.state, job.result_json = "done", result or {}
-        except Cancelled:
-            db.rollback()
-            job.state = "cancelled"
-        except _Interrupted:
-            db.rollback()
-            job.state, job.message = "failed", INTERRUPTED
-        except JobError as exc:
-            db.rollback()
-            job.state, job.message = "failed", str(exc)
-        except Exception as exc:
-            if isinstance(exc, GONE) and _gone(db, job_id):
-                log.info("job %s was deleted while running", job_id)
-                return True  # its user was deleted mid-run: nothing to record
-            log.exception("job %s (%s) failed", job_id, kind)
-            db.rollback()
-            job.state, job.message = "failed", f"{kind} failed"
-        job.finished_at = _now()
-        try:
-            db.commit()
-        except GONE:
-            if not _gone(db, job_id):
-                raise
+    if state.active():  # a restore is replacing the jobs table: claim nothing
+        return False
+    try:
+        with state.work():
+            with SessionLocal() as db:
+                return _run_claimed(db)
+    except state.Maintenance:
+        return False
+
+
+def _run_claimed(db: Session) -> bool:
+    job = _claim(db)
+    if job is None:
+        return False
+    job_id, kind = job.id, job.kind
+    fn = HANDLERS.get(kind)
+    try:
+        if fn is None:
+            raise JobError(f"unknown job kind {kind!r}")
+        result = fn(JobContext(db, job))
+        job.state, job.result_json = "done", result or {}
+    except Cancelled:
+        db.rollback()
+        job.state = "cancelled"
+    except _Interrupted:
+        db.rollback()
+        job.state, job.message = "failed", INTERRUPTED
+    except JobError as exc:
+        db.rollback()
+        job.state, job.message = "failed", str(exc)
+    except Exception as exc:
+        if isinstance(exc, GONE) and _gone(db, job_id):
             log.info("job %s was deleted while running", job_id)
-        return True
+            return True  # its user was deleted mid-run: nothing to record
+        log.exception("job %s (%s) failed", job_id, kind)
+        db.rollback()
+        job.state, job.message = "failed", f"{kind} failed"
+    job.finished_at = _now()
+    try:
+        db.commit()
+    except GONE:
+        if not _gone(db, job_id):
+            raise
+        log.info("job %s was deleted while running", job_id)
+    return True
 
 
 def fail_interrupted() -> int:

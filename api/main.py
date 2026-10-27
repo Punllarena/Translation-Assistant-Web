@@ -1,10 +1,12 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse
 
 from api import jobs, tadb_uploads, yomitan_job
+from api.backup import state
 from api.config import get_settings
 from api.ollama import runner, schedule, store  # noqa: F401  store registers ollama_cleanup
 from api.routers import (
@@ -42,6 +44,9 @@ from api.routers import (
 from api.routers import ollama as ollama_routes
 from api.routing import CommitOnResponseRoute
 
+# The only routes answered while a restore runs (they have to be: the SPA polls the first).
+MAINTENANCE_ALLOWED = frozenset({"/restore/status", "/healthz"})
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -74,6 +79,12 @@ def create_app() -> FastAPI:
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.middleware("http")
+    async def maintenance(request: Request, call_next):
+        if state.active() and request.url.path not in MAINTENANCE_ALLOWED:
+            return JSONResponse({"detail": state.IN_PROGRESS}, status_code=503)
+        return await call_next(request)
 
     app.include_router(auth.router)
     app.include_router(setup.router)
