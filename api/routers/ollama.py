@@ -192,6 +192,18 @@ def run_now(user: User = Depends(current_user), db: Session = Depends(db_session
 def flush_suggestions(
     body: FlushIn, user: User = Depends(current_user), db: Session = Depends(db_session)
 ) -> FlushOut:
+    # another user's (or a missing) target is 404, as everywhere else
+    if body.series_id is not None:
+        scoped(db, Series, body.series_id, user.id)
+    if body.volume_id is not None:
+        scoped_volume(db, body.volume_id, user.id)
+    if body.document_ids:
+        ids = set(body.document_ids)
+        owned = db.scalars(
+            select(Document.id).where(Document.id.in_(ids), Document.user_id == user.id)
+        )
+        if set(owned) != ids:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
     cleared = store.flush(
         db, user.id, document_ids=body.document_ids, volume_id=body.volume_id,
         series_id=body.series_id,

@@ -172,6 +172,19 @@ def test_flush_clears_held_suggestions(app_client, db, me, make_series, make_doc
     assert held() == [None, None]
 
 
+def test_flush_404s_for_another_users_scope(app_client, db, me, make_user, make_series,
+                                            make_doc):
+    other = make_user(email="other-flush@example.com")
+    s = make_series(other)
+    vol = Volume(series_id=s.id, subtitle="V", volume_order=1)
+    db.add(vol)
+    db.flush()
+    doc = make_doc(other, ["x"], series=s, translated=False)
+    for body in ({"series_id": s.id}, {"volume_id": vol.id}, {"document_ids": [doc.id]},
+                 {"series_id": 999999}, {"volume_id": 999999}, {"document_ids": [999999]}):
+        assert app_client.post("/ollama/flush", json=body).status_code == 404, body
+
+
 def test_saving_a_line_scores_its_suggestion(app_client, db, me, make_doc):
     doc = make_doc(me, ["x", "y"], translated=False)
     chunk = _chunk(db, me, doc)
