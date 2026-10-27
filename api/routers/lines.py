@@ -9,6 +9,7 @@ from api.deps import current_user, db_session, scoped
 from api.illustrations import IllustrationsRule, check_no_text, rule_conflict
 from api.library import replace_raw_lines
 from api.models import Document, GlossaryEntry, Line, User, UserSetting
+from api.ollama import store
 from api.routing import api_router
 from api.schemas.documents import DocumentOut
 from api.schemas.lines import DocumentLines, LineBatch, LineOut, SaveResult, SourceUpdate
@@ -118,6 +119,9 @@ def save_lines(
     if rows:
         doc.updated_at = func.now()
     db.flush()
+    store.record_outcomes(
+        db, doc.id, {n: text for n, text in edits.items() if text and n in current}
+    )
     return SaveResult(missing=missing)
 
 

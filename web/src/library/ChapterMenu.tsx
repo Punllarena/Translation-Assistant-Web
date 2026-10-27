@@ -7,10 +7,11 @@ import PublishDialog from "../publish/PublishDialog";
 import { ConfirmDialog, PromptDialog } from "../ui/Dialog";
 import Menu from "../ui/Menu";
 import MoveDialog from "./MoveDialog";
+import { useFlushOllama, useQueueOllama } from "./useOllamaQueue";
 import { shownTitle, titleField, type Doc } from "./shelf";
 import { invalidateLibrary } from "./queries";
 
-type Open = null | "rename" | "refetch" | "publish" | "move" | "delete";
+type Open = null | "rename" | "refetch" | "publish" | "move" | "delete" | "flush";
 
 /** A chapter row's ⋯ menu and the dialogs its items open. */
 export default function ChapterMenu({ doc }: { doc: Doc }) {
@@ -54,6 +55,8 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
     onError: (e) => setError(e.message),
     onSettled: changed,
   });
+  const ollama = useQueueOllama();
+  const flush = useFlushOllama(() => closeAll());
   const exportUrl = (format: string) => `/api/documents/${doc.id}/export?format=${format}`;
   const item = (label: string, act: () => void, close: () => void, className?: string) => (
     <button type="button" role="menuitem" className={className} onClick={() => { close(); act(); }}>{label}</button>
@@ -69,6 +72,8 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
             <a role="menuitem" className="btn" href={exportUrl("md")} download onClick={close}>Export Markdown</a>
             <a role="menuitem" className="btn" href={exportUrl("md-ruby")} download onClick={close}>Export Ruby Markdown</a>
             {doc.source_url && item("Re-fetch…", () => { refetch.reset(); setOpen("refetch"); }, close)}
+            {item("Queue for Ollama", () => ollama.queue({ kind: "documents", series_id: doc.series_id, document_ids: [doc.id] }), close)}
+            {item("Flush Ollama output…", () => { flush.reset(); setOpen("flush"); }, close)}
             {item("Publish…", () => setOpen("publish"), close)}
             {doc.is_illustrations
               ? item("Unmark Illustrations", () => mark.mutate(false), close)
@@ -80,6 +85,13 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
         )}
       </Menu>
       {error && <span className="error" role="alert">{error}</span>}
+      {ollama.error && <span className="error" role="alert">{ollama.error}</span>}
+      {ollama.note && <span className="muted" role="status">{ollama.note}</span>}
+      {open === "flush" && (
+        <ConfirmDialog title="Flush Ollama output" confirmLabel="Flush" danger busy={flush.pending}
+          message={`Clear Ollama's saved suggestions for "${title}"? Your own translation is not touched.`}
+          error={flush.error} onConfirm={() => flush.flush({ document_ids: [doc.id] })} onClose={closeAll} />
+      )}
       {open === "rename" && (
         <PromptDialog title="Rename chapter" label="Title" initial={title} confirmLabel="Rename"
           note={title !== doc.title && <>Original title: <span lang={doc.source_language}>{doc.title}</span></>}

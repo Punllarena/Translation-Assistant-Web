@@ -1,0 +1,4 @@
+{"model":"m","message":{"role":"assistant","content":"","thinking":"Weigh it."},"done":false}
+{"model":"m","message":{"role":"assistant","content":"{\"lines\":"},"done":false}
+{"model":"m","message":{"role":"assistant","content":"[]}"},"done":false}
+{"model":"m","message":{"role":"assistant","content":""},"done":true,"prompt_eval_count":412,"eval_count":30,"prompt_eval_duration":1500000000,"eval_duration":9200000000,"load_duration":250000000,"total_duration":11000000000}

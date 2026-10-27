@@ -33,13 +33,27 @@ characters are the user setting `parse_chars` (unset or not a string = `DEFAULT_
 `""` means don't split). The `ta.db` import copies each desktop profile's glossary and words into every series it
 creates that used that profile (`api/core/tadb_glossary.py`). Spec: `docs/superpowers/specs/2026-10-22-series-glossary-design.md`.
 
-Phase 5: machine-translation aggregator. DeepL, LibreTranslate and Ollama stream through `GET /mt/stream`
-(SSE; the single-shot backends yield once); MeCab and JParser return structured entries, not HTML. Results
-are cached in `mt_cache`, whose keys include the endpoint: `deepl`, `libretranslate:<sha12(url)>`, and
-`ollama:<model prefix>:<sha12(json [url, model, prompt])>`, so one user's server never answers for another's.
+Phase 5: machine-translation aggregator. DeepL and LibreTranslate stream through `GET /mt/stream`
+(SSE; the single-shot backends yield once); Ollama no longer does (see Ollama background translation); MeCab and JParser return structured entries, not HTML. Results
+are cached in `mt_cache`, whose keys include the endpoint: `deepl` and `libretranslate:<sha12(url)>`, so one user's server
+never answers for another's (Ollama does not use `mt_cache`).
 Per-user backend settings live under `/mt` and Settings → Machine translation. User-supplied LibreTranslate and
 Ollama URLs are refused when they resolve to a non-global address unless `TA_MT_ALLOW_PRIVATE_URLS=true`
 (guard in `api/mt/urls.py`).
+
+Ollama background translation: users bring their own Ollama server (the operator `TA_OLLAMA_URL` and its admin override are gone;
+a private LAN address needs `TA_MT_ALLOW_PRIVATE_URLS`, and `check_user_url` always refuses link-local and cloud-metadata addresses).
+The package `api/ollama/` holds `prefs` (presets, chunk sizes), `chunks` (chunking and context), `prompt`, `answer` and `json_lines`
+(parsing the model's reply), `outcome` (used / edited / ignored scoring), `work` (the queue's untranslated lines, `raw_sha` stale
+check), `translate` (one chunk, splitting on failure), `lane` (a per-user in-process lock that serialises Ollama requests across
+the runner and by-hand asks; single process only), `endpoint` (URL, model and credential, with the setup message), `runner`
+(a separate worker claiming `ollama_run` jobs, which the general worker skips; it works through `ollama_queue_items` until drained or the night window closes), `schedule` (the per-user
+night windows and the once-a-minute tick that starts runs and cleans up), `store` (suggestions and the 91-day clean-up of old chunk
+prompts and reasoning) and `stats`. `GET /documents/{id}/ollama/stream` (`api/routers/ollama_editor.py`) translates a chunk by
+hand in a task that outlives its subscriber, so closing the card leaves it running and asking again follows it. Suggestions live
+in `ollama_suggestions` (one per line; the text is NULLed by a flush or the clean-up, never by use or dismissal); chunk rows in `ollama_chunks` keep the settings,
+timings and reasoning. The SPA has the `/jobs` page (running, Ollama queue, scheduled, history; Run now answers 409 with the setup
+text without a URL) and Statistics → Ollama. Spec: `docs/superpowers/specs/2026-10-26-ollama-background-translation-design.md`.
 
 Yomitan dictionaries: an admin can upload Yomitan format-3 term dictionaries (JMdict, 新和英, ...; kanji, frequency and
 pitch-accent dictionaries are refused) in Admin → Dictionary. `api/core/yomitan_read.py` reads a zip (members read by name, never
@@ -78,7 +92,7 @@ the account's value wins once `/settings` arrives. Spec: `docs/superpowers/specs
 
 Onboarding: with no users, the SPA sends every page to `/setup` (`GET /setup/status`, `POST /setup/admin`,
 which takes a Postgres advisory lock; `api/accounts.py`). Admin-only `/admin/settings` rows in `server_settings`
-override `TA_OLLAMA_URL`, `TA_LIBRETRANSLATE_URL`, `TA_MT_ALLOW_PRIVATE_URLS`, `TA_WP_ALLOW_PRIVATE_URLS` and
+override `TA_LIBRETRANSLATE_URL`, `TA_MT_ALLOW_PRIVATE_URLS`, `TA_WP_ALLOW_PRIVATE_URLS` and
 `TA_SYOSETU_DELAY_SECONDS` (DB row > env > default; read through `api.server_settings.effective(db)`, never
 `get_settings()` for those keys). Accounts have a `username` (3–32 of `A-Za-z0-9_.-`, unique ignoring
 case, shown instead of the email); `/auth/login` takes `login`, an email when it contains `@`, otherwise a
@@ -228,8 +242,9 @@ that database each run; conftest refuses any database name not ending in `_test`
   account-creation path.
 - MT backends take an injected `httpx.AsyncClient`; tests use `httpx.MockTransport` fixtures
   (`tests/fixtures/mt/`), never live endpoints. The `/mt/stream` cache write runs in its own session
-  (`_put_sync` in `api/routers/mt.py`), one of two sanctioned commits outside the route boundary; the other is the
+  (`_put_sync` in `api/routers/mt.py`), one of the sanctioned commits outside the route boundary; the others are the
   job worker (`JobContext.progress`, `JobContext.report` (job row only, its own session, throttled)
-  and `run_next` in `api/jobs.py`). WordPress calls take an injected `httpx.Client`
+  and `run_next` in `api/jobs.py`) and the Ollama commits: the runner (`api/ollama/runner.py`), the by-hand chunk
+  save (`api/routers/ollama_editor.py`) and the scheduler tick (`api/ollama/schedule.py`), each in its own session. WordPress calls take an injected `httpx.Client`
   the same way (`http_client` seams in `api/routers/wp.py` and `api/publish_job.py`).
 - Tests set `TA_RUN_JOBS_WORKER=false` and drive jobs with `jobs.run_next()`, swapping `api.jobs.SessionLocal` for the test session.

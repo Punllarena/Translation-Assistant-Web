@@ -18,31 +18,36 @@ def entry(client, key):
 
 def test_listing_reports_env_and_default_sources(app_client, admin, monkeypatch):
     monkeypatch.setenv("TA_LIBRETRANSLATE_URL", "http://lt.env")
-    monkeypatch.delenv("TA_OLLAMA_URL", raising=False)
-    # Hermetic: a developer's .env (e.g. TA_OLLAMA_URL) must not leak into the sources.
+    # Hermetic: a developer's .env (e.g. TA_LIBRETRANSLATE_URL) must not leak into the sources.
     monkeypatch.setitem(Settings.model_config, "env_file", None)
     get_settings.cache_clear()
     try:
         assert entry(app_client, "libretranslate_url") == {
             "key": "libretranslate_url", "value": "http://lt.env", "source": "env"}
-        assert entry(app_client, "ollama_url")["source"] == "default"
+        assert all(e["key"] != "ollama_url" for e in app_client.get("/admin/settings").json())
     finally:
         get_settings.cache_clear()
 
 
 def test_db_row_wins_and_reset_falls_back(app_client, admin, db):
-    r = app_client.put("/admin/settings/ollama_url", json={"value": "  http://gpu.lan:11434  "})
+    r = app_client.put(
+        "/admin/settings/libretranslate_url", json={"value": "  http://gpu.lan:5000  "})
     assert r.status_code == 200
-    assert r.json() == {"key": "ollama_url", "value": "http://gpu.lan:11434", "source": "db"}
-    assert server_settings.effective(db).ollama_url == "http://gpu.lan:11434"
-    assert app_client.delete("/admin/settings/ollama_url").status_code == 204
-    assert app_client.delete("/admin/settings/ollama_url").status_code == 204  # idempotent
-    assert server_settings.effective(db).ollama_url == get_settings().ollama_url
+    assert r.json() == {"key": "libretranslate_url", "value": "http://gpu.lan:5000", "source": "db"}
+    assert server_settings.effective(db).libretranslate_url == "http://gpu.lan:5000"
+    assert app_client.delete("/admin/settings/libretranslate_url").status_code == 204
+    assert app_client.delete("/admin/settings/libretranslate_url").status_code == 204  # idempotent
+    assert server_settings.effective(db).libretranslate_url == get_settings().libretranslate_url
+
+
+def test_ollama_url_is_no_longer_a_server_setting(app_client, admin):
+    r = app_client.put("/admin/settings/ollama_url", json={"value": "http://x"})
+    assert r.status_code == 404
 
 
 @pytest.mark.parametrize("key,value", [
-    ("ollama_url", "localhost:11434"),        # no scheme
-    ("ollama_url", "ftp://x"),
+    ("libretranslate_url", "localhost:5000"),        # no scheme
+    ("libretranslate_url", "ftp://x"),
     ("mt_allow_private_urls", "yes"),
     ("syosetu_delay_seconds", 0.5),
     ("syosetu_delay_seconds", 61),

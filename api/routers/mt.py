@@ -1,7 +1,8 @@
 """Machine-translation aggregator (spec §8): per-user availability, and one SSE stream
 per backend and line. HTTP backends are cached in mt_cache (ruling 8); the stream writes
 the cache in its own session because it finishes after the response has started
-(ruling 10)."""
+(ruling 10). Ollama is listed by /mt/backends but translated through its own chunk
+endpoints (api/routers/ollama_editor.py), so /mt/stream refuses it (422)."""
 
 import logging
 from collections.abc import AsyncIterator
@@ -27,7 +28,7 @@ from api.mt.urls import check_user_url
 from api.routers.credentials import load_secret
 from api.routers.lines import display_line
 from api.routing import api_router
-from api.schemas.mt import Backend, Backends, BackendStatus
+from api.schemas.mt import Backends, BackendStatus, StreamBackend
 
 router = api_router(prefix="/mt", tags=["mt"])
 log = logging.getLogger(__name__)
@@ -86,10 +87,8 @@ def _configure(db: Session, user_id: int, backend: str, p: Prefs) -> Job:
     if cred_url:  # the user's own endpoint: user input, so guarded against SSRF
         job.url = cred_url
         job.setup = check_user_url(cred_url, settings.mt_allow_private_urls, LABELS[backend])
-    else:  # the operator's default, trusted
-        job.url = (
-            settings.libretranslate_url if backend == "libretranslate" else settings.ollama_url
-        )
+    elif backend == "libretranslate":  # the operator's default, trusted
+        job.url = settings.libretranslate_url
     if backend == "libretranslate":
         job.cache_key = prefs.libretranslate_cache_key(job.url) if job.url else ""
     else:
@@ -139,17 +138,7 @@ async def _translate(job: Job) -> AsyncIterator[Event]:
         yield ("analysis", {"entries": await run_in_threadpool(run, job.text)})
         return
     async with http_client() as client:
-        if job.backend == "ollama":
-            parts: list[str] = []
-            gen = ollama.stream(client, job.url, job.key, job.model, job.prompt,
-                                job.text, job.src, job.dst)
-            async with aclosing(gen) as upstream:  # a disconnect closes the upstream request
-                async for kind, data in upstream:
-                    if kind == "chunk":
-                        parts.append(data["text"])
-                    yield (kind, data)
-            result = "".join(parts)  # reached only when the stream completed (ruling 8)
-        elif job.backend == "deepl":
+        if job.backend == "deepl":
             result = await deepl.translate(client, job.key, job.text, job.src, job.dst)
             yield ("result", {"text": result})
         else:
@@ -192,7 +181,7 @@ async def _events(job: Job) -> AsyncIterator[Event]:
 
 @router.get("/stream", response_class=StreamingResponse)
 async def stream(
-    backend: Backend,
+    backend: StreamBackend,
     document_id: int,
     line_number: int = Query(ge=0, le=2**31 - 1),
     user: User = Depends(current_user),

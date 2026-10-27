@@ -13,6 +13,7 @@ import MtSettingsPage from "./settings/MtSettingsPage";
 import WpSettingsPage from "./settings/WpSettingsPage";
 import ShortcutsPage from "./settings/ShortcutsPage";
 import StatsPage from "./stats/StatsPage";
+import JobsPage from "./jobs/JobsPage";
 import AdminPage from "./admin/AdminPage";
 import SetupPage from "./setup/SetupPage";
 import Shell from "./Shell";
@@ -30,6 +31,7 @@ export const router = createBrowserRouter(
           <Route path="new" element={<NewSeriesPage />} />
           <Route path="import" element={<ImportPage />} />
           <Route path="stats" element={<StatsPage />} />
+          <Route path="jobs" element={<JobsPage />} />
           <Route path="series/:id" element={<SeriesPage />} />
           <Route path="settings/editor" element={<EditorSettingsPage />} />
           <Route path="settings/profiles" element={<Navigate to="/settings/editor" replace />} />

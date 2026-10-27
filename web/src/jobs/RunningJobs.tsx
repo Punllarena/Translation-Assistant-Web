@@ -12,6 +12,8 @@ const LABELS: Record<string, string> = {
   syosetu_fetch: "Syosetu fetch",
   wp_publish: "WordPress publish",
   wp_illustrations: "Illustrations upload",
+  ollama_run: "Ollama translation",
+  ollama_cleanup: "Ollama clean-up",
 };
 
 /** Where a job lives, so the list can send the user back to its page. */
@@ -22,6 +24,7 @@ export function jobLink(job: Job): { label: string; to: string | null } {
     case "tadb_import": return { label, to: "/import" };
     case "dict_download": return { label, to: "/admin" };
     case "wp_publish": return { label, to: "/" };
+    case "ollama_run": return { label, to: "/jobs?tab=ollama" };
     case "syosetu_fetch":
     case "wp_illustrations": return { label, to: typeof series === "number" ? `/series/${series}` : null };
     default: return { label, to: null };
@@ -58,6 +61,7 @@ export default function RunningJobs() {
             );
           })}
         </ul>
+        <Link to="/jobs" onClick={close}>All jobs</Link>
       </div>
     </>
   );

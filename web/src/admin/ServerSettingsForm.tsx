@@ -4,7 +4,6 @@ import { api, call, type Schemas } from "../api/client";
 
 type Entry = Schemas["ServerSettingOut"];
 const FIELDS = [
-  { key: "ollama_url", label: "Ollama URL", kind: "url", hint: "e.g. http://192.168.1.20:11434" },
   { key: "libretranslate_url", label: "LibreTranslate URL", kind: "url", hint: "Leave empty if you do not run one." },
   { key: "mt_allow_private_urls", label: "Allow private addresses for machine translation", kind: "bool",
     hint: "Ollama or LibreTranslate on this machine or your network? Turn this on." },

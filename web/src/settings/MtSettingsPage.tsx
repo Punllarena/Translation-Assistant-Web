@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, call, type Schemas } from "../api/client";
 import { ArrowDown, ArrowUp } from "../ui/icons";
 import PageHeader from "../ui/PageHeader";
+import OllamaChunkSettings from "./OllamaChunkSettings";
 
 type Kind = "deepl" | "libretranslate" | "ollama";
 const LABELS: Record<string, string> = {
@@ -46,6 +47,10 @@ export default function MtSettingsPage() {
   const resetPrompt = useMutation({
     mutationFn: () => call(api.DELETE("/settings/{key}", { params: { path: { key: "ollama_system_prompt" } } })),
     onSuccess: done("Prompt reset"),
+  });
+  const clearSetting = useMutation({
+    mutationFn: (key: string) => call(api.DELETE("/settings/{key}", { params: { path: { key } } })),
+    onSuccess: done("Saved"),
   });
   const saveCred = useMutation({
     mutationFn: async (v: { kind: Kind; secret?: string; endpoint_url?: string }) => {
@@ -173,6 +178,10 @@ export default function MtSettingsPage() {
                   <button type="button" className="quiet" onClick={() => resetPrompt.mutate()}>Reset</button>
                 </div>
               </form>
+            )}
+            {settings.data && (
+              <OllamaChunkSettings settings={s} message={rows.find((r) => r.name === "ollama")?.message ?? undefined}
+                save={(body) => putSetting.mutate(body)} clear={(key) => clearSetting.mutate(key)} />
             )}
           </section>
         </div>

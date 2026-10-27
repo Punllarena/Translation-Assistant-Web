@@ -21,11 +21,13 @@ from api.models.identity import (
     UserSetting,
 )
 from api.models.jobs import Job
+from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
 from api.models.server import ServerSetting
 
 __all__ = [
     "ApiCredential", "CustomWord", "Dictionary", "DictionaryTerm", "Document", "DocumentImage",
     "GlossaryEntry",
-    "Invite", "Job", "Line", "MtCache", "Series", "ServerSetting", "Session", "Shortcut",
+    "Invite", "Job", "Line", "MtCache", "OllamaChunk", "OllamaQueueItem", "OllamaSuggestion",
+    "Series", "ServerSetting", "Session", "Shortcut",
     "User", "UserSetting", "Volume", "VolumeCover", "VolumeSyosetuGroup", "WorkSession",
 ]

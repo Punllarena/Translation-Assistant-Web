@@ -36,6 +36,8 @@ def main() -> None:
     from api.db import SessionLocal
     from api.library import write_lines
     from api.models import Document, Line, Series, User, Volume
+    from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
+    from api.ollama.work import raw_sha
     from api.security import hash_password
 
     with SessionLocal() as db:
@@ -189,6 +191,34 @@ def main() -> None:
             db.flush()
             write_lines(db, ch.id, [{"line_number": 0, "prefix": "%", "raw_text": "絞込です。",
                                      "translated_text": ""}])
+        # ollama.spec: line 1 is untranslated and holds a suggestion; the others are translated
+        # so the card opens no stream. No Ollama credential, so Run now answers with the setup text.
+        ol = Series(user_id=user.id, title="E2E ollama series")
+        db.add(ol)
+        db.flush()
+        ol_doc = Document(user_id=user.id, title="Ollama target", series_id=ol.id, series_order=1)
+        db.add(ol_doc)
+        db.flush()
+        ol_lines = ["彼女は笑った。", "二つ目です。", "三つ目です。"]
+        write_lines(db, ol_doc.id, [
+            {"line_number": i, "prefix": "%", "raw_text": raw,
+             "translated_text": "" if i == 0 else f"Done {i}."}
+            for i, raw in enumerate(ol_lines)
+        ])
+        chunk = OllamaChunk(
+            user_id=user.id, series_id=ol.id, document_id=ol_doc.id, source="run", ok=True,
+            clamped=False, depth=0, model="qwen3:14b", preset="medium", chunk_lines=3,
+            context_lines=0, first_line=0, last_line=2, asked=3, prompt_tokens=412,
+            output_tokens=331, eval_ms=8620, total_ms=9200,
+            reasoning="Because the subject is she",
+        )
+        db.add(chunk)
+        db.flush()
+        first = db.query(Line).filter_by(document_id=ol_doc.id, line_number=0).one()
+        db.add(OllamaSuggestion(line_id=first.id, chunk_id=chunk.id, text="She laughed.",
+                                raw_sha=raw_sha(first.raw_text)))
+        db.add(OllamaQueueItem(user_id=user.id, kind="series", series_id=ol.id,
+                               document_ids=[], position=1))
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)

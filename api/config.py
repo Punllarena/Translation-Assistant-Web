@@ -32,7 +32,6 @@ class Settings(BaseSettings):
     cookie_secure: bool = True
     login_max_attempts: int = 10
     login_window_seconds: int = 300
-    ollama_url: str = "http://localhost:11434"  # server default; a user credential overrides it
     libretranslate_url: str = ""  # empty: LibreTranslate is not configured unless a user sets one
     edict_path: str = ""  # edict2 file for JParser and MeCab glosses (edrdg.org)
     conjugations_path: str = ""  # desktop Conjugations.txt; optional, enables JParser deconjugation

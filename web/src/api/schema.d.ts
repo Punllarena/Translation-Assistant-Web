@@ -450,6 +450,46 @@ export interface paths {
         patch: operations["save_lines_documents__document_id__lines_patch"];
         trace?: never;
     };
+    "/documents/{document_id}/ollama": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Suggestions
+         * @description The chapter's unflushed suggestions, in line order.
+         */
+        get: operations["suggestions_documents__document_id__ollama_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/documents/{document_id}/ollama/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream
+         * @description Translate the chunk holding the line (reroll: every untranslated line in it).
+         */
+        get: operations["stream_documents__document_id__ollama_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/documents/{document_id}/refetch": {
         parameters: {
             query?: never;
@@ -855,6 +895,112 @@ export interface paths {
         get: operations["stream_mt_stream_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/chunks/{chunk_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chunk Detail */
+        get: operations["chunk_detail_ollama_chunks__chunk_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/flush": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Flush Suggestions */
+        post: operations["flush_suggestions_ollama_flush_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Queue */
+        get: operations["get_queue_ollama_queue_get"];
+        put?: never;
+        /** Add To Queue */
+        post: operations["add_to_queue_ollama_queue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/queue/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Reorder Queue */
+        put: operations["reorder_queue_ollama_queue_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/queue/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove From Queue */
+        delete: operations["remove_from_queue_ollama_queue__item_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Now
+         * @description Start a run that works through the queue until it is drained.
+         */
+        post: operations["run_now_ollama_run_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1472,6 +1618,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/stats/ollama": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Ollama Stats */
+        get: operations["get_ollama_stats_stats_ollama_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tm/matches": {
         parameters: {
             query?: never;
@@ -1961,6 +2124,71 @@ export interface components {
             /** Markers */
             markers: components["schemas"]["Marker"][];
         };
+        /**
+         * ChunkOut
+         * @description One Ollama request: its settings, timings, outcome counters, reasoning and prompt.
+         */
+        ChunkOut: {
+            /** Asked */
+            asked: number;
+            /** Chunk Lines */
+            chunk_lines: number;
+            /** Clamped */
+            clamped: boolean;
+            /** Context Lines */
+            context_lines: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Depth */
+            depth: number;
+            /** Document Id */
+            document_id: number | null;
+            /** Edited Count */
+            edited_count: number;
+            /** Eval Ms */
+            eval_ms: number | null;
+            /** First Line */
+            first_line: number;
+            /** First Token Ms */
+            first_token_ms: number | null;
+            /** Id */
+            id: number;
+            /** Ignored Count */
+            ignored_count: number;
+            /** Job Id */
+            job_id: number | null;
+            /** Last Line */
+            last_line: number;
+            /** Load Ms */
+            load_ms: number | null;
+            /** Model */
+            model: string;
+            /** Ok */
+            ok: boolean;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Preset */
+            preset: string;
+            /** Prompt */
+            prompt: string | null;
+            /** Prompt Ms */
+            prompt_ms: number | null;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Reasoning */
+            reasoning: string | null;
+            /** Series Id */
+            series_id: number | null;
+            /** Source */
+            source: string;
+            /** Total Ms */
+            total_ms: number | null;
+            /** Used Count */
+            used_count: number;
+        };
         /** Comparison */
         Comparison: {
             /** Daily Avg 30 */
@@ -2278,6 +2506,20 @@ export interface components {
             /** Truncated */
             truncated: boolean;
         };
+        /** FlushIn */
+        FlushIn: {
+            /** Document Ids */
+            document_ids?: number[] | null;
+            /** Series Id */
+            series_id?: number | null;
+            /** Volume Id */
+            volume_id?: number | null;
+        };
+        /** FlushOut */
+        FlushOut: {
+            /** Cleared */
+            cleared: number;
+        };
         /** GlossaryIn */
         GlossaryIn: {
             /** Phrase */
@@ -2503,6 +2745,73 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** OllamaModelStats */
+        OllamaModelStats: {
+            /** Chunk Lines */
+            chunk_lines: number;
+            /** Context Lines */
+            context_lines: number;
+            /** Model */
+            model: string;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Preset */
+            preset: string;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Runs */
+            runs: number;
+            /** S Per Chunk */
+            s_per_chunk: number | null;
+            /** Tokens Per S */
+            tokens_per_s: number | null;
+            /** Used Or Edited Pct */
+            used_or_edited_pct: number | null;
+        };
+        /** OllamaOutcomes */
+        OllamaOutcomes: {
+            /** Edited */
+            edited: number;
+            /** Ignored */
+            ignored: number;
+            /** Used */
+            used: number;
+        };
+        /** OllamaRun */
+        OllamaRun: {
+            /** Chapters */
+            chapters: number;
+            /** Date */
+            date: string;
+            /** Duration S */
+            duration_s: number | null;
+            /** Job Id */
+            job_id: number;
+            /** Lines */
+            lines: number;
+            /** Lines Per Hour */
+            lines_per_hour: number | null;
+            /** S Per Chunk */
+            s_per_chunk: number | null;
+            /** Tokens Per S */
+            tokens_per_s: number | null;
+        };
+        /** OllamaStatsOut */
+        OllamaStatsOut: {
+            /** By Model */
+            by_model: components["schemas"]["OllamaModelStats"][];
+            /** Chapters 30D */
+            chapters_30d: number;
+            /** Lines 30D */
+            lines_30d: number;
+            outcomes: components["schemas"]["OllamaOutcomes"];
+            /** Retry Rate 30D */
+            retry_rate_30d: number | null;
+            /** Runs */
+            runs: components["schemas"]["OllamaRun"][];
+            /** Tokens Per S 30D */
+            tokens_per_s_30d: number | null;
+        };
         /** OrderIn */
         OrderIn: {
             /** Order */
@@ -2548,6 +2857,48 @@ export interface components {
             unlock_chapter_index: number | null;
             /** Updated */
             updated: boolean;
+        };
+        /** QueueItemIn */
+        QueueItemIn: {
+            /** Document Ids */
+            document_ids?: number[];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "series" | "volume" | "documents";
+            /** Series Id */
+            series_id: number;
+            /** Volume Id */
+            volume_id?: number | null;
+        };
+        /** QueueItemOut */
+        QueueItemOut: {
+            /** Document Ids */
+            document_ids: number[];
+            /** Estimate Seconds */
+            estimate_seconds: number | null;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Lines Left */
+            lines_left: number;
+            /** Series Id */
+            series_id: number;
+            /** Series Title */
+            series_title: string;
+            /** Volume Id */
+            volume_id: number | null;
+            /** Volume Label */
+            volume_label: string | null;
+        };
+        /** QueueOrder */
+        QueueOrder: {
+            /** Ids */
+            ids: number[];
         };
         /** Refetch */
         Refetch: {
@@ -2843,6 +3194,31 @@ export interface components {
              * @default 2
              */
             min_freq: number;
+        };
+        /**
+         * SuggestionOut
+         * @description A line's held suggestion; `stale` when the line's source changed since it was sent.
+         */
+        SuggestionOut: {
+            /** Chunk Id */
+            chunk_id: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** First Line */
+            first_line: number;
+            /** Last Line */
+            last_line: number;
+            /** Line Number */
+            line_number: number;
+            /** Model */
+            model: string;
+            /** Stale */
+            stale: boolean;
+            /** Text */
+            text: string;
         };
         /** Suggestions */
         Suggestions: {
@@ -4097,6 +4473,69 @@ export interface operations {
             };
         };
     };
+    suggestions_documents__document_id__ollama_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_documents__document_id__ollama_stream_get: {
+        parameters: {
+            query: {
+                line_number: number;
+                reroll?: boolean;
+            };
+            header?: never;
+            path: {
+                document_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     refetch_documents__document_id__refetch_post: {
         parameters: {
             query?: never;
@@ -4811,7 +5250,7 @@ export interface operations {
     stream_mt_stream_get: {
         parameters: {
             query: {
-                backend: "deepl" | "libretranslate" | "ollama" | "mecab" | "jparser";
+                backend: "deepl" | "libretranslate" | "mecab" | "jparser";
                 document_id: number;
                 line_number: number;
             };
@@ -4835,6 +5274,205 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chunk_detail_ollama_chunks__chunk_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chunk_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChunkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    flush_suggestions_ollama_flush_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FlushIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlushOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_queue_ollama_queue_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueItemOut"][];
+                };
+            };
+        };
+    };
+    add_to_queue_ollama_queue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueueItemIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_queue_ollama_queue_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueueOrder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueItemOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_from_queue_ollama_queue__item_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_now_ollama_run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"];
                 };
             };
         };
@@ -6128,6 +6766,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_ollama_stats_stats_ollama_get: {
+        parameters: {
+            query?: {
+                tz?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OllamaStatsOut"];
                 };
             };
             /** @description Validation Error */

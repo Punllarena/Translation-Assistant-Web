@@ -8,11 +8,12 @@ import { downloadBlob } from "./download";
 import NewDocument from "./NewDocument";
 import type { SeriesRow } from "./shelf";
 import { invalidateLibrary } from "./queries";
+import { useFlushOllama, useQueueOllama } from "./useOllamaQueue";
 import VolumeDetails from "./VolumeDetails";
 import { groupTitle, VolumeCover } from "./VolumeList";
 import type { VolumeGroup } from "./volumeGroups";
 
-type Open = null | "publish" | "details" | "delete" | "chapter" | "renumber" | "sort";
+type Open = null | "publish" | "details" | "delete" | "chapter" | "renumber" | "sort" | "flush";
 
 function editedLabel(group: VolumeGroup): string | null {
   let at: string | null = null;
@@ -53,6 +54,8 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
     mutationFn: () => call(api.DELETE("/volumes/{volume_id}", { params: { path: { volume_id: volume!.id } } })),
     onSuccess: async () => { await changed(); setOpen(null); },
   });
+  const ollama = useQueueOllama();
+  const flush = useFlushOllama(() => setOpen(null));
   const count = group.docs.length;
   const edited = editedLabel(group);
   const meta = [`${count} ${count === 1 ? "chapter" : "chapters"}`, `${group.progress}% translated`, edited && `edited ${edited}`]
@@ -89,6 +92,10 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
                 {(close) => (
                   <>
                     <button type="button" role="menuitem" onClick={() => { close(); setOpen("details"); }}>Edit volume details</button>
+                    <button type="button" role="menuitem" disabled={count === 0}
+                      onClick={() => { close(); ollama.queue({ kind: "volume", series_id: series.id, volume_id: volume.id }); }}>Queue volume for Ollama</button>
+                    <button type="button" role="menuitem"
+                      onClick={() => { close(); flush.reset(); setOpen("flush"); }}>Flush Ollama output…</button>
                     {volume.cover_id != null && !volume.is_series_cover && (
                       <button type="button" role="menuitem"
                         onClick={() => { close(); chooseCover.mutate(); }}>Use as series cover</button>
@@ -114,6 +121,8 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
           )}
         </div>
         {error && <p className="error" role="alert">{error.message}</p>}
+        {ollama.error && <p className="error" role="alert">{ollama.error}</p>}
+        {ollama.note && <p className="muted" role="status">{ollama.note}</p>}
       </div>
       {open === "publish" && <BatchPublish ids={group.docs.map((d) => d.id)} onClose={() => setOpen(null)} />}
       {open === "details" && volume && <VolumeDetails volume={volume} series={series} kinds={kinds} onClose={() => setOpen(null)} />}
@@ -127,6 +136,11 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
         <ConfirmDialog title="Renumber by title" confirmLabel="Renumber" busy={renumber.isPending}
           message="Renumber every chapter in this series by title? Each volume is sorted by chapter title."
           error={renumber.error?.message} onConfirm={() => renumber.mutate()} onClose={() => setOpen(null)} />
+      )}
+      {open === "flush" && volume && (
+        <ConfirmDialog title="Flush Ollama output" confirmLabel="Flush" danger busy={flush.pending}
+          message={`Clear Ollama's saved suggestions for every chapter in "${volume.label}"? Your own translation is not touched.`}
+          error={flush.error} onConfirm={() => flush.flush({ volume_id: volume.id })} onClose={() => setOpen(null)} />
       )}
       {open === "sort" && (
         <ConfirmDialog title="Sort volumes by number" confirmLabel="Sort" busy={sort.isPending}

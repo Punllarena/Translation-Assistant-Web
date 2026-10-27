@@ -196,3 +196,17 @@ def test_max_length_key_and_binding_are_accepted(app_client, make_user, login):
     body = {"a" * 120: "b" * 120}
     assert app_client.put("/shortcuts", json=body).status_code == 200
     assert app_client.put("/settings", json={"k" * 120: 1}).status_code == 200
+
+
+def test_invalid_ollama_schedule_is_422(app_client, make_user, login):
+    make_user(email="s@example.com")
+    login(app_client, "s@example.com")
+    good = {"enabled": True, "start": "22:00", "end": "06:00", "days": [0, 1], "tz": "Asia/Manila"}
+    bad = {**good, "tz": "Mars/Olympus"}
+    r = app_client.put("/settings", json={"ollama_schedule": bad})
+    assert r.status_code == 422
+    assert app_client.get("/settings").json() == {}
+    assert app_client.put("/settings", json={"ollama_schedule": good}).status_code == 200
+    # null stays allowed, and so does deleting it
+    assert app_client.put("/settings", json={"ollama_schedule": None}).status_code == 200
+    assert app_client.delete("/settings/ollama_schedule").status_code == 204

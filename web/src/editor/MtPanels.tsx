@@ -1,43 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
 import { apply, initial, type Entry, type MtState } from "./mtEvents";
+import OllamaCard from "./OllamaCard";
+import { useSse } from "./useSse";
 
 const EVENTS = ["chunk", "thinking", "result", "analysis", "needs_setup", "error", "done"];
 const LABELS: Record<string, string> = {
   deepl: "DeepL", libretranslate: "LibreTranslate", ollama: "Ollama", mecab: "MeCab", jparser: "JParser",
 };
-const TERMINAL = new Set(["needs_setup", "error", "done"]);
+const RUNNING: MtState = { ...initial, status: "running" };
 
 function useMtStream(backend: string, documentId: number, lineNumber: number) {
-  const [state, setState] = useState<MtState>(initial);
   const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    setState({ ...initial, status: "running" });
-    let es: EventSource | null = null;
-    const timer = setTimeout(() => {
-      const params = new URLSearchParams({ backend, document_id: String(documentId), line_number: String(lineNumber) });
-      const source = new EventSource(`/api/mt/stream?${params}`);
-      es = source;
-      let heard = false;
-      let terminal = false;
-      for (const type of EVENTS) {
-        source.addEventListener(type, (e) => {
-          heard = true;
-          let data: unknown = {};
-          try { data = JSON.parse((e as MessageEvent).data); } catch { /* keep {} */ }
-          setState((s) => apply(s, type, data));
-          if (TERMINAL.has(type)) { terminal = true; source.close(); }
-        });
-      }
-      source.onerror = () => {
-        if (!terminal) setState((s) => apply(s, "error", { message: heard ? "Connection lost" : "Connection failed" }));
-        source.close();
-      };
-    }, 300);
-    return () => { clearTimeout(timer); es?.close(); };
-  }, [backend, documentId, lineNumber, attempt]);
+  const params = new URLSearchParams({ backend, document_id: String(documentId), line_number: String(lineNumber) });
+  const state = useSse<MtState>({ url: `/api/mt/stream?${params}`, nonce: attempt, events: EVENTS, apply, initial, start: RUNNING });
   return { state, retry: useCallback(() => setAttempt((a) => a + 1), []) };
 }
 
@@ -73,16 +51,19 @@ function Card({ name, label, documentId, lineNumber, onUse }: {
   );
 }
 
-/** Machine translation cards for the active line, one SSE stream per enabled backend. */
-export default function MtPanels({ documentId, lineNumber, onUse }: {
-  documentId: number; lineNumber: number; onUse(text: string): void;
+/** Machine translation cards for the active line, one SSE stream per enabled backend
+ * (Ollama has its own card and endpoints: `translated` decides whether it asks unprompted). */
+export default function MtPanels({ documentId, lineNumber, translated, onUse }: {
+  documentId: number; lineNumber: number; translated: boolean; onUse(text: string): void;
 }) {
   const backends = useQuery({ queryKey: ["mt", "backends"], queryFn: () => call(api.GET("/mt/backends")) });
   const enabled = backends.data?.enabled ?? [];
   if (!enabled.length) return null;
   return (
     <div className="mt-panels" aria-label="Machine translation">
-      {enabled.map((name) => (
+      {enabled.map((name) => name === "ollama" ? (
+        <OllamaCard key={name} documentId={documentId} lineNumber={lineNumber} translated={translated} onUse={onUse} />
+      ) : (
         <Card key={name} name={name} label={LABELS[name] ?? name}
           documentId={documentId} lineNumber={lineNumber} onUse={onUse} />
       ))}

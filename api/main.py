@@ -6,6 +6,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from api import jobs, tadb_uploads, yomitan_job
 from api.config import get_settings
+from api.ollama import runner, schedule, store  # noqa: F401  store registers ollama_cleanup
 from api.routers import (
     admin,
     auth,
@@ -21,6 +22,7 @@ from api.routers import (
     lines,
     memory,
     mt,
+    ollama_editor,
     scrape,
     series,
     settings,
@@ -36,6 +38,7 @@ from api.routers import (
 from api.routers import (
     jobs as jobs_routes,
 )
+from api.routers import ollama as ollama_routes
 from api.routing import CommitOnResponseRoute
 
 
@@ -43,6 +46,7 @@ from api.routing import CommitOnResponseRoute
 async def lifespan(app: FastAPI):
     if not get_settings().run_jobs_worker:
         yield
+        await ollama_editor.stop()
         return
     await run_in_threadpool(jobs.fail_interrupted)
     await run_in_threadpool(tadb_uploads.sweep)
@@ -50,10 +54,15 @@ async def lifespan(app: FastAPI):
     jobs.stopping.clear()
     stop = asyncio.Event()
     task = asyncio.create_task(jobs.worker(stop))
+    ollama_task = asyncio.create_task(runner.runner(stop))
+    tick_task = asyncio.create_task(schedule.ticker(stop))
     yield
     jobs.stopping.set()  # a running job stops at its next progress point
     stop.set()
     await task
+    await ollama_task
+    await tick_task
+    await ollama_editor.stop()  # by-hand chunks in flight
 
 
 def create_app() -> FastAPI:
@@ -88,6 +97,8 @@ def create_app() -> FastAPI:
     app.include_router(credentials.router)
     app.include_router(mt.router)
     app.include_router(jobs_routes.router)
+    app.include_router(ollama_routes.router)
+    app.include_router(ollama_editor.router)
     app.include_router(epub.router)
     app.include_router(wp.router)
     app.include_router(stats.router)
