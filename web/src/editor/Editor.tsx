@@ -1,11 +1,10 @@
 import type { EditorView } from "@codemirror/view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router";
 import SpellMenu from "./SpellMenu";
 import { useSpell } from "./useSpell";
 import { api, call, type Schemas } from "../api/client";
-import { shownTitle } from "../library/shelf";
 import type { Misspelling } from "./LineCard";
 import CardList from "./CardList";
 import CodeEditor, { insertAtCursor, setMarks } from "./CodeEditor";
@@ -15,9 +14,20 @@ import { PUNCTUATIONS } from "./keymap";
 import { advanceParse, retreatParse } from "./parse";
 import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, prevContent, progress } from "./rows";
 import PhraseDialog from "./PhraseDialog";
-import StatusBar from "./StatusBar";
+import ReadingSwitch from "./ReadingSwitch";
+import { readingMode, type ReadingMode } from "./ruby";
+import { useReadings } from "./useReadings";
+import StatusBar, { type Crumbs } from "./StatusBar";
+import Menu from "../ui/Menu";
+import { Memory, Picture, Translate } from "../ui/icons";
 import MtPanels from "./MtPanels";
 import TmPanel from "./TmPanel";
+import ChapterNav from "./ChapterBar";
+import { chapterNeighbours } from "./chapterNav";
+import JumpBack from "./JumpBack";
+import ChapterEnd from "./ChapterEnd";
+import { useLeave } from "./useLeave";
+import { useAllVolumes, useDocuments, useSeriesList } from "../library/queries";
 import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
 import { useBindings, useEditorKeys } from "./useEditorKeys";
@@ -48,11 +58,11 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const onReady = useCallback((v: EditorView | null) => { view.current = v; }, []);
   const current = lines[ed.active];
   const queryClient = useQueryClient();
-  const setFont = (px: number) => {
-    const size = Math.max(12, Math.min(32, px));
-    queryClient.setQueryData(["settings"], { ...settings.data, editor_font_px: size });
-    void call(api.PUT("/settings", { body: { editor_font_px: size } })).catch(() => {});
+  const saveSetting = (key: string, value: unknown) => {
+    queryClient.setQueryData(["settings"], { ...settings.data, [key]: value });
+    void call(api.PUT("/settings", { body: { [key]: value } })).catch(() => {});
   };
+  const setFont = (px: number) => saveSetting("editor_font_px", Math.max(12, Math.min(32, px)));
   const edRef = useRef(ed);
   edRef.current = ed;
   const find = useFind(rows, ed.texts, ed.active, ed.activate);
@@ -63,6 +73,17 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const [menu, setMenu] = useState<{ x: number; y: number; word: Misspelling } | null>(null);
   const [phrase, setPhrase] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const docs = useDocuments();
+  const volumes = useAllVolumes();
+  const seriesList = useSeriesList();
+  const volumeId = data.document.volume_id;
+  const crumbs: Crumbs = {
+    series: { id: seriesId, title: seriesList.data?.find((s) => s.id === seriesId)?.title ?? "Series" },
+    volume: { id: volumeId, label: volumes.data?.find((v) => v.id === volumeId)?.label ?? "Volume" },
+  };
+  const { leave, notice: leaveNotice } = useLeave(ed.store, ed.save.state);
+  const chapters = useMemo(() => chapterNeighbours(docs.data ?? [], id), [docs.data, id]);
+  const listed = docs.data?.find((d) => d.id === id);
   const gone = ed.missing.length
     ? `Lines ${ed.missing.map((n) => n + 1).join(", ")} no longer exist (the source was edited elsewhere); reload the chapter`
     : null;
@@ -90,6 +111,10 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     return true;
   };
   const closeMenu = useCallback(() => { setMenu(null); view.current?.focus(); }, []);
+  const mode = readingMode(settings.data?.reading_aid);
+  const shown = current ? (ed.parse === -2 ? current.raw_text : current.display_text) : "";
+  const readings = useReadings(shown, mode);
+  const setMode = (m: ReadingMode) => saveSetting("reading_aid", m);
   const activeText = current ? (ed.texts[current.line_number] ?? "") : "";
   useEffect(() => {
     const v = view.current;
@@ -163,15 +188,57 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   // Every hook stays above this early return; later tasks add theirs here too and read
   // `current?.` (it is undefined for a chapter with no lines).
 
+  const firstLeft = firstUntranslated(lines, ed.texts);
+  // A move to the active line itself only brings its card back into view (activate would change nothing).
+  const returnToActive = () => {
+    document.querySelector(`article[data-index="${ed.active}"]`)?.scrollIntoView({ block: "center" });
+    view.current?.focus();
+  };
+  const goToLine = (i: number) => (i === ed.active ? returnToActive() : activate(i));
+  const imagesToggle = images.data?.length ? (
+    <button type="button" className="icon" aria-label="Images" title="Images"
+      aria-pressed={!imagesCollapsed} onClick={() => saveSetting("images_collapsed", !imagesCollapsed)}><Picture /></button>
+  ) : null;
+  const chapterMenu = (withLines: boolean) => (
+    <Menu label="⋯" buttonLabel="Chapter actions">
+      {(close) => ([
+        ["Edit source", () => void leave(`/documents/${id}/source`)],
+        ["Split chapter", () => void leave(`/documents/${id}/split`)],
+        ...(withLines ? [["Go to line…", () => run("go_to_line")] as const] : []),
+        ["Series glossary", () => void leave(`/series/${seriesId}?tab=glossary`)],
+        ["Series tools", () => void leave(`/series/${seriesId}?tab=tools`)],
+      ] as const).map(([text, act]) => (
+        <button key={text} type="button" role="menuitem" onClick={() => { close(); act(); }}>{text}</button>
+      ))}
+    </Menu>
+  );
+  const statusBar = (line: number | null, phraseText: string | null, tools: ReactNode) => (
+    <StatusBar crumbs={crumbs} line={line} total={lines.length}
+      translated={stats.done} lineCount={stats.total} percent={stats.percent} words={stats.words}
+      phrase={phraseText} save={ed.save} onRetry={() => void ed.store.flush()}
+      notice={leaveNotice ?? notice ?? gone} spellAvailable={spell.available}
+      onLeave={(to) => void leave(to)}
+      nav={listed && <ChapterNav doc={listed} chapters={chapters} onGo={(d) => void leave(`/documents/${d.id}`)} />}
+      tools={tools} />
+  );
+  const chapterEnd = (
+    <ChapterEnd doc={listed} next={chapters.next} seriesId={seriesId} total={stats.total} done={stats.done}
+      words={stats.words} firstLeft={firstLeft} onJump={goToLine} onLeave={(to) => void leave(to)} />
+  );
+
   if (!rows.some((r) => r.kind === "line")) {
-    // an illustration-only chapter still shows its images
+    // an illustration-only or empty chapter still shows its images and the way on
     if (images.isPending) return <main />;
     const only = images.data?.length ? "has only images, no source text" : "has no source text yet";
     return (
-      <main className="editor">
-        <p>This chapter {only}. <Link to={`/documents/${id}/source`}>Edit source</Link></p>
-        {(images.data ?? []).map((image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />)}
-      </main>
+      <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
+        {statusBar(null, null, <>{imagesToggle}{imagesToggle && <span className="sb-divider" aria-hidden="true" />}{chapterMenu(false)}</>)}
+        <main className="editor">
+          <p>This chapter {only}. <Link to={`/documents/${id}/source`}>Edit source</Link></p>
+          {(images.data ?? []).map((image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />)}
+          {chapterEnd}
+        </main>
+      </div>
     );
   }
   const n = current.line_number;
@@ -182,30 +249,17 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const useText = (t: string) => { ed.setText(n, t); view.current?.focus(); };
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
-      <StatusBar title={shownTitle(data.document)} line={n + 1} total={lines.length}
-        percent={stats.percent} words={stats.words}
-        phrase={ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null}
-        save={ed.save} onRetry={() => void ed.store.flush()} notice={notice ?? gone}
-        extra={<>
-          <Link to={`/documents/${id}/source`}>Edit source</Link>
-          <Link to={`/documents/${id}/split`}>Split</Link>
-          {!spell.available && <span className="muted">Spellcheck unavailable</span>}
-          <Link to={`/series/${data.document.series_id}`}>Series tools</Link>
-          <button onClick={() => {
-            queryClient.setQueryData(["settings"], { ...settings.data, tm_visible: !tmVisible });
-            void call(api.PUT("/settings", { body: { tm_visible: !tmVisible } })).catch(() => {});
-          }}>{tmVisible ? "Hide TM" : "Show TM"}</button>
-          <button onClick={() => {
-            queryClient.setQueryData(["settings"], { ...settings.data, mt_visible: !mtVisible });
-            void call(api.PUT("/settings", { body: { mt_visible: !mtVisible } })).catch(() => {});
-          }}>{mtVisible ? "Hide MT" : "Show MT"}</button>
-          {images.data?.length ? (
-            <button onClick={() => {
-              queryClient.setQueryData(["settings"], { ...settings.data, images_collapsed: !imagesCollapsed });
-              void call(api.PUT("/settings", { body: { images_collapsed: !imagesCollapsed } })).catch(() => {});
-            }}>{imagesCollapsed ? "Show images" : "Collapse images"}</button>
-          ) : null}
-        </>} />
+      {statusBar(n + 1, ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>
+          <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
+          <span className="sb-divider" aria-hidden="true" />
+          <button type="button" className="icon" aria-label="Translation memory" title="Translation memory"
+            aria-pressed={tmVisible} onClick={() => saveSetting("tm_visible", !tmVisible)}><Memory /></button>
+          <button type="button" className="icon" aria-label="Machine translation" title="Machine translation"
+            aria-pressed={mtVisible} onClick={() => saveSetting("mt_visible", !mtVisible)}><Translate /></button>
+          {imagesToggle}
+          <span className="sb-divider" aria-hidden="true" />
+          {chapterMenu(true)}
+        </>)}
       {find.open > 0 && (
         <FindBar key={find.open} needle={find.needle} position={find.at} total={find.total}
           onNeedle={find.setNeedle} onStep={find.step}
@@ -215,8 +269,10 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
           onActivate={activate} editor={editor} highlight={hit}
-          misspelled={spell.misspelled}
+          misspelled={spell.misspelled} readings={readings.ruby}
           renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
+        {chapterEnd}
+        <JumpBack active={ed.active} untranslated={firstLeft} onActivate={goToLine} onReturn={returnToActive} />
       </div>
       {(tmVisible || mtVisible) && (
         <div className="side-col">

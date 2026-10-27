@@ -219,6 +219,33 @@ def main() -> None:
                                 raw_sha=raw_sha(first.raw_text)))
         db.add(OllamaQueueItem(user_id=user.id, kind="series", series_id=ol.id,
                                document_ids=[], position=1))
+        # editor-nav.spec: volume 1 holds two chapters; the first has author ruby and filler lines
+        nav = Series(user_id=user.id, title="Nav series")
+        db.add(nav)
+        db.flush()
+        nav_vol = Volume(series_id=nav.id, kind="Volume", volume_index=Decimal(1), volume_order=1)
+        db.add(nav_vol)
+        db.flush()
+        nav_lines = {
+            "Nav one": [
+                "大(おお)きな夢(ゆめ)を見た。", "STATUS(ステータス)を開く。", "今日は晴れ。",
+                *[f"行{n}。" for n in range(1, 21)],
+            ],
+            "Nav two": ["二話目です。"],
+        }
+        for order, (title, raws) in enumerate(nav_lines.items(), start=1):
+            ch = Document(user_id=user.id, title=title, series_id=nav.id, volume_id=nav_vol.id,
+                          series_order=order)
+            db.add(ch)
+            db.flush()
+            write_lines(db, ch.id, [{"line_number": i, "prefix": "%", "raw_text": raw,
+                                     "translated_text": ""} for i, raw in enumerate(raws)])
+        # ... and volume 2 opens with a chapter that has no lines yet
+        nav_vol2 = Volume(series_id=nav.id, kind="Volume", volume_index=Decimal(2), volume_order=2)
+        db.add(nav_vol2)
+        db.flush()
+        db.add(Document(user_id=user.id, title="Nav blank", series_id=nav.id, volume_id=nav_vol2.id,
+                        series_order=len(nav_lines) + 1))
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)

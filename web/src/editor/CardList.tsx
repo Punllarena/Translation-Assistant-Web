@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Hit } from "./find";
 import LineCard, { NONE, type Misspelling } from "./LineCard";
 import type { Image, Row } from "./rows";
+import type { Ruby } from "./ruby";
 
 interface Props {
   rows: Row[];
@@ -13,9 +14,10 @@ interface Props {
   highlight?: Hit | null;
   misspelled?(text: string): Misspelling[];
   renderImage?(image: Image): ReactNode;
+  readings?: Ruby[]; // the active card's ruby when the reading aid is on
 }
 
-export default function CardList({ rows, active, parse, texts, onActivate, editor, highlight, misspelled, renderImage }: Props) {
+export default function CardList({ rows, active, parse, texts, onActivate, editor, highlight, misspelled, renderImage, readings }: Props) {
   return (
     <>
       {rows.map((row) => {
@@ -27,7 +29,7 @@ export default function CardList({ rows, active, parse, texts, onActivate, edito
             parse={isActive ? parse : -1} text={text}
             highlight={highlight?.index === row.index ? highlight : null}
             misspelled={misspelled?.(text) ?? NONE} onActivate={onActivate}
-            editor={isActive ? editor : undefined} />
+            editor={isActive ? editor : undefined} readings={isActive ? readings : undefined} />
         );
       })}
     </>

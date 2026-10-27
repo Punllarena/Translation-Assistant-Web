@@ -23,6 +23,7 @@ from api.routers import (
     memory,
     mt,
     ollama_editor,
+    readings,
     scrape,
     series,
     settings,
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(covers.router)
     app.include_router(lines.router)
     app.include_router(memory.router)
+    app.include_router(readings.router)
     app.include_router(spell.router)
     app.include_router(words.router)
     app.include_router(images.router)

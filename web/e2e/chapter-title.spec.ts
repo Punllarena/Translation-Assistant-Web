@@ -19,7 +19,7 @@ test.describe.configure({ mode: "serial" });
 test("the chapter list and editor show the chapter title", async ({ page }) => {
   await signIn(page);
   await openChapter(page, SERIES, "Shown chapter title");
-  await expect(page.locator(".statusbar strong")).toHaveText("Shown chapter title");
+  await expect(page.getByRole("button", { name: /Shown chapter title/ })).toContainText("Shown chapter title");
   await page.goto(page.url() + "/source");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Edit source — Shown chapter title");
 });

@@ -1007,6 +1007,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/readings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get Readings */
+        post: operations["get_readings_readings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/scrape/syosetu": {
         parameters: {
             query?: never;
@@ -2899,6 +2916,32 @@ export interface components {
         QueueOrder: {
             /** Ids */
             ids: number[];
+        };
+        /** ReadingToken */
+        ReadingToken: {
+            /** Kana */
+            kana: string;
+            /** Pos */
+            pos: string;
+            /** Surface */
+            surface: string;
+        };
+        /** ReadingsOut */
+        ReadingsOut: {
+            /** Available */
+            available: boolean;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+            /** Tokens */
+            tokens: components["schemas"]["ReadingToken"][];
+        };
+        /** ReadingsRequest */
+        ReadingsRequest: {
+            /** Text */
+            text: string;
         };
         /** Refetch */
         Refetch: {
@@ -5473,6 +5516,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobOut"];
+                };
+            };
+        };
+    };
+    get_readings_readings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
