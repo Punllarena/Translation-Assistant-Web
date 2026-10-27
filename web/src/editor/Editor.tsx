@@ -221,7 +221,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       {(tmVisible || mtVisible) && (
         <div className="side-col">
           {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={useText} />}
-          {mtVisible && <MtPanels documentId={id} lineNumber={n} onUse={useText} />}
+          {mtVisible && <MtPanels documentId={id} lineNumber={n} translated={Boolean(ed.texts[n])} onUse={useText} />}
         </div>
       )}
       </div>

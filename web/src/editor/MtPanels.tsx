@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
 import { apply, initial, type Entry, type MtState } from "./mtEvents";
+import OllamaCard from "./OllamaCard";
 
 const EVENTS = ["chunk", "thinking", "result", "analysis", "needs_setup", "error", "done"];
 const LABELS: Record<string, string> = {
@@ -73,16 +74,19 @@ function Card({ name, label, documentId, lineNumber, onUse }: {
   );
 }
 
-/** Machine translation cards for the active line, one SSE stream per enabled backend. */
-export default function MtPanels({ documentId, lineNumber, onUse }: {
-  documentId: number; lineNumber: number; onUse(text: string): void;
+/** Machine translation cards for the active line, one SSE stream per enabled backend
+ * (Ollama has its own card and endpoints: `translated` decides whether it asks unprompted). */
+export default function MtPanels({ documentId, lineNumber, translated, onUse }: {
+  documentId: number; lineNumber: number; translated: boolean; onUse(text: string): void;
 }) {
   const backends = useQuery({ queryKey: ["mt", "backends"], queryFn: () => call(api.GET("/mt/backends")) });
   const enabled = backends.data?.enabled ?? [];
   if (!enabled.length) return null;
   return (
     <div className="mt-panels" aria-label="Machine translation">
-      {enabled.map((name) => (
+      {enabled.map((name) => name === "ollama" ? (
+        <OllamaCard key={name} documentId={documentId} lineNumber={lineNumber} translated={translated} onUse={onUse} />
+      ) : (
         <Card key={name} name={name} label={LABELS[name] ?? name}
           documentId={documentId} lineNumber={lineNumber} onUse={onUse} />
       ))}
