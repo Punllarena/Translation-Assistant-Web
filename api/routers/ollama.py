@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import StaleDataError
 
 from api import jobs
 from api.deps import current_user, db_session, scoped, scoped_volume
@@ -160,7 +161,10 @@ def reorder_queue(
         )
     for position, item_id in enumerate(body.ids):
         items[item_id].position = position
-    db.flush()
+    try:
+        db.flush()
+    except StaleDataError:  # the runner removed a finished item meanwhile
+        raise _conflict("The queue changed; reload it and try again.") from None
     return _listing(db, user.id)
 
 

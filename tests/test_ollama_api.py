@@ -109,6 +109,29 @@ def test_queue_order(app_client, me, make_series):
         assert app_client.put("/ollama/queue/order", json={"ids": bad}).status_code == 422
 
 
+def test_queue_order_racing_the_runner_is_409(app_client, db, me, make_series, monkeypatch):
+    from sqlalchemy import delete
+
+    from api.routers import ollama as router
+
+    ids = [
+        _add(app_client, kind="series", series_id=make_series(me, f"S{i}").id).json()["id"]
+        for i in range(2)
+    ]
+    real = router._items
+
+    def items_then_gone(db, user_id):
+        loaded = real(db, user_id)
+        # the runner deletes a finished item between the read and the write
+        db.execute(delete(OllamaQueueItem).where(OllamaQueueItem.id == ids[0]),
+                   execution_options={"synchronize_session": False})
+        return loaded
+
+    monkeypatch.setattr(router, "_items", items_then_gone)
+    r = app_client.put("/ollama/queue/order", json={"ids": ids[::-1]})
+    assert r.status_code == 409
+
+
 def test_queue_delete(app_client, me, make_user, make_series, db):
     mine = _add(app_client, kind="series", series_id=make_series(me).id).json()["id"]
     other = make_user(email="other@example.com")
