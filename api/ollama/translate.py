@@ -43,11 +43,14 @@ async def translate(
     client: httpx.AsyncClient, ep: Endpoint, before: list[Item], chunk: list[Item], *,
     on_line: Callable[[int, str], Awaitable[None]] | None = None,
     on_thinking: Callable[[str], Awaitable[None]] | None = None,
-    ctx: int = 0, depth: int = 0, clamped: bool = False,
+    ctx: int = 0, should_stop: Callable[[], Awaitable[bool]] | None = None,
+    depth: int = 0, clamped: bool = False,
 ) -> ChunkResult:
     """``ctx`` is the steady window (``prompt.steady_ctx``); a request needing more gets the
-    next power of two. BackendError (transport, HTTP, truncated stream) propagates; the caller
-    retries."""
+    next power of two. ``should_stop`` is asked before each sub-request of a halving cascade:
+    when it says stop, what was checked so far is returned and the lines not yet asked are
+    neither answered nor failed. BackendError (transport, HTTP, truncated stream) propagates;
+    the caller retries."""
     asked = [i for i in chunk if i.known is None]
     if not asked:
         return ChunkResult()
@@ -56,7 +59,7 @@ async def translate(
     limit = ep.info.context_length
     if len(asked) > 1 and limit is not None and need > limit:
         return await _split(client, ep, before, chunk, ChunkResult(), on_line, on_thinking,
-                            ctx, depth + 1, True)
+                            should_stop, ctx, depth + 1, True)
 
     sent = request_ctx(ctx, need, limit)
     options: dict = {"num_ctx": sent}
@@ -101,26 +104,35 @@ async def translate(
             return result
         # the halves keep the window just sent, so the model is not reloaded for them
         return await _split(client, ep, before, chunk, result, on_line, on_thinking,
-                            sent, depth + 1, clamped)
+                            should_stop, sent, depth + 1, clamped)
     stats.ok = True
     return ChunkResult(lines=lines, requests=[stats], num_ctx=sent)
 
 
-async def _split(client, ep, before, chunk, result, on_line, on_thinking, ctx, depth, clamped):
+async def _split(client, ep, before, chunk, result, on_line, on_thinking, should_stop, ctx,
+                 depth, clamped):
     """Translate both halves; the second one sees the first's answers as context."""
     first, second = halves(chunk)
+    if should_stop and await should_stop():
+        return result
     a = await translate(client, ep, before, first, on_line=on_line, on_thinking=on_thinking,
-                        ctx=ctx, depth=depth, clamped=clamped)
+                        ctx=ctx, should_stop=should_stop, depth=depth, clamped=clamped)
+    result.lines.update(a.lines)
+    result.failed += a.failed
+    result.requests += a.requests
+    result.num_ctx = max(result.num_ctx, a.num_ctx)
+    if should_stop and await should_stop():
+        return result
     filled = [replace(i, known=a.lines[i.line_number]) if i.line_number in a.lines else i
               for i in first]
     # at least the original context count, plus the first half so its answers show
     context = context_before(before + filled, second[0].line_number,
                              len(before) + len(first))
     b = await translate(client, ep, context, second, on_line=on_line, on_thinking=on_thinking,
-                        ctx=max(ctx, a.num_ctx), depth=depth, clamped=clamped)
-    result.lines.update(a.lines)
+                        ctx=max(ctx, a.num_ctx), should_stop=should_stop, depth=depth,
+                        clamped=clamped)
     result.lines.update(b.lines)
-    result.failed += a.failed + b.failed
-    result.requests += a.requests + b.requests
-    result.num_ctx = max(result.num_ctx, a.num_ctx, b.num_ctx)
+    result.failed += b.failed
+    result.requests += b.requests
+    result.num_ctx = max(result.num_ctx, b.num_ctx)
     return result

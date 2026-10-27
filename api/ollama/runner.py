@@ -193,7 +193,12 @@ async def _chunk(
                 if problem:
                     raise _Failed(problem)
                 ep = await endpoint.ready(client, step.ep)
-                result = await translate(client, ep, step.plan.before, step.plan.chunk, ctx=ctx)
+
+                async def should_stop() -> bool:  # a halving cascade ends on cancel or window end
+                    return await run_in_threadpool(_check, job_id) is not None
+
+                result = await translate(client, ep, step.plan.before, step.plan.chunk, ctx=ctx,
+                                         should_stop=should_stop)
                 await saved(result)
                 return result
         except BackendError as exc:

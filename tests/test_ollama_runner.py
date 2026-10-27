@@ -222,3 +222,22 @@ async def test_lines_asked_but_not_answered_are_not_asked_again(setup, in_test_d
     in_test_db.refresh(job)
     assert job.state == "done" and asked == [[0, 1], [2, 3]]
     assert _suggested(in_test_db, doc) == {}
+
+
+async def test_cancel_during_a_halving_cascade_stops_it(setup, in_test_db):
+    _, doc, job = setup()
+    runner.claim(in_test_db)
+    seen = []
+
+    def handle(request):
+        if request.url.path == "/api/show":
+            return httpx.Response(200, json=SHOW)
+        seen.append(_asked(json.loads(request.content)))
+        job.cancel_requested = True  # cancelled while the bad answer comes back
+        return httpx.Response(200, content=_ndjson("not json"))
+
+    await runner.run_one(job.id, lambda: httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+    in_test_db.refresh(job)
+    assert seen == [[0, 1]]  # the halves were never asked
+    assert job.state == "cancelled" and job.result_json["failed"] == 0
+    assert _suggested(in_test_db, doc) == {}

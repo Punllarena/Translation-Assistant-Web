@@ -100,6 +100,39 @@ async def test_num_ctx_is_the_steady_window_for_every_request():
     assert seen[0]["options"]["num_ctx"] == 6000  # clamped to the model's context length
 
 
+async def test_should_stop_ends_a_halving_cascade():
+    def bad(body):
+        return httpx.Response(200, content=ndjson("not json"))
+
+    async def stop():
+        return True
+
+    seen = []
+    async with client(bad, seen) as c:
+        r = await translate(c, ep(), [], items(1, 2, 3, 4), should_stop=stop)
+    assert len(seen) == 1  # no sub-request once it says stop
+    assert r.lines == {} and r.failed == [] and [q.ok for q in r.requests] == [False]
+
+    # stops between the halves: the first half's answers are kept, the second is not asked
+    def first_half_only(body):
+        ids = asked_ids(body)
+        if len(ids) == 4:
+            return httpx.Response(200, content=ndjson("not json"))
+        return httpx.Response(200, content=ndjson(answer(*ids)))
+
+    checks = []
+
+    async def after_one():
+        checks.append(1)
+        return len(checks) > 1
+
+    seen.clear()
+    async with client(first_half_only, seen) as c:
+        r = await translate(c, ep(), [], items(1, 2, 3, 4), should_stop=after_one)
+    assert [asked_ids(b) for b in seen] == [[1, 2, 3, 4], [1, 2]]
+    assert r.lines == {1: "T1", 2: "T2"} and r.failed == []
+
+
 async def test_single_line_failure_is_recorded_not_raised():
     def handler(body):
         return httpx.Response(200, content=ndjson('{"lines": []}'))
