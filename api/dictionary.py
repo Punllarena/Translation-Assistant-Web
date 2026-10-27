@@ -80,18 +80,35 @@ def _drop_cached() -> None:
     jparser._load_rules_cached.cache_clear()
 
 
-def install(kind: Kind, data: bytes) -> int:
-    """Validate, then atomically replace the data-dir file. Returns the entry/rule count."""
+def _temp_file(kind: Kind, data: bytes) -> tuple[Path, int]:
+    """Write the bytes to a temp file beside the installed one and count its entries."""
     d = dict_dir()
     d.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=d, prefix=FILENAMES[kind] + ".", suffix=".tmp")
+    path = Path(tmp)
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(data)
-        n = _count(kind, Path(tmp))
-        os.replace(tmp, d / FILENAMES[kind])
+        return path, _count(kind, path)
     except BaseException:
-        Path(tmp).unlink(missing_ok=True)
+        path.unlink(missing_ok=True)
+        raise
+
+
+def validate(kind: Kind, data: bytes) -> int:
+    """install's check without installing: the entry count, or ValueError."""
+    path, n = _temp_file(kind, data)
+    path.unlink(missing_ok=True)
+    return n
+
+
+def install(kind: Kind, data: bytes) -> int:
+    """Validate, then atomically replace the data-dir file. Returns the entry/rule count."""
+    path, n = _temp_file(kind, data)
+    try:
+        os.replace(path, dict_dir() / FILENAMES[kind])
+    except BaseException:
+        path.unlink(missing_ok=True)
         raise
     _drop_cached()
     return n

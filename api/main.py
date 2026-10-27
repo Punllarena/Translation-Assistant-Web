@@ -6,7 +6,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from api import jobs, tadb_uploads, yomitan_job
-from api.backup import state
+from api.backup import restore, state
 from api.config import get_settings
 from api.ollama import runner, schedule, store  # noqa: F401  store registers ollama_cleanup
 from api.routers import (
@@ -50,6 +50,8 @@ MAINTENANCE_ALLOWED = frozenset({"/restore/status", "/healthz"})
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # A restore interrupted after its commit left dict.ready/: complete that swap now.
+    await run_in_threadpool(restore.recover_dictionaries)
     if not get_settings().run_jobs_worker:
         yield
         await ollama_editor.stop()
