@@ -17,3 +17,5 @@ web/e2e/.generated/
 web/.e2e-data/
 .claude/
 .superpowers/
+/*.sql
+docs/superpowers/handoff/
