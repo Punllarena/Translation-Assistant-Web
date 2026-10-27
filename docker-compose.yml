@@ -31,7 +31,7 @@ services:
       POSTGRES_USER: ta
       POSTGRES_PASSWORD: ta
       POSTGRES_DB: ta
-    ports: ["127.0.0.1:5432:5432"]
+    ports: ["127.0.0.1:${TA_DB_PORT:-5432}:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ta"]
@@ -51,6 +51,7 @@ services:
       TA_SECRET_KEY_FILE: /data/secret_key
       TA_DATABASE_URL: postgresql+psycopg://ta:ta@postgres:5432/ta
       TA_DATA_DIR: /data
+      TA_COOKIE_SECURE: ${TA_COOKIE_SECURE:-true}
     volumes: ["ta_data:/data"]
     # Not published: only Caddy reaches it, which is what makes trusting
     # X-Forwarded-For (--forwarded-allow-ips in docker/entrypoint.sh) safe.
