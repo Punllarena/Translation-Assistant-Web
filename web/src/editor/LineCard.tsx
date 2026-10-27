@@ -69,7 +69,7 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, onA
     return spans;
   }, [misspelled, highlight]);
   return (
-    <article ref={ref} className={active ? "card active" : "card"} aria-current={active || undefined}
+    <article ref={ref} data-index={index} className={active ? "card active" : "card"} aria-current={active || undefined}
       onClick={() => { if (!active) onActivate(index); }}>
       <span className="card-number">{line.line_number + 1}</span>
       <p className={readings?.length ? "source with-readings" : "source"} lang="ja">

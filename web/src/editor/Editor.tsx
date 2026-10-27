@@ -24,6 +24,8 @@ import MtPanels from "./MtPanels";
 import TmPanel from "./TmPanel";
 import ChapterNav from "./ChapterBar";
 import { chapterNeighbours } from "./chapterNav";
+import JumpBack from "./JumpBack";
+import ChapterEnd from "./ChapterEnd";
 import { useLeave } from "./useLeave";
 import { useAllVolumes, useDocuments, useSeriesList } from "../library/queries";
 import { useEditor } from "./useEditor";
@@ -197,6 +199,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       </main>
     );
   }
+  const firstLeft = firstUntranslated(lines, ed.texts);
   const n = current.line_number;
   const editor = (
     <CodeEditor key={n} value={ed.texts[n] ?? ""} label="Translation"
@@ -246,6 +249,13 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
           onActivate={activate} editor={editor} highlight={hit}
           misspelled={spell.misspelled} readings={readings.ruby}
           renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
+        <ChapterEnd doc={listed} next={chapters.next} seriesId={seriesId} total={stats.total} done={stats.done}
+          words={stats.words} firstLeft={firstLeft} onJump={activate} onLeave={(to) => void leave(to)} />
+        <JumpBack active={ed.active} untranslated={firstLeft} onActivate={activate}
+          onReturn={() => {
+            document.querySelector(`article[data-index="${ed.active}"]`)?.scrollIntoView({ block: "center" });
+            view.current?.focus();
+          }} />
       </div>
       {(tmVisible || mtVisible) && (
         <div className="side-col">
