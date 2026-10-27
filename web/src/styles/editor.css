@@ -14,6 +14,10 @@
 .card-number { float: right; font-family: var(--mono); font-size: .7em; color: var(--muted); }
 .source { margin: 0 0 .3em; font-family: var(--jp); line-height: 1.85; color: var(--src); }
 .card.active .source { color: var(--ink); }
+.source rt { font-size: .5em; color: var(--muted); }
+.source rt.rt-latin { font-family: var(--sans); }
+.source rt.find-current { color: var(--ink); }
+.card.active .source.with-readings { line-height: 2.2; }
 .translation { margin: 0; white-space: pre-wrap; font-family: var(--serif); }
 .code-editor { font-family: var(--serif); }
 .code-editor .cm-editor.cm-focused { outline: none; }
