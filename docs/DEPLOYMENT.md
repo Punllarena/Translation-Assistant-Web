@@ -66,7 +66,7 @@ without the wizard.
 
 ## Server settings
 
-Admins can override some environment values at **Admin → Server**: `TA_OLLAMA_URL`,
+Admins can override some environment values at **Admin → Server**:
 `TA_LIBRETRANSLATE_URL`, `TA_MT_ALLOW_PRIVATE_URLS`, `TA_WP_ALLOW_PRIVATE_URLS` and
 `TA_SYOSETU_DELAY_SECONDS`. A saved value wins over the environment, which wins over the default.
 
