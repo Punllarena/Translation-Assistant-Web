@@ -148,6 +148,27 @@ def test_next_chunk_drops_items_whose_target_is_gone(db, make_user, make_series,
     assert db.scalars(select(OllamaQueueItem.position)).all() == [3]
 
 
+def test_next_plan_reads_only_chapters_with_work_left(db, make_user, make_series, make_doc,
+                                                      monkeypatch):
+    from api.ollama import work
+
+    u = make_user()
+    s = make_series(u)
+    done = make_doc(u, ["a"], series=s, order=1, translated=True)
+    suggested = make_doc(u, ["a\r\n", "  "], series=s, order=2, translated=False)
+    _suggest(db, _lines(db, suggested)[0])  # a current suggestion: nothing to ask
+    stale = make_doc(u, ["b"], series=s, order=3, translated=False)
+    _suggest(db, _lines(db, stale)[0], sha="old")  # the source changed: ask again
+    _queue(db, u, "series", s, 1)
+    read = []
+    real = work.rows_for
+    monkeypatch.setattr(work, "rows_for", lambda db, uid, doc: read.append(doc.id) or real(
+        db, uid, doc))
+    assert next_plan(db, u.id, P).document_id == stale.id
+    assert read == [stale.id]
+    assert done.id and suggested.id
+
+
 def test_next_plan_none_keeps_series_item(db, make_user, make_series, make_doc):
     u = make_user()
     s = make_series(u)

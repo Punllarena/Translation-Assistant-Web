@@ -6,7 +6,7 @@ import hashlib
 from dataclasses import dataclass, replace
 from typing import cast
 
-from sqlalchemy import select
+from sqlalchemy import and_, exists, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,37 @@ def raw_sha(raw_text: str) -> str:
     """The only place the source hash is computed: stale checks and saves both use it."""
     text = raw_text.replace("\r\n", "\n").replace("\r", "\n").strip()
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+_SPACE = " \t\n\r\f\v"
+
+
+def _sql_sha(raw):
+    """raw_sha in SQL. Python's strip() also drops Unicode spaces, so this may differ for such
+    a line; it then only marks the chapter as having work, which rows_for corrects."""
+    unified = func.replace(func.replace(raw, "\r\n", "\n"), "\r", "\n")
+    text = func.btrim(unified, _SPACE)
+    return func.encode(func.sha256(func.convert_to(text, "UTF8")), "hex")
+
+
+def _with_work(db: Session, doc_ids: list[int]) -> set[int]:
+    """The chapters with a non-blank line that has no translation and no current suggestion:
+    one query, so a queue pass does not run rows_for (glossary and parse) over finished ones."""
+    if not doc_ids:
+        return set()
+    suggested = exists().where(
+        OllamaSuggestion.line_id == Line.id,
+        OllamaSuggestion.text.is_not(None),
+        OllamaSuggestion.raw_sha == _sql_sha(Line.raw_text),
+    )
+    return set(db.scalars(
+        select(Line.document_id).distinct().where(and_(
+            Line.document_id.in_(doc_ids),
+            Line.translated_text == "",
+            func.btrim(Line.raw_text, _SPACE) != "",
+            ~suggested,
+        ))
+    ))
 
 
 @dataclass(frozen=True)
@@ -94,7 +125,11 @@ def next_plan(
     ).all()
     for item in items:
         skipped = False
-        for doc in _documents(db, user_id, item):
+        docs = _documents(db, user_id, item)
+        pending = _with_work(db, [d.id for d in docs])
+        for doc in docs:
+            if doc.id not in pending:
+                continue
             rows = rows_for(db, user_id, doc)
             for chunk in cut(rows, p.chunk_lines):
                 todo = [r for r in cast(list[Row], chunk) if r.known is None]

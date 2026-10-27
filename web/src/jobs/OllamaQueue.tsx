@@ -17,7 +17,16 @@ const MIME = "application/x-ta-queue-item";
 export default function OllamaQueue() {
   const queryClient = useQueryClient();
   const { schedule, save, error: settingsError } = useSchedule();
-  const queue = useQuery({ queryKey: QUEUE_KEY, queryFn: () => call(api.GET("/ollama/queue")), refetchInterval: 10_000 });
+  // the header's running-jobs button keeps this fresh; lines left only move while a run works
+  const active = useQuery({
+    queryKey: ACTIVE_JOBS_KEY,
+    queryFn: () => call(api.GET("/jobs", { params: { query: { active: true } } })),
+  });
+  const running = (active.data ?? []).some((j) => j.kind === "ollama_run");
+  const queue = useQuery({
+    queryKey: QUEUE_KEY, queryFn: () => call(api.GET("/ollama/queue")),
+    refetchInterval: running ? 10_000 : 60_000,
+  });
   const [dialog, setDialog] = useState<null | "schedule" | "add" | "flush">(null);
   const [dragging, setDragging] = useState<number | null>(null);
   const [over, setOver] = useState<number | null>(null);
