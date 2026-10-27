@@ -11,6 +11,7 @@ import ChapterMenu from "./ChapterMenu";
 import { downloadBlob } from "./download";
 import MoveDialog from "./MoveDialog";
 import { moveItem } from "./order";
+import { useFlushOllama, useQueueOllama } from "./useOllamaQueue";
 import { shownTitle, type Doc, type SeriesRow } from "./shelf";
 import { invalidateLibrary } from "./queries";
 import { chapterNumber, seriesOrder, type VolumeGroup } from "./volumeGroups";
@@ -19,7 +20,7 @@ import { CHAPTER_MIME } from "./VolumeList";
 const WP_LABEL: Record<string, string> = { publish: "Published", future: "Scheduled" };
 const FORMATS = [["txt", "TXT"], ["md", "Markdown"], ["md-ruby", "Ruby Markdown"]] as const;
 
-type Open = null | "publish" | "move" | "merge" | "delete";
+type Open = null | "publish" | "move" | "merge" | "delete" | "flush";
 
 /** The selected volume's chapters: drag to reorder (native drag events, by the handle), tick rows
  *  for the selection bar, and each row's ⋯ menu. Syosetu series keep syosetu's numbering, so they
@@ -59,6 +60,8 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
       body: JSON.stringify({ document_ids: selected, format }),
     }),
   });
+  const ollama = useQueueOllama();
+  const flush = useFlushOllama(() => setOpen(null));
   const toggle = (id: number, on: boolean) => {
     const next = new Set(ticked);
     if (on) next.add(id);
@@ -79,6 +82,8 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
   return (
     <>
       {error && <p className="error" role="alert">{error.message}</p>}
+      {ollama.error && <p className="error" role="alert">{ollama.error}</p>}
+      {ollama.note && <p className="muted" role="status">{ollama.note}</p>}
       {shown.length === 0 ? <p className="muted">No chapters here yet.</p> : (
         <table className="chapters">
           <thead>
@@ -92,6 +97,9 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
                     ))}
                   </Menu>
                   <button type="button" className="small primary" onClick={() => setOpen("publish")}>Publish…</button>
+                  <button type="button" className="small" disabled={ollama.pending}
+                    onClick={() => ollama.queue({ kind: "documents", series_id: series.id, document_ids: selected })}>Queue for Ollama</button>
+                  <button type="button" className="small" onClick={() => { flush.reset(); setOpen("flush"); }}>Flush Ollama output</button>
                   <button type="button" className="small" onClick={() => setOpen("move")}>Move to…</button>
                   <button type="button" className="small" disabled={n < 2} onClick={() => { merge.reset(); setOpen("merge"); }}>Merge</button>
                   <button type="button" className="small danger" onClick={() => { remove.reset(); setOpen("delete"); }}>Delete</button>
@@ -152,6 +160,11 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
             ))}
           </tbody>
         </table>
+      )}
+      {open === "flush" && (
+        <ConfirmDialog title="Flush Ollama output" confirmLabel="Flush" danger busy={flush.pending}
+          message={`Clear Ollama's saved suggestions for ${n} ${n === 1 ? "chapter" : "chapters"}? Your own translation is not touched.`}
+          error={flush.error} onConfirm={() => flush.flush({ document_ids: selected })} onClose={() => setOpen(null)} />
       )}
       {open === "publish" && <BatchPublish ids={selected} onClose={() => setOpen(null)} />}
       {open === "move" && (

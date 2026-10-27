@@ -10,6 +10,7 @@ import NewVolumeDialog from "./NewVolumeDialog";
 import { moveItem } from "./order";
 import { kindOptions } from "./VolumeNameFields";
 import { pickedInOrder, rangeToggle } from "./rangeToggle";
+import { useQueueOllama } from "./useOllamaQueue";
 import VolumeList from "./VolumeList";
 import VolumePane from "./VolumePane";
 import { pickVolume, volumeGroups, type VolumeKey } from "./volumeGroups";
@@ -25,6 +26,7 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [anchor, setAnchor] = useState<number | null>(null);
   const [merging, setMerging] = useState(false);
+  const ollama = useQueueOllama();
   const groups = useMemo(() => volumeGroups(series.id, docs, volumes.data ?? []), [series.id, docs, volumes.data]);
   const syosetu = series.syosetu_url.trim() !== "";
   const hasVolumes = groups.some((g) => g.volume !== null);
@@ -72,6 +74,13 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
   const live = new Set(pickedInOrder(order, picked));
   const pickedVolumes = groups.flatMap((g) => (g.volume && live.has(g.volume.id) ? [g.volume] : []));
   return (
+    <>
+    <div className="toolbar">
+      <button type="button" disabled={ollama.pending || docs.length === 0}
+        onClick={() => ollama.queue({ kind: "series", series_id: series.id })}>Queue series for Ollama</button>
+      {ollama.note && <span className="muted" role="status">{ollama.note}</span>}
+      {ollama.error && <span className="error" role="alert">{ollama.error}</span>}
+    </div>
     <div className={hasVolumes ? "vol-panes" : "vol-panes single"}>
       {hasVolumes && (
         <VolumeList groups={groups} selected={group.key} onSelect={select} onNewVolume={newVolume} onDropChapter={dropChapter} onMoveVolume={moveVolume}
@@ -94,5 +103,6 @@ export default function VolumesTab({ series, docs }: { series: SeriesRow; docs: 
           onCreated={(id) => { setCreating(false); select(id); }} />
       )}
     </div>
+    </>
   );
 }
