@@ -18,3 +18,12 @@
 .heat-4 { fill: var(--h4); background: var(--h4); }
 .up { color: var(--ok); }
 .down { color: var(--danger); }
+.obars { display: flex; align-items: flex-end; gap: 3px; height: 160px; padding: 8px 16px 0; overflow-x: auto; }
+.obar { flex: 1 0 14px; max-width: 40px; height: 100%; display: flex; align-items: flex-end; }
+.obar i { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--accent); }
+.obar.none i { background: var(--line); }
+.ostack { display: flex; height: 10px; margin: 8px 0 4px; border-radius: 5px; overflow: hidden; background: var(--line); }
+.ostack i { display: block; height: 100%; }
+.ostack .used { background: var(--ok); }
+.ostack .edited { background: var(--accent); }
+.ostack .ignored { background: var(--muted); }
