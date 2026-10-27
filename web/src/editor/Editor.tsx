@@ -15,6 +15,9 @@ import { PUNCTUATIONS } from "./keymap";
 import { advanceParse, retreatParse } from "./parse";
 import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, prevContent, progress } from "./rows";
 import PhraseDialog from "./PhraseDialog";
+import ReadingSwitch from "./ReadingSwitch";
+import { readingMode, type ReadingMode } from "./ruby";
+import { useReadings } from "./useReadings";
 import StatusBar from "./StatusBar";
 import MtPanels from "./MtPanels";
 import TmPanel from "./TmPanel";
@@ -90,6 +93,13 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     return true;
   };
   const closeMenu = useCallback(() => { setMenu(null); view.current?.focus(); }, []);
+  const mode = readingMode(settings.data?.reading_aid);
+  const shown = current ? (ed.parse === -2 ? current.raw_text : current.display_text) : "";
+  const readings = useReadings(shown, mode);
+  const setMode = (m: ReadingMode) => {
+    queryClient.setQueryData(["settings"], { ...settings.data, reading_aid: m });
+    void call(api.PUT("/settings", { body: { reading_aid: m } })).catch(() => {});
+  };
   const activeText = current ? (ed.texts[current.line_number] ?? "") : "";
   useEffect(() => {
     const v = view.current;
@@ -189,6 +199,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         extra={<>
           <Link to={`/documents/${id}/source`}>Edit source</Link>
           <Link to={`/documents/${id}/split`}>Split</Link>
+          <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
           {!spell.available && <span className="muted">Spellcheck unavailable</span>}
           <Link to={`/series/${data.document.series_id}`}>Series tools</Link>
           <button onClick={() => {
@@ -215,7 +226,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
           onActivate={activate} editor={editor} highlight={hit}
-          misspelled={spell.misspelled}
+          misspelled={spell.misspelled} readings={readings.ruby}
           renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
       </div>
       {(tmVisible || mtVisible) && (
