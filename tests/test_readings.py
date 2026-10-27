@@ -58,7 +58,10 @@ def test_real_mecab_spaces():
 
 
 def test_tokens_skip_eos_between_lines():
-    out = "今日\tキョウ\tキョウ\t今日\t名詞-普通名詞\nEOS\n晴れ\tハレ\tハレ\t晴れ\t名詞-普通名詞\nEOS\n"
+    out = (
+        "今日\tキョウ\tキョウ\t今日\t名詞-普通名詞\nEOS\n"
+        "晴れ\tハレ\tハレ\t晴れ\t名詞-普通名詞\nEOS\n"
+    )
     got = readings.tokens("今日\n晴れ", _FakeTagger(out))
     assert "".join(t.surface for t in got) == "今日晴れ"
 
