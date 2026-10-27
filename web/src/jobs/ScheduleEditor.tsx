@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Modal } from "../ui/Dialog";
-import { DAY_NAMES, type ScheduleValue } from "./schedule";
+import { DAY_NAMES, validZone, type ScheduleValue } from "./schedule";
 import { defaultSchedule } from "./useSchedule";
 
 /** Edit the Ollama night window: times, days (the local day it starts on) and the time zone. */
@@ -11,7 +11,8 @@ export default function ScheduleEditor({ initial, busy, error, onSave, onClose }
   const [s, setS] = useState<ScheduleValue>(initial ?? defaultSchedule());
   const toggle = (d: number) =>
     setS({ ...s, days: s.days.includes(d) ? s.days.filter((x) => x !== d) : [...s.days, d].sort((a, b) => a - b) });
-  const valid = /^\d{2}:\d{2}$/.test(s.start) && /^\d{2}:\d{2}$/.test(s.end) && s.tz.trim() !== "";
+  const zoneOk = validZone(s.tz);
+  const valid = /^\d{2}:\d{2}$/.test(s.start) && /^\d{2}:\d{2}$/.test(s.end) && zoneOk;
   const submit = (e: FormEvent) => { e.preventDefault(); if (valid && !busy) onSave({ ...s, tz: s.tz.trim() }); };
   return (
     <Modal title="Ollama schedule" onClose={onClose} busy={busy} onSubmit={submit}>
@@ -34,8 +35,10 @@ export default function ScheduleEditor({ initial, busy, error, onSave, onClose }
           ))}
         </fieldset>
         <label className="field"><span>Time zone</span>
-          <input value={s.tz} onChange={(e) => setS({ ...s, tz: e.target.value })} />
-          <span className="hint">An IANA name such as Asia/Manila. The server rejects an unknown one.</span></label>
+          <input value={s.tz} aria-invalid={!zoneOk} onChange={(e) => setS({ ...s, tz: e.target.value })} />
+          {zoneOk
+            ? <span className="hint">An IANA name such as Asia/Manila.</span>
+            : <span className="error" role="alert">Unknown time zone. Use an IANA name such as Asia/Manila.</span>}</label>
         {error && <p className="error" role="alert">{error}</p>}
       </div>
       <div className="dlg-foot">

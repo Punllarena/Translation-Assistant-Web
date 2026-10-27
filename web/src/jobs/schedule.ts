@@ -10,6 +10,17 @@ export interface ScheduleValue {
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export const DAY_NAMES = DAYS;
 
+/** Whether `tz` is an IANA zone this browser knows (the server checks with zoneinfo). */
+export function validZone(tz: string): boolean {
+  if (!tz.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz.trim() });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** "01:00–07:00 · every night · Asia/Manila", or "Off". */
 export function summary(s: ScheduleValue | undefined): string {
   if (!s || !s.enabled) return "Off";
@@ -40,9 +51,9 @@ function zonedInstant(y: number, m: number, d: number, h: number, min: number, t
 }
 
 /** When the next window opens after `now` (a window that is open now does not count), or null
- *  when the schedule is off or has no days. Days are the local day the window starts. */
+ *  when the schedule is off, has no days or names an unknown zone. Days are the local day the window starts. */
 export function nextStart(s: ScheduleValue | undefined, now: Date): Date | null {
-  if (!s || !s.enabled || s.days.length === 0) return null;
+  if (!s || !s.enabled || s.days.length === 0 || !validZone(s.tz)) return null;
   const [h, min] = s.start.split(":").map(Number);
   const today = parts(now, s.tz);
   for (let offset = 0; offset <= 8; offset++) {

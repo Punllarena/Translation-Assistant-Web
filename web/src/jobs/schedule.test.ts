@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextStart, summary, type ScheduleValue } from "./schedule";
+import { nextStart, summary, validZone, type ScheduleValue } from "./schedule";
 
 const night: ScheduleValue = { enabled: true, start: "22:00", end: "06:00", days: [0, 1, 2, 3, 4, 5, 6], tz: "Asia/Manila" };
 
@@ -23,6 +23,10 @@ describe("nextStart", () => {
     expect(nextStart({ ...night, enabled: false }, new Date())).toBeNull();
     expect(nextStart({ ...night, days: [] }, new Date())).toBeNull();
   });
+  it("is null, not a throw, for an unknown time zone", () => {
+    expect(nextStart({ ...night, tz: "Mars/Olympus" }, new Date())).toBeNull();
+    expect(summary({ ...night, tz: "Mars/Olympus" })).toBe("22:00–06:00 · every night · Mars/Olympus");
+  });
   it("is later today when the window has not opened", () => {
     // Tue 18:00 in Manila
     expect(nextStart(night, new Date("2026-10-27T10:00:00Z"))?.toISOString()).toBe("2026-10-27T14:00:00.000Z");
@@ -43,5 +47,14 @@ describe("nextStart", () => {
     // New York is UTC-4 on 2026-10-27 (DST ends 11-01)
     const ny = { ...night, tz: "America/New_York" };
     expect(nextStart(ny, new Date("2026-10-27T10:00:00Z"))?.toISOString()).toBe("2026-10-28T02:00:00.000Z");
+  });
+});
+
+describe("validZone", () => {
+  it("accepts IANA names and refuses others", () => {
+    expect(validZone("Asia/Manila")).toBe(true);
+    expect(validZone("UTC")).toBe(true);
+    expect(validZone("Mars/Olympus")).toBe(false);
+    expect(validZone("  ")).toBe(false);
   });
 });

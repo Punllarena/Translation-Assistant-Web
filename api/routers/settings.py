@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from api.deps import current_user, db_session
 from api.errors import conflict
 from api.models import Shortcut, User, UserSetting
+from api.ollama import schedule
 from api.routing import api_router
 from api.schemas.settings import SettingsMap, ShortcutsMap
 
@@ -16,6 +17,8 @@ router = api_router(tags=["settings"])
 # discards the rest of the request's work.
 CONCURRENT_SETTING = "that setting was written concurrently; retry"
 CONCURRENT_SHORTCUT = "that shortcut was written concurrently; retry"
+BAD_SCHEDULE = ("ollama_schedule needs enabled, start and end (HH:MM), days (0-6) "
+                "and a known time zone")
 
 
 def _load_settings(db: Session, user_id: int) -> SettingsMap:
@@ -39,6 +42,10 @@ def list_settings(
 def put_settings(
     body: SettingsMap, user: User = Depends(current_user), db: Session = Depends(db_session)
 ) -> SettingsMap:
+    # A schedule the tick cannot parse would never run; null stays allowed (it clears it).
+    window = body.get(schedule.KEY)
+    if window is not None and schedule.parse(window) is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, BAD_SCHEDULE)
     existing = {
         r.key: r for r in db.scalars(select(UserSetting).where(UserSetting.user_id == user.id))
     }
