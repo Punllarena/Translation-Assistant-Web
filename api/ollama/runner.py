@@ -24,6 +24,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from api import jobs
+from api.backup import state
 from api.db import SessionLocal
 from api.models import Document, Job
 from api.mt.base import BackendError
@@ -271,9 +272,23 @@ async def run_one(
 
 
 def _claim_id() -> int | None:
+    if state.active():  # a restore is replacing the jobs table: claim nothing
+        return None
     with SessionLocal() as db:
         job = claim(db)
         return None if job is None else job.id
+
+
+async def _gated(job_id: int) -> None:
+    """One claimed run, counted as work in flight. A restore that begins first wins."""
+    try:
+        with state.work():
+            await run_one(job_id)
+    except state.Maintenance:
+        # The claim landed just as a restore began. Its jobs table is being replaced, so there
+        # is nothing worth writing; if the restore fails the row stays running until the next
+        # restart marks it interrupted, as a crash would.
+        log.warning("ollama run %s was not started: a restore is in progress", job_id)
 
 
 async def runner(stop: asyncio.Event, max_runs: int = MAX_RUNS, idle: float = 1.0) -> None:
@@ -290,7 +305,7 @@ async def runner(stop: asyncio.Event, max_runs: int = MAX_RUNS, idle: float = 1.
                     break
                 if job_id is None:
                     break
-                task = asyncio.create_task(run_one(job_id))
+                task = asyncio.create_task(_gated(job_id))
                 tasks.add(task)
                 task.add_done_callback(tasks.discard)
             try:

@@ -1,15 +1,18 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse
 
 from api import jobs, tadb_uploads, yomitan_job
+from api.backup import restore, state, uploads
 from api.config import get_settings
 from api.ollama import runner, schedule, store  # noqa: F401  store registers ollama_cleanup
 from api.routers import (
     admin,
     auth,
+    backup,
     covers,
     credentials,
     dictionary,
@@ -42,15 +45,21 @@ from api.routers import (
 from api.routers import ollama as ollama_routes
 from api.routing import CommitOnResponseRoute
 
+# The only routes answered while a restore runs (they have to be: the SPA polls the first).
+MAINTENANCE_ALLOWED = frozenset({"/restore/status", "/healthz"})
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # A restore interrupted after its commit left dict.ready/: complete that swap now.
+    await run_in_threadpool(restore.recover_dictionaries)
     if not get_settings().run_jobs_worker:
         yield
         await ollama_editor.stop()
         return
     await run_in_threadpool(jobs.fail_interrupted)
     await run_in_threadpool(tadb_uploads.sweep)
+    await run_in_threadpool(uploads.sweep)
     await run_in_threadpool(yomitan_job.sweep)
     jobs.stopping.clear()
     stop = asyncio.Event()
@@ -75,9 +84,16 @@ def create_app() -> FastAPI:
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.middleware("http")
+    async def maintenance(request: Request, call_next):
+        if state.active() and request.url.path not in MAINTENANCE_ALLOWED:
+            return JSONResponse({"detail": state.IN_PROGRESS}, status_code=503)
+        return await call_next(request)
+
     app.include_router(auth.router)
     app.include_router(setup.router)
     app.include_router(admin.router)
+    app.include_router(backup.router)
     app.include_router(dictionary.router)
     app.include_router(invites.router)
     app.include_router(glossary.router)

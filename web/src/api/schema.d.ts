@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/admin/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Download Backup
+         * @description The whole server as one zip, streamed so the browser writes it to disk.
+         */
+        post: operations["download_backup_admin_backup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/dictionary": {
         parameters: {
             query?: never;
@@ -102,6 +122,23 @@ export interface paths {
         post: operations["upload_admin_dictionary__kind__post"];
         /** Remove */
         delete: operations["remove_admin_dictionary__kind__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Admin */
+        post: operations["restore_admin_admin_restore_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1024,6 +1061,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/restore/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Restore Status
+         * @description No login: the SPA polls it while every other route answers 503.
+         */
+        get: operations["restore_status_restore_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/scrape/syosetu": {
         parameters: {
             query?: never;
@@ -1549,6 +1606,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/setup/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Setup
+         * @description The setup wizard's choice, open while no user exists (the same trust as /setup/admin).
+         */
+        post: operations["restore_setup_setup_restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/setup/status": {
         parameters: {
             query?: never;
@@ -1975,6 +2052,11 @@ export interface components {
              */
             tz: string;
         };
+        /** Body_download_backup_admin_backup_post */
+        Body_download_backup_admin_backup_post: {
+            /** Passphrase */
+            passphrase: string;
+        };
         /** Body_import_batch_documents_import_batch_post */
         Body_import_batch_documents_import_batch_post: {
             /** Files */
@@ -2074,6 +2156,25 @@ export interface components {
         Body_inspect_epub_inspect_post: {
             /** File */
             file: string;
+        };
+        /** Body_restore_admin_admin_restore_post */
+        Body_restore_admin_admin_restore_post: {
+            /**
+             * Confirm
+             * @default
+             */
+            confirm: string;
+            /** File */
+            file: string;
+            /** Passphrase */
+            passphrase: string;
+        };
+        /** Body_restore_setup_setup_restore_post */
+        Body_restore_setup_setup_restore_post: {
+            /** File */
+            file: string;
+            /** Passphrase */
+            passphrase: string;
         };
         /** Body_upload_admin_dictionary__kind__post */
         Body_upload_admin_dictionary__kind__post: {
@@ -2990,6 +3091,25 @@ export interface components {
             /** Line Number */
             line_number: number;
         };
+        /**
+         * RestoreStatusOut
+         * @description The restore thread's state; no data from the backup beyond counts.
+         */
+        RestoreStatusOut: {
+            /** Done */
+            done: number;
+            /** Error */
+            error: string | null;
+            /** Message */
+            message: string;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "idle" | "restoring" | "done" | "failed";
+            /** Total */
+            total: number;
+        };
         /** SaveResult */
         SaveResult: {
             /** Missing */
@@ -3573,6 +3693,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    download_backup_admin_backup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["Body_download_backup_admin_backup_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_dictionary_admin_dictionary_get: {
         parameters: {
             query?: never;
@@ -3760,6 +3913,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_admin_admin_restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_restore_admin_admin_restore_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestoreStatusOut"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -5553,6 +5739,26 @@ export interface operations {
             };
         };
     };
+    restore_status_restore_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestoreStatusOut"];
+                };
+            };
+        };
+    };
     fetch_one_scrape_syosetu_post: {
         parameters: {
             query?: never;
@@ -6670,6 +6876,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_setup_setup_restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_restore_setup_setup_restore_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestoreStatusOut"];
                 };
             };
             /** @description Validation Error */

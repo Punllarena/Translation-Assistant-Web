@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api import jobs
+from api.backup import state
 from api.db import SessionLocal
 from api.models import Job, UserSetting
 from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
@@ -134,7 +135,11 @@ def tick(db: Session, now: datetime) -> None:
 
 def _tick_once() -> None:
     with SessionLocal() as db:
-        tick(db, datetime.now(UTC))
+        try:
+            with state.work():
+                tick(db, datetime.now(UTC))
+        except state.Maintenance:
+            pass  # a restore is running: this tick is skipped, the next one is a minute away
 
 
 async def ticker(stop: asyncio.Event, every: float = 60.0) -> None:

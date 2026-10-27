@@ -359,3 +359,15 @@ def test_a_line_shown_live_then_failed_ends_with_null(
     assert lines[0] == {"line_number": 3, "text": "X3"}
     assert lines[-1] == {"line_number": 3, "text": None}
     assert ev[-2][0] == "saved" and _suggested(db, doc) == {2: "H2"}
+
+
+async def test_a_url_refused_after_the_lane_wait_ends_on_needs_setup(
+        me, make_doc, db, wire, monkeypatch):
+    _set_up(db, me)
+    doc = make_doc(me, ["a", "b"], translated=False)
+    monkeypatch.setattr(ollama_editor, "_reread",
+                        lambda prep: ollama_editor._Fresh(setup="Refused"))
+    got = [e async for e in ollama_editor._events(
+        ollama_editor._prepare(db, me.id, doc.id, 0, False))]
+    assert got[-1] == ("needs_setup", {"message": "Refused"})
+    assert ("done", {}) not in got

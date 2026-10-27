@@ -3,7 +3,7 @@
 
 	# Uploads are capped again in the API after the body is received; these stop a larger
 	# body before it reaches uvicorn. EPUB and dictionary files: 64 MiB. A desktop ta.db:
-	# 1 GiB (spec §6.5). Everything else: 12 MB.
+	# 1 GiB (spec §6.5). A whole-server restore: 4 GiB, one streamed request. Everything else: 12 MB.
 	@big path /api/epub/* /api/admin/dictionary/*
 	request_body @big {
 		max_size 64MiB
@@ -12,7 +12,11 @@
 	request_body @tadb {
 		max_size 1GiB
 	}
-	@small not path /api/epub/* /api/admin/dictionary/* /api/import/tadb
+	@restore path /api/admin/restore /api/setup/restore
+	request_body @restore {
+		max_size 4GiB
+	}
+	@small not path /api/epub/* /api/admin/dictionary/* /api/import/tadb /api/admin/restore /api/setup/restore
 	request_body @small {
 		max_size 12MB
 	}

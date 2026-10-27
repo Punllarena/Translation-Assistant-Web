@@ -6,6 +6,7 @@ import DictionaryPanel from "../admin/DictionaryPanel";
 import ServerSettingsForm from "../admin/ServerSettingsForm";
 import { useMe, useSetupStatus } from "../auth/session";
 import ImportTadb from "../library/ImportTadb";
+import RestoreForm from "../restore/RestoreForm";
 
 const STEPS = ["Create admin", "Server settings", "Dictionary", "Desktop library", "Done"] as const;
 
@@ -15,6 +16,7 @@ export default function SetupPage() {
   // Decided once, on arrival: after step 1 needs_setup turns false, and the wizard must keep going.
   const [arrivedNeedingSetup] = useState(() => setup.data?.needs_setup ?? false);
   const [step, setStep] = useState(0);
+  const [choice, setChoice] = useState<"fresh" | "restore" | null>(null);
   if (!arrivedNeedingSetup) return <Navigate to={me.data ? "/" : "/login"} replace />;
   const next = () => setStep((s) => s + 1);
   return (
@@ -28,7 +30,24 @@ export default function SetupPage() {
           </li>
         ))}
       </ol>
-      {step === 0 && <CreateAdmin onDone={next} />}
+      {step === 0 && (choice === null ? (
+        <section className="panel sec" aria-labelledby="start-h">
+          <div className="sec-head"><h2 id="start-h">Start</h2></div>
+          <p className="hint">A new server starts with its first admin account. A backup from another server restores everything, accounts included.</p>
+          <div className="toolbar">
+            <button type="button" className="primary" onClick={() => setChoice("fresh")}>Start fresh</button>
+            <button type="button" onClick={() => setChoice("restore")}>Restore from a backup</button>
+          </div>
+        </section>
+      ) : choice === "fresh" ? (
+        <CreateAdmin onDone={next} />
+      ) : (
+        <section className="panel sec" aria-labelledby="restore-h">
+          <div className="sec-head"><h2 id="restore-h">Restore from a backup</h2></div>
+          <p className="hint">The file from Admin → Backup &amp; restore, and the passphrase typed there.</p>
+          <RestoreForm endpoint="/api/setup/restore" />
+        </section>
+      ))}
       {step === 1 && (
         <Step title="Server settings" onNext={next}>
           <ServerSettingsForm onSaved={next} />
