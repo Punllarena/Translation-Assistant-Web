@@ -26,6 +26,7 @@ from api.db import engine
 
 EXCLUDED = frozenset({"sessions"})
 CHUNK = 1 << 20
+QUEUED_CHUNKS = 8  # at most ~8 MiB of the zip waits for the client
 TERMINAL_IDS = sql.SQL(", ").join(sql.Literal(state) for state in sorted(jobs.TERMINAL))
 
 
@@ -137,23 +138,45 @@ class _Sink:
             self._pending.clear()
 
 
+class _Abandoned(Exception):
+    """The client went away: stop writing."""
+
+
 def stream(f: Fernet, kdf: dict) -> Iterator[bytes]:
     """The zip as buffered chunks, built in its own REPEATABLE READ, read-only transaction
-    so the file is one consistent snapshot while people keep working."""
-    chunks: queue.Queue[bytes | BaseException | None] = queue.Queue()
+    so the file is one consistent snapshot while people keep working.
+
+    The queue is bounded, so a slow client holds back the writer instead of the whole
+    backup piling up in memory; a client that leaves stops the writer."""
+    chunks: queue.Queue[bytes | BaseException | None] = queue.Queue(maxsize=QUEUED_CHUNKS)
+    abandoned = threading.Event()
+
+    def offer(item: bytes | BaseException | None) -> bool:
+        while not abandoned.is_set():
+            try:
+                chunks.put(item, timeout=0.5)
+                return True
+            except queue.Full:
+                pass
+        return False
+
+    def emit(data: bytes) -> None:
+        if not offer(data):
+            raise _Abandoned()
 
     def run() -> None:
         try:
             with engine.connect().execution_options(
                 isolation_level="REPEATABLE READ", postgresql_readonly=True
             ) as conn:
-                sink = _Sink(chunks.put)
+                sink = _Sink(emit)
                 write(conn, sink, f, kdf)
                 sink.flush()
+        except _Abandoned:
+            return
         except BaseException as exc:  # a broken export must reach the client, not only a log
-            chunks.put(exc)
-        finally:
-            chunks.put(None)
+            offer(exc)
+        offer(None)
 
     thread = threading.Thread(target=run, name="backup-export", daemon=True)
     thread.start()
@@ -163,4 +186,5 @@ def stream(f: Fernet, kdf: dict) -> Iterator[bytes]:
                 raise item
             yield item
     finally:
+        abandoned.set()
         thread.join()

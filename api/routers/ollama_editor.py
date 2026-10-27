@@ -250,7 +250,8 @@ async def _work(prep: _Prepared, key: _Key, chunk: _Chunk) -> None:
     """One by-hand chunk, counted as work in flight until it has saved."""
     try:
         with state.work():
-            await _ask(prep, chunk)
+            if not await _ask(prep, chunk):
+                return  # needs_setup was the terminal event
         chunk.emit(("done", {}))
     except state.Maintenance:
         chunk.emit(("error", {"message": state.IN_PROGRESS}))
@@ -265,9 +266,9 @@ async def _work(prep: _Prepared, key: _Key, chunk: _Chunk) -> None:
         chunk.finish()
 
 
-async def _ask(prep: _Prepared, chunk: _Chunk) -> None:
+async def _ask(prep: _Prepared, chunk: _Chunk) -> bool:
     """Wait for the lane, then reuse what is saved, or translate and save, in one hold: the
-    commit lands before the next request on the lane rereads."""
+    commit lands before the next request on the lane rereads. False: it needs setup."""
     assert prep.ep is not None
     reason = LANES.wait_reason(prep.user_id)
     if reason:
@@ -276,7 +277,7 @@ async def _ask(prep: _Prepared, chunk: _Chunk) -> None:
         fresh = await run_in_threadpool(_reread, prep)
         if fresh.setup:
             chunk.emit(("needs_setup", {"message": fresh.setup}))
-            return
+            return False
         if fresh.plan is None:
             for number, text in fresh.reused or []:
                 chunk.emit(("line", {"line_number": number, "text": text}))
@@ -289,6 +290,7 @@ async def _ask(prep: _Prepared, chunk: _Chunk) -> None:
                 result = await _translate(chunk, client, ep, fresh.plan, ctx)
             ids = await run_in_threadpool(_save, prep, fresh.plan, result)
             chunk.emit(("saved", {"chunk_ids": ids}))
+    return True
 
 
 def _ended(task: asyncio.Task) -> None:

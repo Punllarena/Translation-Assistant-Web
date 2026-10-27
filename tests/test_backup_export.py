@@ -164,3 +164,48 @@ def test_the_manifest_records_the_head_revision_and_the_closed_passphrase(db, ke
 
 def test_filename():
     assert export.filename(date(2026, 10, 27)) == "ta-backup-2026-10-27.zip"
+
+
+class _FakeEngine:
+    """stream() without a database: its ``write`` is replaced in these tests."""
+
+    def connect(self):
+        return self
+
+    def execution_options(self, **_):
+        return self
+
+    def __enter__(self):
+        return None
+
+    def __exit__(self, *exc):
+        return False
+
+
+def test_a_client_that_leaves_stops_the_writer(monkeypatch, key):
+    written = []
+
+    def write(conn, out, f, kdf):
+        for _ in range(100):
+            out.write(b"x" * export.CHUNK)
+            written.append(1)
+
+    monkeypatch.setattr(export, "engine", _FakeEngine())
+    monkeypatch.setattr(export, "write", write)
+    chunks = export.stream(*key)
+    assert len(next(chunks)) == export.CHUNK
+    chunks.close()  # returns only once the writer thread has stopped
+    assert len(written) <= export.QUEUED_CHUNKS + 2
+
+
+def test_a_broken_export_reaches_the_client(monkeypatch, key):
+    def write(conn, out, f, kdf):
+        out.write(b"x" * export.CHUNK)
+        raise RuntimeError("disk on fire")
+
+    monkeypatch.setattr(export, "engine", _FakeEngine())
+    monkeypatch.setattr(export, "write", write)
+    chunks = export.stream(*key)
+    assert len(next(chunks)) == export.CHUNK
+    with pytest.raises(RuntimeError, match="disk on fire"):
+        next(chunks)
