@@ -61,9 +61,9 @@ def flush(
     return cleared
 
 
-def cleanup(db: Session, user_id: int, now: datetime) -> int:
-    """Flush the suggestions of chapters that are fully translated and untouched for three
-    months; returns the chapters cleared."""
+def due(db: Session, user_id: int, now: datetime) -> list[int]:
+    """Chapters holding suggestions that are fully translated and untouched for three months:
+    what the clean-up flushes (the tick queues it only when there is one)."""
     candidates = (
         select(Line.document_id)
         .join(OllamaSuggestion, OllamaSuggestion.line_id == Line.id)
@@ -74,7 +74,7 @@ def cleanup(db: Session, user_id: int, now: datetime) -> int:
     untranslated = (
         func.btrim(Line.raw_text) != ""
     ) & (Line.translated_text == "")
-    done = db.scalars(
+    return list(db.scalars(
         select(Line.document_id)
         .where(Line.document_id.in_(candidates))
         .group_by(Line.document_id)
@@ -82,7 +82,13 @@ def cleanup(db: Session, user_id: int, now: datetime) -> int:
             func.count().filter(untranslated) == 0,
             func.max(Line.translated_at) < now - RETENTION,
         )
-    ).all()
+    ))
+
+
+def cleanup(db: Session, user_id: int, now: datetime) -> int:
+    """Flush the suggestions of chapters that are fully translated and untouched for three
+    months; returns the chapters cleared."""
+    done = due(db, user_id, now)
     if done:
         flush(db, user_id, document_ids=list(done))
     return len(done)

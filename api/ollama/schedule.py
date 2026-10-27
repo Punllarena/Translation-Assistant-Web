@@ -18,6 +18,7 @@ from api import jobs
 from api.db import SessionLocal
 from api.models import Job, UserSetting
 from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
+from api.ollama import store
 
 log = logging.getLogger(__name__)
 
@@ -92,19 +93,21 @@ def _start_run(db: Session, user_id: int, key: str, until: datetime) -> None:
 
 
 def _cleanup_users(db: Session, now: datetime) -> list[int]:
-    """Users with unflushed suggestions and no clean-up job yet on this UTC day."""
+    """Users with a chapter the clean-up would flush and no clean-up job yet on this UTC day
+    (a job that would clear nothing is not queued, so History is not filled with them)."""
     day = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     queued_today = select(Job.user_id).where(
         Job.kind == "ollama_cleanup",
         Job.created_at >= day,
         Job.created_at < day + timedelta(days=1),
     )
-    return list(db.scalars(
+    held = db.scalars(
         select(OllamaChunk.user_id)
         .join(OllamaSuggestion, OllamaSuggestion.chunk_id == OllamaChunk.id)
         .where(OllamaSuggestion.text.is_not(None), OllamaChunk.user_id.not_in(queued_today))
         .distinct()
-    ))
+    ).all()
+    return [user_id for user_id in held if store.due(db, user_id, now)]
 
 
 def tick(db: Session, now: datetime) -> None:

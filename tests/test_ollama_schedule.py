@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -128,7 +128,17 @@ def test_tick_enqueues_cleanup_once_per_utc_day(db, user, make_doc):
     db.add(OllamaSuggestion(line_id=line.id, chunk_id=chunk.id, text="x", raw_sha="s"))
     db.flush()
     day = datetime(2026, 10, 24, 12, 0, tzinfo=UTC)  # outside the window
+
+    def cleanups():
+        kinds = [j.kind for j in db.scalars(select(Job).where(Job.user_id == user.id))]
+        return kinds.count("ollama_cleanup")
+
+    line.translated_at = day - timedelta(days=10)
+    db.flush()
+    schedule.tick(db, day)
+    assert cleanups() == 0  # held, but nothing is past retention: no empty job in History
+    line.translated_at = day - timedelta(days=100)
+    db.flush()
     schedule.tick(db, day)
     schedule.tick(db, day)
-    kinds = [j.kind for j in db.scalars(select(Job).where(Job.user_id == user.id))]
-    assert kinds.count("ollama_cleanup") == 1
+    assert cleanups() == 1
