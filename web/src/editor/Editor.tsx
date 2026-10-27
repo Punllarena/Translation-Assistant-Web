@@ -209,6 +209,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         translated={stats.done} lineCount={stats.total} percent={stats.percent} words={stats.words}
         phrase={ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null}
         save={ed.save} onRetry={() => void ed.store.flush()} notice={notice ?? gone} spellAvailable={spell.available}
+        onLeave={(to) => void leave(to)}
         nav={listed && <ChapterNav doc={listed} chapters={chapters} onGo={(d) => void leave(`/documents/${d.id}`)} />}
         tools={<>
           <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { Link } from "react-router";
 import type { SaveState } from "./saveStore";
 
@@ -26,6 +26,7 @@ interface Props {
   onRetry(): void;
   notice?: string | null;
   spellAvailable?: boolean;
+  onLeave(to: string): void; // leaves through the save flush
 }
 
 const R = 7;
@@ -43,17 +44,25 @@ function Ring({ percent }: { percent: number }) {
 
 export default function StatusBar({
   crumbs, nav, tools, line, total, translated, lineCount, percent, words, phrase, save, onRetry, notice,
-  spellAvailable = true,
+  spellAvailable = true, onLeave,
 }: Props) {
   const { series, volume } = crumbs;
+  // A plain left click leaves through onLeave; modified clicks keep the link's own behaviour (new tab, ...).
+  const crumb = (to: string, text: string) => (
+    <Link to={to} onClick={(e: MouseEvent) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      onLeave(to);
+    }}>{text}</Link>
+  );
   return (
     <div className="statusbar">
       <nav aria-label="Breadcrumb" className="sb-crumbs">
-        <Link to="/">Library</Link>
+        {crumb("/", "Library")}
         <span aria-hidden="true">/</span>
-        <Link to={`/series/${series.id}`}>{series.title}</Link>
+        {crumb(`/series/${series.id}`, series.title)}
         <span aria-hidden="true">/</span>
-        <Link to={`/series/${series.id}?tab=volumes&volume=${volume.id ?? "none"}`}>{volume.id == null ? "No volume" : volume.label}</Link>
+        {crumb(`/series/${series.id}?tab=volumes&volume=${volume.id ?? "none"}`, volume.id == null ? "No volume" : volume.label)}
       </nav>
       <div className="sb-row">
         <div className="sb-place">{nav}</div>
