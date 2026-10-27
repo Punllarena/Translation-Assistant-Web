@@ -58,6 +58,8 @@ def test_unresolvable_host_is_refused(resolves):
 @pytest.mark.parametrize("url", [
     "http://169.254.169.254/latest", "http://[fe80::1]:11434", "http://0.0.0.0:11434",
     "http://[::]:11434", "http://metadata.google.internal/", "http://Metadata.Google.Internal./",
+    "http://100.100.100.200/latest/meta-data",  # Alibaba Cloud metadata, in CGNAT space
+    "http://[::ffff:100.100.100.200]/",
 ])
 def test_metadata_and_link_local_refused_even_when_private_allowed(url):
     assert "link-local or metadata" in urls.check_user_url(url, True, "Ollama")
@@ -70,3 +72,7 @@ def test_mapped_link_local_refused_when_private_allowed(resolves):
 
 def test_lan_address_allowed_when_private_allowed():
     assert urls.check_user_url("http://192.168.1.20:11434", True, "Ollama") is None
+
+
+def test_other_cgnat_addresses_allowed_when_private_allowed():
+    assert urls.check_user_url("http://100.100.100.201:11434", True, "Ollama") is None

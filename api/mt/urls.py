@@ -2,8 +2,8 @@
 
 Ollama endpoints come from users and are always checked; LibreTranslate's operator default
 (TA_LIBRETRANSLATE_URL) is operator-trusted and is not. With private addresses allowed, link-local
-(cloud metadata) and unspecified addresses are still refused. Blocking: call it off the event loop
-(it resolves DNS).
+(cloud metadata), Alibaba's metadata address and unspecified addresses are still refused.
+Blocking: call it off the event loop (it resolves DNS).
 """
 
 import ipaddress
@@ -23,12 +23,16 @@ def _blocked(address: str) -> bool:
             or ip.is_unspecified or ip.is_reserved or ip.is_multicast)
 
 
+# Cloud metadata services outside link-local space: Alibaba Cloud's sits in CGNAT space.
+_METADATA_ADDRESSES = {ipaddress.ip_address("100.100.100.200")}
+
+
 def _never_allowed(address: str) -> bool:
-    """Link-local (cloud metadata) and unspecified addresses: never allowed."""
+    """Link-local (cloud metadata), other metadata and unspecified addresses: never allowed."""
     ip = ipaddress.ip_address(address.split("%", 1)[0])
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
         ip = ip.ipv4_mapped
-    return ip.is_link_local or ip.is_unspecified
+    return ip.is_link_local or ip.is_unspecified or ip in _METADATA_ADDRESSES
 
 
 def check_user_url(url: str, allow_private: bool, label: str) -> str | None:
