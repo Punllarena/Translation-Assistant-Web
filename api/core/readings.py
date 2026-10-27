@@ -1,4 +1,4 @@
-"""Per-token readings (UniDic kana) for the editor's reading aid."""
+"""Per-token readings (UniDic kana of the word as written) for the editor's reading aid."""
 
 from typing import NamedTuple
 
@@ -12,19 +12,16 @@ class Token(NamedTuple):
 
 
 def tokens(text: str, tagger) -> list[Token]:
-    """Parse MeCab output (surface, pron, kana, lemma, POS joined by '-').
+    """Tag with fugashi's node API: `tagger(text)` yields words with `.surface` and `.feature`.
 
-    MeCab emits one EOS per input line; each is skipped so later lines keep their tokens.
+    Newlines are whitespace nodes, so a multi-line text keeps every token.
     """
     out: list[Token] = []
-    for line in tagger.parse(text).split("\n"):
-        if line == "EOS":
-            continue
-        parts = line.split("\t")
-        if len(parts) < 5:
-            continue
-        kana = "" if parts[2] == "*" else parts[2]
-        out.append(Token(parts[0], kana, parts[4].split("-")[0]))
+    for w in tagger(text):
+        kana = w.feature.kana
+        if not kana or kana == "*":
+            kana = ""
+        out.append(Token(w.surface, kana, w.feature.pos1 or ""))
     return out
 
 
