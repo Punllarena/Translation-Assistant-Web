@@ -197,3 +197,9 @@ def test_saving_a_line_scores_its_suggestion(app_client, db, me, make_doc):
     assert db.get(OllamaChunk, chunk.id).used_count == 1
     assert db.scalar(select(OllamaSuggestion.scored)) is True
 
+
+
+def test_id_lists_are_capped(app_client, me):
+    ids = list(range(1, 1002))
+    assert app_client.put("/ollama/queue/order", json={"ids": ids}).status_code == 422
+    assert app_client.post("/ollama/flush", json={"document_ids": ids}).status_code == 422

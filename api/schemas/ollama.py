@@ -25,11 +25,11 @@ class QueueItemOut(BaseModel):
 
 
 class QueueOrder(BaseModel):
-    ids: list[int]
+    ids: list[int] = Field(max_length=1000)
 
 
 class FlushIn(BaseModel):
-    document_ids: list[int] | None = None
+    document_ids: list[int] | None = Field(default=None, max_length=1000)
     volume_id: int | None = None
     series_id: int | None = None
 
