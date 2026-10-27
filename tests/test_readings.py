@@ -55,3 +55,15 @@ def test_real_mecab_spaces():
     pytest.importorskip("fugashi")
     toks = readings.read("今日は 晴れ")
     assert "".join(t.surface for t in toks) == "今日は晴れ"
+
+
+def test_tokens_skip_eos_between_lines():
+    out = "今日\tキョウ\tキョウ\t今日\t名詞-普通名詞\nEOS\n晴れ\tハレ\tハレ\t晴れ\t名詞-普通名詞\nEOS\n"
+    got = readings.tokens("今日\n晴れ", _FakeTagger(out))
+    assert "".join(t.surface for t in got) == "今日晴れ"
+
+
+def test_real_mecab_newline():
+    pytest.importorskip("fugashi")
+    toks = readings.read("今日は\n晴れ")
+    assert "".join(t.surface for t in toks) == "今日は晴れ"

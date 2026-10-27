@@ -12,11 +12,14 @@ class Token(NamedTuple):
 
 
 def tokens(text: str, tagger) -> list[Token]:
-    """Parse MeCab output (surface, pron, kana, lemma, POS joined by '-') up to EOS."""
+    """Parse MeCab output (surface, pron, kana, lemma, POS joined by '-').
+
+    MeCab emits one EOS per input line; each is skipped so later lines keep their tokens.
+    """
     out: list[Token] = []
     for line in tagger.parse(text).split("\n"):
         if line == "EOS":
-            break
+            continue
         parts = line.split("\t")
         if len(parts) < 5:
             continue
