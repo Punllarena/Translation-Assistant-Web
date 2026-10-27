@@ -155,7 +155,12 @@ function convertAuthor(r: Ruby, mode: ReadingMode): Ruby {
   return { ...r };
 }
 
-type Group = { from: number; to: number; kana: string; pos: string };
+/** `pos` is the first token's; once a 助動詞 is merged in, the group's final kana is no longer the verb's own. */
+type Group = { from: number; to: number; kana: string; pos: string; merged: boolean };
+
+/** The part of speech `toRomaji` should see for the kana of `g` that ends at `end`. */
+const romajiPos = (g: Group, end: number): string | undefined =>
+  g.pos === "動詞" && (g.merged || end !== g.to) ? undefined : g.pos;
 
 function romajiGroups(text: string, tokens: Token[]): Group[] {
   const groups: Group[] = [];
@@ -165,8 +170,9 @@ function romajiGroups(text: string, tokens: Token[]): Group[] {
     if (token.pos === "助動詞" && prev && prev.to === from) {
       prev.to = to;
       prev.kana += token.kana;
+      prev.merged = true;
     } else if (isJapanese(token.surface)) {
-      groups.push({ from, to, kana: token.kana, pos: token.pos });
+      groups.push({ from, to, kana: token.kana, pos: token.pos, merged: false });
     }
   }
   return groups;
@@ -178,7 +184,7 @@ function romajiAround(text: string, g: Group, author: Ruby[]): Ruby[] {
     .flatMap((a) => [[a.from, a.to, a] as const, ...(a.hide ? [[a.hide[0], a.hide[1], null] as const] : [])])
     .filter(([f, t]) => overlaps(g.from, g.to, f, t))
     .sort((x, y) => x[0] - y[0]);
-  if (!cover.length) return [{ from: g.from, to: g.to, rt: toRomaji(g.kana, g.pos) }];
+  if (!cover.length) return [{ from: g.from, to: g.to, rt: toRomaji(g.kana, romajiPos(g, g.to)) }];
   const out: Ruby[] = [];
   const pieces: [number, number][] = [];
   let at = g.from;
@@ -200,7 +206,7 @@ function romajiAround(text: string, g: Group, author: Ruby[]): Ruby[] {
       if (t === g.to && f === cover[0][1] && kana.startsWith(a) && kana.length > a.length)
         rt = kana.slice(a.length);
     }
-    if (rt) out.push({ from: f, to: t, rt: toRomaji(rt, g.pos) });
+    if (rt) out.push({ from: f, to: t, rt: toRomaji(rt, romajiPos(g, t)) });
   }
   return out;
 }

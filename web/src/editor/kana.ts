@@ -57,6 +57,8 @@ function combine(first: string, small: string): string | null {
   return null;
 }
 
+/** Hepburn romaji for `kana`. `pos` is the MeCab part of speech of the word the kana belongs to:
+ * 助詞 reads は/へ/を by sound, 動詞 keeps a final う short. */
 export function toRomaji(kana: string, pos?: string): string {
   const s = toHiragana(kana);
   const chars = Array.from(s);
@@ -95,9 +97,13 @@ export function toRomaji(kana: string, pos?: string): string {
       if (m) out = out.slice(0, -1) + MACRON[m[0]]; // ー always gets a macron, even after i
     } else out += u;
   }
-  return out
+  // A verb's own final う is a separate sound (思う omou, 吸う suu), never a long vowel.
+  const verbU = pos === "動詞" && chars[chars.length - 1] === "う" && units[units.length - 1] === "u";
+  const body = verbU ? out.slice(0, -1) : out;
+  const long = body
     .replace(/oo|ou/g, "ō")
     .replace(/uu/g, "ū")
     .replace(/aa/g, "ā")
     .replace(/ee/g, "ē");
+  return verbU ? long + "u" : long;
 }

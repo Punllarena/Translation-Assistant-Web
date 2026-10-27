@@ -33,6 +33,12 @@ describe("toRomaji", () => {
     expect(toRomaji("ファ")).toBe("fa");
     expect(toRomaji("シェ")).toBe("she");
   });
+  it("keeps a verb's own final う short", () => {
+    expect(toRomaji("おもう", "動詞")).toBe("omou");
+    expect(toRomaji("スウ", "動詞")).toBe("suu");
+    expect(toRomaji("おおきく", "形容詞")).toBe("ōkiku");
+    expect(toRomaji("おもう")).toBe("omō");
+  });
   it("reads particles by sound only for 助詞", () => {
     expect(toRomaji("は", "助詞")).toBe("wa");
     expect(toRomaji("は")).toBe("ha");

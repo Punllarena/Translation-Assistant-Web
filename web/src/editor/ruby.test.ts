@@ -118,6 +118,16 @@ describe("generatedRuby", () => {
       { from: 0, to: 4, rt: "nattara" },
     ]);
   });
+  it("keeps a verb's final う short but lengthens a merged 助動詞's う", () => {
+    expect(generatedRuby("思う", [tok("思う", "オモウ", "動詞")], "romaji", [])).toEqual([
+      { from: 0, to: 2, rt: "omou" },
+    ]);
+    expect(generatedRuby("吸う", [tok("吸う", "スウ", "動詞")], "romaji", [])).toEqual([
+      { from: 0, to: 2, rt: "suu" },
+    ]);
+    const tokens = [tok("し", "シ", "動詞"), tok("よう", "ヨウ", "助動詞")];
+    expect(generatedRuby("しよう", tokens, "romaji", [])).toEqual([{ from: 0, to: 3, rt: "shiyō" }]);
+  });
   it("reads particles as particles and skips Latin text", () => {
     expect(generatedRuby("は", [tok("は", "ハ", "助詞")], "romaji", [])).toEqual([
       { from: 0, to: 1, rt: "wa" },
