@@ -12,7 +12,12 @@ export default function ChapterNav({ doc, chapters, onGo }: {
     <span className="chapter-nav">
       <button type="button" className="quiet" aria-label="Previous chapter" disabled={!prev}
         onClick={() => prev && onGo(prev)}>‹</button>
-      <Menu align="start" label={<>{[label(doc), shownTitle(doc)].filter(Boolean).join(" ")} ▾</>} buttonLabel="Chapters">
+      <Menu align="start" buttonLabel={`${[label(doc), shownTitle(doc)].filter(Boolean).join(" ")}, chapter list`}
+        label={<>
+          {label(doc) && <span className="ch-num">{label(doc)}</span>}
+          <span className="ch-title">{shownTitle(doc)}</span>
+          <span aria-hidden="true">▾</span>
+        </>}>
         {(close) => volume.map((d) => (
           <button key={d.id} type="button" role="menuitemradio" aria-checked={d.id === doc.id}
             onClick={() => { close(); if (d.id !== doc.id) onGo(d); }}>

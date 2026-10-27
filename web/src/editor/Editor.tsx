@@ -5,7 +5,6 @@ import { Link } from "react-router";
 import SpellMenu from "./SpellMenu";
 import { useSpell } from "./useSpell";
 import { api, call, type Schemas } from "../api/client";
-import { shownTitle } from "../library/shelf";
 import type { Misspelling } from "./LineCard";
 import CardList from "./CardList";
 import CodeEditor, { insertAtCursor, setMarks } from "./CodeEditor";
@@ -18,13 +17,15 @@ import PhraseDialog from "./PhraseDialog";
 import ReadingSwitch from "./ReadingSwitch";
 import { readingMode, type ReadingMode } from "./ruby";
 import { useReadings } from "./useReadings";
-import StatusBar from "./StatusBar";
+import StatusBar, { type Crumbs } from "./StatusBar";
+import Menu from "../ui/Menu";
+import { Memory, Picture, Translate } from "../ui/icons";
 import MtPanels from "./MtPanels";
 import TmPanel from "./TmPanel";
 import ChapterNav from "./ChapterBar";
 import { chapterNeighbours } from "./chapterNav";
 import { useLeave } from "./useLeave";
-import { useAllVolumes, useDocuments } from "../library/queries";
+import { useAllVolumes, useDocuments, useSeriesList } from "../library/queries";
 import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
 import { useBindings, useEditorKeys } from "./useEditorKeys";
@@ -55,11 +56,11 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const onReady = useCallback((v: EditorView | null) => { view.current = v; }, []);
   const current = lines[ed.active];
   const queryClient = useQueryClient();
-  const setFont = (px: number) => {
-    const size = Math.max(12, Math.min(32, px));
-    queryClient.setQueryData(["settings"], { ...settings.data, editor_font_px: size });
-    void call(api.PUT("/settings", { body: { editor_font_px: size } })).catch(() => {});
+  const saveSetting = (key: string, value: unknown) => {
+    queryClient.setQueryData(["settings"], { ...settings.data, [key]: value });
+    void call(api.PUT("/settings", { body: { [key]: value } })).catch(() => {});
   };
+  const setFont = (px: number) => saveSetting("editor_font_px", Math.max(12, Math.min(32, px)));
   const edRef = useRef(ed);
   edRef.current = ed;
   const find = useFind(rows, ed.texts, ed.active, ed.activate);
@@ -71,7 +72,13 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const [phrase, setPhrase] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const docs = useDocuments();
-  useAllVolumes();
+  const volumes = useAllVolumes();
+  const seriesList = useSeriesList();
+  const volumeId = data.document.volume_id;
+  const crumbs: Crumbs = {
+    series: { id: seriesId, title: seriesList.data?.find((s) => s.id === seriesId)?.title ?? "Series" },
+    volume: { id: volumeId, label: volumes.data?.find((v) => v.id === volumeId)?.label ?? "Volume" },
+  };
   const leave = useLeave(ed.store, setNotice);
   const chapters = useMemo(() => chapterNeighbours(docs.data ?? [], id), [docs.data, id]);
   const listed = docs.data?.find((d) => d.id === id);
@@ -105,10 +112,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const mode = readingMode(settings.data?.reading_aid);
   const shown = current ? (ed.parse === -2 ? current.raw_text : current.display_text) : "";
   const readings = useReadings(shown, mode);
-  const setMode = (m: ReadingMode) => {
-    queryClient.setQueryData(["settings"], { ...settings.data, reading_aid: m });
-    void call(api.PUT("/settings", { body: { reading_aid: m } })).catch(() => {});
-  };
+  const setMode = (m: ReadingMode) => saveSetting("reading_aid", m);
   const activeText = current ? (ed.texts[current.line_number] ?? "") : "";
   useEffect(() => {
     const v = view.current;
@@ -201,31 +205,34 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const useText = (t: string) => { ed.setText(n, t); view.current?.focus(); };
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
-      <StatusBar title={shownTitle(data.document)} line={n + 1} total={lines.length}
-        percent={stats.percent} words={stats.words}
+      <StatusBar crumbs={crumbs} line={n + 1} total={lines.length}
+        translated={stats.done} lineCount={stats.total} percent={stats.percent} words={stats.words}
         phrase={ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null}
-        save={ed.save} onRetry={() => void ed.store.flush()} notice={notice ?? gone}
-        extra={<>
-          {listed && <ChapterNav doc={listed} chapters={chapters} onGo={(d) => void leave(`/documents/${d.id}`)} />}
-          <Link to={`/documents/${id}/source`}>Edit source</Link>
-          <Link to={`/documents/${id}/split`}>Split</Link>
+        save={ed.save} onRetry={() => void ed.store.flush()} notice={notice ?? gone} spellAvailable={spell.available}
+        nav={listed && <ChapterNav doc={listed} chapters={chapters} onGo={(d) => void leave(`/documents/${d.id}`)} />}
+        tools={<>
           <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
-          {!spell.available && <span className="muted">Spellcheck unavailable</span>}
-          <Link to={`/series/${data.document.series_id}`}>Series tools</Link>
-          <button onClick={() => {
-            queryClient.setQueryData(["settings"], { ...settings.data, tm_visible: !tmVisible });
-            void call(api.PUT("/settings", { body: { tm_visible: !tmVisible } })).catch(() => {});
-          }}>{tmVisible ? "Hide TM" : "Show TM"}</button>
-          <button onClick={() => {
-            queryClient.setQueryData(["settings"], { ...settings.data, mt_visible: !mtVisible });
-            void call(api.PUT("/settings", { body: { mt_visible: !mtVisible } })).catch(() => {});
-          }}>{mtVisible ? "Hide MT" : "Show MT"}</button>
+          <span className="sb-divider" aria-hidden="true" />
+          <button type="button" className="icon" aria-label="Translation memory" title="Translation memory"
+            aria-pressed={tmVisible} onClick={() => saveSetting("tm_visible", !tmVisible)}><Memory /></button>
+          <button type="button" className="icon" aria-label="Machine translation" title="Machine translation"
+            aria-pressed={mtVisible} onClick={() => saveSetting("mt_visible", !mtVisible)}><Translate /></button>
           {images.data?.length ? (
-            <button onClick={() => {
-              queryClient.setQueryData(["settings"], { ...settings.data, images_collapsed: !imagesCollapsed });
-              void call(api.PUT("/settings", { body: { images_collapsed: !imagesCollapsed } })).catch(() => {});
-            }}>{imagesCollapsed ? "Show images" : "Collapse images"}</button>
+            <button type="button" className="icon" aria-label="Images" title="Images"
+              aria-pressed={!imagesCollapsed} onClick={() => saveSetting("images_collapsed", !imagesCollapsed)}><Picture /></button>
           ) : null}
+          <span className="sb-divider" aria-hidden="true" />
+          <Menu label="⋯" buttonLabel="Chapter actions">
+            {(close) => ([
+              ["Edit source", () => void leave(`/documents/${id}/source`)],
+              ["Split chapter", () => void leave(`/documents/${id}/split`)],
+              ["Go to line…", () => run("go_to_line")],
+              ["Series glossary", () => void leave(`/series/${seriesId}?tab=glossary`)],
+              ["Series tools", () => void leave(`/series/${seriesId}?tab=tools`)],
+            ] as const).map(([text, act]) => (
+              <button key={text} type="button" role="menuitem" onClick={() => { close(); act(); }}>{text}</button>
+            ))}
+          </Menu>
         </>} />
       {find.open > 0 && (
         <FindBar key={find.open} needle={find.needle} position={find.at} total={find.total}

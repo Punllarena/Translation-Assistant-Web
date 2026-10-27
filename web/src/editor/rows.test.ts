@@ -30,8 +30,8 @@ describe("rows", () => {
     expect([lineAtOrAfter(L, 1), lineAtOrAfter(L, 2), lineAtOrAfter(L, 99), lineAtOrAfter(L, -5)]).toEqual([0, 2, 4, 0]);
   });
   it("progress counts translatable lines and words of non-empty translations", () => {
-    expect(progress(L, { 0: "two words", 2: "", 4: "x" })).toEqual({ percent: 66, words: 3 });
-    expect(progress([line(0, "")], {})).toEqual({ percent: 0, words: 0 });
+    expect(progress(L, { 0: "two words", 2: "", 4: "x" })).toEqual({ percent: 66, words: 3, done: 2, total: 3 });
+    expect(progress([line(0, "")], {})).toEqual({ percent: 0, words: 0, done: 0, total: 0 });
   });
   it("sourceText keeps $ continuations", () => {
     expect(sourceText([line(0, "一。"), line(1, "二。", "$"), line(2, "")])).toBe("一。\n$二。\n");

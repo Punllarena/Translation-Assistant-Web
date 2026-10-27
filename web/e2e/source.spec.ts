@@ -8,7 +8,8 @@ test("leaving Edit Source with unsaved text asks first", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
   await openIn(page, "E2E editor series", "E2E chapter");
-  await page.getByRole("link", { name: "Edit source" }).click();
+  await page.getByRole("button", { name: "Chapter actions" }).click();
+  await page.getByRole("menuitem", { name: "Edit source" }).click();
   await page.locator(".source-editor .cm-content").click();
   await page.keyboard.type("x");
   // The confirm runs in an effect after the click returns, so wait for each dialog explicitly.

@@ -1,9 +1,36 @@
 /* The phase 3b editor rules on tokens. The layout redesign is phase 7b. */
 .editor-page { font-size: var(--editor-font, 18px); }
-.statusbar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center;
-  padding: 8px 32px; font-size: 13px; color: var(--muted); background: color-mix(in oklch, var(--bg) 94%, transparent);
-  border-bottom: 1px solid var(--line); }
-.statusbar strong { color: var(--ink); font-family: var(--serif); font-weight: 500; font-size: 17px; }
+.statusbar { position: sticky; top: 0; z-index: 2; display: grid; gap: 4px; padding: 6px 32px 8px; font-size: 13px;
+  color: var(--muted); background: color-mix(in oklch, var(--bg) 94%, transparent); border-bottom: 1px solid var(--line); }
+.sb-crumbs { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; font-size: 12px; }
+.sb-crumbs a { color: var(--muted); text-decoration: none; }
+.sb-crumbs a:hover { color: var(--ink); text-decoration: underline; }
+/* The left zone shrinks first; the right keeps its tools; the pill sits in the middle when there is room. */
+.sb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr); gap: 8px 16px; align-items: center; }
+.sb-place { min-width: 0; }
+.sb-centre { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: center; }
+.sb-pill { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 4px 12px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.sb-line { font-family: var(--mono); }
+.sb-ring { flex: none; }
+.sb-ring circle { fill: none; stroke-width: 2.5; }
+.sb-ring-track { stroke: var(--line); }
+.sb-ring-fill { stroke: var(--accent-text); stroke-linecap: round; }
+.sb-tools { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: flex-end; }
+.sb-tools button.icon[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
+.sb-tools [role="group"] { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px;
+  background: color-mix(in oklch, var(--line) 60%, var(--bg)); }
+.sb-tools [role="group"] button { min-height: 28px; padding: 0 10px; border: 0; background: none; color: var(--muted); font-weight: 400; }
+.sb-tools [role="group"] button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500;
+  box-shadow: 0 1px 2px var(--shadow); }
+.sb-divider { width: 1px; height: 20px; margin: 0 4px; background: var(--line); }
+.chapter-nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.chapter-nav .menu-root { min-width: 0; }
+.chapter-nav .menu-root > button { max-width: 100%; min-width: 0; overflow: hidden; justify-content: flex-start; padding: 0 8px; }
+.ch-num { flex: none; min-width: max-content; white-space: nowrap; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.chapter-nav > button { flex: none; font-size: 18px; padding: 0 8px; }
+.ch-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink);
+  font-family: var(--serif); font-weight: 500; font-size: 17px; }
 .save-state { display: inline-block; min-width: 9em; }
 .editor { max-width: 60rem; margin: 0 auto; padding: 1rem 1rem 45vh; }
 .card { content-visibility: auto; contain-intrinsic-size: auto 6em; padding: .6em .8em; margin: .4em 0;
@@ -66,7 +93,9 @@
 @media (max-width: 60rem) {
   .editor-layout { flex-direction: column; }
   .side-col { position: static; width: auto; max-height: none; }
-  .statusbar { padding: 8px 16px; }
+  .statusbar { padding: 6px 16px 8px; }
+  .sb-row { grid-template-columns: minmax(0, 1fr); }
+  .sb-centre, .sb-tools { justify-content: flex-start; }
 }
 
 .chapter-nav .menu { max-height: min(60vh, 480px); overflow-y: auto; }

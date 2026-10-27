@@ -16,10 +16,14 @@ test("translation memory offers another chapter's translation and a click fills 
   await expect(panel).toContainText("Memory source");
   await panel.getByRole("button", { name: "Remembered translation." }).click();
   await expect(page.getByRole("textbox", { name: "Translation" })).toHaveText("Remembered translation.");
-  await page.getByRole("button", { name: "Hide TM" }).click();
+  const toggle = page.getByRole("button", { name: "Translation memory" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await toggle.click();
   await expect(panel).toHaveCount(0);
-  await page.getByRole("button", { name: "Show TM" }).click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
   await expect(panel).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
 });
 
 test("Ctrl+L adds a glossary phrase and the source updates in place", async ({ page }) => {

@@ -63,7 +63,7 @@ export function progress(lines: Line[], texts: Record<number, string>) {
       if (t) done++;
     }
   }
-  return { percent: total ? Math.floor((done * 100) / total) : 0, words };
+  return { percent: total ? Math.floor((done * 100) / total) : 0, words, done, total };
 }
 
 /** The Edit Source text: one line per line, $ kept on continuation lines. */
