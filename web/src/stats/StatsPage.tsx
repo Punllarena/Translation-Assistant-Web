@@ -17,7 +17,7 @@ export default function StatsPage() {
     <div className="tabs" role="tablist" aria-label="Statistics sections">
       {TABS.map((t) => (
         <button key={t.id} type="button" role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id}
-          aria-controls={`panel-${t.id}`} onClick={() => select(t.id)}>{t.label}</button>
+          onClick={() => select(t.id)}>{t.label}</button>
       ))}
     </div>
   );

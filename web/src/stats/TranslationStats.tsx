@@ -26,8 +26,9 @@ export default function TranslationStats({ tabs }: { tabs: ReactNode }) {
   const [picked, setPicked] = useState("");
   const stored = settings.data?.stats_metric;
   const metric: Metric = METRICS.includes(stored as Metric) ? (stored as Metric) : "paragraphs";
-  if (stats.isPending) return <main><p className="muted">Loading…</p></main>;
-  if (stats.isError) return <main><p className="error" role="alert">{stats.error.message}</p></main>;
+  const head = <PageHeader title="Statistics" />;
+  if (stats.isPending) return <main className="stats">{head}{tabs}<p className="muted">Loading…</p></main>;
+  if (stats.isError) return <main className="stats">{head}{tabs}<p className="error" role="alert">{stats.error.message}</p></main>;
   const s = stats.data;
   const comp = s.comparisons[metric];
   const best = s.daily.reduce<typeof s.daily[number] | null>((b, d) => (!b || d[metric] > b[metric] ? d : b), null);
