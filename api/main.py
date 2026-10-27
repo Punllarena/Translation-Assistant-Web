@@ -6,12 +6,13 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from api import jobs, tadb_uploads, yomitan_job
-from api.backup import restore, state
+from api.backup import restore, state, uploads
 from api.config import get_settings
 from api.ollama import runner, schedule, store  # noqa: F401  store registers ollama_cleanup
 from api.routers import (
     admin,
     auth,
+    backup,
     covers,
     credentials,
     dictionary,
@@ -58,6 +59,7 @@ async def lifespan(app: FastAPI):
         return
     await run_in_threadpool(jobs.fail_interrupted)
     await run_in_threadpool(tadb_uploads.sweep)
+    await run_in_threadpool(uploads.sweep)
     await run_in_threadpool(yomitan_job.sweep)
     jobs.stopping.clear()
     stop = asyncio.Event()
@@ -91,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(setup.router)
     app.include_router(admin.router)
+    app.include_router(backup.router)
     app.include_router(dictionary.router)
     app.include_router(invites.router)
     app.include_router(glossary.router)
