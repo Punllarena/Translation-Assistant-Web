@@ -599,7 +599,7 @@ export interface paths {
         /**
          * Publish Illustrations
          * @description The Illustrations chapter's Publish: the volume's illustrations page, as a job. The
-         *     plugin has no status lookup for that page, so the stored status guards re-publishing.
+         *     stored status still guards re-publishing.
          */
         post: operations["publish_illustrations_documents__document_id__wp_illustrations_post"];
         delete?: never;
@@ -1038,6 +1038,26 @@ export interface paths {
          * @description Start a run that works through the queue until it is drained.
          */
         post: operations["run_now_ollama_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ollama/runs/{job_id}/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Log
+         * @description What a run has been doing: the entries after `after`, kept in memory (api/ollama/runlog).
+         */
+        get: operations["run_log_ollama_runs__job_id__log_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2909,6 +2929,10 @@ export interface components {
             lines: number;
             /** Lines Per Hour */
             lines_per_hour: number | null;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Prompt Tokens */
+            prompt_tokens: number;
             /** S Per Chunk */
             s_per_chunk: number | null;
             /** Tokens Per S */
@@ -2927,8 +2951,29 @@ export interface components {
             retry_rate_30d: number | null;
             /** Runs */
             runs: components["schemas"]["OllamaRun"][];
+            tokens: components["schemas"]["OllamaTokens"];
             /** Tokens Per S 30D */
             tokens_per_s_30d: number | null;
+        };
+        /** OllamaTokenTotals */
+        OllamaTokenTotals: {
+            /** Output Tokens */
+            output_tokens: number;
+            /** Prompt Tokens */
+            prompt_tokens: number;
+            /** Prompt Tokens Per S */
+            prompt_tokens_per_s: number | null;
+            /** Requests */
+            requests: number;
+            /** Seconds */
+            seconds: number;
+            /** Total Tokens */
+            total_tokens: number;
+        };
+        /** OllamaTokens */
+        OllamaTokens: {
+            all: components["schemas"]["OllamaTokenTotals"];
+            d30: components["schemas"]["OllamaTokenTotals"];
         };
         /** OrderIn */
         OrderIn: {
@@ -3109,6 +3154,36 @@ export interface components {
             phase: "idle" | "restoring" | "done" | "failed";
             /** Total */
             total: number;
+        };
+        /** RunLogEntry */
+        RunLogEntry: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "info" | "warn" | "error";
+            /** Seq */
+            seq: number;
+            /** Text */
+            text: string;
+        };
+        /** RunLogOut */
+        RunLogOut: {
+            /** Ended */
+            ended: boolean;
+            /** Entries */
+            entries: components["schemas"]["RunLogEntry"][];
+            /** Kept */
+            kept: boolean;
+            /** Next */
+            next: number;
+            /** Now */
+            now: string | null;
         };
         /** SaveResult */
         SaveResult: {
@@ -5702,6 +5777,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobOut"];
+                };
+            };
+        };
+    };
+    run_log_ollama_runs__job_id__log_get: {
+        parameters: {
+            query?: {
+                after?: number;
+            };
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunLogOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

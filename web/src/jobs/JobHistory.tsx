@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
 import { countLine, formatDuration } from "./eta";
 import { isTerminal, type Job } from "./follow";
+import RunLog from "./RunLog";
 import { ACTIVE_JOBS_KEY, jobLink } from "./RunningJobs";
 
 const stamp = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -23,6 +25,18 @@ function RunResult({ job }: { job: Job }) {
         {typeof r.reason === "string" && r.reason && <><dt>Ended because</dt><dd>{r.reason}</dd></>}
       </dl>
     </div>
+  );
+}
+
+/** A finished run that opens to its counters and log; the log is fetched on first open. */
+function RunDetails({ job, head }: { job: Job; head: ReactNode }) {
+  const [opened, setOpened] = useState(false);
+  return (
+    <details className="job-main" onToggle={(e) => { if (e.currentTarget.open) setOpened(true); }}>
+      <summary>{head}</summary>
+      <RunResult job={job} />
+      {opened && <RunLog jobId={job.id} live={false} />}
+    </details>
   );
 }
 
@@ -49,11 +63,12 @@ export function RunningList() {
           const { label, to } = jobLink(job);
           return (
             <li key={job.id}>
-              <span className="job-main">
+              <div className="job-main">
                 <strong>{label}</strong>
                 <span className="hint">{job.state === "queued" ? "Waiting for another job to finish" : countLine({ ...job, message: job.message || "Working…" })}</span>
                 {job.total > 1 ? <progress max={job.total} value={job.progress} /> : <progress />}
-              </span>
+                {job.kind === "ollama_run" && <RunLog jobId={job.id} live />}
+              </div>
               {to && <Link to={to}>Open</Link>}
               <button type="button" disabled={cancel.isPending} onClick={() => cancel.mutate(job.id)}>
                 Cancel
@@ -88,10 +103,7 @@ export function JobHistory() {
         return (
           <li key={job.id}>
             {job.kind === "ollama_run" ? (
-              <details className="job-main">
-                <summary>{head}</summary>
-                <RunResult job={job} />
-              </details>
+              <RunDetails job={job} head={head} />
             ) : (
               <div className="job-main">
                 <div className="job-head">{head}</div>

@@ -12,7 +12,7 @@ from api import jobs
 from api.config import get_settings
 from api.models import ApiCredential, Line, UserSetting
 from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
-from api.ollama import endpoint, runner
+from api.ollama import endpoint, runlog, runner
 from api.ollama.prompt import steady_ctx
 from api.security import encrypt_secret
 
@@ -241,3 +241,34 @@ async def test_cancel_during_a_halving_cascade_stops_it(setup, in_test_db):
     assert seen == [[0, 1]]  # the halves were never asked
     assert job.state == "cancelled" and job.result_json["failed"] == 0
     assert _suggested(in_test_db, doc) == {}
+
+
+async def test_run_log_tells_what_the_run_did(setup, in_test_db):
+    runlog.clear()
+    _, doc, job = setup()
+    runner.claim(in_test_db)
+    await runner.run_one(job.id, ollama())
+    snap = runlog.read(job.id)
+    texts = [e.text for e in snap.entries]
+    assert texts[0] == "Run started"
+    assert texts[1].startswith(f"{doc.title}, lines 1–2: asking 2 lines with 0 lines of context")
+    assert texts[2].startswith("Got 2 of 2 lines")
+    assert texts[3].startswith(f"{doc.title}, lines 3–4: asking 2 lines with 1 line of context")
+    assert texts[-1] == "Finished: nothing is left in the queue (4 lines translated in 2 chunks)"
+    assert snap.ended and snap.now is None
+    assert [e.text for e in runlog.read(job.id, after=snap.next - 1).entries] == [texts[-1]]
+
+
+async def test_run_log_records_retries_and_failure(setup, in_test_db):
+    runlog.clear()
+    _, _, job = setup()
+    runner.claim(in_test_db)
+
+    def down(_request):
+        raise httpx.ConnectError("refused")
+
+    await runner.run_one(job.id, lambda: httpx.AsyncClient(transport=httpx.MockTransport(down)))
+    entries = runlog.read(job.id).entries
+    warns = [e for e in entries if e.level == "warn"]
+    assert len(warns) == runner.RETRIES and "attempt 2 of 4" in warns[0].text
+    assert entries[-1].level == "error" and entries[-1].text.startswith("Failed: ")
