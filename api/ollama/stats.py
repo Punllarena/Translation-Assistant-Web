@@ -54,6 +54,35 @@ def summary(db: Session, user_id: int, now: datetime | None = None) -> dict:
     }
 
 
+def _totals(db: Session, *where) -> dict:
+    """Token and time totals over every request matching `where`, failed ones included (they
+    cost tokens too); runs and by-hand requests alike."""
+    r = db.execute(
+        select(
+            func.count(C.id).label("requests"),
+            func.coalesce(func.sum(C.prompt_tokens), 0).label("prompt"),
+            func.coalesce(func.sum(C.output_tokens), 0).label("output"),
+            func.coalesce(func.sum(C.total_ms), 0).label("total_ms"),
+            func.coalesce(func.sum(C.prompt_tokens).filter(C.prompt_ms.is_not(None)), 0)
+            .label("timed_prompt"),
+            func.coalesce(func.sum(C.prompt_ms), 0).label("prompt_ms"),
+        ).where(*where)
+    ).one()
+    return {
+        "requests": r.requests, "prompt_tokens": r.prompt, "output_tokens": r.output,
+        "total_tokens": r.prompt + r.output, "seconds": r.total_ms / 1000,
+        "prompt_tokens_per_s": _rate(r.timed_prompt, r.prompt_ms),
+    }
+
+
+def tokens(db: Session, user_id: int, now: datetime | None = None) -> dict:
+    since = (now or datetime.now(UTC)) - WINDOW
+    return {
+        "d30": _totals(db, C.user_id == user_id, C.created_at >= since),
+        "all": _totals(db, C.user_id == user_id),
+    }
+
+
 def runs(db: Session, user_id: int, tz: ZoneInfo) -> list[dict]:
     jobs = db.scalars(
         select(Job).where(Job.user_id == user_id, Job.kind == "ollama_run",
@@ -68,6 +97,8 @@ def runs(db: Session, user_id: int, tz: ZoneInfo) -> list[dict]:
                 func.coalesce(func.sum(C.output_tokens).filter(_timed()), 0).label("tokens"),
                 func.coalesce(func.sum(C.eval_ms).filter(_timed()), 0).label("ms"),
                 func.avg(C.total_ms).filter(C.ok).label("total_ms"),
+                func.coalesce(func.sum(C.prompt_tokens), 0).label("prompt"),
+                func.coalesce(func.sum(C.output_tokens), 0).label("output"),
             ).where(C.user_id == user_id, C.job_id.in_([j.id for j in jobs])).group_by(C.job_id)
         )
     }
@@ -86,6 +117,8 @@ def runs(db: Session, user_id: int, tz: ZoneInfo) -> list[dict]:
             "tokens_per_s": _rate(s.tokens, s.ms) if s else None,
             "lines_per_hour": lines / seconds * 3600 if seconds else None,
             "s_per_chunk": float(s.total_ms) / 1000 if s and s.total_ms is not None else None,
+            "prompt_tokens": s.prompt if s else 0,
+            "output_tokens": s.output if s else 0,
         })
     return out
 

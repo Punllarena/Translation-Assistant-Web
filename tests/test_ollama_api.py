@@ -4,8 +4,10 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
+from api import jobs
 from api.models import Line, UserSetting, Volume
 from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
+from api.ollama import runlog
 
 
 @pytest.fixture
@@ -226,3 +228,21 @@ def test_id_lists_are_capped(app_client, me):
     ids = list(range(1, 1002))
     assert app_client.put("/ollama/queue/order", json={"ids": ids}).status_code == 422
     assert app_client.post("/ollama/flush", json={"document_ids": ids}).status_code == 422
+
+
+def test_run_log_route(app_client, db, me, make_user):
+    runlog.clear()
+    job = jobs.enqueue(db, me.id, "ollama_run", {})
+    other = jobs.enqueue(db, make_user(email="other@example.com").id, "ollama_run", {})
+    fetch = jobs.enqueue(db, me.id, "syosetu_fetch", {})
+    db.flush()
+    r = app_client.get(f"/ollama/runs/{job.id}/log").json()
+    assert r == {"kept": False, "entries": [], "now": None, "ended": True, "next": 0}
+    runlog.add(job.id, "Run started")
+    runlog.add(job.id, "Got 2 of 2 lines", "warn")
+    runlog.doing(job.id, "Thinking… 10 characters so far")
+    r = app_client.get(f"/ollama/runs/{job.id}/log", params={"after": 1}).json()
+    assert [(e["text"], e["level"]) for e in r["entries"]] == [("Got 2 of 2 lines", "warn")]
+    assert r["now"] == "Thinking… 10 characters so far" and r["next"] == 2 and not r["ended"]
+    assert app_client.get(f"/ollama/runs/{other.id}/log").status_code == 404
+    assert app_client.get(f"/ollama/runs/{fetch.id}/log").status_code == 404

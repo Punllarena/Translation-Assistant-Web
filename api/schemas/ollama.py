@@ -84,3 +84,18 @@ class ChunkOut(BaseModel):
     reasoning: str | None
     prompt: str | None
     created_at: datetime
+
+
+class RunLogEntry(BaseModel):
+    seq: int
+    at: datetime
+    level: Literal["info", "warn", "error"]
+    text: str
+
+
+class RunLogOut(BaseModel):
+    kept: bool  # False: this server process holds no log for the run (it restarted since)
+    entries: list[RunLogEntry]
+    now: str | None  # what the run is doing this moment
+    ended: bool
+    next: int  # pass as `after` to get only newer entries

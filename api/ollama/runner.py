@@ -28,7 +28,7 @@ from api.backup import state
 from api.db import SessionLocal
 from api.models import Document, Job
 from api.mt.base import BackendError
-from api.ollama import endpoint
+from api.ollama import endpoint, runlog
 from api.ollama.lane import LANES
 from api.ollama.prefs import OllamaPrefs
 from api.ollama.prompt import steady_ctx
@@ -77,6 +77,7 @@ class _Step:
     plan: Plan
     p: OllamaPrefs
     ep: Endpoint
+    label: str  # the chapter and lines, for the run log
 
 
 def claim(db: Session) -> Job | None:
@@ -142,7 +143,16 @@ def _next(job_id: int, skip: frozenset[int]) -> _Step | str:
             raise _Failed(problem or "Ollama is not set up")
         doc = db.get(Document, plan.document_id)
         src = (doc.source_language if doc else None) or "ja"
-        return _Step(user_id, plan, p, replace(ep, src=src))
+        return _Step(user_id, plan, p, replace(ep, src=src), _label(doc, plan))
+
+
+def _label(doc: Document | None, plan: Plan) -> str:
+    title = doc.title if doc else f"Chapter {plan.document_id}"
+    numbers = [r.line_number + 1 for r in plan.asked] or [r.line_number + 1 for r in plan.chunk]
+    if not numbers:
+        return title
+    first, last = numbers[0], numbers[-1]
+    return f"{title}, line {first}" if first == last else f"{title}, lines {first}–{last}"
 
 
 def _recheck(url: str) -> str | None:
@@ -187,25 +197,49 @@ async def _chunk(
     """Translate one chunk through the lane; retry an unanswered server after a pause. The
     result is saved before the lane is released, so a by-hand request waiting behind this
     chunk rereads committed rows."""
+    asked = len(step.plan.asked)
+    got: set[int] = set()  # line numbers answered so far, for the run log's "now" line
+    thought = 0
+
+    async def on_thinking(text: str) -> None:
+        nonlocal thought
+        thought += len(text)
+        runlog.doing(job_id, f"Thinking… {thought:,} characters so far")
+
+    async def on_line(number: int, _text: str) -> None:
+        got.add(number)
+        runlog.doing(job_id, f"Answering… {min(len(got), asked):,} of {runlog.lines(asked)}")
+
     for attempt in range(RETRIES + 1):
         try:
+            if LANES.busy(step.user_id):
+                runlog.doing(job_id, "Waiting for a request from the editor to finish")
             async with LANES.hold(step.user_id, priority=False):
                 problem = await run_in_threadpool(_recheck, step.ep.url)
                 if problem:
                     raise _Failed(problem)
+                runlog.doing(job_id, f"Asked {step.ep.model}, waiting for its answer")
                 ep = await endpoint.ready(client, step.ep)
+                got.clear()
+                thought = 0
 
                 async def should_stop() -> bool:  # a halving cascade ends on cancel or window end
                     return await run_in_threadpool(_check, job_id) is not None
 
                 result = await translate(client, ep, step.plan.before, step.plan.chunk, ctx=ctx,
-                                         should_stop=should_stop)
+                                         should_stop=should_stop, on_line=on_line,
+                                         on_thinking=on_thinking)
                 await saved(result)
+                runlog.add(job_id, runlog.answered(result, asked),
+                           "warn" if result.failed else "info")
                 return result
         except BackendError as exc:
             if attempt == RETRIES:
                 raise _Failed(str(exc)) from exc
             log.warning("ollama run %s: %s; retrying", job_id, exc)
+            runlog.add(job_id, f"Ollama did not answer: {exc}. Trying again in "
+                               f"{runlog.duration(PAUSES[attempt] * 1000)} "
+                               f"(attempt {attempt + 2} of {RETRIES + 1})", "warn")
         tally.retries += 1
         reason = await _pause(job_id, PAUSES[attempt])
         if reason:
@@ -225,6 +259,9 @@ async def _work(job_id: int, factory: Callable[[], httpx.AsyncClient], tally: _T
                 return step
             ctx = max(window, steady_ctx(step.ep.system_prompt, step.p.chunk_lines,
                                          step.p.context_lines))
+            runlog.add(job_id, f"{step.label}: asking {runlog.lines(len(step.plan.asked))} with "
+                               f"{runlog.lines(len(step.plan.before))} of context "
+                               f"({step.ep.model}, {ctx:,}-token window)")
 
             async def saved(result: ChunkResult, step: _Step = step) -> None:
                 skip.update(r.line_id for r in step.plan.asked if r.line_number not in result.lines)
@@ -248,6 +285,7 @@ async def run_one(
     tally = _Tally()
     state, message = "done", ""
     cancelled = False
+    runlog.add(job_id, "Run started")
     try:
         reason = await _work(job_id, client_factory or http_client, tally)
     except _Failed as exc:
@@ -263,6 +301,8 @@ async def run_one(
         state, message, reason = "failed", jobs.INTERRUPTED, "cancelled"
     elif reason == "cancelled":
         state = "cancelled"
+    runlog.end(job_id, runlog.ending(state, message, reason, tally.lines, tally.chunks,
+                                      tally.failed), "error" if state == "failed" else "info")
     try:
         await run_in_threadpool(_finish, job_id, state, message, tally.result(reason))
     except Exception:

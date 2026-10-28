@@ -10,8 +10,23 @@
 .queue-list .grip { cursor: grab; color: var(--muted); user-select: none; }
 .queue-main, .job-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
 .queue-move { display: flex; gap: 2px; }
-.queue-chapters, .sched-days { display: flex; flex-wrap: wrap; gap: 4px 14px; max-height: 240px; overflow-y: auto; border: 0; padding: 0; margin: 0; }
-.queue-chapters legend, .sched-days legend { width: 100%; padding: 0 0 4px; }
+.sched-days { display: flex; flex-wrap: wrap; gap: 4px 14px; max-height: 240px; overflow-y: auto; border: 0; padding: 0; margin: 0; }
+.sched-days legend { width: 100%; padding: 0 0 4px; }
+.queue-chapters { display: flex; flex-direction: column; gap: 8px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.queue-chapters legend { padding: 0 0 4px; }
+.queue-chapters p { margin: 0; }
+.queue-chapters-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.queue-chapters-bar input { flex: 1; min-width: 12ch; }
+.queue-chapters-list { max-height: min(46vh, 380px); overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; }
+.queue-chapters-list > .hint { padding: 10px 12px; }
+.queue-chapters-group, .queue-chapter { display: grid; grid-template-columns: auto 3ch minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 12px; cursor: pointer; }
+.queue-chapters-group { grid-template-columns: auto minmax(0, 1fr) auto; position: sticky; top: 0; z-index: 1; background: var(--raised); border-bottom: 1px solid var(--line); font-weight: 600; }
+section + section .queue-chapters-group { border-top: 1px solid var(--line); }
+.queue-chapter:hover { background: var(--quiet-soft); }
+.queue-chapter .num { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.queue-chapter .title { overflow-wrap: anywhere; }
+.queue-chapter .hint { white-space: nowrap; }
+.queue-chapter.done .title { color: var(--muted); }
 .sched-times { display: flex; gap: 12px; }
 .sched-times .field { flex: 1; }
 .job-list progress { width: 100%; }
@@ -24,3 +39,13 @@
 .job-result dt { color: var(--muted); }
 .job-result dd { margin: 0; }
 .job-result .error { margin: 8px 0 0; }
+.queue-run { display: flex; flex-direction: column; gap: 8px; }
+.queue-run-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.queue-run-head .grow { flex: 1; }
+.run-log ol { list-style: none; margin: 0; padding: 8px 10px; max-height: 320px; overflow-y: auto; background: var(--field); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; }
+.run-log li { display: flex; gap: 10px; overflow-wrap: anywhere; }
+.run-log time { flex: none; color: var(--muted); min-width: 8ch; }
+.run-log li.warn span { color: var(--warn-ink); }
+.run-log li.error span { color: var(--danger); }
+.run-log li.now span { color: var(--muted); font-style: italic; }
+.job-main .run-log { margin-top: 6px; }

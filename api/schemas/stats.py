@@ -61,6 +61,8 @@ class OllamaRun(BaseModel):
     tokens_per_s: float | None
     lines_per_hour: float | None
     s_per_chunk: float | None
+    prompt_tokens: int
+    output_tokens: int
 
 
 class OllamaModelStats(BaseModel):
@@ -76,11 +78,26 @@ class OllamaModelStats(BaseModel):
     used_or_edited_pct: float | None
 
 
+class OllamaTokenTotals(BaseModel):
+    requests: int  # every request, failed ones included
+    prompt_tokens: int  # input
+    output_tokens: int
+    total_tokens: int
+    seconds: float  # time Ollama spent answering
+    prompt_tokens_per_s: float | None  # prompt processing speed
+
+
+class OllamaTokens(BaseModel):
+    d30: OllamaTokenTotals
+    all: OllamaTokenTotals
+
+
 class OllamaStatsOut(BaseModel):
     tokens_per_s_30d: float | None
     lines_30d: int
     chapters_30d: int
     outcomes: OllamaOutcomes
     retry_rate_30d: float | None
+    tokens: OllamaTokens
     runs: list[OllamaRun]  # last 60 finished runs, newest first
     by_model: list[OllamaModelStats]

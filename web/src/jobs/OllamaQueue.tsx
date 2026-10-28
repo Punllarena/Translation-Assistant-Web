@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, call } from "../api/client";
 import { moveItem } from "../library/order";
 import { ConfirmDialog } from "../ui/Dialog";
 import Menu from "../ui/Menu";
 import AddToQueueDialog, { QUEUE_KEY } from "./AddToQueueDialog";
 import { formatDuration } from "./eta";
+import type { Job } from "./follow";
+import RunLog from "./RunLog";
 import { ACTIVE_JOBS_KEY } from "./RunningJobs";
 import ScheduleEditor from "./ScheduleEditor";
 import { nextStart, summary } from "./schedule";
@@ -22,7 +24,12 @@ export default function OllamaQueue() {
     queryKey: ACTIVE_JOBS_KEY,
     queryFn: () => call(api.GET("/jobs", { params: { query: { active: true } } })),
   });
-  const running = (active.data ?? []).some((j) => j.kind === "ollama_run");
+  const runJob = (active.data ?? []).find((j) => j.kind === "ollama_run");
+  const running = runJob !== undefined;
+  // the run that just ended stays on screen, with its log, until the page is left
+  const [lastRun, setLastRun] = useState<Job | null>(null);
+  useEffect(() => { if (runJob) setLastRun(runJob); }, [runJob]);
+  const shown = runJob ?? lastRun;
   const queue = useQuery({
     queryKey: QUEUE_KEY, queryFn: () => call(api.GET("/ollama/queue")),
     refetchInterval: running ? 10_000 : 60_000,
@@ -47,6 +54,11 @@ export default function OllamaQueue() {
     onSuccess: () => { setNotice("Run started."); void queryClient.invalidateQueries({ queryKey: ACTIVE_JOBS_KEY }); },
     onError: () => setNotice(null),
   });
+  const cancel = useMutation({
+    mutationFn: (id: number) => call(api.POST("/jobs/{job_id}/cancel", { params: { path: { job_id: id } } })),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ACTIVE_JOBS_KEY }),
+  });
+  const cancelling = runJob !== undefined && cancel.isSuccess && cancel.variables === runJob.id;
   const flush = useMutation({
     mutationFn: () => call(api.POST("/ollama/flush", { body: {} })),
     onSuccess: (r) => {
@@ -62,7 +74,7 @@ export default function OllamaQueue() {
   };
   const next = nextStart(schedule, new Date());
   const total = items.reduce((n, i) => n + (i.estimate_seconds ?? 0), 0);
-  const failure = run.error ?? queue.error ?? reorder.error ?? remove.error ?? settingsError;
+  const failure = run.error ?? queue.error ?? reorder.error ?? remove.error ?? cancel.error ?? settingsError;
   return (
     <section className="sec" aria-label="Ollama queue">
       <div className="panel pad queue-schedule">
@@ -80,6 +92,22 @@ export default function OllamaQueue() {
         {total > 0 && <span className="hint">About {formatDuration(total * 1000)} of work</span>}
       </div>
       {notice && <p className="muted" role="status">{notice}</p>}
+      {shown && (
+        <div className="panel pad queue-run">
+          <div className="queue-run-head">
+            <span className="label">{runJob ? "Current run" : "Last run"}</span>
+            <span className="hint grow">
+              {runJob?.state === "queued" ? "Starting…" : `${shown.progress.toLocaleString()} ${shown.progress === 1 ? "line" : "lines"} translated${runJob ? " so far" : ""}`}
+            </span>
+            {runJob ? (
+              <button type="button" disabled={cancel.isPending || cancelling} onClick={() => cancel.mutate(runJob.id)}>
+                {cancelling ? "Cancelling…" : "Cancel"}
+              </button>
+            ) : <button type="button" className="quiet" onClick={() => setLastRun(null)}>Hide</button>}
+          </div>
+          <RunLog jobId={shown.id} live={runJob !== undefined} />
+        </div>
+      )}
       {failure && <p className="error" role="alert">{failure.message}</p>}
       {queue.isPending ? <p className="muted">Loading…</p> : items.length === 0 ? (
         <p className="muted">Nothing is queued. Add a series, a volume or some chapters.</p>

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import Depends, HTTPException, Response, status
+from fastapi import Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -12,10 +12,18 @@ from api import jobs
 from api.deps import current_user, db_session, scoped, scoped_volume
 from api.models import Document, Job, Series, User, UserSetting, Volume
 from api.models.ollama import OllamaChunk, OllamaQueueItem
-from api.ollama import endpoint, store, work
+from api.ollama import endpoint, runlog, store, work
 from api.routing import api_router
 from api.schemas.jobs import JobOut
-from api.schemas.ollama import FlushIn, FlushOut, QueueItemIn, QueueItemOut, QueueOrder
+from api.schemas.ollama import (
+    FlushIn,
+    FlushOut,
+    QueueItemIn,
+    QueueItemOut,
+    QueueOrder,
+    RunLogEntry,
+    RunLogOut,
+)
 
 router = api_router(prefix="/ollama", tags=["ollama"])
 
@@ -190,6 +198,22 @@ def run_now(user: User = Depends(current_user), db: Session = Depends(db_session
             return jobs.enqueue(db, user.id, "ollama_run", params={})
     except IntegrityError:
         raise _conflict("An Ollama run is already active.") from None
+
+
+@router.get("/runs/{job_id}/log", response_model=RunLogOut)
+def run_log(
+    job_id: int, after: int = Query(0, ge=0),
+    user: User = Depends(current_user), db: Session = Depends(db_session),
+) -> RunLogOut:
+    """What a run has been doing: the entries after `after`, kept in memory (api/ollama/runlog)."""
+    job = scoped(db, Job, job_id, user.id)
+    if job.kind != "ollama_run":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
+    snap = runlog.read(job.id, after)
+    if snap is None:
+        return RunLogOut(kept=False, entries=[], now=None, ended=True, next=after)
+    entries = [RunLogEntry(seq=e.seq, at=e.at, level=e.level, text=e.text) for e in snap.entries]
+    return RunLogOut(kept=True, entries=entries, now=snap.now, ended=snap.ended, next=snap.next)
 
 
 @router.post("/flush", response_model=FlushOut)

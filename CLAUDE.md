@@ -46,7 +46,8 @@ a private LAN address needs `TA_MT_ALLOW_PRIVATE_URLS`, and `check_user_url` alw
 The package `api/ollama/` holds `prefs` (presets, chunk sizes), `chunks` (chunking and context), `prompt`, `answer` and `json_lines`
 (parsing the model's reply), `outcome` (used / edited / ignored scoring), `work` (the queue's untranslated lines, `raw_sha` stale
 check), `translate` (one chunk, splitting on failure), `lane` (a per-user in-process lock that serialises Ollama requests across
-the runner and by-hand asks; single process only), `endpoint` (URL, model and credential, with the setup message), `runner`
+the runner and by-hand asks; single process only), `runlog` (each run's live log, in memory only, read at
+`GET /ollama/runs/{id}/log` and shown on the Jobs page; single process only, empty after a restart), `endpoint` (URL, model and credential, with the setup message), `runner`
 (a separate worker claiming `ollama_run` jobs, which the general worker skips; it works through `ollama_queue_items` until drained or the night window closes), `schedule` (the per-user
 night windows and the once-a-minute tick that starts runs and cleans up), `store` (suggestions and the 91-day clean-up of old chunk
 prompts and reasoning) and `stats`. `GET /documents/{id}/ollama/stream` (`api/routers/ollama_editor.py`) translates a chunk by

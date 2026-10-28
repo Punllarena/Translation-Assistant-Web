@@ -85,3 +85,29 @@ def test_only_own_chunks(app_client, me, make_user, make_doc, db):
     body = app_client.get("/stats/ollama").json()
     assert body["lines_30d"] == 0 and body["runs"] == [] and body["by_model"] == []
     assert body["outcomes"]["used"] == 0
+
+
+def test_token_totals_30_days_and_all_time(app_client, me, make_user, make_doc, db):
+    doc = make_doc(me, ["a"])
+    _chunk(db, me, doc, prompt_tokens=500, output_tokens=100, prompt_ms=250, total_ms=2000)
+    _chunk(db, me, None, ok=False, source="manual", prompt_tokens=300, output_tokens=50,
+           prompt_ms=None, total_ms=1000)
+    _chunk(db, me, doc, prompt_tokens=1000, output_tokens=400, prompt_ms=500, total_ms=4000,
+           created_at=datetime.now(UTC) - timedelta(days=40))
+    other = make_user(email="other@example.com")
+    _chunk(db, other, make_doc(other, ["b"]), prompt_tokens=9999)
+    t = app_client.get("/stats/ollama").json()["tokens"]
+    assert t["d30"] == {"requests": 2, "prompt_tokens": 800, "output_tokens": 150,
+                        "total_tokens": 950, "seconds": 3.0, "prompt_tokens_per_s": 2000.0}
+    assert t["all"]["requests"] == 3 and t["all"]["total_tokens"] == 2350
+    assert t["all"]["prompt_tokens_per_s"] == 2000.0  # the untimed request is left out of the rate
+
+
+def test_runs_carry_their_token_counts(app_client, me, make_doc, db):
+    now = datetime.now(UTC)
+    job = _job(db, me, started_at=now - timedelta(hours=1), finished_at=now,
+               result_json={"lines": 2})
+    _chunk(db, me, make_doc(me, ["a"]), job_id=job.id, prompt_tokens=40, output_tokens=7)
+    _chunk(db, me, None, job_id=job.id, ok=False, prompt_tokens=60, output_tokens=3)
+    run = app_client.get("/stats/ollama").json()["runs"][0]
+    assert (run["prompt_tokens"], run["output_tokens"]) == (100, 10)

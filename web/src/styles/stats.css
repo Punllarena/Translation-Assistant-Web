@@ -27,3 +27,5 @@
 .ostack .used { background: var(--ok); }
 .ostack .edited { background: var(--accent); }
 .ostack .ignored { background: var(--muted); }
+.token-totals tbody th { border-top: 1px solid var(--line); font-size: 14px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.token-totals tr.total th, .token-totals tr.total td { font-weight: 600; }
