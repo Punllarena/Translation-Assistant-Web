@@ -119,8 +119,8 @@ or volume, deleting a chapter, assigning chapters to a volume, a volume's order 
 merge, split, and EPUB import. Syosetu-sourced series keep syosetu's chapter numbers. Renumbering alone leaves
 `documents.updated_at` untouched (`renumber()` writes those rows in SQL). `POST /documents/export/zip`
 exports ticked chapters; `GET /volumes` feeds the Move-to dialogs. Library dialogs (`web/src/ui/Dialog.tsx`: `ConfirmDialog`,
-`PromptDialog`) replace native `prompt`/`confirm`, and none of them closes while its action is busy. Deferred work (WordPress
-volume indexing, the plugin's Illustrations page) is tracked in `docs/TODO.md`.
+`PromptDialog`) replace native `prompt`/`confirm`, and none of them closes while its action is busy. WordPress volume indexing and
+the plugin's Illustrations page are designed in the plugin's 1.6.0 spec (see `docs/TODO.md`).
 
 Syosetu heading volumes: the fetch job puts each chapter in the volume of its `p-eplist__chapter-title` heading, per the
 series' `syosetu_volume_mode` (`all` / `marker` with `syosetu_volume_marker` / `off`); the rules are pure, in

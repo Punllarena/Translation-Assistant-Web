@@ -169,8 +169,6 @@ def plates(me, series, make_doc, db, images=(("a.png", b"A" * 30),), cover=False
 
 
 def test_upload_sends_first_chapter_index_and_schedule(me, ready, make_doc, wp_site, db):
-    from datetime import UTC, datetime
-
     from api import illustrations
     v1 = Volume(series_id=ready.id, subtitle="Vol 0")
     db.add(v1)
