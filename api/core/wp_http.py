@@ -2,12 +2,17 @@
 (check_status, publish, publish_illustrations), over an injected httpx.Client instead
 of urllib so tests use MockTransport (spec §12)."""
 
+import time
+
 import httpx
 
 from api.core.wp import WPPublishError, normalize_endpoint_url, site_base
 
 STATUS_PATH = "/wp-json/ta-publisher/v1/status"
 ILLUSTRATIONS_PATH = "/wp-json/ta-publisher/v1/illustrations"
+RETRY_WAITS = (5, 15, 45)  # seconds between 429 retries when the host sends no Retry-After
+MAX_WAIT = 120
+sleep = time.sleep  # the seam tests replace
 
 
 def client(transport: httpx.BaseTransport | None = None) -> httpx.Client:
@@ -26,13 +31,25 @@ def _message(r: httpx.Response) -> str:
     return f"HTTP {r.status_code} {r.reason_phrase}"
 
 
+def _retry_after(r: httpx.Response, default: float) -> float:
+    try:
+        return min(max(float(r.headers["retry-after"]), 0), MAX_WAIT)
+    except (KeyError, ValueError):  # missing, or the HTTP-date form
+        return default
+
+
 def _send(c: httpx.Client, method: str, url: str, *, timeout: float,
           ok_409: bool = False, **kwargs) -> dict:
     """``url`` carries no query string, so it is safe to show (the status key is in params)."""
-    try:
-        r = c.request(method, url, timeout=timeout, **kwargs)
-    except (httpx.HTTPError, httpx.InvalidURL) as exc:
-        raise WPPublishError(f"Could not reach {url}: {type(exc).__name__}") from None
+    for wait in (*RETRY_WAITS, None):
+        try:
+            r = c.request(method, url, timeout=timeout, **kwargs)
+        except (httpx.HTTPError, httpx.InvalidURL) as exc:
+            raise WPPublishError(f"Could not reach {url}: {type(exc).__name__}") from None
+        if r.status_code != 429 or wait is None:
+            break
+        # A 429 was refused before any work, so sending the same body again is safe.
+        sleep(_retry_after(r, wait))
     if r.is_redirect:
         raise WPPublishError(
             f"{url} redirected to {r.headers.get('location', '?')}; save that address instead",
