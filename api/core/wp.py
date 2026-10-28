@@ -275,8 +275,8 @@ def build_payload(
         payload["chapter_body"] += (
             '\n<hr />'
             '<p><em>This post is automatically published by '
-            '<a href="https://github.com/Punllarena/Translation-Assistant">'
-            'Translation Assistant</a>'
+            '<a href="https://github.com/Punllarena/Translation-Assistant-Web">'
+            'Translation Assistant Web</a>'
             ' and <a href="https://github.com/Punllarena/translation-assistant-publisher">'
             'Translation Assistant Publisher</a>.</em></p>'
         )
