@@ -4,6 +4,7 @@ import { api, call } from "../api/client";
 import { useAllVolumes, useDocuments, useSeriesList } from "../library/queries";
 import { byVolumeOrder } from "../library/shelf";
 import { Modal } from "../ui/Dialog";
+import ChapterPicker from "./ChapterPicker";
 
 export const QUEUE_KEY = ["ollama", "queue"] as const;
 
@@ -21,7 +22,7 @@ export default function AddToQueueDialog({ onClose }: { onClose: () => void }) {
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const current = seriesId ?? series.data?.[0]?.id ?? null;
   const volumeOptions = (volumes.data ?? []).filter((v) => v.series_id === current).sort(byVolumeOrder);
-  const chapters = (docs.data ?? []).filter((d) => d.series_id === current);
+  const syosetu = series.data?.find((s) => s.id === current)?.source === "syosetu";
   const volume = volumeId !== null && volumeOptions.some((v) => v.id === volumeId) ? volumeId : volumeOptions[0]?.id ?? null;
   const ready = current !== null && (scope === "series" || (scope === "volume" ? volume !== null : picked.size > 0));
   const add = useMutation({
@@ -35,7 +36,6 @@ export default function AddToQueueDialog({ onClose }: { onClose: () => void }) {
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: QUEUE_KEY }); onClose(); },
   });
   const submit = (e: FormEvent) => { e.preventDefault(); if (ready && !add.isPending) add.mutate(); };
-  const toggle = (id: number) => setPicked((p) => { const n = new Set(p); if (!n.delete(id)) n.add(id); return n; });
   const loadError = series.error ?? volumes.error ?? docs.error;
   return (
     <Modal title="Add to the Ollama queue" onClose={onClose} busy={add.isPending} onSubmit={submit}>
@@ -60,14 +60,9 @@ export default function AddToQueueDialog({ onClose }: { onClose: () => void }) {
             {volumeOptions.length === 0 && <span className="hint">This series has no volumes.</span>}
           </label>
         )}
-        {scope === "documents" && (
-          <fieldset className="queue-chapters">
-            <legend className="label">Chapters</legend>
-            {chapters.map((d) => (
-              <label key={d.id} className="check"><input type="checkbox" checked={picked.has(d.id)} onChange={() => toggle(d.id)} /> {d.title}</label>
-            ))}
-            {chapters.length === 0 && <p className="hint">This series has no chapters.</p>}
-          </fieldset>
+        {scope === "documents" && current !== null && (
+          <ChapterPicker seriesId={current} docs={docs.data ?? []} volumes={volumes.data ?? []} syosetu={syosetu}
+            picked={picked} onChange={setPicked} />
         )}
         {loadError && <p className="error" role="alert">{loadError.message}</p>}
         {add.isError && <p className="error" role="alert">{add.error.message}</p>}
