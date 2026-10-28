@@ -92,6 +92,22 @@ def test_check_status_401():
     assert (e.value.message, e.value.status_code) == ("Invalid API key", 401)
 
 
+def test_illustrations_status_sends_the_illustrations_form():
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"status": "future", "post_url": "u"})
+
+    with make(handler) as c:
+        out = wp_http.check_illustrations_status(c, SITE, "key", "sword", "Volume 2")
+    assert out == {"status": "future", "post_url": "u"}
+    q = dict(seen[0].url.params)
+    assert seen[0].url.path == "/wp-json/ta-publisher/v1/status"
+    assert q == {"api_key": "key", "series_slug": "sword", "illustrations": "1",
+                 "volume_title": "Volume 2"}
+
+
 def test_publish_illustrations_posts_to_the_illustrations_route():
     seen = []
 

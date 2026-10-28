@@ -14,7 +14,7 @@ from api.core import wp_http
 from api.core.wp import WPPublishError
 from api.deps import current_user, db_session, owned_ref, parse_zone, scoped, zone
 from api.library import chapter_number
-from api.models import Document, Job, Series, User
+from api.models import Document, Job, Series, User, Volume
 from api.routing import api_router
 from api.schemas.jobs import JobOut
 from api.schemas.wp import (
@@ -87,17 +87,27 @@ def refresh_status(
     previous chapter is still scheduled (with the auto slot after it)."""
     doc, series, endpoint, key = _chapter_context(db, document_id, user.id)
     cached, remote_error = doc.wp_status, ""
-    if doc.is_illustrations:  # not a numbered chapter: nothing to ask WordPress about
+    # an Illustrations chapter asks about its gallery, by the volume's frozen wp_name
+    volume = db.get(Volume, doc.volume_id) if doc.is_illustrations else None
+    if doc.is_illustrations and volume is None:
+        # never true under the marking rules: with no volume there is nothing to name
         return WpStatusOut(cached_status=cached, status=cached, post_url=doc.wp_post_url,
                            remote_error="", previous_scheduled=False, suggested_slot=None)
     try:
         with http_client() as c:
-            remote = wp_http.check_status(c, endpoint, key, series.wp_series_slug,
-                                         chapter_number(db, doc))
+            if volume is not None:
+                remote = wp_http.check_illustrations_status(
+                    c, endpoint, key, series.wp_series_slug, volume.wp_name)
+            else:
+                remote = wp_http.check_status(c, endpoint, key, series.wp_series_slug,
+                                              chapter_number(db, doc))
             publish.apply_remote_status(doc, remote)
     except WPPublishError as exc:
         remote_error = exc.message
-    previous, slot = publish.suggested_slot(db, doc, wp_prefs.load(db, user.id), tz)
+    if volume is not None:  # its single publish offers no date, so no slot either
+        previous, slot = False, None
+    else:
+        previous, slot = publish.suggested_slot(db, doc, wp_prefs.load(db, user.id), tz)
     db.flush()
     return WpStatusOut(cached_status=cached, status=doc.wp_status, post_url=doc.wp_post_url,
                        remote_error=remote_error, previous_scheduled=previous, suggested_slot=slot)
@@ -196,7 +206,7 @@ def publish_illustrations(
     user: User = Depends(current_user), db: Session = Depends(db_session),
 ) -> Job:
     """The Illustrations chapter's Publish: the volume's illustrations page, as a job. The
-    plugin has no status lookup for that page, so the stored status guards re-publishing."""
+    stored status still guards re-publishing."""
     doc, series, _, _ = _chapter_context(db, document_id, user.id)
     if not doc.is_illustrations:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,

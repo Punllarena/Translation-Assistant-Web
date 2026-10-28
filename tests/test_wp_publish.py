@@ -357,24 +357,51 @@ def test_a_changed_label_alone_needs_no_confirmation(app_client, me, ready, make
     assert posted[-1]["chapter_label"] == f"{vol.wp_name} Chapter 1"
 
 
-def test_refresh_status_skips_the_illustrations_chapter(
+def test_refresh_status_asks_for_the_illustrations_page(
         app_client, me, ready, make_doc, monkeypatch, db):
     calls = []
 
     def handle(request):
-        calls.append(request.url.path)
-        return httpx.Response(200, json={"status": "publish", "post_url": "x"})
+        calls.append(dict(request.url.params))
+        return httpx.Response(200, json={"status": "future", "post_url": "x"})
 
     monkeypatch.setattr(wp_router, "http_client",
                         lambda: wp_router.wp_http.client(transport=httpx.MockTransport(handle)))
     monkeypatch.setattr("api.publish.check_user_url", lambda url, allow, label: None)
-    illus = make_doc(me, ["絵"], series=ready, order=1, title="Illustrations")
+    vol = Volume(series_id=ready.id, subtitle="V1", wp_volume_title="Book One")
+    db.add(vol)
+    db.flush()
+    illus = make_doc(me, [], series=ready, order=1, title="Illustrations", volume=vol)
     illus.is_illustrations = True
-    illus.wp_status = "future"
+    illus.wp_status = "publish"
     db.flush()
     r = app_client.post(f"/documents/{illus.id}/wp/status")
-    assert r.status_code == 200 and calls == []
-    assert r.json()["status"] == "future" and r.json()["previous_scheduled"] is False
+    assert r.status_code == 200
+    assert calls[0]["illustrations"] == "1" and calls[0]["volume_title"] == "Book One"
+    assert "chapter" not in calls[0]
+    assert (r.json()["cached_status"], r.json()["status"], r.json()["post_url"]) == ("publish", "future", "x")  # noqa: E501
+    assert r.json()["previous_scheduled"] is False and r.json()["suggested_slot"] is None
+    db.refresh(illus)
+    assert illus.wp_status == "future"
+
+
+def test_refresh_status_of_illustrations_on_an_old_plugin_keeps_the_cache(
+        app_client, me, ready, make_doc, monkeypatch, db):
+    monkeypatch.setattr(wp_router, "http_client", lambda: wp_router.wp_http.client(
+        transport=httpx.MockTransport(
+            lambda r: httpx.Response(400, json={"error": "Missing series_slug or chapter"}))))
+    monkeypatch.setattr("api.publish.check_user_url", lambda url, allow, label: None)
+    vol = Volume(series_id=ready.id, subtitle="V1")
+    db.add(vol)
+    db.flush()
+    illus = make_doc(me, [], series=ready, order=1, title="Illustrations", volume=vol)
+    illus.is_illustrations = True
+    illus.wp_status, illus.wp_post_url = "future", "keep"
+    db.flush()
+    r = app_client.post(f"/documents/{illus.id}/wp/status")
+    assert r.status_code == 200
+    assert (r.json()["status"], r.json()["post_url"]) == ("future", "keep")
+    assert r.json()["remote_error"] == "Missing series_slug or chapter"
 
 
 def test_chapter_publish_refuses_illustrations_chapter(
