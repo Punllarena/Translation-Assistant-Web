@@ -533,3 +533,18 @@ def test_illus_payloads_big_cover_splits_before_first_image():
     assert out[0]["mode"] == "replace" and out[0]["images"] == [] and "cover" in out[0]
     assert [i["filename"] for i in out[1]["images"]] == ["a.png", "b.png"]
     assert all("cover" not in p for p in out[1:])
+
+
+def test_illustrations_payloads_carry_first_chapter_index_and_date(monkeypatch):
+    monkeypatch.setattr("api.core.wp._ILLUS_BATCH_BYTES", 10)
+    images = [{"src_path": f"{n}.png", "data": b"X" * 6} for n in "ab"]
+    meta = {"series_title": "S", "volume_title": "Volume 2", "first_chapter_index": 14}
+    series_meta = {"series_slug": "s", "series_title_short": "S"}
+    ps = build_illustrations_payloads(meta, series_meta, images, api_key="k",
+                                      scheduled_date="2026-11-01T11:00:00Z")
+    assert [p["mode"] for p in ps] == ["replace", "append"]
+    assert [p["first_chapter_index"] for p in ps] == [14, 14]
+    assert ps[0]["publish_date"] == "2026-11-01T11:00:00Z" and "publish_date" not in ps[1]
+    bare = build_illustrations_payloads({"series_title": "S", "first_chapter_index": None},
+                                        series_meta, images[:1], api_key="k")
+    assert "first_chapter_index" not in bare[0] and "publish_date" not in bare[0]

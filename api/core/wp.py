@@ -121,6 +121,8 @@ def build_illustrations_payloads(
     images: list[dict],
     api_key: str,
     cover: dict | None = None,
+    *,
+    scheduled_date: str | None = None,
 ) -> list[dict]:
     """Split a volume's illustrations into per-request payloads.
 
@@ -144,6 +146,8 @@ def build_illustrations_payloads(
     }
     if doc_meta.get("volume_title"):
         base["volume_title"] = doc_meta["volume_title"]
+    if doc_meta.get("first_chapter_index") is not None:
+        base["first_chapter_index"] = doc_meta["first_chapter_index"]
 
     enc_cover = _encode_image(cover) if cover is not None else None
     encoded = [_encode_image(im) for im in images]
@@ -167,6 +171,9 @@ def build_illustrations_payloads(
         p = {**base, "images": batch, "mode": "replace" if i == 0 else "append"}
         if i == 0 and enc_cover is not None:
             p["cover"] = enc_cover
+        if i == 0 and scheduled_date is not None:
+            # only a replace (re)sets the gallery's schedule; appends never touch it
+            p["publish_date"] = scheduled_date
         payloads.append(p)
     return payloads
 

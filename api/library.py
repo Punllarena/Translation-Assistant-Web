@@ -160,6 +160,18 @@ def chapter_number(db: Session, doc: Document) -> int | None:
     return doc.series_order - before
 
 
+def first_chapter_number(db: Session, volume_id: int) -> int | None:
+    """The series-wide number of a volume's first chapter (Illustrations not counted),
+    published or not; None when the volume has none."""
+    doc = db.scalar(
+        select(Document)
+        .where(Document.volume_id == volume_id, Document.is_illustrations.is_(False))
+        .order_by(Document.series_order, Document.id)
+        .limit(1)
+    )
+    return None if doc is None else chapter_number(db, doc)
+
+
 def volume_position(db: Session, doc: Document) -> int | None:
     """A chapter's 1-based place among its volume's chapters, Illustration chapters not
     counted; None for a loose chapter or an Illustrations chapter."""

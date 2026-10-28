@@ -167,6 +167,37 @@ def plates(me, series, make_doc, db, images=(("a.png", b"A" * 30),), cover=False
     return vol, doc
 
 
+def test_upload_sends_first_chapter_index_and_schedule(me, ready, make_doc, wp_site, db):
+    from datetime import UTC, datetime
+
+    from api import illustrations
+    v1 = Volume(series_id=ready.id, subtitle="Vol 0")
+    db.add(v1)
+    db.flush()
+    for i in (1, 2):
+        make_doc(me, [f"行{i}"], series=ready, order=i, volume=v1)
+    vol, doc = plates(me, ready, make_doc, db)
+    doc.series_order = 3
+    make_doc(me, ["三"], series=ready, order=4, volume=vol)  # unpublished: still counts
+    db.flush()
+    when = datetime(2026, 11, 1, 11, tzinfo=UTC)
+    with publish_job.http_client() as c:
+        illustrations.upload(db, c, doc, SITE, "k" * 12, scheduled=when)
+    body = wp_site["posted"][0][1]
+    assert (body["first_chapter_index"], body["publish_date"]) == (3, "2026-11-01T11:00:00Z")
+    assert (doc.wp_status, doc.wp_scheduled_for, doc.wp_published_at) == ("future", when, when)
+
+
+def test_upload_without_chapters_omits_first_chapter_index(me, ready, make_doc, wp_site, db):
+    from api import illustrations
+    _, doc = plates(me, ready, make_doc, db)
+    with publish_job.http_client() as c:
+        illustrations.upload(db, c, doc, SITE, "k" * 12)
+    body = wp_site["posted"][0][1]
+    assert "first_chapter_index" not in body and "publish_date" not in body
+    assert doc.wp_status == "publish" and doc.wp_scheduled_for is None
+
+
 def test_illustrations_chapter_uploads_in_batches_own_images_first(
         app_client, me, ready, make_doc, wp_site, db, monkeypatch):
     monkeypatch.setattr("api.core.wp._ILLUS_BATCH_BYTES", 50)  # cover (4) + a (40) fit; then one per batch
