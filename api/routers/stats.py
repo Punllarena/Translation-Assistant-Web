@@ -62,6 +62,7 @@ def get_ollama_stats(
     db: Session = Depends(db_session),
 ) -> OllamaStatsOut:
     return OllamaStatsOut(
-        **ollama_stats.summary(db, user.id), runs=ollama_stats.runs(db, user.id, tz),
+        **ollama_stats.summary(db, user.id), tokens=ollama_stats.tokens(db, user.id),
+        runs=ollama_stats.runs(db, user.id, tz),
         by_model=ollama_stats.by_model(db, user.id),
     )
