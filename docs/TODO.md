@@ -48,41 +48,17 @@ To do:
 
 ## WordPress: volume-aware chapter indexing
 
-*Raised 2026-10-20 during the library redesign
-(`docs/superpowers/specs/2026-10-20-library-redesign-design.md`).*
-
-The library redesign numbers chapters **per volume** (Volume 1 Chapter 1…x, then Volume 2
-Chapter 1…) and keeps each volume a contiguous run of `series_order`. Moving a chapter between
-volumes renumbers `series_order`. Publishing reads the series-wide `chapter_number`
-(`chapter_number` / `chapter_numbers` in `api/library.py`): `series_order` less the Illustrations
-chapters before it, so the Illustrations chapter never takes a number. It is still series-wide, not
-per volume:
-
-- `api/publish.py:98`: `build_chapter` takes `chapter_number(db, doc)` as the chapter's WordPress
-  number (`doc_meta["series_order"]`) and computes the password / unlock-after window from it
-- `api/publish.py:181`: the confirm dialog's "previous chapter" is `previous_chapter` in
-  `api/library.py`, the nearest earlier chapter that is not an Illustrations chapter
-
-To do:
-
-- Decide what WordPress should receive for a series with volumes. The target order is:
-  Volume 1 Illustrations → Volume 1 Chapter 1 … Volume 1 Chapter x →
-  Volume 2 Illustrations → Volume 2 Chapter 1 … Volume 2 Chapter x, and so on.
-- Make the previous/next chapter links follow that order, including the illustrations page first
-  in each volume (the unlock chain already skips it).
-- Chapters already published before a renumber will carry their old index on WordPress. Decide
-  how a re-publish reconciles them (and whether the re-publish 409 safeguard should flag a
-  changed index).
-- Series without volumes and syosetu series keep their own indexing (syosetu's chapter numbers).
+Designed in the plugin's `docs/superpowers/specs/2026-10-28-volumes-and-chapter-navigation-design.md`
+(plugin 1.6.0, Punllarena/translation-assistant-publisher#1), section "ta-web side": ta-web sends
+`chapter_label`, `first_chapter_index` and the Illustrations `publish_date`, and asks
+`/status?illustrations=1`.
 
 ## WordPress plugin: volume Illustrations page first
 
-*Raised 2026-10-24 (`docs/superpowers/specs/2026-10-24-volume-illustrations-chapter-design.md`).*
-
-- Title the illustrations page **"Volume X Illustrations"**, built from the `volume_title` it is sent.
-- List it **first** in the volume's table of contents, ahead of chapter 1, outside the chapter
-  numbering and the unlock chain.
-- Optional: accept a scheduled date, so a batch can schedule it like a chapter.
+Designed in the plugin's `docs/superpowers/specs/2026-10-28-volumes-and-chapter-navigation-design.md`
+(plugin 1.6.0, Punllarena/translation-assistant-publisher#1), section "ta-web side": ta-web sends
+`chapter_label`, `first_chapter_index` and the Illustrations `publish_date`, and asks
+`/status?illustrations=1`.
 
 ## WordPress: volume names must be unique per series
 

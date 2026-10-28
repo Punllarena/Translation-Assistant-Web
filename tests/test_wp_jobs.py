@@ -1,6 +1,7 @@
 # ruff: noqa: E501
 import json
 from contextlib import contextmanager
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -167,6 +168,35 @@ def plates(me, series, make_doc, db, images=(("a.png", b"A" * 30),), cover=False
     return vol, doc
 
 
+def test_upload_sends_first_chapter_index_and_schedule(me, ready, make_doc, wp_site, db):
+    from api import illustrations
+    v1 = Volume(series_id=ready.id, subtitle="Vol 0")
+    db.add(v1)
+    db.flush()
+    for i in (1, 2):
+        make_doc(me, [f"行{i}"], series=ready, order=i, volume=v1)
+    vol, doc = plates(me, ready, make_doc, db)
+    doc.series_order = 3
+    make_doc(me, ["三"], series=ready, order=4, volume=vol)  # unpublished: still counts
+    db.flush()
+    when = datetime(2026, 11, 1, 11, tzinfo=UTC)
+    with publish_job.http_client() as c:
+        illustrations.upload(db, c, doc, SITE, "k" * 12, scheduled=when)
+    body = wp_site["posted"][0][1]
+    assert (body["first_chapter_index"], body["publish_date"]) == (3, "2026-11-01T11:00:00Z")
+    assert (doc.wp_status, doc.wp_scheduled_for, doc.wp_published_at) == ("future", when, when)
+
+
+def test_upload_without_chapters_omits_first_chapter_index(me, ready, make_doc, wp_site, db):
+    from api import illustrations
+    _, doc = plates(me, ready, make_doc, db)
+    with publish_job.http_client() as c:
+        illustrations.upload(db, c, doc, SITE, "k" * 12)
+    body = wp_site["posted"][0][1]
+    assert "first_chapter_index" not in body and "publish_date" not in body
+    assert doc.wp_status == "publish" and doc.wp_scheduled_for is None
+
+
 def test_illustrations_chapter_uploads_in_batches_own_images_first(
         app_client, me, ready, make_doc, wp_site, db, monkeypatch):
     monkeypatch.setattr("api.core.wp._ILLUS_BATCH_BYTES", 50)  # cover (4) + a (40) fit; then one per batch
@@ -237,7 +267,7 @@ def test_batch_routes_illustrations_chapter_to_upload(app_client, me, ready, mak
     assert (doc.wp_status, doc.wp_post_url, doc.wp_chapter_index) == ("publish", "pg", None)
 
 
-def test_batch_gives_illustrations_no_slot(app_client, me, ready, make_doc, wp_site, db):
+def test_batch_gives_illustrations_a_slot(app_client, me, ready, make_doc, wp_site, db):
     vol, doc = plates(me, ready, make_doc, db)
     texts = [make_doc(me, [f"行{i}"], series=ready, order=i + 1, volume=vol) for i in (1, 2)]
     r = app_client.post("/wp/batch", json={
@@ -245,12 +275,23 @@ def test_batch_gives_illustrations_no_slot(app_client, me, ready, make_doc, wp_s
         "start": "2026-11-01T20:00:00+09:00", "chapters_per_day": 2, "tz": "Asia/Tokyo"})
     assert r.status_code == 202
     params = db.get(Job, r.json()["id"]).params_json["chapters"]
-    assert params[0] == {"document_id": doc.id, "scheduled_for": None}
-    # the same slots test_batch_schedules_in_order_and_records_each gives its first two chapters
-    assert [p["scheduled_for"] for p in params[1:]] == ["2026-11-01T20:00:00+09:00", "2026-11-01T21:00:00+09:00"]
+    assert [p["scheduled_for"] for p in params] == [
+        "2026-11-01T20:00:00+09:00", "2026-11-01T21:00:00+09:00", "2026-11-02T21:00:00+09:00"]
     jobs.run_next()
     dates = [(p, b.get("publish_date")) for p, b in wp_site["posted"]]
-    assert dates == [(ILLUS, None), (PUBLISH, "2026-11-01T11:00:00Z"), (PUBLISH, "2026-11-01T12:00:00Z")]
+    assert dates == [(ILLUS, "2026-11-01T11:00:00Z"), (PUBLISH, "2026-11-01T12:00:00Z"),
+                     (PUBLISH, "2026-11-02T12:00:00Z")]
+    db.refresh(doc)
+    assert doc.wp_status == "future"
+    assert doc.wp_scheduled_for == datetime(2026, 11, 1, 11, tzinfo=UTC)
+
+
+def test_batch_now_publishes_illustrations_without_a_date(app_client, me, ready, make_doc, wp_site, db):
+    vol, doc = plates(me, ready, make_doc, db)
+    make_doc(me, ["一"], series=ready, order=2, volume=vol)
+    app_client.post("/wp/batch", json={"document_ids": [doc.id], "schedule": False})
+    jobs.run_next()
+    assert all("publish_date" not in b for _, b in wp_site["posted"])
     db.refresh(doc)
     assert doc.wp_status == "publish" and doc.wp_scheduled_for is None
 

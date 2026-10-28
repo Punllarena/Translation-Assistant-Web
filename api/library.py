@@ -1,7 +1,7 @@
 """Queries shared by the documents, series, restructure, and transfer code."""
 
 from fastapi import HTTPException, status
-from sqlalchemy import bindparam, func, inspect, select, update
+from sqlalchemy import and_, bindparam, func, inspect, or_, select, update
 from sqlalchemy.orm import Session, attributes, object_session
 
 from api.core.text import db_rows_to_arrays, lines_to_db_rows
@@ -158,6 +158,36 @@ def chapter_number(db: Session, doc: Document) -> int | None:
         )
     )
     return doc.series_order - before
+
+
+def first_chapter_number(db: Session, volume_id: int) -> int | None:
+    """The series-wide number of a volume's first chapter (Illustrations not counted),
+    published or not; None when the volume has none."""
+    doc = db.scalar(
+        select(Document)
+        .where(Document.volume_id == volume_id, Document.is_illustrations.is_(False))
+        .order_by(Document.series_order, Document.id)
+        .limit(1)
+    )
+    return None if doc is None else chapter_number(db, doc)
+
+
+def volume_position(db: Session, doc: Document) -> int | None:
+    """A chapter's 1-based place among its volume's chapters, Illustration chapters not
+    counted; None for a loose chapter or an Illustrations chapter."""
+    if doc.volume_id is None or doc.is_illustrations:
+        return None
+    before = db.scalar(
+        select(func.count()).where(
+            Document.volume_id == doc.volume_id,
+            Document.is_illustrations.is_(False),
+            or_(
+                Document.series_order < doc.series_order,
+                and_(Document.series_order == doc.series_order, Document.id < doc.id),
+            ),
+        )
+    )
+    return before + 1
 
 
 def previous_chapter(db: Session, doc: Document) -> Document | None:

@@ -14,6 +14,7 @@ from api import publish
 from api.core import wp, wp_http
 from api.core.text import line_has_content
 from api.core.wp import WPPublishError
+from api.library import first_chapter_number
 from api.models import Document, DocumentImage, Line, Series, User, Volume, VolumeCover
 
 HAS_ONE = "this volume already has an Illustrations chapter"
@@ -155,11 +156,13 @@ def has_images(db: Session, volume_id: int) -> bool:
 
 def upload(
     db: Session, c: httpx.Client, doc: Document, endpoint: str, key: str,
-    progress: Callable[[int, int], None] | None = None,
+    progress: Callable[[int, int], None] | None = None, *,
+    scheduled: datetime | None = None,
 ) -> dict:
     """Send the volume's illustrations page for the marked ``doc``: its own images first (it
     sorts first in the volume), then the rest of the volume's, in batches under the host's
-    body limit. Records the result on ``doc`` like a published chapter, without a number."""
+    body limit. Records the result on ``doc`` like a published chapter, without a number.
+    A ``scheduled`` time goes on the first (replace) batch only."""
     series = doc.series
     if series is None or doc.volume_id is None:
         raise publish.NotReady(NO_IMAGES)
@@ -169,8 +172,10 @@ def upload(
     if not inline and cover is None:
         raise publish.NotReady(NO_IMAGES)
     payloads = wp.build_illustrations_payloads(
-        {"series_title": series.title, "volume_title": volume.wp_name},
-        publish.series_meta(series), inline, api_key=key, cover=cover)
+        {"series_title": series.title, "volume_title": volume.wp_name,
+         "first_chapter_index": first_chapter_number(db, volume.id)},
+        publish.series_meta(series), inline, api_key=key, cover=cover,
+        scheduled_date=publish.wp_date(scheduled) if scheduled else None)
     if progress:
         progress(0, len(payloads))
     first: dict | None = None
@@ -186,7 +191,9 @@ def upload(
         if progress:
             progress(i, len(payloads))
     page_url = str(first.get("page_url") or "")
-    doc.wp_status, doc.wp_post_url = "publish", page_url
-    doc.wp_published_at, doc.wp_scheduled_for = datetime.now(UTC), None
+    doc.wp_status = "future" if scheduled else "publish"
+    doc.wp_post_url = page_url
+    doc.wp_published_at = scheduled or datetime.now(UTC)
+    doc.wp_scheduled_for = scheduled
     return {"page_url": page_url, "created": bool(first.get("created")),
             "batches": len(payloads), "images": len(inline) + (cover is not None)}

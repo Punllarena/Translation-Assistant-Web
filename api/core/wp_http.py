@@ -61,6 +61,15 @@ def check_status(c: httpx.Client, endpoint_url: str, api_key: str, series_slug: 
     return _send(c, "GET", site_base(endpoint_url) + STATUS_PATH, params=params, timeout=10)
 
 
+def check_illustrations_status(c: httpx.Client, endpoint_url: str, api_key: str,
+                               series_slug: str, volume_title: str) -> dict:
+    """The illustrations form of /status: the gallery is named by its volume, and the
+    plugin answers 400 when ``chapter`` is sent too."""
+    params = {"api_key": api_key, "series_slug": series_slug, "illustrations": 1,
+              "volume_title": volume_title}
+    return _send(c, "GET", site_base(endpoint_url) + STATUS_PATH, params=params, timeout=10)
+
+
 def publish(c: httpx.Client, endpoint_url: str, payload: dict) -> dict:
     return _send(c, "POST", normalize_endpoint_url(endpoint_url), json=payload,
                  timeout=15, ok_409=True)

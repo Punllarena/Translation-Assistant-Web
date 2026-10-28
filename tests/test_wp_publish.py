@@ -285,24 +285,123 @@ def test_chapter_one_sends_the_chosen_series_cover(app_client, me, ready, make_d
     assert "cover" not in posted[1]  # chapter 1 only
 
 
-def test_refresh_status_skips_the_illustrations_chapter(
+def _volume(db, series, subtitle, order):
+    vol = Volume(series_id=series.id, subtitle=subtitle, volume_order=order)
+    db.add(vol)
+    db.flush()
+    return vol
+
+
+def test_label_counts_chapters_in_the_volume_not_illustrations(app_client, me, ready, make_doc, wp_site, db):  # noqa: E501
+    _, posted = wp_site
+    v1, v2 = _volume(db, ready, "One", 1), _volume(db, ready, "Two", 2)
+    make_doc(me, ["一"], series=ready, order=1, volume=v1)
+    make_doc(me, ["二"], series=ready, order=2, volume=v1)
+    illus = make_doc(me, [], series=ready, order=3, volume=v2, title="Illustrations")
+    illus.is_illustrations = True
+    a = make_doc(me, ["三"], series=ready, order=4, volume=v2)
+    b = make_doc(me, ["四"], series=ready, order=5, volume=v2)
+    db.flush()
+    for d in (a, b):
+        assert app_client.post(f"/documents/{d.id}/wp/publish", json={}).status_code == 200
+    assert [(p["chapter_index"], p["chapter_label"]) for p in posted] == [
+        (3, f"{v2.wp_name} Chapter 1"), (4, f"{v2.wp_name} Chapter 2")]
+
+
+def test_no_label_for_loose_chapters_or_syosetu_series(app_client, me, ready, make_series, make_doc, wp_site, db):  # noqa: E501
+    _, posted = wp_site
+    loose = make_doc(me, ["一"], series=ready, order=1)
+    syo = make_series(me, "Syo")
+    syo.wp_series_slug, syo.wp_series_title_short = "syo", "Syo"
+    syo.syosetu_url = "https://ncode.syosetu.com/n1234ab/"
+    vol = _volume(db, syo, "One", 1)
+    in_vol = make_doc(me, ["二"], series=syo, order=1, volume=vol)
+    db.flush()
+    for d in (loose, in_vol):
+        assert app_client.post(f"/documents/{d.id}/wp/publish", json={}).status_code == 200
+    assert all("chapter_label" not in p for p in posted)
+
+
+def test_label_uses_the_frozen_wordpress_volume_name(app_client, me, ready, make_doc, wp_site, db):  # noqa: E501
+    _, posted = wp_site
+    vol = _volume(db, ready, "One", 1)
+    vol.wp_volume_title = "Book One"
+    doc = make_doc(me, ["一"], series=ready, order=1, volume=vol)
+    db.flush()
+    app_client.post(f"/documents/{doc.id}/wp/publish", json={})
+    assert posted[0]["chapter_label"] == "Book One Chapter 1"
+
+
+def test_label_follows_the_chapter_into_another_volume(app_client, me, ready, make_doc, wp_site, db):  # noqa: E501
+    _, posted = wp_site
+    v1, v2 = _volume(db, ready, "One", 1), _volume(db, ready, "Two", 2)
+    make_doc(me, ["一"], series=ready, order=1, volume=v1)
+    moved = make_doc(me, ["二"], series=ready, order=2, volume=v1)
+    make_doc(me, ["三"], series=ready, order=3, volume=v2)
+    db.flush()
+    r = app_client.post(f"/volumes/{v2.id}/documents", json={"document_ids": [moved.id]})
+    assert r.status_code == 200
+    db.refresh(moved)
+    app_client.post(f"/documents/{moved.id}/wp/publish", json={})
+    assert posted[-1]["chapter_label"] == f"{v2.wp_name} Chapter 2"
+    assert posted[-1]["chapter_index"] == moved.series_order == 3
+
+
+def test_a_changed_label_alone_needs_no_confirmation(app_client, me, ready, make_doc, wp_site, db):  # noqa: E501
+    _, posted = wp_site
+    vol = _volume(db, ready, "One", 1)
+    doc = make_doc(me, ["一"], series=ready, order=2, volume=vol)
+    doc.wp_chapter_index = 2  # published once as chapter 2; WordPress no longer has it
+    db.flush()
+    assert app_client.post(f"/documents/{doc.id}/wp/publish", json={}).status_code == 200
+    assert posted[-1]["chapter_label"] == f"{vol.wp_name} Chapter 1"
+
+
+def test_refresh_status_asks_for_the_illustrations_page(
         app_client, me, ready, make_doc, monkeypatch, db):
     calls = []
 
     def handle(request):
-        calls.append(request.url.path)
-        return httpx.Response(200, json={"status": "publish", "post_url": "x"})
+        calls.append(dict(request.url.params))
+        return httpx.Response(200, json={"status": "future", "post_url": "x"})
 
     monkeypatch.setattr(wp_router, "http_client",
                         lambda: wp_router.wp_http.client(transport=httpx.MockTransport(handle)))
     monkeypatch.setattr("api.publish.check_user_url", lambda url, allow, label: None)
-    illus = make_doc(me, ["絵"], series=ready, order=1, title="Illustrations")
+    vol = Volume(series_id=ready.id, subtitle="V1", wp_volume_title="Book One")
+    db.add(vol)
+    db.flush()
+    illus = make_doc(me, [], series=ready, order=1, title="Illustrations", volume=vol)
     illus.is_illustrations = True
-    illus.wp_status = "future"
+    illus.wp_status = "publish"
     db.flush()
     r = app_client.post(f"/documents/{illus.id}/wp/status")
-    assert r.status_code == 200 and calls == []
-    assert r.json()["status"] == "future" and r.json()["previous_scheduled"] is False
+    assert r.status_code == 200
+    assert calls[0]["illustrations"] == "1" and calls[0]["volume_title"] == "Book One"
+    assert "chapter" not in calls[0]
+    assert (r.json()["cached_status"], r.json()["status"], r.json()["post_url"]) == ("publish", "future", "x")  # noqa: E501
+    assert r.json()["previous_scheduled"] is False and r.json()["suggested_slot"] is None
+    db.refresh(illus)
+    assert illus.wp_status == "future"
+
+
+def test_refresh_status_of_illustrations_on_an_old_plugin_keeps_the_cache(
+        app_client, me, ready, make_doc, monkeypatch, db):
+    monkeypatch.setattr(wp_router, "http_client", lambda: wp_router.wp_http.client(
+        transport=httpx.MockTransport(
+            lambda r: httpx.Response(400, json={"error": "Missing series_slug or chapter"}))))
+    monkeypatch.setattr("api.publish.check_user_url", lambda url, allow, label: None)
+    vol = Volume(series_id=ready.id, subtitle="V1")
+    db.add(vol)
+    db.flush()
+    illus = make_doc(me, [], series=ready, order=1, title="Illustrations", volume=vol)
+    illus.is_illustrations = True
+    illus.wp_status, illus.wp_post_url = "future", "keep"
+    db.flush()
+    r = app_client.post(f"/documents/{illus.id}/wp/status")
+    assert r.status_code == 200
+    assert (r.json()["status"], r.json()["post_url"]) == ("future", "keep")
+    assert r.json()["remote_error"] == "Missing series_slug or chapter"
 
 
 def test_chapter_publish_refuses_illustrations_chapter(

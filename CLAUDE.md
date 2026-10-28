@@ -119,8 +119,8 @@ or volume, deleting a chapter, assigning chapters to a volume, a volume's order 
 merge, split, and EPUB import. Syosetu-sourced series keep syosetu's chapter numbers. Renumbering alone leaves
 `documents.updated_at` untouched (`renumber()` writes those rows in SQL). `POST /documents/export/zip`
 exports ticked chapters; `GET /volumes` feeds the Move-to dialogs. Library dialogs (`web/src/ui/Dialog.tsx`: `ConfirmDialog`,
-`PromptDialog`) replace native `prompt`/`confirm`, and none of them closes while its action is busy. Deferred work (WordPress
-volume indexing, the plugin's Illustrations page) is tracked in `docs/TODO.md`.
+`PromptDialog`) replace native `prompt`/`confirm`, and none of them closes while its action is busy. WordPress volume indexing and
+the plugin's Illustrations page are designed in the plugin's 1.6.0 spec (see `docs/TODO.md`).
 
 Syosetu heading volumes: the fetch job puts each chapter in the volume of its `p-eplist__chapter-title` heading, per the
 series' `syosetu_volume_mode` (`all` / `marker` with `syosetu_volume_marker` / `off`); the rules are pure, in
@@ -136,6 +136,8 @@ by kind + index, or kind + subtitle when unnumbered (partial indexes `uq_volumes
 names), both tested against `volumeNames.cases.json`. `Volume.full_title` = `epub_title` override, else the series' `volume_title_template`
 (blank = `DEFAULT_TEMPLATE`); `Volume.label` is the short SPA form. `api/volume_order.place` positions new and re-keyed volumes (ta.db import
 appends in desktop order; an explicit `volume_order` on create is kept). `volumes.wp_volume_title` freezes at the first publish; WordPress gets `Volume.wp_name`.
+Chapters in a volume of a non-syosetu series also send `chapter_label` = `f"{wp_name} Chapter {n}"`
+(`volume_position` in `api/library.py`); the label never feeds the series-wide `chapter_index`.
 
 New series: the `/new` page (`web/src/library/newSeries/`) offers Syosetu, EPUB or Paste. Series have optional credit fields
 `original_title`, `original_author`, `author_romaji` (the translated `title` stays required). `POST /scrape/syosetu/novel`
@@ -151,7 +153,8 @@ as one row, `web/src/library/epubRows.ts`). `documents.is_illustrations` marks i
 a syosetu series (rules and 409 messages in `api/illustrations.py`; Mark/Unmark is a PATCH). `arrange()` puts it first in its
 volume, and it stands outside `chapter_number` (`api/library.py`) and the unlock chain. It publishes as the volume's
 illustrations page through `POST /documents/{id}/wp/illustrations` (the `wp_illustrations` job, `confirm_republish` 409);
-batch publish uploads it the same way. Spec: `docs/superpowers/specs/2026-10-24-volume-illustrations-chapter-design.md`.
+batch publish uploads it the same way and gives it a schedule slot (`publish_date` on the first batch); its status
+refresh asks `/status?illustrations=1&volume_title=<wp_name>`. Spec: `docs/superpowers/specs/2026-10-24-volume-illustrations-chapter-design.md`.
 
 Volume covers: covers live on volumes, never on chapters (`document_images` has no cover flag; migration `44f4d937ee05`
 moved each volume's first chapter cover onto the volume and kept other chapter covers as images excluded from export).
