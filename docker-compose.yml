@@ -11,12 +11,16 @@ x-dev: &dev
     target: dev
   image: ta-web-dev
   profiles: ["dev"]
+  restart: unless-stopped
   depends_on:
     postgres:
       condition: service_healthy
   volumes:
     - .:/app
     - web_node_modules:/app/web/node_modules
+  extra_hosts:
+    # Reach services published on the host (e.g. Ollama on :8101) via host.docker.internal.
+    - "host.docker.internal:host-gateway"
   environment: &dev-env
     TA_COOKIE_SECURE: "false"
     TA_DATABASE_URL: postgresql+psycopg://ta:ta@postgres:5432/ta
@@ -27,6 +31,7 @@ x-dev: &dev
 services:
   postgres:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ta
       POSTGRES_PASSWORD: ta
@@ -43,6 +48,7 @@ services:
     build:
       context: .
       target: runtime
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,6 +58,9 @@ services:
       TA_DATABASE_URL: postgresql+psycopg://ta:ta@postgres:5432/ta
       TA_DATA_DIR: /data
       TA_COOKIE_SECURE: ${TA_COOKIE_SECURE:-true}
+    extra_hosts:
+      # Ollama (and other host-published services) at http://host.docker.internal:<port>.
+      - "host.docker.internal:host-gateway"
     volumes: ["ta_data:/data"]
     # Not published: only Caddy reaches it, which is what makes trusting
     # X-Forwarded-For (--forwarded-allow-ips in docker/entrypoint.sh) safe.
@@ -59,6 +68,7 @@ services:
 
   caddy:
     build: ./web
+    restart: unless-stopped
     depends_on: [api]
     environment:
       TA_SITE_ADDRESS: ${TA_SITE_ADDRESS:-localhost}
