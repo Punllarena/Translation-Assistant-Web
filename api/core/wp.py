@@ -275,6 +275,8 @@ def build_payload(
         )
     if doc_meta["series_order"] != 0:
         payload["first_line"] = get_first_line(lines)
+        if doc_meta.get("chapter_label"):
+            payload["chapter_label"] = doc_meta["chapter_label"]
         if images:
             payload["images"] = build_image_payload(lines, images)
         if cover is not None and doc_meta["series_order"] == 1:

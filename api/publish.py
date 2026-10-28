@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from api import covers, server_settings
 from api.core import wp
 from api.core.images import shrink_image
-from api.library import chapter_number, previous_chapter
+from api.library import chapter_number, previous_chapter, volume_position
 from api.models import ApiCredential, Document, DocumentImage, Line, Series, Volume, VolumeCover
 from api.mt.urls import check_user_url
 from api.security import decrypt_secret
@@ -117,10 +117,16 @@ def build_chapter(db: Session, doc: Document, prefs: WpPrefs) -> Chapter:
     # the series cover rides on chapter 1 only (build_payload), so only then is it read
     cover = covers.effective_series_cover(db, series.id) if number == 1 else None
     volume = db.get(Volume, doc.volume_id) if doc.volume_id else None
+    # WordPress shows the reader's own volume: "Volume 2 Chapter 3". Never feeds
+    # chapter_index (series-wide) or the re-publish check.
+    label = ""
+    if volume is not None and not series.syosetu_url:
+        label = f"{volume.wp_name} Chapter {volume_position(db, doc)}"
     return Chapter(
         doc_meta={"series_title": series.title, "series_order": number,
                   "chapter_title": doc.chapter_title or doc.title,  # ruling 11
-                  "volume_title": volume.wp_name if volume else ""},
+                  "volume_title": volume.wp_name if volume else "",
+                  "chapter_label": label},
         series_meta=series_meta(series), lines=lines, inline_images=inline,
         cover_image=image_dict(cover) if cover is not None else None,
         password=password, unlock_chapter_index=unlock,

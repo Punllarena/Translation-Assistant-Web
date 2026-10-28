@@ -409,6 +409,26 @@ def test_build_payload_omits_blank_volume_title():
     assert "volume_title" not in build_payload(doc_meta, series_meta, lines, api_key="key123")
 
 
+def test_build_payload_sends_chapter_label():
+    doc_meta, series_meta, lines = _sample_meta()
+    doc_meta["chapter_label"] = "Volume 2 Chapter 3"
+    payload = build_payload(doc_meta, series_meta, lines, api_key="k")
+    assert payload["chapter_label"] == "Volume 2 Chapter 3"
+
+
+def test_build_payload_omits_blank_chapter_label():
+    doc_meta, series_meta, lines = _sample_meta()
+    assert "chapter_label" not in build_payload(doc_meta, series_meta, lines, api_key="k")
+    doc_meta["chapter_label"] = ""
+    assert "chapter_label" not in build_payload(doc_meta, series_meta, lines, api_key="k")
+
+
+def test_build_payload_never_labels_the_synopsis():
+    doc_meta, series_meta, lines = _sample_meta()
+    doc_meta.update(series_order=0, chapter_label="Volume 1 Chapter 1")
+    assert "chapter_label" not in build_payload(doc_meta, series_meta, lines, api_key="k")
+
+
 
 
 def _illus_meta():
