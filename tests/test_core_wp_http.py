@@ -133,3 +133,30 @@ def test_non_json_body_never_reaches_the_message():
         with pytest.raises(WPPublishError, match="non-JSON") as e:
             wp_http.check_status(c, SITE, "sekret-key", "s", 1)
     assert "sekret-key" not in e.value.message
+
+
+def test_429_waits_and_retries(monkeypatch):
+    waits, calls = [], []
+    monkeypatch.setattr(wp_http, "sleep", waits.append)
+
+    def handler(request):
+        calls.append(request)
+        if len(calls) == 1:
+            return httpx.Response(429, headers={"Retry-After": "7"})
+        if len(calls) == 2:
+            return httpx.Response(429)
+        return httpx.Response(200, json={"page_url": "x"})
+
+    with make(handler) as c:
+        assert wp_http.publish_illustrations(c, SITE, {}) == {"page_url": "x"}
+    assert waits == [7.0, wp_http.RETRY_WAITS[1]]
+
+
+def test_429_gives_up_after_the_retries(monkeypatch):
+    waits = []
+    monkeypatch.setattr(wp_http, "sleep", waits.append)
+    with make(lambda r: httpx.Response(429, headers={"Retry-After": "9999"})) as c:
+        with pytest.raises(WPPublishError) as e:
+            wp_http.publish(c, SITE, {})
+    assert e.value.status_code == 429
+    assert waits == [wp_http.MAX_WAIT] * len(wp_http.RETRY_WAITS)
