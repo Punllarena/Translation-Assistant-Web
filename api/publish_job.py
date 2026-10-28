@@ -49,9 +49,9 @@ def _publish_one(db: Session, c: httpx.Client, user_id: int, item: dict, endpoin
         if doc.wp_status in publish.LIVE and not confirm:  # ruling 6
             raise publish.NotReady(
                 "already published or scheduled; tick Overwrite to publish it again")
-        if doc.is_illustrations:  # no schedule slot: the endpoint takes no date
+        if doc.is_illustrations:
             _send_summary(c, doc, endpoint, key, sent)
-            out = illustrations.upload(db, c, doc, endpoint, key)
+            out = illustrations.upload(db, c, doc, endpoint, key, scheduled=scheduled)
             return {**row, "ok": True, "created": out["created"], "post_url": out["page_url"],
                     "password": None, "unlock_chapter_index": None}
         ch = publish.build_chapter(db, doc, prefs)

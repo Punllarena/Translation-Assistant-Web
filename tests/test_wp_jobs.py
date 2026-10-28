@@ -1,6 +1,7 @@
 # ruff: noqa: E501
 import json
 from contextlib import contextmanager
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -268,7 +269,7 @@ def test_batch_routes_illustrations_chapter_to_upload(app_client, me, ready, mak
     assert (doc.wp_status, doc.wp_post_url, doc.wp_chapter_index) == ("publish", "pg", None)
 
 
-def test_batch_gives_illustrations_no_slot(app_client, me, ready, make_doc, wp_site, db):
+def test_batch_gives_illustrations_a_slot(app_client, me, ready, make_doc, wp_site, db):
     vol, doc = plates(me, ready, make_doc, db)
     texts = [make_doc(me, [f"行{i}"], series=ready, order=i + 1, volume=vol) for i in (1, 2)]
     r = app_client.post("/wp/batch", json={
@@ -276,12 +277,23 @@ def test_batch_gives_illustrations_no_slot(app_client, me, ready, make_doc, wp_s
         "start": "2026-11-01T20:00:00+09:00", "chapters_per_day": 2, "tz": "Asia/Tokyo"})
     assert r.status_code == 202
     params = db.get(Job, r.json()["id"]).params_json["chapters"]
-    assert params[0] == {"document_id": doc.id, "scheduled_for": None}
-    # the same slots test_batch_schedules_in_order_and_records_each gives its first two chapters
-    assert [p["scheduled_for"] for p in params[1:]] == ["2026-11-01T20:00:00+09:00", "2026-11-01T21:00:00+09:00"]
+    assert [p["scheduled_for"] for p in params] == [
+        "2026-11-01T20:00:00+09:00", "2026-11-01T21:00:00+09:00", "2026-11-02T21:00:00+09:00"]
     jobs.run_next()
     dates = [(p, b.get("publish_date")) for p, b in wp_site["posted"]]
-    assert dates == [(ILLUS, None), (PUBLISH, "2026-11-01T11:00:00Z"), (PUBLISH, "2026-11-01T12:00:00Z")]
+    assert dates == [(ILLUS, "2026-11-01T11:00:00Z"), (PUBLISH, "2026-11-01T12:00:00Z"),
+                     (PUBLISH, "2026-11-02T12:00:00Z")]
+    db.refresh(doc)
+    assert doc.wp_status == "future"
+    assert doc.wp_scheduled_for == datetime(2026, 11, 1, 11, tzinfo=UTC)
+
+
+def test_batch_now_publishes_illustrations_without_a_date(app_client, me, ready, make_doc, wp_site, db):
+    vol, doc = plates(me, ready, make_doc, db)
+    make_doc(me, ["一"], series=ready, order=2, volume=vol)
+    app_client.post("/wp/batch", json={"document_ids": [doc.id], "schedule": False})
+    jobs.run_next()
+    assert all("publish_date" not in b for _, b in wp_site["posted"])
     db.refresh(doc)
     assert doc.wp_status == "publish" and doc.wp_scheduled_for is None
 

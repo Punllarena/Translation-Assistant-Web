@@ -170,14 +170,14 @@ def batch_publish(
         raise HTTPException(status.HTTP_409_CONFLICT, UPLOAD_BUSY)
     docs.sort(key=lambda d: (d.series.title, d.series_order, d.id))
     prefs = wp_prefs.load(db, user.id)
-    # the Illustrations chapter takes no slot: its endpoint takes no date
-    numbered = sum(not d.is_illustrations for d in docs)
-    slots = iter(publish.batch_slots(body.start, numbered, body.chapters_per_day,
+    # the Illustrations chapter takes a slot like any chapter (publish_date on its
+    # first batch); a batch that isn't scheduled gives every item None
+    slots = iter(publish.batch_slots(body.start, len(docs), body.chapters_per_day,
                                      prefs.wp_default_schedule_time, tz)
-                 if body.schedule else [None] * numbered)
+                 if body.schedule else [None] * len(docs))
     chapters = []
     for d in docs:
-        s = None if d.is_illustrations else next(slots)
+        s = next(slots)
         chapters.append({"document_id": d.id, "scheduled_for": s.isoformat() if s else None})
     return jobs.enqueue(db, user.id, "wp_publish",
                         {"chapters": chapters, "confirm_republish": body.confirm_republish},
