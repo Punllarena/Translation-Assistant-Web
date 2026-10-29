@@ -89,6 +89,8 @@ test("title sort orders A–Z", async ({ page }) => {
   await page.goto("/");
   try {
     await page.getByLabel("Sort by").selectOption({ label: "Title" });
+    await expect(link(page, DROPPED)).toBeVisible();
+    await expect(link(page, ONGOING)).toBeVisible();
     const texts = await page.getByRole("link", { name: /Filter spec (dropped|ongoing)/ }).allTextContents();
     const names = texts.map((t) => t.match(/Filter spec (dropped|ongoing)/)?.[0]);
     expect(names.indexOf(DROPPED)).toBeGreaterThanOrEqual(0);

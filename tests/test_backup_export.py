@@ -1,13 +1,12 @@
 """Export: a whole-server zip of COPY CSV members plus the manifest and the dict files."""
 
-import csv
 import io
 import zipfile
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from api.backup import crypto, export, manifest, schema
+from api.backup import copycsv, crypto, export, manifest, schema
 from api.config import get_settings
 from api.models import ApiCredential, Job, OllamaChunk, Series
 from api.models import Session as SessionRow
@@ -30,8 +29,7 @@ def _export(db, key):
 
 
 def _csv(zf, name):
-    return list(csv.reader(io.StringIO(zf.read(name).decode("utf-8")),
-                           quoting=csv.QUOTE_NOTNULL))
+    return copycsv.rows(zf.read(name).decode("utf-8"))
 
 
 def _job(db, user, state):
