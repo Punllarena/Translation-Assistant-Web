@@ -35,6 +35,17 @@ export function insertAtCursor(view: EditorView | null, text: string, caretOffse
   view.focus();
 }
 
+/** Replace the whole text as the user's own edit, so Ctrl+Z brings the old text back
+ *  (Use from translation memory or MT). */
+export function replaceDoc(view: EditorView, text: string) {
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: text },
+    selection: { anchor: text.length },
+    userEvent: "input.replace",
+  });
+  view.focus();
+}
+
 interface Props {
   value: string;
   label: string;

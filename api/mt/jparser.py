@@ -18,6 +18,8 @@ _EDICT_PAT = re.compile(r"^([^\[/]+?)\s*(?:\[([^\]]+)\])?\s*/(.+)/$")
 _WORD_ANNOTATION = re.compile(r"\([^)]+\)")
 _POS_PAT = re.compile(r"^\(([^)]+)\)")
 _ENTL_PAT = re.compile(r"/EntL\S+/?$")
+# Latin letters and digits, half- and full-width: an unmatched run of them is one word.
+_LATIN_RUN = re.compile(r"[0-9A-Za-zÀ-ɏ０-９Ａ-Ｚａ-ｚ]+")
 
 
 class DictEntry(NamedTuple):
@@ -399,6 +401,12 @@ def analyze(text: str, index: Mapping[str, DictEntry], rules: list[DeconjRule]) 
                 text[i : i + cl], cm.entry, tense=cm.tense, base_form=cm.base_form,
             ))
             i += cl
+        elif run := _LATIN_RUN.match(text, i):
+            output.append({
+                "surface": run.group(), "reading": "", "lemma": "", "pos": "", "gloss": "",
+                "tense": "", "base_form": "", "matched": False,
+            })
+            i = run.end()
         else:
             if ch not in "。、！？…・":
                 output.append({
