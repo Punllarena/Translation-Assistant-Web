@@ -3589,6 +3589,11 @@ export interface components {
              */
             epub_title: string;
             /**
+             * Epub Translator
+             * @default
+             */
+            epub_translator: string;
+            /**
              * Kind
              * @default Volume
              */
@@ -3651,6 +3656,8 @@ export interface components {
             epub_publisher: string;
             /** Epub Title */
             epub_title: string;
+            /** Epub Translator */
+            epub_translator: string;
             /** Full Title */
             full_title: string;
             /** Id */
@@ -3691,6 +3698,8 @@ export interface components {
             epub_publisher?: string | null;
             /** Epub Title */
             epub_title?: string | null;
+            /** Epub Translator */
+            epub_translator?: string | null;
             /** Kind */
             kind?: string | null;
             /** Subtitle */

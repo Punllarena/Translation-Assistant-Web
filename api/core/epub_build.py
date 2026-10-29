@@ -1,21 +1,14 @@
-"""EPUB builder ported from the desktop ``translation_assistant/epub.py``: assembles a
-minimal valid EPUB3 zip in memory. The reader is in epub_read.py."""
+"""EPUB builder ported from the desktop ``translation_assistant/epub.py``: assembles an
+EPUB3 zip in memory. The reader is in epub_read.py; the stylesheet, cover and title pages
+are in epub_pages.py."""
 import io
-import mimetypes
-import posixpath
 import re
+import uuid
 import zipfile
+from datetime import UTC, datetime
 from xml.sax.saxutils import escape
 
-
-def _escape_attr(s: str) -> str:
-    """Escape a string for safe use inside a double-quoted XML attribute.
-
-    xml.sax.saxutils.escape() only escapes &, <, > -- not " -- so it is
-    insufficient on its own for attribute values (as opposed to text nodes).
-    """
-    return escape(s, {'"': "&quot;"})
-
+from api.core import epub_pages
 
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 
@@ -49,9 +42,8 @@ _OPF_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 <dc:title>{title}</dc:title>
 <dc:language>{lang}</dc:language>
 <dc:identifier id="uid">{identifier}</dc:identifier>
-{creator_entries}
-{publisher_entry}
-{source_entry}
+<meta property="dcterms:modified">{modified}</meta>
+{credits}
 {cover_meta}
 </metadata>
 <manifest>
@@ -64,7 +56,7 @@ _OPF_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 _NAV_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="{lang}">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="{lang}" lang="{lang}">
 <head><title>Table of Contents</title></head>
 <body>
 <nav epub:type="toc">
@@ -72,17 +64,37 @@ _NAV_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 {items}
 </ol>
 </nav>
+{landmarks}
 </body>
 </html>
 """
 
-_CHAPTER_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="{lang}">
-<head><title>{title}</title></head>
-<body>
-{body}</body>
-</html>
-"""
+_XHTML = "application/xhtml+xml"
+
+
+def _credits(
+    creator: str, illustrator: str, translator: str, publisher: str, source: str,
+    description: str,
+) -> str:
+    """The OPF credit lines; a blank value emits nothing. Creators carry a role-refining
+    <meta> (aut/ill), the shape open_book() reads them from; the translator is a
+    dc:contributor with the trl role."""
+    out = []
+    for tag, ref, name, role in (
+        ("dc:creator", "creator-aut", creator, "aut"),
+        ("dc:creator", "creator-ill", illustrator, "ill"),
+        ("dc:contributor", "contributor-trl", translator, "trl"),
+    ):
+        if name:
+            out.append(f'<{tag} id="{ref}">{escape(name)}</{tag}>')
+            out.append(f'<meta refines="#{ref}" property="role" scheme="marc:relators">{role}</meta>')
+    if publisher:
+        out.append(f"<dc:publisher>{escape(publisher)}</dc:publisher>")
+    if source.strip():
+        out.append(f"<dc:source>{escape(source)}</dc:source>")
+    if description.strip():
+        out.append(f"<dc:description>{escape(description)}</dc:description>")
+    return "\n".join(out)
 
 
 def build_epub(
@@ -92,9 +104,12 @@ def build_epub(
     cover: dict | None = None,
     creator: str = "",
     illustrator: str = "",
+    translator: str = "",
     publisher: str = "",
     identifier: str = "",
     source: str = "",
+    description: str = "",
+    modified: datetime | None = None,
 ) -> bytes:
     """
     chapters: [(chapter_title, content_items, chapter_images), ...] in output
@@ -104,39 +119,44 @@ def build_epub(
     keyed by the same src_path strings content_items references.
     cover: {"data": bytes, "media_type": str} or None. When present, the
     cover image gets a manifest item with properties="cover-image" plus a
-    <meta name="cover" content="..."> entry for older-reader compatibility.
-    creator/illustrator: author/illustrator names. When either is given, a
-    dc:creator entry is emitted with a role-refining <meta> (aut/ill),
-    matching the shape open_book() reads them from. Blank means omitted.
-    publisher: dc:publisher text, omitted when blank.
-    source: dc:source text (the original work's credit), omitted when blank.
+    <meta name="cover" content="..."> entry for older-reader compatibility,
+    and a cover page opens the book.
+    creator/illustrator/translator/publisher/source/description: credits,
+    see _credits(); each is omitted when blank, and all but description also
+    go on the title page.
     identifier: dc:identifier text (e.g. an ISBN urn). When blank, a
-    generated urn:uuid is used instead -- unlike creator/publisher, the OPF
-    always needs *some* unique identifier, so this one is never omitted,
-    only ever substituted.
+    generated urn:uuid is used instead -- the OPF always needs *some* unique
+    identifier. Callers pass a stable one: readers key reading position on it.
+    modified: dcterms:modified (required by EPUB 3); now when None.
 
-    Assembles a minimal valid EPUB3 zip in memory using stdlib zipfile +
-    xml.sax.saxutils.escape — no new dependency. mimetype is stored
-    uncompressed as the first entry (required by the EPUB spec so readers
-    can identify the format without inflating the zip).
+    The spine runs cover page, title page, chapters; every page links the
+    stylesheet, and the nav document carries the landmarks. Images that are
+    not EPUB core media types (JPEG, PNG, GIF, WebP, SVG) are left out, and so
+    is a cover of another type.
 
-    ponytail: no stylesheet is generated -- reader default styling only.
-    ponytail: no dedicated cover.xhtml title page -- the manifest/meta cover
-    metadata alone is enough for the readers that matter; add a real cover
-    page later only if a specific reader needs one.
+    mimetype is stored uncompressed as the first entry (required by the EPUB
+    spec so readers can identify the format without inflating the zip).
     """
-    import uuid
-
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
         zf.writestr("META-INF/container.xml", _CONTAINER_XML_OUT)
+        zf.writestr(f"OEBPS/{epub_pages.STYLESHEET_HREF}", epub_pages.STYLESHEET)
 
-        manifest_items = []
-        spine_items = []
+        manifest_items = [
+            f'<item id="css" href="{epub_pages.STYLESHEET_HREF}" media-type="text/css"/>',
+            f'<item id="title-page" href="text/title.xhtml" media-type="{_XHTML}"/>',
+        ]
+        spine_items = ['<itemref idref="title-page"/>']
         nav_lis = []
         image_id = 0
         used_image_hrefs: set[str] = set()  # zip-relative hrefs already claimed, across all chapters
+        first_text_href = None
+
+        zf.writestr("OEBPS/text/title.xhtml", epub_pages.title_page(
+            volume_title, language, creator=creator, illustrator=illustrator,
+            translator=translator, publisher=publisher, source=source,
+        ))
 
         for i, (chapter_title, content_items, chapter_images) in enumerate(chapters, start=1):
             chap_id = f"chap{i}"
@@ -147,95 +167,88 @@ def build_epub(
             # An image-only chapter (colour plate, frontispiece) gets no <h1>:
             # its "title" is a filename stub like "p-fmatter-003", and printing
             # that above a full-page illustration looks like a bug to a reader.
+            has_text = any(kind == "text" for kind, _ in content_items)
             body_parts = []
-            if any(kind == "text" for kind, _ in content_items):
+            if has_text:
+                first_text_href = first_text_href or href
                 body_parts.append(f"<h1>{escape(chapter_title)}</h1>\n")
             for kind, value in content_items:
                 if kind == "text":
                     body_parts.append(f"<p>{_paragraph_to_html(value)}</p>\n")
-                else:
-                    src_path = value
-                    if src_path not in written_images:
-                        image_id += 1
-                        data = image_bytes_by_src.get(src_path)
-                        if data is None:
-                            continue  # referenced image has no bytes -- skip, not fatal
-                        # Preserve the original basename where possible (readable,
-                        # round-trips predictably); fall back to a numbered prefix
-                        # only on a collision (two different src_paths sharing a
-                        # basename, e.g. two chapters each with an "images/pic.png").
-                        basename = posixpath.basename(src_path) or f"{image_id}.img"
-                        img_href = f"images/{basename}"
-                        if img_href in used_image_hrefs:
-                            img_href = f"images/{image_id}_{basename}"
-                        used_image_hrefs.add(img_href)
-                        zf.writestr(f"OEBPS/{img_href}", data)
-                        media_type = mimetypes.guess_type(src_path)[0] or "application/octet-stream"
-                        manifest_items.append(
-                            f'<item id="img{image_id}" href="{_escape_attr(img_href)}" '
-                            f'media-type="{_escape_attr(media_type)}"/>'
-                        )
-                        written_images[src_path] = img_href
-                    body_parts.append(
-                        f'<p><img src="../{_escape_attr(written_images[src_path])}"/></p>\n')
+                    continue
+                src_path = value
+                if src_path not in written_images:
+                    data = image_bytes_by_src.get(src_path)
+                    media_type = epub_pages.image_type(src_path, data) if data is not None else None
+                    if media_type is None:
+                        continue  # no bytes, or not a type readers must show -- skip, not fatal
+                    image_id += 1
+                    # Keep the original name where possible (readable, round-trips
+                    # predictably); number it only on a collision (two src_paths sharing
+                    # a name, e.g. two chapters each with an "images/pic.png").
+                    name = epub_pages.image_name(src_path, media_type)
+                    img_href = f"images/{name}"
+                    if img_href in used_image_hrefs:
+                        img_href = f"images/{image_id}_{name}"
+                    used_image_hrefs.add(img_href)
+                    zf.writestr(f"OEBPS/{img_href}", data)
+                    manifest_items.append(
+                        f'<item id="img{image_id}" href="{img_href}" media-type="{media_type}"/>'
+                    )
+                    written_images[src_path] = img_href
+                body_parts.append(
+                    f'<p class="img"><img src="../{written_images[src_path]}" alt=""/></p>\n')
 
-            xhtml = _CHAPTER_TEMPLATE.format(
-                title=escape(chapter_title), body="".join(body_parts), lang=language,
-            )
-            zf.writestr(f"OEBPS/{href}", xhtml)
-            manifest_items.append(
-                f'<item id="{chap_id}" href="{href}" media-type="application/xhtml+xml"/>'
-            )
+            section = ('<section epub:type="chapter" role="doc-chapter">' if has_text
+                       else '<section class="plates">')
+            zf.writestr(f"OEBPS/{href}", epub_pages.page(
+                chapter_title, f"{section}\n{''.join(body_parts)}</section>\n", language,
+            ))
+            manifest_items.append(f'<item id="{chap_id}" href="{href}" media-type="{_XHTML}"/>')
             spine_items.append(f'<itemref idref="{chap_id}"/>')
             nav_lis.append(f'<li><a href="{href}">{escape(chapter_title)}</a></li>')
 
-        zf.writestr("OEBPS/nav.xhtml", _NAV_TEMPLATE.format(lang=language, items="\n".join(nav_lis)))
-        manifest_items.append(
-            '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>'
-        )
-
-        cover_meta = ""
-        if cover is not None:
-            ext = mimetypes.guess_extension(cover["media_type"]) or ".img"
+        cover_href = None
+        cover_type = cover and epub_pages.image_type("", cover["data"], cover["media_type"])
+        if cover_type:
+            ext = epub_pages.EXT[cover_type]
             cover_href = f"images/cover{ext}"
-            if cover_href in used_image_hrefs:
-                n = 1
-                while f"images/cover_{n}{ext}" in used_image_hrefs:
-                    n += 1
+            n = 0
+            while cover_href in used_image_hrefs:
+                n += 1
                 cover_href = f"images/cover_{n}{ext}"
             used_image_hrefs.add(cover_href)
             zf.writestr(f"OEBPS/{cover_href}", cover["data"])
             manifest_items.append(
-                f'<item id="cover-image" href="{_escape_attr(cover_href)}" '
-                f'media-type="{_escape_attr(cover["media_type"])}" properties="cover-image"/>'
+                f'<item id="cover-image" href="{cover_href}" '
+                f'media-type="{cover_type}" properties="cover-image"/>'
             )
-            cover_meta = '<meta name="cover" content="cover-image"/>'
+            zf.writestr("OEBPS/text/cover.xhtml", epub_pages.cover_page(cover_href, language))
+            manifest_items.append(f'<item id="cover-page" href="text/cover.xhtml" media-type="{_XHTML}"/>')
+            spine_items.insert(0, '<itemref idref="cover-page"/>')
 
-        creator_entries = []
-        if creator:
-            creator_entries.append(f'<dc:creator id="creator-aut">{escape(creator)}</dc:creator>')
-            creator_entries.append(
-                '<meta refines="#creator-aut" property="role" scheme="marc:relators">aut</meta>'
-            )
-        if illustrator:
-            creator_entries.append(f'<dc:creator id="creator-ill">{escape(illustrator)}</dc:creator>')
-            creator_entries.append(
-                '<meta refines="#creator-ill" property="role" scheme="marc:relators">ill</meta>'
-            )
-        publisher_entry = f"<dc:publisher>{escape(publisher)}</dc:publisher>" if publisher else ""
+        marks = [("cover", "text/cover.xhtml", "Cover")] if cover_href else []
+        marks.append(("titlepage", "text/title.xhtml", "Title Page"))
+        marks.append(("toc", "nav.xhtml", "Table of Contents"))
+        if start := first_text_href or ("text/chap1.xhtml" if chapters else None):
+            marks.append(("bodymatter", start, "Start"))
+        zf.writestr("OEBPS/nav.xhtml", _NAV_TEMPLATE.format(
+            lang=language, items="\n".join(nav_lis), landmarks=epub_pages.landmarks(marks),
+        ))
+        manifest_items.append(
+            f'<item id="nav" href="nav.xhtml" media-type="{_XHTML}" properties="nav"/>'
+        )
 
-        source_entry = f"<dc:source>{escape(source)}</dc:source>" if source.strip() else ""
-
+        stamp = (modified or datetime.now(UTC)).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         opf = _OPF_TEMPLATE.format(
             title=escape(volume_title),
             lang=language,
             identifier=escape(identifier) if identifier else f"urn:uuid:{uuid.uuid4()}",
+            modified=stamp,
+            credits=_credits(creator, illustrator, translator, publisher, source, description),
+            cover_meta='<meta name="cover" content="cover-image"/>' if cover_href else "",
             manifest="\n".join(manifest_items),
             spine="\n".join(spine_items),
-            cover_meta=cover_meta,
-            creator_entries="\n".join(creator_entries),
-            publisher_entry=publisher_entry,
-            source_entry=source_entry,
         )
         zf.writestr("OEBPS/content.opf", opf)
 

@@ -149,6 +149,12 @@ New series: the `/new` page (`web/src/library/newSeries/`) offers Syosetu, EPUB 
 is a one-chapter series numbered 1 whose chapter URL is the series URL. `/epub/import` with `new_series=true` refuses a taken title
 (409) instead of reusing the series. EPUB export: a volume with no `epub_author` uses the series' `author_romaji`; `original_title`
 (with `original_author`) is written as `dc:source`.
+The export (`epub_build.py`, fixed pages and image rules in `epub_pages.py`) writes `dcterms:modified`, a stylesheet,
+a cover page, a title/credits page and landmarks; images keep only EPUB core types (sniffed from their bytes) under
+ASCII-safe names. A volume with no `epub_identifier` gets a `urn:uuid` derived from the series' `created_at` and the
+volume id (`book_id`, `api/routers/epub.py`), so re-exports are the same book to a reader. The translator credit
+(`dc:contributor`, role `trl`) is the volume's `epub_translator`, else the user setting `epub_translator`
+(Settings → Editor). Import skips a text-only `epub:type="titlepage"` page (`_title_page`, `epub_read.py`).
 
 Volume Illustrations chapter: EPUB import splits chapters by the table of contents, not by file (`api/core/epub_runs.py`,
 fed by `epub_read.py`), and gathers the picked image-only pages into one chapter titled "Illustrations" (the picker shows them

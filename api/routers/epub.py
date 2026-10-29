@@ -6,8 +6,10 @@ import io
 import mimetypes
 import re
 import unicodedata
+import uuid
 import zipfile
 import zlib
+from datetime import UTC
 from decimal import Decimal
 
 from fastapi import Depends, File, Form, HTTPException, Request, Response, UploadFile, status
@@ -40,7 +42,7 @@ from api.library import (
     reject_nul,
     write_lines,
 )
-from api.models import Document, DocumentImage, Series, User, Volume
+from api.models import Document, DocumentImage, Series, User, UserSetting, Volume
 from api.routers.series import TITLE_TAKEN
 from api.routers.transfer import attachment
 from api.routing import api_router
@@ -51,6 +53,7 @@ from api.volume_order import place
 router = api_router(tags=["epub"])
 
 MAX_EPUB_BYTES = 64 * 1024 * 1024  # plan ruling 3; Caddy allows the same on /api/epub/*
+TRANSLATOR_SETTING = "epub_translator"  # the account's translator credit for exports
 
 
 def _over_budget() -> HTTPException:
@@ -303,6 +306,24 @@ def import_epub(
     )
 
 
+def book_id(volume: Volume) -> str:
+    """The volume's identifier, else one derived from it, so every export is the same
+    book to a reader (reading position and highlights carry over)."""
+    if volume.epub_identifier.strip():
+        return volume.epub_identifier
+    born = volume.series.created_at.astimezone(UTC).isoformat()
+    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, f'ta-web:{born}:{volume.id}')}"
+
+
+def translator(db: Session, volume: Volume, user_id: int) -> str:
+    """The volume's translator credit, else the account's `epub_translator` setting."""
+    if volume.epub_translator.strip():
+        return volume.epub_translator.strip()
+    value = db.scalar(select(UserSetting.value_json).where(
+        UserSetting.user_id == user_id, UserSetting.key == TRANSLATOR_SETTING))
+    return value.strip() if isinstance(value, str) else ""
+
+
 def credit(series: Series) -> str:
     """The original work, for dc:source: title, plus the author when known."""
     title, author = series.original_title.strip(), series.original_author.strip()
@@ -350,9 +371,9 @@ def export_volume(
         volume.full_title, chapters,
         language=volume.epub_language or "en", cover=cover,
         creator=volume.epub_author or volume.series.author_romaji,
-        illustrator=volume.epub_illustrator,
-        publisher=volume.epub_publisher, identifier=volume.epub_identifier,
-        source=credit(volume.series),
+        illustrator=volume.epub_illustrator, translator=translator(db, volume, user.id),
+        publisher=volume.epub_publisher, identifier=book_id(volume),
+        source=credit(volume.series), description=volume.epub_description,
     )
     name = f"{sanitize_filename(volume.full_title) or 'volume'}.epub"
     return Response(data, media_type="application/epub+zip", headers=attachment(name))

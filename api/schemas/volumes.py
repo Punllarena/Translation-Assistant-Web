@@ -42,6 +42,7 @@ class VolumeCreate(BaseModel):
     epub_illustrator: str = ""
     epub_publisher: str = ""
     epub_identifier: str = ""
+    epub_translator: str = ""
 
     @model_validator(mode="after")
     def _named(self) -> Self:
@@ -65,6 +66,7 @@ class VolumeUpdate(Patch):
     epub_illustrator: str | None = None
     epub_publisher: str | None = None
     epub_identifier: str | None = None
+    epub_translator: str | None = None
 
 
 class VolumeMerge(BaseModel):
@@ -95,6 +97,7 @@ class VolumeOut(BaseModel):
     epub_illustrator: str
     epub_publisher: str
     epub_identifier: str
+    epub_translator: str
     cover_id: int | None = None
     is_series_cover: bool
 

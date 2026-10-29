@@ -5,6 +5,7 @@ in EPUB/ (gitignored, purchased content, manual-testing only).
 """
 import io
 import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -819,43 +820,130 @@ class TestBuildEpubImages:
         assert hrefs.count("images/cover.jpg") == 1
         assert hrefs.count("images/cover_1.jpg") == 1
 
-    def test_image_href_with_quote_does_not_break_xml_attribute(self, tmp_path):
+    def test_image_file_names_are_made_safe(self, tmp_path):
         # src_path can originate from an imported EPUB's internal filenames
-        # (attacker-controlled if a malicious EPUB is imported). A `"` in
-        # the basename must not let markup escape the href attribute.
-        src_path = 'images/pic".png'
+        # (attacker-controlled if a malicious EPUB is imported). Anything outside
+        # A-Z a-z 0-9 _ - becomes "_", so a `"` cannot escape the href attribute
+        # and a space or "#" cannot break the link.
+        src_path = 'images/pic" #1.png'
         content = [("text", "Before."), ("image", src_path), ("text", "After.")]
         chapter_images = [{"src_path": src_path, "data": b"tricky-bytes"}]
         result = build_epub("Vol", [("Ch 1", content, chapter_images)])
-        out = tmp_path / "out.epub"
-        out.write_bytes(result)
-        with zipfile.ZipFile(out) as zf:
+        with zipfile.ZipFile(io.BytesIO(result)) as zf:
             opf = zf.read("OEBPS/content.opf").decode("utf-8")
-        # Unescaped, the raw `"` would break out of the href attribute and
-        # produce a stray dangling ".png"/> fragment parsed as markup.
-        assert '&quot;' in opf
+            assert zf.read("OEBPS/images/pic_1.png") == b"tricky-bytes"
+            xhtml = zf.read("OEBPS/text/chap1.xhtml").decode("utf-8")
         soup = BeautifulSoup(opf, "html.parser")
         img_items = [item for item in soup.find_all("item") if item.get("id", "").startswith("img")]
-        assert len(img_items) == 1
-        # The value round-trips as data -- exactly the original href, quote intact.
-        assert img_items[0]["href"] == src_path
+        assert [item["href"] for item in img_items] == ["images/pic_1.png"]
+        assert '<img src="../images/pic_1.png" alt=""/>' in xhtml
 
-    def test_cover_media_type_with_quote_does_not_break_xml_attribute(self, tmp_path):
-        # cover["media_type"] is caller-supplied, not internally generated.
+    def test_cover_of_an_unknown_type_is_left_out(self):
+        # cover["media_type"] is caller-supplied; one that is not a core image type
+        # (and bytes that are no known image) leave no cover rather than a broken one.
         cover = {"data": b"cover-bytes", "media_type": 'image/jpeg" foo="bar'}
         result = build_epub("Vol", [("Ch 1", [("text", "Hello.")], [])], cover=cover)
-        out = tmp_path / "out.epub"
-        out.write_bytes(result)
-        with zipfile.ZipFile(out) as zf:
+        with zipfile.ZipFile(io.BytesIO(result)) as zf:
             opf = zf.read("OEBPS/content.opf").decode("utf-8")
-        soup = BeautifulSoup(opf, "html.parser")
-        cover_item = soup.find("item", id="cover-image")
-        assert cover_item is not None
-        # No injected "foo" attribute -- the whole string stayed as the
-        # media-type attribute's value rather than spawning a new attribute.
-        assert cover_item.get("foo") is None
-        assert cover_item["media-type"] == 'image/jpeg" foo="bar'
-        assert cover_item.get("properties") == "cover-image"
+            assert "OEBPS/text/cover.xhtml" not in zf.namelist()
+        assert "cover-image" not in opf and "foo" not in opf
+
+    def test_image_type_comes_from_its_bytes(self):
+        jpeg = b"\xff\xd8\xff\xe0" + b"0" * 16
+        content = [("text", "A."), ("image", "x.png"), ("image", "y.bmp")]
+        images = [{"src_path": "x.png", "data": jpeg}, {"src_path": "y.bmp", "data": b"BM00"}]
+        result = build_epub("Vol", [("Ch 1", content, images)])
+        with zipfile.ZipFile(io.BytesIO(result)) as zf:
+            opf = zf.read("OEBPS/content.opf").decode("utf-8")
+            names = zf.namelist()
+        assert 'href="images/x.jpg" media-type="image/jpeg"' in opf
+        assert not any(n.endswith(".bmp") for n in names) and "octet-stream" not in opf
+
+
+def _parts(result: bytes) -> dict[str, str]:
+    with zipfile.ZipFile(io.BytesIO(result)) as zf:
+        return {n: zf.read(n).decode("utf-8") for n in zf.namelist() if not n.startswith("OEBPS/images/")}
+
+
+class TestBuildEpubPractice:
+    COVER = {"data": b"\x89PNG\r\n\x1a\n" + b"0" * 16, "media_type": "image/png"}
+
+    def test_modified_stamp_is_utc_seconds(self):
+        when = datetime(2026, 10, 29, 9, 30, 15, 123, tzinfo=UTC)
+        opf = _parts(build_epub("V", [("C", [("text", "A.")], [])], modified=when))["OEBPS/content.opf"]
+        assert '<meta property="dcterms:modified">2026-10-29T09:30:15Z</meta>' in opf
+
+    def test_every_page_links_the_stylesheet(self):
+        parts = _parts(build_epub("V", [("C", [("text", "A.")], [])], cover=self.COVER))
+        assert "p { margin: 0; text-indent: 1.5em;" in parts["OEBPS/styles/book.css"]
+        for name in ("OEBPS/text/cover.xhtml", "OEBPS/text/title.xhtml", "OEBPS/text/chap1.xhtml"):
+            assert 'href="../styles/book.css"' in parts[name]
+        assert 'id="css" href="styles/book.css" media-type="text/css"' in parts["OEBPS/content.opf"]
+
+    def test_spine_opens_on_the_cover_then_the_title_page(self):
+        opf = _parts(build_epub("V", [("C", [("text", "A.")], [])], cover=self.COVER))["OEBPS/content.opf"]
+        spine = opf[opf.index("<spine>"):]
+        assert spine.index("cover-page") < spine.index("title-page") < spine.index("chap1")
+        cover = _parts(build_epub("V", [("C", [("text", "A.")], [])], cover=self.COVER))
+        assert '<img src="../images/cover.png" alt="Cover"/>' in cover["OEBPS/text/cover.xhtml"]
+
+    def test_title_page_credits_and_translator_role(self):
+        parts = _parts(build_epub(
+            "Vol & 1", [("C", [("text", "A.")], [])], creator="Au", illustrator="Il",
+            translator="Tr", publisher="Pub", source="勇者 (山田)",
+        ))
+        page = parts["OEBPS/text/title.xhtml"]
+        assert "<h1>Vol &amp; 1</h1>" in page
+        for line in ("by Au", "Illustrated by Il", "Translated by Tr", "Original work: 勇者 (山田)", "Pub"):
+            assert f"<p>{line}</p>" in page
+        opf = parts["OEBPS/content.opf"]
+        assert '<dc:contributor id="contributor-trl">Tr</dc:contributor>' in opf
+        assert '<meta refines="#contributor-trl" property="role" scheme="marc:relators">trl</meta>' in opf
+
+    def test_blank_translator_and_description_emit_nothing(self):
+        parts = _parts(build_epub("V", [("C", [("text", "A.")], [])]))
+        assert "dc:contributor" not in parts["OEBPS/content.opf"]
+        assert "dc:description" not in parts["OEBPS/content.opf"]
+        assert "Translated by" not in parts["OEBPS/text/title.xhtml"]
+
+    def test_description_is_written(self):
+        opf = _parts(build_epub("V", [("C", [("text", "A.")], [])], description="A & B"))["OEBPS/content.opf"]
+        assert "<dc:description>A &amp; B</dc:description>" in opf
+
+    def test_landmarks_point_at_cover_title_and_first_text_chapter(self):
+        plate = [{"src_path": "p.png", "data": self.COVER["data"]}]
+        nav = _parts(build_epub("V", [
+            ("Illustrations", [("image", "p.png")], plate), ("Chapter 1", [("text", "A.")], []),
+        ], cover=self.COVER))["OEBPS/nav.xhtml"]
+        marks = nav[nav.index('epub:type="landmarks"'):]
+        assert '<a epub:type="cover" href="text/cover.xhtml">' in marks
+        assert '<a epub:type="titlepage" href="text/title.xhtml">' in marks
+        assert '<a epub:type="bodymatter" href="text/chap2.xhtml">' in marks
+        assert nav.index('epub:type="toc"') < nav.index('epub:type="landmarks"')
+
+    def test_chapters_are_marked_and_plates_are_not(self):
+        plate = [{"src_path": "p.png", "data": self.COVER["data"]}]
+        parts = _parts(build_epub("V", [
+            ("Illustrations", [("image", "p.png")], plate), ("Chapter 1", [("text", "A.")], []),
+        ]))
+        assert '<section class="plates">' in parts["OEBPS/text/chap1.xhtml"]
+        assert '<section epub:type="chapter" role="doc-chapter">' in parts["OEBPS/text/chap2.xhtml"]
+
+    def test_round_trip_skips_the_title_page_but_keeps_title_art(self, tmp_path):
+        result = build_epub("V", [("Chapter 1", [("text", "A.")], [])], translator="Tr")
+        assert [c["title"] for c in open_book(io.BytesIO(result))["chapters"]] == ["Chapter 1"]
+        art = ('<html><body><section epub:type="titlepage"><p><img src="../t.png"/></p>'
+               "</section></body></html>")
+        opf = _OPF_EPUB3_COVER.replace("images/cover.jpg", "t.png").replace(' properties="cover-image"', "")
+        path = tmp_path / "art.epub"
+        with zipfile.ZipFile(path, "w") as zf:
+            zf.writestr("mimetype", "application/epub+zip")
+            zf.writestr("META-INF/container.xml", _CONTAINER_XML)
+            zf.writestr("OEBPS/content.opf", opf)
+            zf.writestr("OEBPS/nav.xhtml", _NAV_XHTML)
+            zf.writestr("OEBPS/t.png", self.COVER["data"])
+            zf.writestr("OEBPS/text/ch1.xhtml", art)
+        assert len(open_book(path)["chapters"]) == 1
 
 
 # ---------------------------------------------------------------------------
