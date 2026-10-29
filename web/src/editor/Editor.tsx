@@ -7,7 +7,7 @@ import { useSpell } from "./useSpell";
 import { api, call, type Schemas } from "../api/client";
 import type { Misspelling } from "./LineCard";
 import CardList from "./CardList";
-import CodeEditor, { insertAtCursor, setMarks } from "./CodeEditor";
+import CodeEditor, { insertAtCursor, replaceDoc, setMarks } from "./CodeEditor";
 import FindBar from "./FindBar";
 import ImageCard from "./ImageCard";
 import { PUNCTUATIONS } from "./keymap";
@@ -246,7 +246,11 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     <CodeEditor key={n} value={ed.texts[n] ?? ""} label="Translation"
       onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} autoFocus={!find.stepped.current} onContextMenu={onContextMenu} />
   );
-  const useText = (t: string) => { ed.setText(n, t); view.current?.focus(); };
+  const useText = (t: string) => {
+    // Through the view, so the replaced translation is one Ctrl+Z away.
+    if (view.current) replaceDoc(view.current, t);
+    else ed.setText(n, t);
+  };
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
       {statusBar(n + 1, ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>

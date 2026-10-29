@@ -29,6 +29,13 @@ def test_greedy_longest_match_and_unmatched_characters(index):
     ]  # "。" is skipped, as on the desktop
 
 
+def test_unmatched_latin_and_digits_stay_one_entry(index):
+    entries = jparser.analyze("猫Ceres猫ＡＢ12あ", index, [])
+    assert [(e["surface"], e["matched"]) for e in entries] == [
+        ("猫", True), ("Ceres", False), ("猫", True), ("ＡＢ12", False), ("あ", False)
+    ]
+
+
 def test_deconjugation_reports_base_form_and_tense(index):
     rules = jparser.load_rules(str(FX / "conjugations_sample.json"))
     [entry] = jparser.analyze("行った", index, rules)
