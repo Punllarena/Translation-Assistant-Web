@@ -14,6 +14,7 @@ import secrets
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
+from api.backup import copycsv
 from api.security import decrypt_secret, encrypt_secret
 
 KDF_N, KDF_R, KDF_P = 2**15, 8, 1
@@ -74,12 +75,12 @@ def verify(f: Fernet, check: str) -> None:
 
 
 def _split(data: bytes) -> tuple[list[str], list[dict[str, str | None]]]:
-    """Read COPY's CSV with QUOTE_NOTNULL, so ``""`` stays an empty string and NULL is None."""
-    reader = csv.DictReader(io.StringIO(data.decode("utf-8")), quoting=csv.QUOTE_NOTNULL)
-    fields = list(reader.fieldnames or ())
+    """Read COPY's CSV so ``""`` stays an empty string and NULL is None."""
+    table = copycsv.rows(data.decode("utf-8"))
+    fields = [f or "" for f in table[0]] if table else []
     if "id" not in fields or "secret_enc" not in fields:
         raise ValueError("not an api_credentials table")
-    return fields, list(reader)
+    return fields, [dict(zip(fields, r, strict=True)) for r in table[1:]]
 
 
 def _join(fields: list[str], rows: list[dict[str, str | None]]) -> bytes:
