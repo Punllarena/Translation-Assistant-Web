@@ -113,7 +113,8 @@ by row. `GET /import/tadb/pending` lets the import card resume; the header's run
 Library redesign: the Library (`/`) lists series only, as a bookshelf or a list (`ta.libraryView` in `localStorage`, helper
 `web/src/library/viewPref.ts`). A series opens at `/series/:id?tab=volumes|glossary|tools|settings|wordpress&volume=<id>|none`: Volumes is a
 two-pane view (volume list, then the selected volume's chapters with a selection bar and per-row ⋯ menu; "No volume" holds
-loose chapters), and its grouping and numbering helpers live in `web/src/library/volumeGroups.ts`. `documents.series_id` is
+loose chapters), and its grouping and numbering helpers live in `web/src/library/volumeGroups.ts`. A list over 100 chapters shows as
+collapsible view-only blocks of 100 with a jump bar (`chapterBlocks`); only open blocks render. `documents.series_id` is
 `NOT NULL` and deleting a series cascades to its volumes and chapters. `arrange()` (`api/library.py`) keeps each volume a
 contiguous run numbered 1..N (loose chapters last) and runs after: creating a chapter, a chapter PATCH that changes its series
 or volume, deleting a chapter, assigning chapters to a volume, a volume's order change or delete, reorder and renumber-by-title,
@@ -129,7 +130,8 @@ series' `syosetu_volume_mode` (`all` / `marker` with `syosetu_volume_marker` / `
 and regroup). The chapter-list GET writes only `syosetu_updated_at`; regroup's preview reads the index (writing the heading sequence and the date) only when no heading sequence is stored. Heading→volume links live in `volume_syosetu_groups` (hidden, so renamed
 volumes keep receiving chapters; a merged volume holds several). `POST /series/{id}/syosetu/volume-headings`
 (`api/syosetu_regroup.py`) previews or applies a setting change: it never deletes volumes and never moves chapters out of
-volumes with no heading link. `POST /series/{id}/volumes/merge` merges volumes into one (the Volumes tab's Select mode).
+volumes with no heading link. Chapters with no `source_url` (a ta.db import) count as syosetu's when numbered from 1 to the last known
+syosetu chapter, as the fetch job already treats them (`syosetu_chapters`). `POST /series/{id}/volumes/merge` merges volumes into one (the Volumes tab's Select mode).
 
 Volume naming: a volume has `kind` / `volume_index` (Numeric(10,3), optional) / `subtitle`, not a title; names are unique ignoring case
 by kind + index, or kind + subtitle when unnumbered (partial indexes `uq_volumes_kind_index` / `uq_volumes_kind_subtitle`; migration

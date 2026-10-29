@@ -40,3 +40,32 @@ export function pickVolume(param: string | null, groups: VolumeGroup[]): VolumeK
 export function seriesOrder(groups: VolumeGroup[], key: VolumeKey, docs: Doc[]): number[] {
   return groups.flatMap((g) => (g.key === key ? docs : g.docs)).map((d) => d.id);
 }
+
+export const BLOCK_SIZE = 100;
+
+export interface ChapterBlock {
+  start: number; // index of the block's first chapter in the group's list
+  docs: Doc[];
+  label: string; // "101–200": the chapter numbers shown, first to last
+  progress: number;
+}
+
+/** A long chapter list cut into view-only blocks of `size`, so only the open ones render; none
+ *  when the list fits in one. Nothing about the chapters changes. */
+export function chapterBlocks(g: VolumeGroup, syosetu: boolean, size = BLOCK_SIZE): ChapterBlock[] {
+  if (g.docs.length <= size) return [];
+  const blocks: ChapterBlock[] = [];
+  for (let start = 0; start < g.docs.length; start += size) {
+    const docs = g.docs.slice(start, start + size);
+    const nums = docs.map((d) => chapterNumber(g, d, syosetu)).filter((n): n is number => n !== null);
+    const label = nums.length === 0 ? "Illustrations"
+      : nums[0] === nums[nums.length - 1] ? String(nums[0]) : `${nums[0]}–${nums[nums.length - 1]}`;
+    blocks.push({ start, docs, label, progress: progressOf(docs) });
+  }
+  return blocks;
+}
+
+/** The block to open first: the first one not fully translated, else the first. */
+export function firstOpenBlock(blocks: ChapterBlock[]): number {
+  return Math.max(0, blocks.findIndex((b) => b.progress < 100));
+}

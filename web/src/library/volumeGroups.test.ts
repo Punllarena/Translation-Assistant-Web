@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chapterNumber, pickVolume, seriesOrder, volumeGroups } from "./volumeGroups";
+import { chapterBlocks, chapterNumber, firstOpenBlock, pickVolume, seriesOrder, volumeGroups } from "./volumeGroups";
 import type { Doc, Volume } from "./shelf";
 
 const volume = (id: number, series_id: number, volume_order: number) => ({ id, series_id, volume_order }) as Volume;
@@ -60,5 +60,36 @@ describe("seriesOrder", () => {
       doc(4, 1, 20, { series_order: 4 }), doc(5, 1, null, { series_order: 5 })];
     const groups = volumeGroups(1, docs, [volume(10, 1, 1), volume(20, 1, 2)]);
     expect(seriesOrder(groups, 20, [docs[3], docs[2]])).toEqual([1, 2, 4, 3, 5]);
+  });
+});
+
+describe("chapterBlocks", () => {
+  const many = (n: number, o: (i: number) => Partial<Doc> = () => ({})) =>
+    Array.from({ length: n }, (_, i) => doc(i + 1, 1, null, o(i)));
+
+  it("is empty when the list fits in one block", () => {
+    const [g] = volumeGroups(1, many(100), []);
+    expect(chapterBlocks(g, false)).toEqual([]);
+  });
+
+  it("cuts a long list into blocks labelled by the numbers shown", () => {
+    const [g] = volumeGroups(1, many(250), []);
+    const b = chapterBlocks(g, false);
+    expect(b.map((x) => [x.start, x.docs.length, x.label])).toEqual([[0, 100, "1–100"], [100, 100, "101–200"], [200, 50, "201–250"]]);
+  });
+
+  it("uses syosetu numbers and skips the illustrations chapter in labels", () => {
+    const D = many(5, (i) => ({ series_order: i + 10, is_illustrations: i === 0 }));
+    const [g] = volumeGroups(1, D, []);
+    expect(chapterBlocks(g, true, 2).map((x) => x.label)).toEqual(["11", "12–13", "14"]);
+    expect(chapterBlocks(g, false, 2).map((x) => x.label)).toEqual(["1", "2–3", "4"]);
+  });
+
+  it("opens the first block not fully translated", () => {
+    const D = many(6, (i) => ({ line_count: 1, translated_count: i < 4 ? 1 : 0 }));
+    const [g] = volumeGroups(1, D, []);
+    expect(firstOpenBlock(chapterBlocks(g, false, 2))).toBe(2);
+    const done = volumeGroups(1, many(6, () => ({ line_count: 1, translated_count: 1 })), [])[0];
+    expect(firstOpenBlock(chapterBlocks(done, false, 2))).toBe(0);
   });
 });

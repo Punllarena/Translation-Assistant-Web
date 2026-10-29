@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
 import BatchPublish from "../publish/BatchPublish";
@@ -14,7 +14,7 @@ import { moveItem } from "./order";
 import { useFlushOllama, useQueueOllama } from "./useOllamaQueue";
 import { shownTitle, type Doc, type SeriesRow } from "./shelf";
 import { invalidateLibrary } from "./queries";
-import { chapterNumber, seriesOrder, type VolumeGroup } from "./volumeGroups";
+import { chapterBlocks, chapterNumber, firstOpenBlock, seriesOrder, type VolumeGroup } from "./volumeGroups";
 import { CHAPTER_MIME } from "./VolumeList";
 
 const WP_LABEL: Record<string, string> = { publish: "Published", future: "Scheduled" };
@@ -24,7 +24,8 @@ type Open = null | "publish" | "move" | "merge" | "delete" | "flush";
 
 /** The selected volume's chapters: drag to reorder (native drag events, by the handle), tick rows
  *  for the selection bar, and each row's ⋯ menu. Syosetu series keep syosetu's numbering, so they
- *  have no drag handles. */
+ *  have no drag handles. A list over 100 chapters shows as collapsible blocks of 100 (view only),
+ *  with a jump bar; only open blocks render. */
 export default function ChapterTable({ series, group, groups, syosetu }: {
   series: SeriesRow; group: VolumeGroup; groups: VolumeGroup[]; syosetu: boolean;
 }) {
@@ -35,6 +36,20 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
   const dragged = useRef<number | null>(null); // read by the drop handlers, set before any re-render
   const [order, setOrder] = useState<Doc[] | null>(null); // optimistic order while saving
   const shown = order ?? group.docs;
+  const blocks = chapterBlocks({ ...group, docs: shown }, syosetu);
+  const [openBlocks, setOpenBlocks] = useState<Set<number>>(() => new Set([blocks[firstOpenBlock(blocks)]?.start ?? 0]));
+  const [jumpTo, setJumpTo] = useState<number | null>(null);
+  useEffect(() => {
+    if (jumpTo === null) return;
+    document.getElementById(`ch-block-${group.key}-${jumpTo}`)?.scrollIntoView({ block: "start" });
+    setJumpTo(null);
+  }, [jumpTo, group.key]);
+  const toggleBlock = (start: number, on: boolean) => {
+    const next = new Set(openBlocks);
+    if (on) next.add(start);
+    else next.delete(start);
+    setOpenBlocks(next);
+  };
   const selected = group.docs.filter((d) => ticked.has(d.id)).map((d) => d.id);
   const clear = () => setTicked(new Set());
   const done = async () => { await invalidateLibrary(queryClient); clear(); setOpen(null); };
@@ -77,6 +92,43 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
     setOrder(next);
     reorder.mutate(seriesOrder(groups, group.key, next));
   };
+  const row = (d: Doc, i: number) => (
+    <tr key={d.id} className={[ticked.has(d.id) && "selected", dragging === d.id && "dragging"].filter(Boolean).join(" ")}
+      onDragOver={(e) => { if (dragged.current !== null) e.preventDefault(); }}
+      onDrop={(e) => { if (dragged.current !== null) { e.preventDefault(); drop(i); } }}>
+      <td className="ch-grip">
+        {!syosetu && (
+          <span className="grip" draggable title="Drag to reorder" aria-hidden="true"
+            onDragStart={(e) => {
+              e.dataTransfer.setData(CHAPTER_MIME, String(d.id));
+              e.dataTransfer.effectAllowed = "move";
+              const tr = e.currentTarget.closest("tr");
+              if (tr) e.dataTransfer.setDragImage(tr, 16, 16);
+              dragged.current = d.id;
+              // Chrome cancels a drag whose source is re-rendered inside dragstart.
+              setTimeout(() => { if (dragged.current === d.id) setDragging(d.id); });
+            }}
+            onDragEnd={endDrag}>⠿</span>
+        )}
+      </td>
+      <td className="ch-check">
+        <input type="checkbox" aria-label={`Select ${shownTitle(d)}`} checked={ticked.has(d.id)}
+          onChange={(e) => toggle(d.id, e.target.checked)} />
+      </td>
+      <td className="ch-num muted">{chapterNumber(group, d, syosetu) ?? ""}</td>
+      <td className="ch-title">
+        <Link className="row-link" to={`/documents/${d.id}`} aria-label={`Open ${shownTitle(d)}`}>{shownTitle(d)}</Link>
+      </td>
+      <td className={d.progress >= 100 ? "ch-prog ok" : "ch-prog"}>{d.progress}%</td>
+      <td className="ch-edited muted">{new Date(d.updated_at).toLocaleDateString()}</td>
+      <td className="ch-wp">
+        <span className={`badge ${statusTone(d.wp_status)}`} title={wpBadge(d) || undefined}>
+          {WP_LABEL[d.wp_status] ?? "Not posted"}
+        </span>
+      </td>
+      <td className="ch-menu"><ChapterMenu doc={d} /></td>
+    </tr>
+  );
   const n = selected.length;
   const error = reorder.error ?? exportZip.error;
   return (
@@ -84,6 +136,14 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
       {error && <p className="error" role="alert">{error.message}</p>}
       {ollama.error && <p className="error" role="alert">{ollama.error}</p>}
       {ollama.note && <p className="muted" role="status">{ollama.note}</p>}
+      {blocks.length > 0 && (
+        <nav className="ch-jump" aria-label="Jump to chapters">
+          {blocks.map((b) => (
+            <button key={b.start} type="button" className="small" aria-pressed={openBlocks.has(b.start)}
+              onClick={() => { toggleBlock(b.start, true); setJumpTo(b.start); }}>{b.label}</button>
+          ))}
+        </nav>
+      )}
       {shown.length === 0 ? <p className="muted">No chapters here yet.</p> : (
         <table className="chapters">
           <thead>
@@ -120,45 +180,22 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               </tr>
             )}
           </thead>
-          <tbody>
-            {shown.map((d, i) => (
-              <tr key={d.id} className={[ticked.has(d.id) && "selected", dragging === d.id && "dragging"].filter(Boolean).join(" ")}
-                onDragOver={(e) => { if (dragged.current !== null) e.preventDefault(); }}
-                onDrop={(e) => { if (dragged.current !== null) { e.preventDefault(); drop(i); } }}>
-                <td className="ch-grip">
-                  {!syosetu && (
-                    <span className="grip" draggable title="Drag to reorder" aria-hidden="true"
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData(CHAPTER_MIME, String(d.id));
-                        e.dataTransfer.effectAllowed = "move";
-                        const row = e.currentTarget.closest("tr");
-                        if (row) e.dataTransfer.setDragImage(row, 16, 16);
-                        dragged.current = d.id;
-                        // Chrome cancels a drag whose source is re-rendered inside dragstart.
-                        setTimeout(() => { if (dragged.current === d.id) setDragging(d.id); });
-                      }}
-                      onDragEnd={endDrag}>⠿</span>
-                  )}
-                </td>
-                <td className="ch-check">
-                  <input type="checkbox" aria-label={`Select ${shownTitle(d)}`} checked={ticked.has(d.id)}
-                    onChange={(e) => toggle(d.id, e.target.checked)} />
-                </td>
-                <td className="ch-num muted">{chapterNumber(group, d, syosetu) ?? ""}</td>
-                <td className="ch-title">
-                  <Link className="row-link" to={`/documents/${d.id}`} aria-label={`Open ${shownTitle(d)}`}>{shownTitle(d)}</Link>
-                </td>
-                <td className={d.progress >= 100 ? "ch-prog ok" : "ch-prog"}>{d.progress}%</td>
-                <td className="ch-edited muted">{new Date(d.updated_at).toLocaleDateString()}</td>
-                <td className="ch-wp">
-                  <span className={`badge ${statusTone(d.wp_status)}`} title={wpBadge(d) || undefined}>
-                    {WP_LABEL[d.wp_status] ?? "Not posted"}
-                  </span>
-                </td>
-                <td className="ch-menu"><ChapterMenu doc={d} /></td>
-              </tr>
-            ))}
-          </tbody>
+          {blocks.length === 0 ? <tbody>{shown.map(row)}</tbody> : blocks.map((b) => {
+            const isOpen = openBlocks.has(b.start);
+            return (
+              <tbody key={b.start}>
+                <tr className="ch-block" id={`ch-block-${group.key}-${b.start}`}>
+                  <th colSpan={8}>
+                    <button type="button" className="quiet" aria-expanded={isOpen} onClick={() => toggleBlock(b.start, !isOpen)}>
+                      <span aria-hidden="true">{isOpen ? "▾" : "▸"}</span> {b.label}
+                    </button>
+                    <span className="muted">{b.docs.length} chapters · {b.progress}%</span>
+                  </th>
+                </tr>
+                {isOpen && b.docs.map((d, i) => row(d, b.start + i))}
+              </tbody>
+            );
+          })}
         </table>
       )}
       {open === "flush" && (

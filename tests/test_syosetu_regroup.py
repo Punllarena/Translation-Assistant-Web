@@ -135,3 +135,19 @@ def test_regroup_leaves_chapters_not_fetched_from_syosetu(
     assert r.json()["chapters_moved"] == 1
     db.expire_all()
     assert _placement(db, s)[3] == (4, None)
+
+
+def test_regroup_moves_imported_chapters_that_have_no_url(
+        app_client, me, make_series, make_doc, site, db):
+    # ta.db imports carry no source_url; the fetch job already treats their numbers as
+    # syosetu's (it skips them), so regroup must place them too
+    s = _marked_series(make_series, site, db, me)
+    for n in (1, 2):
+        make_doc(me, ["x"], series=s, order=n)
+    make_doc(me, ["note"], series=s, order=0, title="Synopsis")
+    db.flush()
+    _fetch(app_client, s, [3])
+    r = _regroup(app_client, s, "marker", "★", apply=True)
+    assert r.json()["chapters_moved"] == 2
+    db.expire_all()
+    assert _placement(db, s) == [(0, None), (1, "★ 一日"), (2, "★ 一日"), (3, "★ 二日")]

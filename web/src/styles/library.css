@@ -93,6 +93,13 @@
 .menu [role^="menuitem"].danger { color: var(--danger); }
 /* An open menu sits above the later rows' raised controls. */
 .chapters .menu-root:has(> [aria-expanded="true"]) { z-index: 30; }
+/* A long list's view-only blocks of 100: a jump bar, then one header row per block. */
+.ch-jump { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.ch-jump button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-text); }
+.chapters tr.ch-block th { padding: 10px 6px 6px; border-bottom: 1px solid var(--line); text-align: left;
+  scroll-margin-top: 12px; text-transform: none; letter-spacing: normal; font-size: 13px; }
+.chapters tr.ch-block:hover td { background: none; }
+.ch-block button { font-weight: 600; margin-right: 8px; }
 .selbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line);
   border-radius: 8px; background: var(--accent-soft); color: var(--ink); font-size: 14px; letter-spacing: normal;
   text-transform: none; font-weight: 400; }

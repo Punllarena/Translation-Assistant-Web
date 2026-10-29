@@ -14,6 +14,21 @@ from api.library import arrange
 from api.models import Document, Series, VolumeSyosetuGroup
 
 
+def syosetu_chapters(db: Session, series: Series) -> list[Document]:
+    """The chapters that follow syosetu's headings: fetched ones, and ones without a URL
+    (a ta.db import) numbered from 1 up to the last syosetu chapter known, since the fetch
+    job takes such a number as that syosetu chapter. A hand-added chapter past them, or
+    numbered 0, has no heading to follow."""
+    docs = list(db.scalars(
+        select(Document).where(Document.series_id == series.id)
+        .order_by(Document.series_order, Document.id)
+    ))
+    known = [d.series_order for d in docs if d.source_url]
+    known += [first for first, _ in series.syosetu_headings or []]
+    last = max(known, default=0)
+    return [d for d in docs if d.source_url or 1 <= d.series_order <= last]
+
+
 def regroup(
     db: Session, series: Series, mode: str, marker: str, apply: bool,
     read_index: Callable[[], list[dict]],
@@ -22,11 +37,7 @@ def regroup(
     or apply the move. Returns the counts the confirmation shows."""
     if series.syosetu_headings is None:
         series.syosetu_headings = heading_sequence(read_index())
-    docs = list(db.scalars(
-        # only chapters fetched from syosetu: a hand-added one has no heading to follow
-        select(Document).where(Document.series_id == series.id, Document.source_url != "")
-        .order_by(Document.series_order, Document.id)
-    ))
+    docs = syosetu_chapters(db, series)
     groups = dict(db.execute(
         select(VolumeSyosetuGroup.heading, VolumeSyosetuGroup.volume_id)
         .where(VolumeSyosetuGroup.series_id == series.id)
