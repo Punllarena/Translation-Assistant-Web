@@ -58,20 +58,18 @@ Allow it, behind a confirm dialog ("Remove all of this chapter's text? Its trans
 holds (zero lines, or one blank line) and check the editor, progress, export, publish and Ollama work
 handle a chapter with no lines. An Illustrations chapter is already text-free.
 
-## Editor: copy source, undo Use, JParser Latin runs
+## Editor: copy source, undo across cards
 
-*Raised 2026-10-29.*
+*Raised 2026-10-29.* Ctrl+Z after Use and JParser's Latin runs were fixed in PR #31.
 
 - **Copy original text button** next to the line number on each card (`LineCard.tsx`): copies the line's
   raw source to the clipboard. Decide raw text or glossary-replaced text.
-- **Undo edits, including a misclicked "Use"**: Use (`useText` in `Editor.tsx` → `ed.setText`) replaces the
-  translation from outside CodeMirror, so Ctrl+Z may not bring the old text back. Route Use through a
-  CodeMirror transaction so it joins the undo history, and/or show an "Undo" toast after Use. Check undo
-  survives moving to another card and back.
-- **JParser shows Latin words one letter per line**: in `analyze()` (`api/mt/jparser.py`) every unmatched
-  character becomes its own entry, so 「あCeres」 lists C, e, r, e, s. Group a run of unmatched non-Japanese
-  characters (Latin, digits, full-width Latin) into one unmatched entry; keep one entry per unmatched
-  kana/kanji character. Add a test.
+- **Undo after leaving the card**: `CodeEditor` is keyed per line, so its undo history starts fresh each
+  time a card opens, and Ctrl+Z cannot reach a Use or edit made before moving away and back. Options: an
+  "Undo" toast after Use that restores the previous text, or keep each line's history while the chapter
+  is open.
+- **JParser, dictionary words inside a Latin run**: an unmatched Latin run is taken whole, so a dictionary
+  entry starting mid-run is not looked up. Minor; revisit only if it shows up.
 
 ## Ollama and translation memory: skip symbol-only lines
 
