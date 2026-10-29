@@ -132,6 +132,10 @@ class Volume(Base):
     epub_illustrator: Mapped[str] = mapped_column(Text, nullable=False, default="")
     epub_publisher: Mapped[str] = mapped_column(Text, nullable=False, default="")
     epub_identifier: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Blank: the account's epub_translator setting.
+    epub_translator: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
     # What WordPress was first sent as volume_title; the plugin keys pages on it, so it
     # never changes once set. None = never published.
     wp_volume_title: Mapped[str | None] = mapped_column(Text)

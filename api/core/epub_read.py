@@ -6,6 +6,7 @@ Departure from the desktop: chapters are cut at table-of-contents anchors (epub_
 not one per file, so a chapter can start mid-file and run across several files, and
 off-TOC pages continue the chapter before them."""
 import posixpath
+import re
 import warnings
 import zipfile
 from collections.abc import Sequence
@@ -59,6 +60,18 @@ def _spine(opf: BeautifulSoup, opf_dir: str) -> list[str]:
         if idref not in nav_ids and href is not None and href not in hrefs:
             hrefs.append(href)
     return hrefs
+
+
+_SECTION_TYPE = re.compile(
+    r"""<(?:body|section|div)\b[^>]*\bepub:type\s*=\s*["']([^"']*)["']""", re.IGNORECASE
+)
+
+
+def _title_page(xhtml: str) -> bool:
+    """A text-only title page (epub:type="titlepage", as epub_build writes): credits,
+    not a chapter. One with an image may be title art, so it stays."""
+    marked = any("titlepage" in m.split() for m in _SECTION_TYPE.findall(xhtml))
+    return marked and "<img" not in xhtml and "<image" not in xhtml
 
 
 def _find_cover_href(opf: BeautifulSoup, opf_dir: str) -> str | None:
@@ -173,7 +186,10 @@ def open_book(source: str | Path | IO[bytes]) -> dict:
                 last[href] = UnitIndex(BeautifulSoup(xhtml, "html.parser")) if xhtml else None
             return last[href]
 
-        spine = [href for href in _spine(opf, opf_dir) if text_of(href) is not None]
+        spine = [
+            href for href in _spine(opf, opf_dir)
+            if (xhtml := text_of(href)) is not None and not _title_page(xhtml)
+        ]
         wanted: dict[str, set[str]] = {}
         for _, h, f in toc:
             if f is not None:

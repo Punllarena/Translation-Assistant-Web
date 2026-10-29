@@ -1,4 +1,6 @@
 import io
+import re
+import zipfile
 
 from api.core.epub_read import extract_chapter_content, open_book
 from api.models import Volume, VolumeCover
@@ -28,6 +30,41 @@ def test_a_finished_volume_round_trips(app_client, db, me, make_series, make_doc
     assert book["title"] == "S - Vol 1" and book["author"] == "A" and book["cover_href"]
     text, _ = extract_chapter_content(io.BytesIO(r.content), book["chapters"][0]["href"])
     assert text.startswith("tr:")
+
+
+def _opf(data: bytes) -> str:
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        return zf.read("OEBPS/content.opf").decode("utf-8")
+
+
+def test_the_identifier_is_the_same_on_every_export(app_client, db, me, make_series, make_doc):
+    s = make_series(me, "S")
+    v = volume(db, s)
+    make_doc(me, ["一"], series=s, order=1, volume=v, translated=True)
+    first, second = (_opf(app_client.get(f"/volumes/{v.id}/export/epub").content) for _ in "12")
+    ident = re.search(r'<dc:identifier id="uid">(urn:uuid:[0-9a-f-]+)</dc:identifier>', first)
+    assert ident and ident.group(0) in second
+    v.epub_identifier = "urn:isbn:9780000000000"
+    db.flush()
+    assert "urn:isbn:9780000000000" in _opf(app_client.get(f"/volumes/{v.id}/export/epub").content)
+
+
+def test_translator_comes_from_the_account_unless_the_volume_says(
+    app_client, db, me, make_series, make_doc
+):
+    s = make_series(me, "S")
+    v = volume(db, s)
+    v.epub_description = "Blurb"
+    make_doc(me, ["一"], series=s, order=1, volume=v, translated=True)
+    url = f"/volumes/{v.id}/export/epub"
+    assert "dc:contributor" not in _opf(app_client.get(url).content)
+    assert app_client.put("/settings", json={"epub_translator": " Me "}).status_code == 200
+    opf = _opf(app_client.get(url).content)
+    assert '<dc:contributor id="contributor-trl">Me</dc:contributor>' in opf
+    assert "<dc:description>Blurb</dc:description>" in opf
+    patched = app_client.patch(f"/volumes/{v.id}", json={"epub_translator": "Vol T"})
+    assert patched.status_code == 200
+    assert ">Vol T</dc:contributor>" in _opf(app_client.get(url).content)
 
 
 def test_an_incomplete_chapter_is_a_409_naming_it(app_client, db, me, make_series, make_doc):

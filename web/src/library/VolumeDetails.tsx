@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { api, call, type Schemas } from "../api/client";
 import { Modal } from "../ui/Dialog";
@@ -10,7 +10,8 @@ import { invalidateLibrary } from "./queries";
 
 const EPUB_FIELDS = [
   ["epub_title", "EPUB title"], ["epub_author", "Author"], ["epub_language", "Language"],
-  ["epub_illustrator", "Illustrator"], ["epub_publisher", "Publisher"],
+  ["epub_illustrator", "Illustrator"], ["epub_translator", "Translator"],
+  ["epub_publisher", "Publisher"],
   ["epub_identifier", "Identifier"], ["epub_description", "Description"],
 ] as const;
 
@@ -22,6 +23,13 @@ export default function VolumeDetails({ volume, series, kinds, onClose }: {
     kind: volume.kind, index: volume.volume_index ?? "", subtitle: volume.subtitle,
   });
   const queryClient = useQueryClient();
+  const settings = useQuery({ queryKey: ["settings"], queryFn: () => call(api.GET("/settings")) });
+  const accountTranslator = settings.data?.epub_translator;
+  const placeholders: Partial<Record<(typeof EPUB_FIELDS)[number][0], string>> = {
+    epub_title: render(series.volume_title_template_effective,
+      { series: series.title, kind: name.kind, index: name.index || null, subtitle: name.subtitle }),
+    epub_translator: typeof accountTranslator === "string" ? accountTranslator : undefined,
+  };
   const save = useMutation({
     mutationFn: (body: Schemas["VolumeUpdate"]) =>
       call(api.PATCH("/volumes/{volume_id}", { params: { path: { volume_id: volume.id } }, body })),
@@ -49,11 +57,7 @@ export default function VolumeDetails({ volume, series, kinds, onClose }: {
         )}
         {EPUB_FIELDS.map(([field, label]) => (
           <label key={field} className="field"><span>{label}</span>
-            <input name={field} defaultValue={volume[field]}
-              placeholder={field === "epub_title"
-                ? render(series.volume_title_template_effective,
-                  { series: series.title, kind: name.kind, index: name.index || null, subtitle: name.subtitle })
-                : undefined} />
+            <input name={field} defaultValue={volume[field]} placeholder={placeholders[field]} />
           </label>
         ))}
         {save.isError && <p className="error" role="alert">{save.error.message}</p>}
