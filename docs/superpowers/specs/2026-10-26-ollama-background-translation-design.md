@@ -129,7 +129,8 @@ These were offered as guesses and the user said they looked right.
 - By hand on a line with no translation and no saved suggestion: the card starts on its own (as today). On a line
   that already has a translation: a **Translate chunk** button, nothing automatic.
 - While a by-hand chunk runs, the card says "Translating lines 10–24…", the line's own text appears as soon as its
-  part of the answer arrives, and the other lines of the chunk are saved too.
+  part of the answer arrives, and the other lines of the chunk are saved too. A reroll keeps its stream when the card
+  moves to another line, so its result replaces the old suggestion without a reload.
 - An account's Ollama work goes to its server one request at a time. A by-hand chunk jumps ahead: the night run
   pauses after its current chunk and resumes afterwards.
 - Reroll re-sends the same chunk and replaces the saved results of the lines it asked for.
@@ -180,6 +181,9 @@ after it. Mid-sentence splits are always `$` lines, so:
 
 - Every asked id is present exactly once, in order, with no ids that were not asked.
 - An empty text is accepted only for a `$` line.
+- An answer that is the asked source line itself (letters compared, so stripped punctuation or spacing does not hide
+  it) is a copy, not a translation, and is rejected like any other bad answer. A line with no letters (a scene break
+  like `■`) may legitimately come back unchanged.
 - On failure the chunk is split in half (at a paragraph boundary when possible, otherwise at any line) and each half
   is retried, down to single lines. A single line that still fails is recorded as failed for that run and left
   without a suggestion; the run goes on. Retries count toward the chunk retry rate.

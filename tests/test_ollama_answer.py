@@ -31,6 +31,18 @@ def test_halves_prefers_paragraph_boundary():
     assert [i.line_number for i in b] == [4]
 
 
+def test_an_answer_that_is_the_source_is_rejected():
+    ask = [Item(1, "%", "猫が好き。"), Item(2, "%", "犬も好き。")]
+    with pytest.raises(AnswerError):
+        check('{"lines":[{"id":1,"text":"猫が好き。"},{"id":2,"text":"犬も好き。"}]}', ask)
+    # punctuation and spacing do not hide a copy
+    with pytest.raises(AnswerError):
+        check('{"lines":[{"id":1,"text":"猫が好き"},{"id":2,"text":"犬も好き"}]}', ask)
+    # a real translation, or a letterless scene break returned unchanged, is fine
+    assert check('{"lines":[{"id":1,"text":"I love cats."},{"id":2,"text":"■"}]}',
+                 [ask[0], Item(2, "%", "■")]) == {1: "I love cats.", 2: "■"}
+
+
 def test_halves_without_paragraph_boundary_splits_in_the_middle():
     a, b = halves([Item(1, "%", "a"), Item(2, "$", "b"), Item(3, "$", "c"), Item(4, "$", "d")])
     assert len(a) == 2 and len(b) == 2

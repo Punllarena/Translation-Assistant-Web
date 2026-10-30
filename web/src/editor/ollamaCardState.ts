@@ -52,6 +52,14 @@ export function cardState(input: { suggestion?: Suggestion; translated: boolean;
   return "idle"; // translated or not, nothing saved: the card offers Translate chunk
 }
 
+/** Whether a by-hand request concerns `line`: its own line before the plan arrives, then
+ * any line of the chunk it is translating. A reroll keeps running while the card moves. */
+export function coversLine(want: { line: number } | null, stream: StreamState, line: number): boolean {
+  if (want === null) return false;
+  if (want.line === line) return true;
+  return stream.first !== null && stream.last !== null && stream.first <= line && line <= stream.last;
+}
+
 const p2 = (n: number) => String(n).padStart(2, "0");
 
 /** "prepared 02:14 · qwen3:14b", with the local date when it was not made today. */

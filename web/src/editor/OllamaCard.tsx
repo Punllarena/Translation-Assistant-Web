@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
-import { apply, badge, cardState, initial, lineRange, type StreamState, type Suggestion } from "./ollamaCardState";
+import { apply, badge, cardState, coversLine, initial, lineRange, type StreamState, type Suggestion } from "./ollamaCardState";
 import ReasoningDialog from "./ReasoningDialog";
 import { useSse } from "./useSse";
 
@@ -29,6 +29,7 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse }
     () => void queryClient.invalidateQueries({ queryKey: ["ollama", documentId] }), [queryClient, documentId]);
   const suggestion = sugs.data?.find((s) => s.line_number === lineNumber);
   const [want, setWant] = useState<Want | null>(null);
+  const [reroll, setReroll] = useState<Want | null>(null);
   const [reasoning, setReasoning] = useState<number | null>(null);
   const translatedRef = useRef(translated);
   translatedRef.current = translated;
@@ -45,9 +46,21 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse }
     url: streamUrl(documentId, want), nonce: want, events: EVENTS, apply, initial, start: RUNNING,
     onEvent: (type) => { if (type === "done") refresh(); },
   });
-  const stream = want?.line === lineNumber ? live : initial; // a render before the effect above catches up
+  // A reroll has its own stream, kept while the card moves to another line: the chunk is
+  // server-owned, so switching lines must neither cancel it nor leave this document's saved
+  // suggestions stale when it finishes.
+  const rerollLive = useSse<StreamState>({
+    url: streamUrl(documentId, reroll), nonce: reroll, events: EVENTS, apply, initial, start: RUNNING,
+    onEvent: (type) => { if (type === "done") { refresh(); setReroll(null); } },
+  });
+  const rerolling = coversLine(reroll, rerollLive, lineNumber);
+  const stream = rerolling ? rerollLive : want?.line === lineNumber ? live : initial; // a render before the effect above catches up
   const state = cardState({ suggestion, translated, stream });
-  const ask = (reroll: boolean) => setWant({ line: lineNumber, reroll, n: Date.now() });
+  const ask = (wantsReroll: boolean) => {
+    const next = { line: lineNumber, reroll: wantsReroll, n: Date.now() };
+    if (wantsReroll) { setReroll(next); setWant(null); }
+    else setWant(next);
+  };
   const liveText = stream.lines[lineNumber];
   const text = state === "saved" || state === "stale" ? suggestion?.text : liveText ?? undefined;
   const range = stream.first !== null && stream.last !== null ? lineRange(stream.first, stream.last) : null;
@@ -66,7 +79,7 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse }
         <details><summary>Thinking</summary><p className="mt-text muted">{stream.thinking}</p></details>
       )}
       {state === "setup" && <p className="muted">{stream.message} <Link to="/settings/mt">Set up</Link></p>}
-      {state === "error" && <p role="alert">{stream.message} <button onClick={() => ask(want?.reroll ?? false)}>Retry</button></p>}
+      {state === "error" && <p role="alert">{stream.message} <button onClick={() => ask(stream === rerollLive)}>Retry</button></p>}
       {sugs.error && <p className="error" role="alert">{sugs.error.message}</p>}
       <div className="mt-actions">
         {text && <button onClick={() => onUse(text)}>Use</button>}

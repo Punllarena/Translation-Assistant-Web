@@ -199,5 +199,46 @@ async def test_nothing_asked_makes_no_request():
     assert r.lines == {} and r.requests == []
 
 
+async def test_a_copied_answer_is_halved_and_retried():
+    """A model that echoes the source for the whole chunk (a malformed translation, though
+    its JSON is well formed) must not have the source saved; the chunk is split and asked
+    again, as for any other rejected answer."""
+    def handler(body):
+        ids = asked_ids(body)
+        if len(ids) == 2:
+            return httpx.Response(200, content=ndjson(json.dumps(
+                {"lines": [{"id": n, "text": f"orig{n}"} for n in ids]})))
+        return httpx.Response(200, content=ndjson(answer(*ids)))
+
+    seen = []
+    async with client(handler, seen) as c:
+        r = await translate(c, ep(), [], items(1, 2))
+    assert r.lines == {1: "T1", 2: "T2"} and r.failed == []
+    assert [q.ok for q in r.requests] == [False, True, True]
+
+
+async def test_a_single_copied_line_fails_instead_of_saving_the_source():
+    def handler(body):
+        ids = asked_ids(body)
+        return httpx.Response(200, content=ndjson(json.dumps(
+            {"lines": [{"id": n, "text": f"orig{n}"} for n in ids]})))
+
+    async with client(handler) as c:
+        r = await translate(c, ep(), [], items(5))
+    assert r.lines == {} and r.failed == [5]
+    assert len(r.requests) == 1 and not r.requests[0].ok
+
+
+async def test_a_letterless_line_may_come_back_unchanged():
+    def handler(body):
+        ids = asked_ids(body)
+        return httpx.Response(200, content=ndjson(json.dumps(
+            {"lines": [{"id": n, "text": "■"} for n in ids]})))
+
+    async with client(handler) as c:
+        r = await translate(c, ep(), [], [Item(1, "%", "■")])
+    assert r.lines == {1: "■"} and r.failed == [] and r.requests[0].ok
+
+
 def test_clock_seam_exists():
     assert callable(tr._now)
