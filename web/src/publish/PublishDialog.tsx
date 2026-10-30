@@ -32,7 +32,10 @@ export default function PublishDialog({ doc, onClose, mode = "publish" }: {
   });
   const prefs = useQuery({ queryKey: ["wp", "prefs"], queryFn: () => call(api.GET("/wp/prefs")) });
   const [schedule, setSchedule] = useState<boolean | null>(mode === "reschedule" ? true : null);
-  const [when, setWhen] = useState(doc.wp_scheduled_for ? toLocalInput(new Date(doc.wp_scheduled_for)) : "");
+  // Only Reschedule starts from the stored time; elsewhere an old (likely past) time would be a bad default.
+  const [when, setWhen] = useState(
+    mode === "reschedule" && doc.wp_scheduled_for ? toLocalInput(new Date(doc.wp_scheduled_for)) : "",
+  );
   const [result, setResult] = useState<Schemas["PublishOut"] | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
   const suggested = status.data?.suggested_slot ? new Date(status.data.suggested_slot) : null;

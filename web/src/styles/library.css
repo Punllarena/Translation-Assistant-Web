@@ -111,7 +111,7 @@
   color: var(--ink); text-decoration: none; }
 .ch-title .row-link::after { content: ""; position: absolute; inset: 0; }
 .ch-title .row-link:hover { color: var(--accent-text); }
-.ch-grip > .grip, .ch-check > input, .ch-menu > .menu-root { position: relative; z-index: 1; }
+.ch-grip > .grip, .ch-check > input, .ch-menu > .menu-root, .ch-wp > .wp-tag, .ch-source > a { position: relative; z-index: 1; }
 .menu [role^="menuitem"].danger { color: var(--danger); }
 /* An open menu sits above the later rows' raised controls. */
 .chapters .menu-root:has(> [aria-expanded="true"]) { z-index: 30; }
