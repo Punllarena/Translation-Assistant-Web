@@ -2472,6 +2472,8 @@ export interface components {
             chapter_number?: number | null;
             /** Chapter Title */
             chapter_title: string;
+            /** Char Count */
+            char_count: number;
             /**
              * Created At
              * Format: date-time
@@ -2487,6 +2489,8 @@ export interface components {
             last_position: number;
             /** Line Count */
             line_count: number;
+            /** Ollama Waiting */
+            ollama_waiting: number;
             /** Progress */
             progress: number;
             /** Series Id */
@@ -2508,6 +2512,8 @@ export interface components {
             updated_at: string;
             /** Volume Id */
             volume_id: number | null;
+            /** Word Count */
+            word_count: number;
             /** Wp Post Url */
             wp_post_url: string;
             /** Wp Published At */

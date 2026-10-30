@@ -60,6 +60,9 @@ class DocumentListItem(DocumentOut):
     line_count: int
     translated_count: int
     image_count: int
+    char_count: int
+    word_count: int
+    ollama_waiting: int
     progress: int
 
 

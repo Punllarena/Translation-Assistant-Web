@@ -2,6 +2,8 @@ import pytest
 from sqlalchemy import select
 
 from api.models import DocumentImage, Line, Volume
+from api.models.ollama import OllamaChunk, OllamaSuggestion
+from api.ollama.work import raw_sha
 
 
 def _lines(db, doc_id):
@@ -131,3 +133,46 @@ def test_create_line_count_is_capped(app_client, me, make_series, monkeypatch):
 )
 def test_integer_fields_are_bounded(app_client, me, method, path, body):
     assert getattr(app_client, method)(path, json=body).status_code == 422
+
+
+def test_list_counts_characters_without_whitespace(app_client, me, make_doc):
+    make_doc(me, ["一 二　三", "", "  ", "abc"], translated=False)
+    row = app_client.get("/documents").json()[0]
+    # 一二三 + abc; blank and whitespace-only lines add nothing
+    assert row["char_count"] == 6
+
+
+def test_list_counts_translated_words(app_client, me, make_doc):
+    make_doc(me, ["a", "b", "c"])  # translations "tr:a" ...
+    doc = app_client.get("/documents").json()[0]
+    assert doc["word_count"] == 3
+
+
+def test_word_count_ignores_blank_translations_and_runs_of_space(app_client, db, me, make_doc):
+    d = make_doc(me, ["a", "b"], translated=False)
+    d_lines = sorted(d.lines, key=lambda ln: ln.line_number)
+    d_lines[0].translated_text = "  Hello   there\nfriend "
+    db.flush()
+    assert app_client.get("/documents").json()[0]["word_count"] == 3
+
+
+def test_list_counts_waiting_ollama_suggestions(app_client, db, me, make_doc):
+    doc = make_doc(me, ["a", "b"], translated=False)
+    chunk = OllamaChunk(
+        user_id=me.id, series_id=doc.series_id, document_id=doc.id, source="run", ok=True,
+        clamped=False, depth=0, model="qwen3:14b", preset="small", chunk_lines=12,
+        context_lines=5, first_line=0, last_line=1, asked=2, prompt_tokens=10,
+        output_tokens=5, total_ms=900, reasoning="why", prompt="[]",
+    )
+    db.add(chunk)
+    db.flush()
+    lines = sorted(doc.lines, key=lambda ln: ln.line_number)
+    db.add_all([
+        OllamaSuggestion(line_id=lines[0].id, chunk_id=chunk.id, text="A",
+                         raw_sha=raw_sha(lines[0].raw_text)),
+        OllamaSuggestion(line_id=lines[1].id, chunk_id=chunk.id, text=None,  # flushed
+                         raw_sha=raw_sha(lines[1].raw_text)),
+    ])
+    db.flush()
+    row = app_client.get("/documents").json()[0]
+    assert row["ollama_waiting"] == 1

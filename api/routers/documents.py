@@ -13,7 +13,7 @@ from api.library import (
     send_to_volume_end,
     write_lines,
 )
-from api.models import Document, DocumentImage, Line, Series, User, Volume
+from api.models import Document, DocumentImage, Line, OllamaSuggestion, Series, User, Volume
 from api.restructure import NotOwned, RestructureError, merge_documents, split_document
 from api.routing import api_router
 from api.schemas.documents import (
@@ -57,11 +57,26 @@ def list_documents(
     by series_id and filters client-side."""
     # ponytail: one unpaginated list; page it if a library outgrows a few thousand chapters
     has_text = func.trim(Line.raw_text) != ""
+    has_translation = func.trim(Line.translated_text) != ""
     lines = (
         select(
             Line.document_id,
             func.count().filter(has_text).label("line_count"),
             func.count().filter(has_text, Line.translated_text != "").label("translated_count"),
+            # Characters of the source with every space removed (U+3000 is not in \s).
+            func.coalesce(
+                func.sum(func.length(func.regexp_replace(Line.raw_text, r"[\s　]", "", "g")))
+                .filter(has_text),
+                0,
+            ).label("char_count"),
+            func.coalesce(
+                func.sum(
+                    func.array_length(
+                        func.regexp_split_to_array(func.trim(Line.translated_text), r"\s+"), 1
+                    )
+                ).filter(has_text, has_translation),
+                0,
+            ).label("word_count"),
         )
         .group_by(Line.document_id)
         .subquery()
@@ -74,15 +89,26 @@ def list_documents(
         .group_by(DocumentImage.document_id)
         .subquery()
     )
+    waiting = (
+        select(Line.document_id, func.count().label("ollama_waiting"))
+        .join(OllamaSuggestion, OllamaSuggestion.line_id == Line.id)
+        .where(OllamaSuggestion.text.is_not(None))
+        .group_by(Line.document_id)
+        .subquery()
+    )
     rows = db.execute(
         select(
             Document,
             func.coalesce(lines.c.line_count, 0),
             func.coalesce(lines.c.translated_count, 0),
             func.coalesce(images.c.image_count, 0),
+            func.coalesce(lines.c.char_count, 0),
+            func.coalesce(lines.c.word_count, 0),
+            func.coalesce(waiting.c.ollama_waiting, 0),
         )
         .outerjoin(lines, lines.c.document_id == Document.id)
         .outerjoin(images, images.c.document_id == Document.id)
+        .outerjoin(waiting, waiting.c.document_id == Document.id)
         .where(Document.user_id == user.id)
         .order_by(Document.updated_at.desc(), Document.id.desc())
     )
@@ -100,9 +126,12 @@ def list_documents(
             line_count=lc,
             translated_count=tc,
             image_count=ic,
+            char_count=cc,
+            word_count=wc,
+            ollama_waiting=ow,
             progress=progress(lc, tc, ic),
         )
-        for doc, lc, tc, ic in rows
+        for doc, lc, tc, ic, cc, wc, ow in rows
     ]
 
 
