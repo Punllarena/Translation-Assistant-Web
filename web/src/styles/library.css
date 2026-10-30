@@ -83,29 +83,29 @@
 .ch-tools { display: flex; justify-content: flex-end; gap: 8px; margin: 0 0 8px; }
 .chapters-wrap { overflow-x: auto; max-width: 100%; }
 .chapters { table-layout: fixed; width: 100%; }
-.chapters thead th { position: sticky; top: var(--selbar-h, 0); z-index: 2; background: var(--bg); }
+/* No sticky header: the wrapper scrolls sideways, which makes it the header's scroll container,
+   and it never scrolls vertically; an offset there only pushed the header over the rows. The
+   cells stay positioned so their visually-hidden labels are clipped by the wrapper, not the page. */
+.chapters thead th { position: relative; }
 .chapters tbody tr { position: relative; }
 .chapters tbody tr:hover td { background: var(--raised); }
 .chapters tr.dragging td { opacity: .5; }
-.ch-grip, .ch-check, .ch-menu { white-space: nowrap; }
-.ch-grip { width: 2em; }
-.ch-check { width: 2.5em; }
-.ch-menu { width: 2.5em; }
+/* Column widths come from chapterColumns.ts (inline on the header cells, in rem); the table is
+   at least the shown columns plus room for the title (--ch-min), and scrolls in its wrapper past
+   that. Cells clip as a last resort rather than paint over a neighbour. */
+.chapters { min-width: var(--ch-min, 0); }
+.chapters thead th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chapters tbody td:not(.ch-menu):not(.ch-title) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-menu { white-space: nowrap; }
 .ch-grip .grip { cursor: grab; color: var(--muted); padding: 4px; user-select: none; }
-.ch-num { width: 3.5em; text-align: right; font-family: var(--mono); font-size: 13px; }
-.ch-prog { width: 5.5em; white-space: nowrap; }
+.ch-num { text-align: right; font-family: var(--mono); font-size: 13px; }
 .ch-prog.ok { color: var(--ok); }
 /* The progress cell: a thin bar plus the percent, in token colours. */
-.pbar { display: inline-block; width: 3em; height: 6px; border-radius: 3px; background: var(--line);
+.pbar { display: inline-block; width: 2.5rem; height: 6px; border-radius: 3px; background: var(--line);
   overflow: hidden; vertical-align: middle; }
 .pbar > span { display: block; height: 100%; background: var(--accent); }
 .ch-summary { margin: 0 0 8px; font-size: 13px; }
-.ch-edited { width: 7.5em; white-space: nowrap; }
-.ch-wp { width: 8.5em; white-space: nowrap; }
-.ch-original, .ch-source { width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ch-images, .ch-lines, .ch-chars, .ch-words, .ch-ollama { width: 5.5em; text-align: right; white-space: nowrap; }
-.ch-translated { width: 6.5em; text-align: right; white-space: nowrap; }
-.ch-wpdate, .ch-added { width: 8.5em; white-space: nowrap; }
+.ch-images, .ch-lines, .ch-chars, .ch-words, .ch-translated, .ch-ollama { text-align: right; }
 .ch-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-title .row-link { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--ink); text-decoration: none; }
@@ -140,6 +140,7 @@
   .vol-add { width: 96px; flex: none; }
   .vol-head > .cover { width: 56px; }
   .ch-grip, .ch-prog, .ch-edited, .ch-wp { display: none; }
+  .chapters { min-width: var(--ch-min-narrow, 0); }
 }
 
 /* Volume details: the cover section */
