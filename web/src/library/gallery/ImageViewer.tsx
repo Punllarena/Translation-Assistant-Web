@@ -4,7 +4,7 @@ import { api, call } from "../../api/client";
 import type { Doc } from "../shelf";
 import { invalidateLibrary } from "../queries";
 import { ConfirmDialog } from "../../ui/Dialog";
-import { imageSrc, type GalleryImage } from "./galleryGroups";
+import { imageActions, imageSrc, type GalleryImage } from "./galleryGroups";
 
 /** One gallery image, full size, with previous/next and the actions it allows — never an
  *  "open in editor". The dialog is native and modal; Esc closes it. */
@@ -23,8 +23,7 @@ export default function ImageViewer({ image, doc, seriesId, syosetu, images, ind
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   useEffect(() => { const d = ref.current; if (d && !d.open) d.showModal(); }, []);
-  const canCover = image.kind === "image" && image.volume_id != null;
-  const canMove = canCover && !syosetu && doc?.is_illustrations !== true;
+  const allowed = imageActions(image, doc, syosetu);
   // Deleting it empties the Illustrations chapter, which goes too.
   const last = doc?.is_illustrations === true
     && images.filter((i) => i.kind === "image" && i.document_id === doc.id).length === 1;
@@ -78,12 +77,14 @@ export default function ImageViewer({ image, doc, seriesId, syosetu, images, ind
             <span className="muted">{index + 1} of {images.length}</span>
             <button type="button" disabled={index >= images.length - 1} onClick={() => onStep(1)}>Next</button>
           </div>
-          {canCover && (
+          {allowed.remove && (
             <div className="toolbar">
-              <button type="button" disabled={busy} onClick={() => act(() => cover.mutate())}>
-                Set as volume cover
-              </button>
-              {canMove && (
+              {allowed.cover && (
+                <button type="button" disabled={busy} onClick={() => act(() => cover.mutate())}>
+                  Set as volume cover
+                </button>
+              )}
+              {allowed.move && (
                 <button type="button" disabled={busy} onClick={() => act(() => move.mutate())}>
                   Move to Illustrations
                 </button>

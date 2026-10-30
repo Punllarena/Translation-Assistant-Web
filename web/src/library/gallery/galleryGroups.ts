@@ -83,3 +83,12 @@ export function flatten(groups: GalleryVolume[]): GalleryImage[] {
     ...g.chapters.flatMap((c) => c.images),
   ]);
 }
+
+/** What the viewer offers for an image. Any chapter image can be deleted; only one in a volume can
+ *  become its cover or move (and not from the Illustrations chapter or in a syosetu series). Cover
+ *  tiles are view only. */
+export function imageActions(image: GalleryImage, doc: Doc | undefined, syosetu: boolean) {
+  const chapterImage = image.kind === "image";
+  const cover = chapterImage && image.volume_id != null;
+  return { cover, move: cover && !syosetu && doc?.is_illustrations !== true, remove: chapterImage };
+}

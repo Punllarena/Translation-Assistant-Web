@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Doc, Volume } from "../shelf";
-import { flatten, galleryGroups, imageKey, type GalleryImage } from "./galleryGroups";
+import { flatten, galleryGroups, imageActions, imageKey, type GalleryImage } from "./galleryGroups";
 
 const volume = (id: number, series_id: number, volume_order: number) =>
   ({ id, series_id, volume_order, label: `Volume ${id}` }) as Volume;
@@ -74,5 +74,23 @@ describe("flatten", () => {
 
   it("keys a cover and an image with the same id apart", () => {
     expect(imageKey(cover(7, 1))).not.toBe(imageKey(image(7)));
+  });
+});
+
+describe("imageActions", () => {
+  it("a loose chapter's image can only be deleted", () => {
+    expect(imageActions(image(1, { document_id: 4 }), doc(4, 1, null), false))
+      .toEqual({ cover: false, move: false, remove: true });
+  });
+  it("an image in a volume chapter can do everything", () => {
+    expect(imageActions(image(1, { volume_id: 1, document_id: 1 }), doc(1, 1, 1), false))
+      .toEqual({ cover: true, move: true, remove: true });
+  });
+  it("no move in a syosetu series or from the Illustrations chapter", () => {
+    expect(imageActions(image(1, { volume_id: 1, document_id: 1 }), doc(1, 1, 1), true).move).toBe(false);
+    expect(imageActions(image(1, { volume_id: 1, document_id: 1 }), doc(1, 1, 1, { is_illustrations: true }), false).move).toBe(false);
+  });
+  it("a cover tile is view only", () => {
+    expect(imageActions(cover(9, 1), undefined, false)).toEqual({ cover: false, move: false, remove: false });
   });
 });
