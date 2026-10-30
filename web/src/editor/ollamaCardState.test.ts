@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Schemas } from "../api/client";
-import { apply, badge, cardState, initial, lineRange, summary, type StreamState } from "./ollamaCardState";
+import { apply, badge, cardState, coversLine, initial, lineRange, summary, type StreamState } from "./ollamaCardState";
 
 const sug = (over: Partial<Schemas["SuggestionOut"]> = {}): Schemas["SuggestionOut"] => ({
   line_number: 12, text: "Hello.", stale: false, chunk_id: 3, first_line: 9, last_line: 23,
@@ -51,6 +51,21 @@ describe("cardState", () => {
   it("is idle with nothing saved and nothing running", () => {
     expect(cardState({ translated: true, stream: initial })).toBe("idle");
     expect(cardState({ translated: false, stream: { ...initial, status: "done" } })).toBe("idle");
+  });
+});
+
+describe("coversLine", () => {
+  it("covers the requested line before the plan, then the chunk the server is asking", () => {
+    const want = { line: 12 };
+    const planned = { ...initial, first: 9, last: 23 };
+    expect(coversLine(want, initial, 12)).toBe(true);
+    expect(coversLine(want, initial, 13)).toBe(false); // the plan has not arrived yet
+    expect(coversLine(want, planned, 9)).toBe(true);
+    expect(coversLine(want, planned, 23)).toBe(true);
+    expect(coversLine(want, planned, 24)).toBe(false);
+  });
+  it("covers nothing when no request is in flight", () => {
+    expect(coversLine(null, { ...initial, first: 9, last: 23 }, 12)).toBe(false);
   });
 });
 
