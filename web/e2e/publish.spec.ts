@@ -94,3 +94,13 @@ test("batch publish: closing and reopening the dialog never errors, and the chap
   // The job finishes after the dialog is gone; the row still has to pick that up.
   await expect(row.getByText("Published", { exact: true })).toBeVisible();
 });
+
+test("the WordPress tag opens its status popover, not the editor", async ({ page }) => {
+  await signInAndConnect(page);
+  await openSeries(page, "E2E publish series");
+  const before = page.url();
+  const row = page.getByRole("row").filter({ hasText: "Publish one" });
+  await row.getByRole("button", { name: "WordPress: Published" }).click();
+  await expect(page.getByRole("dialog", { name: "WordPress status for Publish one" })).toBeVisible();
+  expect(page.url()).toBe(before);
+});
