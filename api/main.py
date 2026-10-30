@@ -19,6 +19,7 @@ from api.routers import (
     documents,
     epub,
     exports,
+    gallery,
     glossary,
     images,
     invites,
@@ -111,6 +112,7 @@ def create_app() -> FastAPI:
     app.include_router(spell.router)
     app.include_router(words.router)
     app.include_router(images.router)
+    app.include_router(gallery.router)
     app.include_router(settings.router)
     app.include_router(credentials.router)
     app.include_router(mt.router)
