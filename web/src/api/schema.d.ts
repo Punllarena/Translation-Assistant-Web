@@ -421,7 +421,11 @@ export interface paths {
         get: operations["get_document_documents__document_id__get"];
         put?: never;
         post?: never;
-        /** Delete Document */
+        /**
+         * Delete Document
+         * @description Delete a chapter; ``images=move`` first moves its images to the volume's
+         *     Illustrations chapter (409 when that is not possible).
+         */
         delete: operations["delete_document_documents__document_id__delete"];
         options?: never;
         head?: never;
@@ -4600,7 +4604,9 @@ export interface operations {
     };
     delete_document_documents__document_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                images?: "delete" | "move";
+            };
             header?: never;
             path: {
                 document_id: number;

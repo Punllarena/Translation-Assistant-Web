@@ -42,7 +42,7 @@ def volume_has_one(db: Session, volume_id: int, besides: int | None = None) -> b
 
 def check_mark(db: Session, doc: Document) -> None:
     """Marking ``doc`` is allowed: syosetu-free series, no text, in a volume with none yet."""
-    if _syosetu(db, doc.series_id):
+    if is_syosetu(db, doc.series_id):
         raise IllustrationsRule(SYOSETU)
     texts = db.scalars(select(Line.raw_text).where(Line.document_id == doc.id))
     if any(line_has_content(t) for t in texts):
@@ -53,7 +53,7 @@ def check_mark(db: Session, doc: Document) -> None:
         raise IllustrationsRule(HAS_ONE)
 
 
-def _syosetu(db: Session, series_id: int) -> bool:
+def is_syosetu(db: Session, series_id: int) -> bool:
     return bool(db.scalar(select(Series.syosetu_url).where(Series.id == series_id)))
 
 
@@ -64,7 +64,7 @@ def check_move(
     (``series_id``, default its own), that has no Illustrations chapter."""
     if not doc.is_illustrations:
         return
-    if _syosetu(db, doc.series_id if series_id is None else series_id):
+    if is_syosetu(db, doc.series_id if series_id is None else series_id):
         raise IllustrationsRule(SYOSETU)
     if volume_id is None:
         raise IllustrationsRule("the Illustrations chapter must stay in a volume")

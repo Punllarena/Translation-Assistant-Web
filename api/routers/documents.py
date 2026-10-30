@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -5,6 +7,7 @@ from sqlalchemy.orm import Session
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.deps import current_user, db_session, owned_ref, scoped
 from api.illustrations import IllustrationsRule, check_mark, check_move, rule_conflict
+from api.image_moves import check_can_move, move_images
 from api.library import (
     arrange,
     chapter_numbers,
@@ -214,9 +217,29 @@ def update_document(
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document(
-    document_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
+    document_id: int,
+    images: Literal["delete", "move"] = "delete",
+    user: User = Depends(current_user),
+    db: Session = Depends(db_session),
 ) -> None:
+    """Delete a chapter; ``images=move`` first moves its images to the volume's
+    Illustrations chapter (409 when that is not possible)."""
     doc = scoped(db, Document, document_id, user.id)
+    if images == "move":
+        try:
+            volume = check_can_move(db, doc)
+        except IllustrationsRule as exc:
+            raise rule_conflict(exc) from None
+        rows = list(
+            db.scalars(
+                select(DocumentImage)
+                .where(DocumentImage.document_id == doc.id)
+                .order_by(DocumentImage.anchor_position, DocumentImage.id)
+            )
+        )
+        if rows:
+            move_images(db, user, volume, rows, order=doc.series_order)
+            db.flush()
     series = db.get(Series, doc.series_id)
     db.delete(doc)
     db.flush()
