@@ -168,7 +168,7 @@ textarea.summary { width: 100%; min-height: 12em; resize: vertical; box-sizing: 
 .badge.muted { font-style: italic; }
 .wp-pop { position: fixed; z-index: 60; width: 290px; padding: 12px 14px; display: flex; flex-direction: column;
   gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 13px;
-  box-shadow: 0 16px 40px -16px var(--shadow); }
+  box-shadow: 0 16px 40px -16px var(--shadow); overflow-wrap: anywhere; }
 .wp-pop p { margin: 0; }
 .wp-pop-title { font-weight: 600; }
 .wp-pop > .primary { align-self: flex-start; }
