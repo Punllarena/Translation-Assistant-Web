@@ -2,6 +2,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 import { useWpConfigured } from "../publish/useWpConfigured";
 import PageHeader from "../ui/PageHeader";
 import { useArchive, useDocuments, useSeriesList } from "./queries";
+import GalleryTab from "./gallery/GalleryTab";
 import SeriesGlossary from "./SeriesGlossary";
 import SeriesSettings from "./SeriesSettings";
 import SeriesTools from "./SeriesTools";
@@ -10,6 +11,7 @@ import VolumesTab from "./VolumesTab";
 
 const TABS = [
   { id: "volumes", label: "Volumes" },
+  { id: "gallery", label: "Gallery" },
   { id: "glossary", label: "Glossary" },
   { id: "tools", label: "Tools" },
   { id: "settings", label: "Settings" },
@@ -55,6 +57,7 @@ export default function SeriesPage() {
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === "volumes" && <VolumesTab series={series} docs={chapters} />}
+        {tab === "gallery" && <GalleryTab series={series} docs={chapters} />}
         {tab === "glossary" && <SeriesGlossary key={series.id} seriesId={series.id} />}
         {tab === "tools" && <SeriesTools series={series} />}
         {tab === "settings" && <SeriesSettings key={`${series.id}:${series.volume_title_template}`} series={series} chapterCount={chapters.length} />}
