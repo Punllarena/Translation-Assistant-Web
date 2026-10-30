@@ -8,10 +8,11 @@ import { menuPublishLabel, wpTag } from "../publish/wpTag";
 import { useWpConfigured } from "../publish/useWpConfigured";
 import { ConfirmDialog, PromptDialog } from "../ui/Dialog";
 import Menu from "../ui/Menu";
+import DeleteChaptersDialog from "./DeleteChaptersDialog";
 import MoveDialog from "./MoveDialog";
 import { useFlushOllama, useQueueOllama } from "./useOllamaQueue";
 import { shownTitle, titleField, type Doc } from "./shelf";
-import { invalidateLibrary } from "./queries";
+import { invalidateLibrary, useSeriesList } from "./queries";
 
 type Open = null | "rename" | "refetch" | "publish" | "move" | "delete" | "flush";
 
@@ -46,10 +47,6 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
       closeAll();
     },
   });
-  const remove = useMutation({
-    mutationFn: () => call(api.DELETE("/documents/{document_id}", id)),
-    onSuccess: async () => { await changed(); closeAll(); },
-  });
   const mark = useMutation({
     mutationFn: (is_illustrations: boolean) =>
       call(api.PATCH("/documents/{document_id}", { ...id, body: { is_illustrations } })),
@@ -59,6 +56,8 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
   });
   const ollama = useQueueOllama();
   const flush = useFlushOllama(() => closeAll());
+  const series = useSeriesList().data?.find((s) => s.id === doc.series_id);
+  const syosetu = (series?.syosetu_url ?? "").trim() !== "";
   const wpConfigured = useWpConfigured() === true;
   const tag = wpTag(doc, new Date());
   const mode: PublishMode =
@@ -89,7 +88,7 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
               : doc.line_count === 0 && item("Mark as Illustrations", () => mark.mutate(true), close)}
             <Link role="menuitem" className="btn" to={`/documents/${doc.id}/split`}>Split…</Link>
             {item("Move to…", () => setOpen("move"), close)}
-            {item("Delete", () => { remove.reset(); setOpen("delete"); }, close, "danger")}
+            {item("Delete", () => setOpen("delete"), close, "danger")}
           </>
         )}
       </Menu>
@@ -120,9 +119,7 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
         : <PublishDialog doc={doc} mode={mode} onClose={closeAll} />)}
       {open === "move" && <MoveDialog ids={[doc.id]} currentSeriesId={doc.series_id} currentVolumeId={doc.volume_id} onClose={closeAll} />}
       {open === "delete" && (
-        <ConfirmDialog title="Delete chapter" confirmLabel="Delete" danger busy={remove.isPending}
-          message={`Delete "${title}"? This can't be undone.`} error={remove.error?.message}
-          onConfirm={() => remove.mutate()} onClose={closeAll} />
+        <DeleteChaptersDialog docs={[doc]} syosetu={syosetu} onDone={closeAll} onClose={closeAll} />
       )}
     </>
   );

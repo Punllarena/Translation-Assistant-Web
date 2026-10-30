@@ -6,9 +6,10 @@ import BatchPublish from "../publish/BatchPublish";
 import { useStatusCheck } from "../publish/useStatusCheck";
 import { useWpConfigured } from "../publish/useWpConfigured";
 import { useAccountPref } from "../settings/useAccountPref";
-import { ConfirmDialog, PromptDialog } from "../ui/Dialog";
+import { PromptDialog } from "../ui/Dialog";
 import Menu from "../ui/Menu";
 import ChapterMenu from "./ChapterMenu";
+import DeleteChaptersDialog from "./DeleteChaptersDialog";
 import { cell, cellClass, HEADERS } from "./chapterCells";
 import { COLUMNS, DEFAULT_COLUMNS, parseColumns, shownColumns, toggleColumn } from "./chapterColumns";
 import { QUICK_LABEL, QUICK_PICKS, quickPick, type QuickPick } from "./chapterPicks";
@@ -113,13 +114,6 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
   const merge = useMutation({
     mutationFn: (title: string) => call(api.POST("/documents/merge", { body: { document_ids: selected, title } })),
     onSuccess: done,
-  });
-  const remove = useMutation({
-    mutationFn: async () => {
-      for (const id of selected) await call(api.DELETE("/documents/{document_id}", { params: { path: { document_id: id } } }));
-    },
-    onSettled: () => invalidateLibrary(queryClient), // a partial failure still changed the list
-    onSuccess: () => { leave(); setOpen(null); },
   });
   const exportZip = useMutation({
     mutationFn: (format: string) => downloadBlob("/api/documents/export/zip", "chapters.zip", {
@@ -237,7 +231,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               </Menu>
               <button type="button" className="small" disabled={n === 0} onClick={() => setOpen("move")}>Move to…</button>
               <button type="button" className="small" disabled={n < 2} onClick={() => { merge.reset(); setOpen("merge"); }}>Merge</button>
-              <button type="button" className="small danger" disabled={n === 0} onClick={() => { remove.reset(); setOpen("delete"); }}>Delete</button>
+              <button type="button" className="small danger" disabled={n === 0} onClick={() => setOpen("delete")}>Delete</button>
               <span className="spacer" />
               <button type="button" className="small quiet" onClick={leave}>Clear</button>
             </div>
@@ -283,9 +277,8 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
           error={merge.error?.message} onSubmit={(t) => merge.mutate(t.trim())} onClose={() => setOpen(null)} />
       )}
       {open === "delete" && (
-        <ConfirmDialog title="Delete chapters" confirmLabel="Delete" danger busy={remove.isPending}
-          message={`Delete ${n} ${n === 1 ? "chapter" : "chapters"}? This can't be undone.`}
-          error={remove.error?.message} onConfirm={() => remove.mutate()} onClose={() => setOpen(null)} />
+        <DeleteChaptersDialog docs={group.docs.filter((d) => ticked.has(d.id))} syosetu={syosetu}
+          onDone={leave} onClose={() => setOpen(null)} />
       )}
     </>
   );

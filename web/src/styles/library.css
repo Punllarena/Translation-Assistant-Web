@@ -171,3 +171,7 @@ textarea.summary { width: 100%; min-height: 12em; resize: vertical; box-sizing: 
 .wp-pop p { margin: 0; }
 .wp-pop-title { font-weight: 600; }
 .wp-pop > .primary { align-self: flex-start; }
+
+/* The delete dialog's images choice. */
+.delete-images { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.delete-images p { margin: 0; font-size: 13px; }
