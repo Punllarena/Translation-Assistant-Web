@@ -26,11 +26,18 @@ function writeJson(key: string, v: unknown, storage?: Pick<Storage, "setItem">):
   }
 }
 
+/** Any stored or server value to a sort: a bad key or direction falls back as a whole. */
+export function parseSort(v: unknown): LibrarySort {
+  if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>;
+    if (isSortKey(o.key) && (o.dir === "asc" || o.dir === "desc")) return { key: o.key, dir: o.dir };
+  }
+  return DEFAULT_SORT;
+}
+
 /** Storage can be missing or throw (private windows, blocked site data). */
 export function readSort(storage?: Pick<Storage, "getItem">): LibrarySort {
-  const v = readJson(SORT_KEY, storage);
-  if (v && isSortKey(v.key) && (v.dir === "asc" || v.dir === "desc")) return { key: v.key, dir: v.dir };
-  return DEFAULT_SORT;
+  return parseSort(readJson(SORT_KEY, storage));
 }
 
 export function writeSort(s: LibrarySort, storage?: Pick<Storage, "setItem">): void {
@@ -42,15 +49,21 @@ const known = <T extends string>(v: unknown, labels: Record<T, string>): T[] =>
 const oneOf = <T extends string>(v: unknown, options: readonly T[], fallback: T): T =>
   options.find((o) => o === v) ?? fallback;
 
-export function readFilters(storage?: Pick<Storage, "getItem">): LibraryFilters {
-  const v = readJson(FILTERS_KEY, storage);
-  if (!v) return DEFAULT_FILTERS;
+/** Any stored or server value to filters: each field falls back on its own, so one unknown tick
+ *  never blanks the others. */
+export function parseFilters(v: unknown): LibraryFilters {
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return DEFAULT_FILTERS;
+  const o = v as Record<string, unknown>;
   return {
-    sources: known(v.sources, SOURCE_LABEL),
-    statuses: known(v.statuses, STATUS_LABEL),
-    wordpress: oneOf(v.wordpress, ["any", "published", "none"], DEFAULT_FILTERS.wordpress),
-    archived: oneOf(v.archived, ["hide", "include", "only"], DEFAULT_FILTERS.archived),
+    sources: known(o.sources, SOURCE_LABEL),
+    statuses: known(o.statuses, STATUS_LABEL),
+    wordpress: oneOf(o.wordpress, ["any", "published", "none"], DEFAULT_FILTERS.wordpress),
+    archived: oneOf(o.archived, ["hide", "include", "only"], DEFAULT_FILTERS.archived),
   };
+}
+
+export function readFilters(storage?: Pick<Storage, "getItem">): LibraryFilters {
+  return parseFilters(readJson(FILTERS_KEY, storage));
 }
 
 export function writeFilters(f: LibraryFilters, storage?: Pick<Storage, "setItem">): void {

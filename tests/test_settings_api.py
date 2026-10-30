@@ -228,6 +228,37 @@ def test_series_columns_accepts_known_ids(app_client, me):
     assert app_client.put("/settings", json={"series_columns": None}).status_code == 200
 
 
+def test_library_settings_round_trip(app_client, me):
+    filters = {"sources": ["epub"], "statuses": [], "wordpress": "any", "archived": "hide"}
+    body = {"library_view": "list", "library_sort": {"key": "title", "dir": "asc"},
+            "library_filters": filters}
+    r = app_client.put("/settings", json=body)
+    assert r.status_code == 200 and {k: r.json()[k] for k in body} == body
+
+
+FILTERS = {"sources": [], "statuses": [], "wordpress": "any", "archived": "hide"}
+
+
+@pytest.mark.parametrize("key,bad", [
+    ("library_view", "grid"),
+    ("library_view", ["shelf"]),
+    ("library_sort", {"key": "nope", "dir": "asc"}),
+    ("library_sort", {"key": "title"}),
+    ("library_sort", {"key": "title", "dir": "asc", "x": 1}),
+    ("library_sort", ["title", "asc"]),
+    ("library_filters", {**FILTERS, "sources": ["web"]}),
+    ("library_filters", {**FILTERS, "statuses": ["paused"]}),
+    ("library_filters", {**FILTERS, "wordpress": "maybe"}),
+    ("library_filters", {**FILTERS, "archived": "some"}),
+    ("library_filters", {"sources": [], "statuses": []}),
+    ("library_filters", {**FILTERS, "sources": ["epub", 2]}),
+    ("library_filters", {**FILTERS, "x": 1}),
+    ("library_filters", "hide"),
+])
+def test_library_settings_rejected(app_client, me, key, bad):
+    assert app_client.put("/settings", json={key: bad}).status_code == 422
+
+
 def test_schedule_rule_still_applies(app_client, me):
     r = app_client.put("/settings", json={"ollama_schedule": {"enabled": True}})
     assert r.status_code == 422

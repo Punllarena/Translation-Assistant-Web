@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { readView, writeView } from "./viewPref";
+import { parseView, readView, writeView } from "./viewPref";
 
 describe("viewPref", () => {
+  it("parseView accepts only list", () => {
+    expect(parseView("list")).toBe("list");
+    expect(parseView("shelf")).toBe("shelf");
+    expect(parseView("grid")).toBe("shelf");
+    expect(parseView(null)).toBe("shelf");
+    expect(parseView(["list"])).toBe("shelf");
+  });
+
   it("defaults to shelf and survives a throwing storage", () => {
     const boom = () => { throw new Error("blocked"); };
     expect(readView({ getItem: () => null })).toBe("shelf");
