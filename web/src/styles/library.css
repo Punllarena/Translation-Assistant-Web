@@ -78,15 +78,32 @@
 .vol-head-main > p { margin: 2px 0 0; font-size: 13px; }
 
 .chapters th, .chapters td { padding: 8px 6px; }
+/* Fixed layout: the title takes the leftover width and is one ellipsised line; every other
+   column sizes to its content's typical width, and the wrapper scrolls if they still cannot fit. */
+.ch-tools { display: flex; justify-content: flex-end; gap: 8px; margin: 0 0 8px; }
+.chapters-wrap { overflow-x: auto; max-width: 100%; }
+.chapters { table-layout: fixed; width: 100%; }
+.chapters thead th { position: sticky; top: var(--selbar-h, 0); z-index: 2; background: var(--bg); }
 .chapters tbody tr { position: relative; }
 .chapters tbody tr:hover td { background: var(--raised); }
 .chapters tr.dragging td { opacity: .5; }
-.ch-grip, .ch-check, .ch-menu { width: 1%; white-space: nowrap; }
+.ch-grip, .ch-check, .ch-menu { white-space: nowrap; }
+.ch-grip { width: 2em; }
+.ch-check { width: 2.5em; }
+.ch-menu { width: 2.5em; }
 .ch-grip .grip { cursor: grab; color: var(--muted); padding: 4px; user-select: none; }
-.ch-num { width: 1%; text-align: right; font-family: var(--mono); font-size: 13px; }
-.ch-prog, .ch-edited, .ch-wp { width: 1%; white-space: nowrap; }
+.ch-num { width: 3.5em; text-align: right; font-family: var(--mono); font-size: 13px; }
+.ch-prog { width: 5.5em; white-space: nowrap; }
 .ch-prog.ok { color: var(--ok); }
-.ch-title .row-link { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.ch-edited { width: 7.5em; white-space: nowrap; }
+.ch-wp { width: 8.5em; white-space: nowrap; }
+.ch-original, .ch-source { width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-images, .ch-lines, .ch-chars, .ch-words, .ch-ollama { width: 5.5em; text-align: right; white-space: nowrap; }
+.ch-translated { width: 6.5em; text-align: right; white-space: nowrap; }
+.ch-wpdate, .ch-added { width: 8.5em; white-space: nowrap; }
+.ch-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-title .row-link { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink); text-decoration: none; }
 .ch-title .row-link::after { content: ""; position: absolute; inset: 0; }
 .ch-title .row-link:hover { color: var(--accent-text); }
 .ch-grip > .grip, .ch-check > input, .ch-menu > .menu-root { position: relative; z-index: 1; }

@@ -70,8 +70,9 @@ kbd { display: inline-block; min-width: 28px; padding: 2px 8px; border: 1px soli
 .menu [role^="menuitem"] { justify-content: flex-start; width: 100%; min-height: 40px; border: 0;
   background: none; color: var(--ink); font-weight: 400; }
 .menu [role^="menuitem"]:hover, .menu [role^="menuitem"]:focus-visible { background: var(--raised); outline: none; }
-.menu [role="menuitemradio"]::before { content: ""; width: 16px; flex: none; }
-.menu [role="menuitemradio"][aria-checked="true"]::before { content: "✓"; color: var(--accent-text); }
+.menu [role="menuitemradio"]::before, .menu [role="menuitemcheckbox"]::before { content: ""; width: 16px; flex: none; }
+.menu [role="menuitemradio"][aria-checked="true"]::before,
+.menu [role="menuitemcheckbox"][aria-checked="true"]::before { content: "✓"; color: var(--accent-text); }
 
 /* A bar with no value (nothing counted yet) sweeps instead of sitting empty. */
 progress:indeterminate { background: linear-gradient(90deg, var(--line) 0 35%, var(--accent-text) 35% 65%, var(--line) 65%) 0 0 / 300% 100%;
