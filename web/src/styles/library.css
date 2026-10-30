@@ -95,6 +95,11 @@
 .ch-num { width: 3.5em; text-align: right; font-family: var(--mono); font-size: 13px; }
 .ch-prog { width: 5.5em; white-space: nowrap; }
 .ch-prog.ok { color: var(--ok); }
+/* The progress cell: a thin bar plus the percent, in token colours. */
+.pbar { display: inline-block; width: 3em; height: 6px; border-radius: 3px; background: var(--line);
+  overflow: hidden; vertical-align: middle; }
+.pbar > span { display: block; height: 100%; background: var(--accent); }
+.ch-summary { margin: 0 0 8px; font-size: 13px; }
 .ch-edited { width: 7.5em; white-space: nowrap; }
 .ch-wp { width: 8.5em; white-space: nowrap; }
 .ch-original, .ch-source { width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

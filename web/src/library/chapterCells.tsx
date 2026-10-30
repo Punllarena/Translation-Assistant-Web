@@ -33,7 +33,12 @@ function content(id: ColumnId, { doc, group, syosetu, selecting, queued }: CellC
         ? shownTitle(doc)
         : <Link className="row-link" to={`/documents/${doc.id}`} aria-label={`Open ${shownTitle(doc)}`}>{shownTitle(doc)}</Link>;
     case "progress":
-      return `${doc.progress}%`;
+      return (
+        <>
+          <span className="pbar" aria-hidden="true"><span style={{ width: `${doc.progress}%` }} /></span>
+          {" "}{doc.progress}%
+        </>
+      );
     case "edited":
       return date(doc.updated_at);
     case "wp":

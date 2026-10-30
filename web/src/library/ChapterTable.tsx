@@ -20,9 +20,15 @@ import { rangeToggle } from "./rangeToggle";
 import { shownTitle, type Doc, type SeriesRow } from "./shelf";
 import { invalidateLibrary } from "./queries";
 import { chapterBlocks, firstOpenBlock, seriesOrder, type VolumeGroup } from "./volumeGroups";
+import { summaryText, volumeSummary } from "./volumeSummary";
 import { CHAPTER_MIME } from "./VolumeList";
 
 const FORMATS = [["txt", "TXT"], ["md", "Markdown"], ["md-ruby", "Ruby Markdown"]] as const;
+
+/** The next scheduled slot in the reader's local terms: "Nov 2, 18:00". */
+const nextSlot = (iso: string) =>
+  new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    .format(new Date(iso));
 
 type Open = null | "publish" | "move" | "merge" | "delete";
 
@@ -194,6 +200,9 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               ))}
             </Menu>
           </div>
+          <p className="ch-summary muted">
+            {summaryText(volumeSummary(shown, new Date()), wpConfigured, nextSlot)}
+          </p>
           {barVisible && (
             <div className="selbar" role="toolbar" aria-label="Selected chapters" ref={bar}>
               <b>{n} selected</b>
