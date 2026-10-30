@@ -40,7 +40,7 @@ def main() -> None:
 
     from api.db import SessionLocal
     from api.library import write_lines
-    from api.models import Document, DocumentImage, Line, Series, User, Volume
+    from api.models import Document, DocumentImage, Line, Series, User, Volume, VolumeCover
     from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
     from api.ollama.work import raw_sha
     from api.security import hash_password
@@ -272,6 +272,32 @@ def main() -> None:
                 db.add(DocumentImage(document_id=ch.id, anchor_position=0,
                                      src_path="spec.png", data=PNG_1X1))
                 db.flush()
+        # gallery.spec: one volume with a cover, a text chapter with two images and an
+        # Illustrations chapter with one; nothing else opens this series
+        gl = Series(user_id=user.id, title="Gallery spec")
+        db.add(gl)
+        db.flush()
+        gl_vol = Volume(series_id=gl.id, kind="", subtitle="Vol 1", volume_order=1)
+        db.add(gl_vol)
+        db.flush()
+        gl_doc = Document(user_id=user.id, title="Gallery chapter", series_id=gl.id,
+                          volume_id=gl_vol.id, series_order=1)
+        db.add(gl_doc)
+        db.flush()
+        write_lines(db, gl_doc.id, [{"line_number": 0, "prefix": "%", "raw_text": "画廊です。",
+                                     "translated_text": ""}])
+        for anchor, name in enumerate(("gallery-first.png", "gallery-second.png")):
+            db.add(DocumentImage(document_id=gl_doc.id, anchor_position=anchor,
+                                 src_path=name, data=PNG_1X1))
+        gl_illus = Document(user_id=user.id, title="Illustrations", chapter_title="Illustrations",
+                            series_id=gl.id, volume_id=gl_vol.id, series_order=2,
+                            is_illustrations=True)
+        db.add(gl_illus)
+        db.flush()
+        db.add(DocumentImage(document_id=gl_illus.id, anchor_position=0,
+                             src_path="gallery-plate.png", data=PNG_1X1))
+        db.add(VolumeCover(volume_id=gl_vol.id, src_path="gallery-cover.png", data=PNG_1X1))
+        db.flush()
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)

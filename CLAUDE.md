@@ -209,6 +209,17 @@ dropped; 409 outside a volume, in a syosetu series, or for the Illustrations cha
 multi-select stays one request per chapter. Series-wide Ollama queue/flush live in Tools. Spec:
 `docs/superpowers/specs/2026-10-30-series-page-revision-design.md`.
 
+Series Gallery: the series page's Gallery tab (`?tab=gallery`, `web/src/library/gallery/`) shows every
+`document_images` row of the series' chapters plus each volume's cover, grouped by volume (`volume_order`,
+cover first, "No volume" last) with a volume filter; the grouping and display order are pure in `galleryGroups.ts`.
+`GET /series/{id}/images` returns the rows (cover rows use `volume_covers.id`) and never the bytes; tiles load
+`GET /images/{id}` / `GET /covers/{id}` with `loading="lazy"`, and no thumbnails or other derived images are stored.
+A tile opens a native `<dialog>` viewer: Set as volume cover (`POST /images/{id}/cover` copies the bytes into a new
+`volume_covers` row, 415 for a non-raster image), Move to Illustrations (`POST /images/{id}/move`, `check_can_move`'s
+409s) and Delete (`DELETE /images/{id}`). A loose chapter's image offers neither cover nor move, and nothing in the
+Gallery opens the editor. An Illustrations chapter left with no images by a Gallery delete is deleted in the same
+request (`image_moves.drop_if_empty`), `arrange()` runs and its WordPress page is left alone.
+
 Editor status bar and reading aid: the status bar groups a breadcrumb, previous/next chapter buttons with the volume's chapter
 list, place, progress and tools; every move out of the chapter (arrows, list, end card) goes through `useLeave`, which flushes the
 save first and refuses to move on a failed save. Floating `JumpBack` buttons and a `ChapterEnd` card follow the cards. `POST /readings`
