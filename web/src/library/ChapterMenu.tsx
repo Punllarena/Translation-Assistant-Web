@@ -65,6 +65,9 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
     : tag === "published" || tag === "due" ? "update"
     : "publish";
   const publishLabel = doc.is_illustrations && tag === "scheduled" ? "Update post…" : menuPublishLabel(tag);
+  // The mode is frozen when the dialog opens: the chapter's stored status changes when it publishes,
+  // and the dialog must not rename itself underneath the result it is showing.
+  const [publishMode, setPublishMode] = useState<PublishMode>(mode);
   const exportUrl = (format: string) => `/api/documents/${doc.id}/export?format=${format}`;
   const item = (label: string, act: () => void, close: () => void, className?: string) => (
     <button type="button" role="menuitem" className={className} onClick={() => { close(); act(); }}>{label}</button>
@@ -82,7 +85,7 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
             {doc.source_url && item("Re-fetch…", () => { refetch.reset(); setOpen("refetch"); }, close)}
             {item("Queue for Ollama", () => ollama.queue({ kind: "documents", series_id: doc.series_id, document_ids: [doc.id] }), close)}
             {item("Flush Ollama output…", () => { flush.reset(); setOpen("flush"); }, close)}
-            {wpConfigured && item(publishLabel, () => setOpen("publish"), close)}
+            {wpConfigured && item(publishLabel, () => { setPublishMode(mode); setOpen("publish"); }, close)}
             {doc.is_illustrations
               ? item("Unmark Illustrations", () => mark.mutate(false), close)
               : doc.line_count === 0 && item("Mark as Illustrations", () => mark.mutate(true), close)}
@@ -116,7 +119,7 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
       ))}
       {open === "publish" && (doc.is_illustrations
         ? <IllustrationsPublish doc={doc} onClose={closeAll} />
-        : <PublishDialog doc={doc} mode={mode} onClose={closeAll} />)}
+        : <PublishDialog doc={doc} mode={publishMode} onClose={closeAll} />)}
       {open === "move" && <MoveDialog ids={[doc.id]} currentSeriesId={doc.series_id} currentVolumeId={doc.volume_id} onClose={closeAll} />}
       {open === "delete" && (
         <DeleteChaptersDialog docs={[doc]} syosetu={syosetu} onDone={closeAll} onClose={closeAll} />

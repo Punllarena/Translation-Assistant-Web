@@ -3,6 +3,7 @@
     TA_DATABASE_URL=postgresql+psycopg://ta:ta@localhost:5432/ta_e2e python -m tools.e2e_seed
 """
 
+import base64
 import os
 import subprocess
 import sys
@@ -17,6 +18,10 @@ from api.accounts import create_admin
 EMAIL, PASSWORD = "e2e@example.com", "e2e-password-123"
 TM_LINE = "記憶語です。"
 LINES = ["一行目です。", "二行目です。", "三行目です。"]
+# A 1x1 PNG for series-page.spec's chapter image; nothing in these flows decodes it.
+PNG_1X1 = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
 
 
 def main() -> None:
@@ -35,7 +40,7 @@ def main() -> None:
 
     from api.db import SessionLocal
     from api.library import write_lines
-    from api.models import Document, Line, Series, User, Volume
+    from api.models import Document, DocumentImage, Line, Series, User, Volume
     from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
     from api.ollama.work import raw_sha
     from api.security import hash_password
@@ -246,6 +251,27 @@ def main() -> None:
         db.flush()
         db.add(Document(user_id=user.id, title="Nav blank", series_id=nav.id, volume_id=nav_vol2.id,
                         series_order=len(nav_lines) + 1))
+        # series-page.spec: one volume, three chapters — a plain one, a 200-character title and
+        # one holding an image; nothing else opens this series
+        sp = Series(user_id=user.id, title="Series page spec")
+        db.add(sp)
+        db.flush()
+        sp_vol = Volume(series_id=sp.id, kind="", subtitle="Vol 1", volume_order=1)
+        db.add(sp_vol)
+        db.flush()
+        for order, (title, pictures) in enumerate(
+            (("Spec one", False), ("長" * 200, False), ("Spec image", True)), start=1
+        ):
+            ch = Document(user_id=user.id, title=title, series_id=sp.id, volume_id=sp_vol.id,
+                          series_order=order)
+            db.add(ch)
+            db.flush()
+            write_lines(db, ch.id, [{"line_number": 0, "prefix": "%", "raw_text": "頁です。",
+                                     "translated_text": ""}])
+            if pictures:
+                db.add(DocumentImage(document_id=ch.id, anchor_position=0,
+                                     src_path="spec.png", data=PNG_1X1))
+                db.flush()
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)

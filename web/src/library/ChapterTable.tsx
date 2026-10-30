@@ -163,7 +163,11 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
       <td className="ch-check">
         <input type="checkbox" aria-label={`Select ${shownTitle(d)}`} checked={ticked.has(d.id)}
           onClick={(e) => e.stopPropagation()}
-          onChange={(e) => { toggle(d.id, e.target.checked); if (e.target.checked) setSelecting(true); }} />
+          onChange={(e) => {
+            toggle(d.id, e.target.checked);
+            setAnchor(d.id); // a shift-click after this ticks from here
+            if (e.target.checked) setSelecting(true);
+          }} />
       </td>
       {columns.map((id) => cell(id, { doc: d, group, syosetu, selecting, queued }))}
       <td className="ch-menu"><ChapterMenu doc={d} /></td>

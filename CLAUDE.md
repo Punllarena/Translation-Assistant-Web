@@ -193,6 +193,22 @@ turn live chapter-0 documents into the summary; the migration also clears a non-
 stores `wp_chapter_index` NULL for any imported chapter whose desktop value is 0 and caps the summary (the line caps, and none
 written over 100,000 characters). Spec: `docs/superpowers/specs/2026-10-25-series-wordpress-tab-design.md`.
 
+Series page revision: the chapter table (`web/src/library/ChapterTable.tsx`) has a Select toggle: in select mode a
+row click ticks it (shift-click a range over the rows on screen, `rangeToggle.ts`), the title is text and the drag
+grip is hidden; Esc, Done and Clear leave the mode. Columns are the user setting `series_columns` (validated in
+`api/settings_rules.py`, ids in `web/src/library/chapterColumns.ts`, cells in `chapterCells.tsx`); # and Chapter
+cannot be hidden, the WordPress ones only show with a WordPress credential (`useWpConfigured`). The account-saved
+preference hook is `web/src/settings/useAccountPref.ts` (`localStorage` copy, the account wins, a browser-only value
+is written up once). The tag (`web/src/publish/wpTag.ts`, `WpTagButton.tsx`) reads Published / Scheduled /
+**Published?** (a schedule whose time has passed) / Not posted from the stored `wp_status`; clicking it checks the
+live status and offers Reschedule… (`PublishDialog` mode, sends `confirm_republish` itself), Update post… or
+Publish…. Check status in the selection bar loops the per-chapter route, 50 a click. New counts on
+`DocumentListItem`: `char_count`, `word_count`, `ollama_waiting`. `DELETE /documents/{id}?images=move` moves a
+chapter's images to its volume's Illustrations chapter (`api/image_moves.py`: a clashing `src_path` is renamed, not
+dropped; 409 outside a volume, in a syosetu series, or for the Illustrations chapter), and the delete dialog asks;
+multi-select stays one request per chapter. Series-wide Ollama queue/flush live in Tools. Spec:
+`docs/superpowers/specs/2026-10-30-series-page-revision-design.md`.
+
 Editor status bar and reading aid: the status bar groups a breadcrumb, previous/next chapter buttons with the volume's chapter
 list, place, progress and tools; every move out of the chapter (arrows, list, end card) goes through `useLeave`, which flushes the
 save first and refuses to move on a failed save. Floating `JumpBack` buttons and a `ChapterEnd` card follow the cards. `POST /readings`
