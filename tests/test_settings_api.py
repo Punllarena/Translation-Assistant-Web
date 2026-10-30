@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_settings_require_authentication(app_client):
     assert app_client.get("/settings").status_code == 401
 
@@ -210,3 +213,22 @@ def test_invalid_ollama_schedule_is_422(app_client, make_user, login):
     # null stays allowed, and so does deleting it
     assert app_client.put("/settings", json={"ollama_schedule": None}).status_code == 200
     assert app_client.delete("/settings/ollama_schedule").status_code == 204
+
+
+@pytest.mark.parametrize(
+    "bad", ["images", ["num", 3], ["nope"], {"a": 1}]
+)
+def test_series_columns_rejects_malformed(app_client, me, bad):
+    assert app_client.put("/settings", json={"series_columns": bad}).status_code == 422
+
+
+def test_series_columns_accepts_known_ids(app_client, me):
+    r = app_client.put("/settings", json={"series_columns": ["num", "title", "images"]})
+    assert r.status_code == 200 and r.json()["series_columns"] == ["num", "title", "images"]
+    assert app_client.put("/settings", json={"series_columns": None}).status_code == 200
+
+
+def test_schedule_rule_still_applies(app_client, me):
+    r = app_client.put("/settings", json={"ollama_schedule": {"enabled": True}})
+    assert r.status_code == 422
+    assert "ollama_schedule needs" in r.json()["detail"]
