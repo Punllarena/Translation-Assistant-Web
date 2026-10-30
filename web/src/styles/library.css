@@ -117,7 +117,11 @@
   scroll-margin-top: 12px; text-transform: none; letter-spacing: normal; font-size: 13px; }
 .chapters tr.ch-block:hover td { background: none; }
 .ch-block button { font-weight: 600; margin-right: 8px; }
-.selbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line);
+/* Select mode: a click anywhere on a row ticks it; the grip column goes and the title is text. */
+.chapters.selecting tbody tr { cursor: pointer; user-select: none; }
+.chapters.selecting .ch-grip { display: none; }
+.selbar { position: sticky; top: 0; z-index: 5; margin: 0 0 8px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line);
   border-radius: 8px; background: var(--accent-soft); color: var(--ink); font-size: 14px; letter-spacing: normal;
   text-transform: none; font-weight: 400; }
 .selbar .menu-root > button { min-height: 30px; padding: 0 10px; font-size: 13px; border-color: var(--line); color: var(--ink); background: var(--surface); }
