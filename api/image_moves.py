@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from api import illustrations
 from api.illustrations import IllustrationsRule
-from api.models import Document, DocumentImage, User, Volume
+from api.library import arrange
+from api.models import Document, DocumentImage, Series, User, Volume
 
 NO_VOLUME = "a chapter outside a volume has no Illustrations chapter"
 IS_ILLUSTRATIONS = "these images are already in the Illustrations chapter"
@@ -79,6 +80,24 @@ def move_images(
         held.add(name)
         img.document_id = doc.id
         img.src_path = name
-        img.anchor_position = max(img.anchor_position, top)
+        top += 1
+        img.anchor_position = top
         db.flush()  # one at a time: ids follow the order
     return doc
+
+
+def drop_if_empty(db: Session, doc: Document) -> bool:
+    """Delete ``doc`` when it is an Illustrations chapter left with no images and arrange its
+    series; report whether it did. Its WordPress illustrations page is left untouched."""
+    if not doc.is_illustrations:
+        return False
+    if db.scalar(
+        select(DocumentImage.id).where(DocumentImage.document_id == doc.id).limit(1)
+    ) is not None:
+        return False
+    series = db.get(Series, doc.series_id)
+    db.delete(doc)
+    db.flush()
+    arrange(db, series)
+    db.flush()
+    return True
