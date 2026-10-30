@@ -1,4 +1,5 @@
 import { Link, useParams, useSearchParams } from "react-router";
+import { useWpConfigured } from "../publish/useWpConfigured";
 import PageHeader from "../ui/PageHeader";
 import { useArchive, useDocuments, useSeriesList } from "./queries";
 import SeriesGlossary from "./SeriesGlossary";
@@ -12,7 +13,7 @@ const TABS = [
   { id: "glossary", label: "Glossary" },
   { id: "tools", label: "Tools" },
   { id: "settings", label: "Settings" },
-  { id: "wordpress", label: "WordPress" },
+  { id: "wordpress", label: "WordPress", wp: true },
 ] as const;
 
 export default function SeriesPage() {
@@ -21,13 +22,16 @@ export default function SeriesPage() {
   const all = useSeriesList();
   const { unarchive } = useArchive(seriesId);
   const docs = useDocuments();
+  const wpConfigured = useWpConfigured() === true;
   if (all.isPending || docs.isPending) return <main><p className="muted">Loading…</p></main>;
   const loadError = all.error ?? docs.error;
   if (loadError) return <main><p className="error" role="alert">{loadError.message}</p></main>;
   const series = all.data?.find((s) => s.id === seriesId);
   if (!series) return <main><p>No such series. <Link to="/">Back to the library</Link></p></main>;
   const chapters = (docs.data ?? []).filter((d) => d.series_id === seriesId);
-  const tab = TABS.find((t) => t.id === params.get("tab"))?.id ?? "volumes";
+  // No WordPress tab without a WordPress credential (spec §2).
+  const tabs = TABS.filter((t) => !("wp" in t) || wpConfigured);
+  const tab = tabs.find((t) => t.id === params.get("tab"))?.id ?? "volumes";
   const select = (id: string) => {
     const next = new URLSearchParams(params);
     next.set("tab", id);
@@ -44,7 +48,7 @@ export default function SeriesPage() {
         </p>
       )}
       <div className="tabs" role="tablist" aria-label="Series sections">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button key={t.id} type="button" role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id}
             aria-controls={`panel-${t.id}`} onClick={() => select(t.id)}>{t.label}</button>
         ))}
@@ -54,7 +58,7 @@ export default function SeriesPage() {
         {tab === "glossary" && <SeriesGlossary key={series.id} seriesId={series.id} />}
         {tab === "tools" && <SeriesTools series={series} />}
         {tab === "settings" && <SeriesSettings key={`${series.id}:${series.volume_title_template}`} series={series} chapterCount={chapters.length} />}
-        {tab === "wordpress" && <SeriesWp key={series.id} series={series} />}
+        {tab === "wordpress" && wpConfigured && <SeriesWp key={series.id} series={series} />}
       </div>
     </main>
   );

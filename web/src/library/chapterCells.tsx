@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { wpBadge } from "../publish/badge";
-import { statusTone } from "../publish/label";
+import WpTagButton from "../publish/WpTagButton";
 import { chapterNumber, type VolumeGroup } from "./volumeGroups";
 import { COLUMNS, type ColumnId } from "./chapterColumns";
 import { shownTitle, type Doc } from "./shelf";
@@ -16,8 +15,6 @@ export interface CellCtx {
   /** Chapter ids a queued Ollama item covers. */
   queued: Set<number>;
 }
-
-const WP_LABEL: Record<string, string> = { publish: "Published", future: "Scheduled" };
 
 /** The column's CSS class; the title has none, so it takes the leftover width. */
 const CLASS: Partial<Record<ColumnId, string>> = { progress: "ch-prog", wp: "ch-wp", wp_date: "ch-wpdate" };
@@ -40,11 +37,7 @@ function content(id: ColumnId, { doc, group, syosetu, selecting, queued }: CellC
     case "edited":
       return date(doc.updated_at);
     case "wp":
-      return (
-        <span className={`badge ${statusTone(doc.wp_status)}`} title={wpBadge(doc) || undefined}>
-          {WP_LABEL[doc.wp_status] ?? "Not posted"}
-        </span>
-      );
+      return <WpTagButton doc={doc} />;
     case "original":
       return doc.chapter_title && doc.chapter_title !== doc.title ? doc.title : "";
     case "images":

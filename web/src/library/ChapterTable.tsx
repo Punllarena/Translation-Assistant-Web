@@ -14,6 +14,7 @@ import MoveDialog from "./MoveDialog";
 import { moveItem } from "./order";
 import { queuedIds } from "./queuedForOllama";
 import { useFlushOllama, useQueueOllama } from "./useOllamaQueue";
+import { useWpConfigured } from "../publish/useWpConfigured";
 import { shownTitle, type Doc, type SeriesRow } from "./shelf";
 import { invalidateLibrary } from "./queries";
 import { chapterBlocks, firstOpenBlock, seriesOrder, type VolumeGroup } from "./volumeGroups";
@@ -43,7 +44,8 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
   const [chosen, setChosen] = useAccountPref({
     key: "series_columns", local: "ta.seriesColumns", parse: parseColumns, fallback: DEFAULT_COLUMNS,
   });
-  const columns = shownColumns(chosen, true); // the WordPress-configured check arrives with the tag work
+  const wpConfigured = useWpConfigured() === true;
+  const columns = shownColumns(chosen, wpConfigured);
   const queue = useQuery({ queryKey: QUEUE_KEY, queryFn: () => call(api.GET("/ollama/queue")) });
   const queued = queuedIds(queue.data ?? [], shown);
   useEffect(() => {
@@ -164,7 +166,9 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
                           <button key={f} type="button" role="menuitem" disabled={exportZip.isPending} onClick={() => { close(); exportZip.mutate(f); }}>{label}</button>
                         ))}
                       </Menu>
-                      <button type="button" className="small primary" onClick={() => setOpen("publish")}>Publish…</button>
+                      {wpConfigured && (
+                        <button type="button" className="small primary" onClick={() => setOpen("publish")}>Publish…</button>
+                      )}
                       <button type="button" className="small" disabled={ollama.pending}
                         onClick={() => ollama.queue({ kind: "documents", series_id: series.id, document_ids: selected })}>Queue for Ollama</button>
                       <button type="button" className="small" onClick={() => { flush.reset(); setOpen("flush"); }}>Flush Ollama output</button>
