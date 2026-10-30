@@ -11,7 +11,9 @@ import Menu from "../ui/Menu";
 import ChapterMenu from "./ChapterMenu";
 import DeleteChaptersDialog from "./DeleteChaptersDialog";
 import { cell, cellClass, HEADERS } from "./chapterCells";
-import { COLUMNS, DEFAULT_COLUMNS, parseColumns, shownColumns, toggleColumn } from "./chapterColumns";
+import {
+  COLUMNS, columnWidth, DEFAULT_COLUMNS, EDGE_REM, parseColumns, shownColumns, tableMinWidthRem, toggleColumn,
+} from "./chapterColumns";
 import { QUICK_LABEL, QUICK_PICKS, quickPick, type QuickPick } from "./chapterPicks";
 import { downloadBlob } from "./download";
 import MoveDialog from "./MoveDialog";
@@ -62,8 +64,6 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
   const check = useStatusCheck();
   const queue = useQuery({ queryKey: QUEUE_KEY, queryFn: () => call(api.GET("/ollama/queue")) });
   const queued = queuedIds(queue.data ?? [], shown);
-  const bar = useRef<HTMLDivElement>(null);
-  const [barH, setBarH] = useState(0);
   useEffect(() => {
     if (jumpTo === null) return;
     document.getElementById(`ch-block-${group.key}-${jumpTo}`)?.scrollIntoView({ block: "start" });
@@ -96,15 +96,6 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
     return () => document.removeEventListener("keydown", onKey);
   }, [selecting]);
   const barVisible = selecting || n > 0;
-  useEffect(() => {
-    const el = bar.current;
-    if (!el) { setBarH(0); return; }
-    const update = () => setBarH(el.offsetHeight);
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [barVisible]);
   const done = async () => { await invalidateLibrary(queryClient); leave(); setOpen(null); };
   const reorder = useMutation({
     mutationFn: (ids: number[]) =>
@@ -202,7 +193,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
             {summaryText(volumeSummary(shown, new Date()), wpConfigured, nextSlot)}
           </p>
           {barVisible && (
-            <div className="selbar" role="toolbar" aria-label="Selected chapters" ref={bar}>
+            <div className="selbar" role="toolbar" aria-label="Selected chapters">
               <b>{n} selected</b>
               <Menu label="Select ▾" align="start">
                 {(close) => QUICK_PICKS.map((p: QuickPick) => (
@@ -240,14 +231,17 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               <button type="button" className="small quiet" onClick={leave}>Clear</button>
             </div>
           )}
-          <div className="chapters-wrap" style={{ "--selbar-h": `${barH}px` } as CSSProperties}>
+          <div className="chapters-wrap" style={{
+            "--ch-min": `${tableMinWidthRem(columns, { grip: !selecting, narrow: false })}rem`,
+            "--ch-min-narrow": `${tableMinWidthRem(columns, { grip: !selecting, narrow: true })}rem`,
+          } as CSSProperties}>
             <table className={selecting ? "chapters selecting" : "chapters"}>
               <thead>
                 <tr>
-                  <th className="ch-grip"><span className="visually-hidden">Drag</span></th>
-                  <th className="ch-check"><span className="visually-hidden">Select</span></th>
-                  {columns.map((id) => <th key={id} className={cellClass(id)}>{HEADERS[id]}</th>)}
-                  <th className="ch-menu"><span className="visually-hidden">Actions</span></th>
+                  <th className="ch-grip" style={{ width: `${EDGE_REM.grip}rem` }}><span className="visually-hidden">Drag</span></th>
+                  <th className="ch-check" style={{ width: `${EDGE_REM.check}rem` }}><span className="visually-hidden">Select</span></th>
+                  {columns.map((id) => <th key={id} className={cellClass(id)} style={{ width: columnWidth(id) }} title={HEADERS[id]}>{HEADERS[id]}</th>)}
+                  <th className="ch-menu" style={{ width: `${EDGE_REM.menu}rem` }}><span className="visually-hidden">Actions</span></th>
                 </tr>
               </thead>
               {blocks.length === 0 ? <tbody>{shown.map(row)}</tbody> : blocks.map((b) => {
