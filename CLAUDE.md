@@ -110,8 +110,8 @@ import back) and inserts lines in Core batches of 1,000 (`api/core/tadb_lines.py
 by row. `GET /import/tadb/pending` lets the import card resume; the header's running-jobs button polls
 `GET /jobs?active=true`.
 
-Library redesign: the Library (`/`) lists series only, as a bookshelf or a list (`ta.libraryView` in `localStorage`, helper
-`web/src/library/viewPref.ts`). A series opens at `/series/:id?tab=volumes|glossary|tools|settings|wordpress&volume=<id>|none`: Volumes is a
+Library redesign: the Library (`/`) lists series only, as a bookshelf or a list (the user setting `library_view`, mirrored in
+`localStorage` `ta.libraryView`, helper `web/src/library/viewPref.ts`). A series opens at `/series/:id?tab=volumes|glossary|tools|settings|wordpress&volume=<id>|none`: Volumes is a
 two-pane view (volume list, then the selected volume's chapters with a selection bar and per-row ⋯ menu; "No volume" holds
 loose chapters), and its grouping and numbering helpers live in `web/src/library/volumeGroups.ts`. A list over 100 chapters shows as
 collapsible view-only blocks of 100 with a jump bar (`chapterBlocks`); only open blocks render. `documents.series_id` is
@@ -180,8 +180,13 @@ Library filters: `series.status` (`ongoing` / `on_hold` / `dropped` / `completed
 `source` (`syosetu` / `epub` / `other`, set at creation: `POST /series` from a `syosetu_url`, EPUB import, ta.db import by URL; the Settings tab edits it),
 `archived_at` and `syosetu_updated_at` (syosetu's latest chapter post date). `POST /series/{id}/archive|unarchive` set and clear `archived_at`;
 archiving hides a series only from the Library's default filter, never from the API lists, its chapters or the series page, which shows
-an "Archived" note with Unarchive. The Library's sort, direction and filters are pure in `web/src/library/libraryQuery.ts` and persist in
-`localStorage` via `libraryPrefs.ts` (`ta.librarySort`, `ta.libraryFilters`). Spec: `docs/superpowers/specs/2026-10-25-library-filters-sort-archive-design.md`.
+an "Archived" note with Unarchive. The Library's view, sort, direction and filters are pure in `web/src/library/libraryQuery.ts`;
+they are account settings `library_view`, `library_sort` and `library_filters` (read and written through
+`web/src/settings/useAccountPref.ts`), mirrored in `localStorage` (`ta.libraryView`, `ta.librarySort`, `ta.libraryFilters`,
+`libraryPrefs.ts`) so the page paints before `/settings` arrives. The account's value wins once it does, and a browser's value
+with no account one is written up once. Validation is in `api/settings_rules.py`. Specs:
+`docs/superpowers/specs/2026-10-25-library-filters-sort-archive-design.md`,
+`docs/superpowers/specs/2026-10-30-series-page-revision-design.md` §5.
 
 Series summary: the desktop's chapter 0 is `series.wp_summary` (columns added by migration `6fd2c71c71da`), edited on the series'
 WordPress tab (`?tab=wordpress`, `web/src/library/SeriesWp.tsx`, status rules in `summaryStatus.ts`). Saving a changed non-blank text sets

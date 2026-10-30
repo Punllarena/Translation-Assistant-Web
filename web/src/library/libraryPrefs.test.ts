@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_FILTERS, DEFAULT_SORT, type LibraryFilters } from "./libraryQuery";
-import { readFilters, readSort, writeFilters, writeSort } from "./libraryPrefs";
+import { parseFilters, parseSort, readFilters, readSort, writeFilters, writeSort } from "./libraryPrefs";
 
 const memory = () => {
   const m = new Map<string, string>();
@@ -39,6 +39,20 @@ describe("libraryPrefs", () => {
       ...DEFAULT_FILTERS, statuses: ["ongoing"],
     });
     expect(readFilters({ getItem: () => '{"wordpress":"maybe","archived":7,"sources":"epub"}' })).toEqual(DEFAULT_FILTERS);
+  });
+
+  it("parseSort falls back per field", () => {
+    expect(parseSort({ key: "gone", dir: "asc" })).toEqual(DEFAULT_SORT);
+    expect(parseSort({ key: "title", dir: "asc" })).toEqual({ key: "title", dir: "asc" });
+    expect(parseSort("title")).toEqual(DEFAULT_SORT);
+    expect(parseSort(undefined)).toEqual(DEFAULT_SORT);
+  });
+
+  it("parseFilters drops unknown ticks", () => {
+    expect(parseFilters({ sources: ["epub", "web"], statuses: [], wordpress: "x", archived: "only" }))
+      .toEqual({ ...DEFAULT_FILTERS, sources: ["epub"], archived: "only" });
+    expect(parseFilters(["epub"])).toEqual(DEFAULT_FILTERS);
+    expect(parseFilters(null)).toEqual(DEFAULT_FILTERS);
   });
 
   it("gives the defaults from a throwing storage", () => {

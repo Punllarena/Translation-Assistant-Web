@@ -2,10 +2,16 @@ export type LibraryView = "shelf" | "list";
 
 const KEY = "ta.libraryView";
 
+/** Any stored or server value to a view; only a bare `list` is the list view (the key has always
+ *  held a bare string, not JSON). */
+export function parseView(v: unknown): LibraryView {
+  return v === "list" ? "list" : "shelf";
+}
+
 /** Storage can be missing or throw (private windows, blocked site data). */
 export function readView(storage?: Pick<Storage, "getItem">): LibraryView {
   try {
-    return (storage ?? window.localStorage).getItem(KEY) === "list" ? "list" : "shelf";
+    return parseView((storage ?? window.localStorage).getItem(KEY));
   } catch {
     return "shelf";
   }
