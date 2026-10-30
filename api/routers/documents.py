@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -5,6 +7,7 @@ from sqlalchemy.orm import Session
 from api.core.text import build_new_file, lines_to_db_rows, parse_file_content
 from api.deps import current_user, db_session, owned_ref, scoped
 from api.illustrations import IllustrationsRule, check_mark, check_move, rule_conflict
+from api.image_moves import check_can_move, move_images
 from api.library import (
     arrange,
     chapter_numbers,
@@ -13,7 +16,7 @@ from api.library import (
     send_to_volume_end,
     write_lines,
 )
-from api.models import Document, DocumentImage, Line, Series, User, Volume
+from api.models import Document, DocumentImage, Line, OllamaSuggestion, Series, User, Volume
 from api.restructure import NotOwned, RestructureError, merge_documents, split_document
 from api.routing import api_router
 from api.schemas.documents import (
@@ -57,11 +60,26 @@ def list_documents(
     by series_id and filters client-side."""
     # ponytail: one unpaginated list; page it if a library outgrows a few thousand chapters
     has_text = func.trim(Line.raw_text) != ""
+    has_translation = func.trim(Line.translated_text) != ""
     lines = (
         select(
             Line.document_id,
             func.count().filter(has_text).label("line_count"),
             func.count().filter(has_text, Line.translated_text != "").label("translated_count"),
+            # Characters of the source with every space removed (U+3000 is not in \s).
+            func.coalesce(
+                func.sum(func.length(func.regexp_replace(Line.raw_text, r"[\s　]", "", "g")))
+                .filter(has_text),
+                0,
+            ).label("char_count"),
+            func.coalesce(
+                func.sum(
+                    func.array_length(
+                        func.regexp_split_to_array(func.trim(Line.translated_text), r"\s+"), 1
+                    )
+                ).filter(has_text, has_translation),
+                0,
+            ).label("word_count"),
         )
         .group_by(Line.document_id)
         .subquery()
@@ -74,15 +92,26 @@ def list_documents(
         .group_by(DocumentImage.document_id)
         .subquery()
     )
+    waiting = (
+        select(Line.document_id, func.count().label("ollama_waiting"))
+        .join(OllamaSuggestion, OllamaSuggestion.line_id == Line.id)
+        .where(OllamaSuggestion.text.is_not(None))
+        .group_by(Line.document_id)
+        .subquery()
+    )
     rows = db.execute(
         select(
             Document,
             func.coalesce(lines.c.line_count, 0),
             func.coalesce(lines.c.translated_count, 0),
             func.coalesce(images.c.image_count, 0),
+            func.coalesce(lines.c.char_count, 0),
+            func.coalesce(lines.c.word_count, 0),
+            func.coalesce(waiting.c.ollama_waiting, 0),
         )
         .outerjoin(lines, lines.c.document_id == Document.id)
         .outerjoin(images, images.c.document_id == Document.id)
+        .outerjoin(waiting, waiting.c.document_id == Document.id)
         .where(Document.user_id == user.id)
         .order_by(Document.updated_at.desc(), Document.id.desc())
     )
@@ -100,9 +129,12 @@ def list_documents(
             line_count=lc,
             translated_count=tc,
             image_count=ic,
+            char_count=cc,
+            word_count=wc,
+            ollama_waiting=ow,
             progress=progress(lc, tc, ic),
         )
-        for doc, lc, tc, ic in rows
+        for doc, lc, tc, ic, cc, wc, ow in rows
     ]
 
 
@@ -185,9 +217,29 @@ def update_document(
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document(
-    document_id: int, user: User = Depends(current_user), db: Session = Depends(db_session)
+    document_id: int,
+    images: Literal["delete", "move"] = "delete",
+    user: User = Depends(current_user),
+    db: Session = Depends(db_session),
 ) -> None:
+    """Delete a chapter; ``images=move`` first moves its images to the volume's
+    Illustrations chapter (409 when that is not possible)."""
     doc = scoped(db, Document, document_id, user.id)
+    if images == "move":
+        try:
+            volume = check_can_move(db, doc)
+        except IllustrationsRule as exc:
+            raise rule_conflict(exc) from None
+        rows = list(
+            db.scalars(
+                select(DocumentImage)
+                .where(DocumentImage.document_id == doc.id)
+                .order_by(DocumentImage.anchor_position, DocumentImage.id)
+            )
+        )
+        if rows:
+            move_images(db, user, volume, rows, order=doc.series_order)
+            db.flush()
     series = db.get(Series, doc.series_id)
     db.delete(doc)
     db.flush()

@@ -78,18 +78,40 @@
 .vol-head-main > p { margin: 2px 0 0; font-size: 13px; }
 
 .chapters th, .chapters td { padding: 8px 6px; }
+/* Fixed layout: the title takes the leftover width and is one ellipsised line; every other
+   column sizes to its content's typical width, and the wrapper scrolls if they still cannot fit. */
+.ch-tools { display: flex; justify-content: flex-end; gap: 8px; margin: 0 0 8px; }
+.chapters-wrap { overflow-x: auto; max-width: 100%; }
+.chapters { table-layout: fixed; width: 100%; }
+.chapters thead th { position: sticky; top: var(--selbar-h, 0); z-index: 2; background: var(--bg); }
 .chapters tbody tr { position: relative; }
 .chapters tbody tr:hover td { background: var(--raised); }
 .chapters tr.dragging td { opacity: .5; }
-.ch-grip, .ch-check, .ch-menu { width: 1%; white-space: nowrap; }
+.ch-grip, .ch-check, .ch-menu { white-space: nowrap; }
+.ch-grip { width: 2em; }
+.ch-check { width: 2.5em; }
+.ch-menu { width: 2.5em; }
 .ch-grip .grip { cursor: grab; color: var(--muted); padding: 4px; user-select: none; }
-.ch-num { width: 1%; text-align: right; font-family: var(--mono); font-size: 13px; }
-.ch-prog, .ch-edited, .ch-wp { width: 1%; white-space: nowrap; }
+.ch-num { width: 3.5em; text-align: right; font-family: var(--mono); font-size: 13px; }
+.ch-prog { width: 5.5em; white-space: nowrap; }
 .ch-prog.ok { color: var(--ok); }
-.ch-title .row-link { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+/* The progress cell: a thin bar plus the percent, in token colours. */
+.pbar { display: inline-block; width: 3em; height: 6px; border-radius: 3px; background: var(--line);
+  overflow: hidden; vertical-align: middle; }
+.pbar > span { display: block; height: 100%; background: var(--accent); }
+.ch-summary { margin: 0 0 8px; font-size: 13px; }
+.ch-edited { width: 7.5em; white-space: nowrap; }
+.ch-wp { width: 8.5em; white-space: nowrap; }
+.ch-original, .ch-source { width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-images, .ch-lines, .ch-chars, .ch-words, .ch-ollama { width: 5.5em; text-align: right; white-space: nowrap; }
+.ch-translated { width: 6.5em; text-align: right; white-space: nowrap; }
+.ch-wpdate, .ch-added { width: 8.5em; white-space: nowrap; }
+.ch-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-title .row-link { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink); text-decoration: none; }
 .ch-title .row-link::after { content: ""; position: absolute; inset: 0; }
 .ch-title .row-link:hover { color: var(--accent-text); }
-.ch-grip > .grip, .ch-check > input, .ch-menu > .menu-root { position: relative; z-index: 1; }
+.ch-grip > .grip, .ch-check > input, .ch-menu > .menu-root, .ch-wp > .wp-tag, .ch-source > a { position: relative; z-index: 1; }
 .menu [role^="menuitem"].danger { color: var(--danger); }
 /* An open menu sits above the later rows' raised controls. */
 .chapters .menu-root:has(> [aria-expanded="true"]) { z-index: 30; }
@@ -100,7 +122,11 @@
   scroll-margin-top: 12px; text-transform: none; letter-spacing: normal; font-size: 13px; }
 .chapters tr.ch-block:hover td { background: none; }
 .ch-block button { font-weight: 600; margin-right: 8px; }
-.selbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line);
+/* Select mode: a click anywhere on a row ticks it; the grip column goes and the title is text. */
+.chapters.selecting tbody tr { cursor: pointer; user-select: none; }
+.chapters.selecting .ch-grip { display: none; }
+.selbar { position: sticky; top: 0; z-index: 5; margin: 0 0 8px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line);
   border-radius: 8px; background: var(--accent-soft); color: var(--ink); font-size: 14px; letter-spacing: normal;
   text-transform: none; font-weight: 400; }
 .selbar .menu-root > button { min-height: 30px; padding: 0 10px; font-size: 13px; border-color: var(--line); color: var(--ink); background: var(--surface); }
@@ -134,3 +160,34 @@
 textarea.summary { width: 100%; min-height: 12em; resize: vertical; box-sizing: border-box; }
 .series-sections .hint { margin: 0 0 12px; }
 .series-sections .row-fields + .row-fields, .series-sections form.stack > .toolbar { margin-top: 12px; }
+
+/* The WordPress tag (a button) and its detail popover. The popover is fixed, not absolute:
+   an absolutely positioned box inside the table wrapper would be clipped by its scrolling. */
+.wp-tag { min-height: 24px; border: 0; font-size: 12px; font-weight: 500; }
+.badge.muted { font-style: italic; }
+.wp-pop { position: fixed; z-index: 60; width: 290px; padding: 12px 14px; display: flex; flex-direction: column;
+  gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 13px;
+  box-shadow: 0 16px 40px -16px var(--shadow); }
+.wp-pop p { margin: 0; }
+.wp-pop-title { font-weight: 600; }
+.wp-pop > .primary { align-self: flex-start; }
+
+/* The delete dialog's images choice. */
+.delete-images { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.delete-images p { margin: 0; font-size: 13px; }
+
+/* Series page - Gallery tab: image tiles, the volume filter and the full-size viewer. */
+.gallery-filter { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; font-size: 13px; }
+.gallery-group { margin-bottom: 28px; }
+.gallery-group > h2 { margin: 0 0 10px; font-family: var(--serif); font-weight: 500; font-size: 18px; }
+.gallery-chapter { margin-top: 12px; }
+.gallery-chapter > h3 { margin: 0 0 8px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.gallery-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.gallery-tile { aspect-ratio: 1; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--quiet-soft); cursor: zoom-in; }
+.gallery-tile:hover:not(:disabled) { border-color: var(--accent); }
+.gallery-tile img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gallery-viewer { width: min(92vw, 1100px); max-height: 92vh; }
+.gallery-viewer-body img { display: block; width: 100%; max-height: 62vh; object-fit: contain;
+  border-radius: 6px; background: var(--quiet-soft); }
+.gallery-viewer-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

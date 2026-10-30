@@ -49,6 +49,8 @@ test("bulk delete and series delete ask first, and Cancel keeps everything", asy
   await expect(dialog.getByText("Delete 2 chapters? This can't be undone.")).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
+  // Ticking a box enters select mode, where titles are text; Clear leaves it, links back.
+  await page.getByRole("button", { name: "Clear" }).click();
   await expect(page.getByRole("link", { name: "Open Lib one" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open Lib two" })).toBeVisible();
 

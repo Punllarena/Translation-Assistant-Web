@@ -2,6 +2,22 @@
 
 Deferred work, recorded so it can be picked up later. Newest first.
 
+## WordPress plugin: series-wide status route
+
+*Raised 2026-10-30.* The series page checks WordPress one chapter per request
+(`POST /documents/{id}/wp/status`, capped at 50 a click in `web/src/publish/useStatusCheck.ts` because every
+check is a request). Add one route to the plugin (Punllarena/translation-assistant-publisher) returning, for a
+series' slug, every chapter's and the volume illustrations page's status, post URL and live date in one answer;
+today's per-chapter `/status` returns no date at all, so ta-web can only show the date it stored at publish.
+
+What ta-web does with it:
+
+- check on page load instead of when a tag is clicked, so no tag claims a state the site has left;
+- show each post's live date (and so "Published?" becomes a real state, not a guess);
+- drop the 50-chapter cap in `useStatusCheck` (and the per-chapter route stays for a single chapter).
+
+Spec: `docs/superpowers/specs/2026-10-30-series-page-revision-design.md` §2.
+
 ## EPUB import: always build the volume's Illustrations chapter
 
 *Raised 2026-10-29.*
@@ -16,28 +32,6 @@ To decide:
   or only the image-only pages? A copy doubles their bytes in `document_images`.
 - Keep the picker's untick, or always include all? The cover image should stay out (it goes to `volume_covers`).
 - The `epub_safety.py` per-import image budget then counts copies.
-
-## Series page: chapter table columns and Ollama actions
-
-*Raised 2026-10-29.* Chapter table: `web/src/library/ChapterTable.tsx` (columns today: #, Chapter, Progress,
-Edited, WordPress).
-
-- **Image count** column: number of `document_images` per chapter. Needs a count on `DocumentOut` (a
-  `column_property` like `VolumeOut.cover_id`, not a per-row query).
-- **Line / character count** column: lines and source characters (decide: source or translation characters,
-  blank lines counted or not). Same `column_property` approach.
-- **WordPress column only when WordPress is set up**: hide the column (and the WordPress tab's publish
-  controls?) when the user has no `wordpress` credential. Needs a cheap "configured" flag the SPA can read
-  (`/wp` settings or `/me`).
-- **Ollama actions move to Tools or Settings**: "Queue for Ollama" and "Flush Ollama output" sit in the
-  selection bar, the volume ⋯ menu and the chapter ⋯ menu. Add series-wide "Queue series for Ollama" and
-  "Flush Ollama output" to the series' Tools tab (`SeriesTools.tsx`); `/ollama/queue` needs a `series`
-  item kind if it lacks one. Decide whether the per-chapter and per-volume entries stay.
-- **Deleting a chapter that has images asks what to do with them**: Delete them, or move them to the
-  volume's Illustrations chapter (creating it if the volume has none; a loose chapter or a syosetu series
-  has no Illustrations chapter, so only Delete applies there). Today `DELETE /documents/{id}` cascades
-  `document_images`. Needs a `images=delete|move` parameter, the move appended at the end of the
-  Illustrations chapter's anchors, and the same choice for multi-select delete.
 
 ## Settings: one Settings page with tabs
 

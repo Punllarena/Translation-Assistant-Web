@@ -110,8 +110,8 @@ import back) and inserts lines in Core batches of 1,000 (`api/core/tadb_lines.py
 by row. `GET /import/tadb/pending` lets the import card resume; the header's running-jobs button polls
 `GET /jobs?active=true`.
 
-Library redesign: the Library (`/`) lists series only, as a bookshelf or a list (`ta.libraryView` in `localStorage`, helper
-`web/src/library/viewPref.ts`). A series opens at `/series/:id?tab=volumes|glossary|tools|settings|wordpress&volume=<id>|none`: Volumes is a
+Library redesign: the Library (`/`) lists series only, as a bookshelf or a list (the user setting `library_view`, mirrored in
+`localStorage` `ta.libraryView`, helper `web/src/library/viewPref.ts`). A series opens at `/series/:id?tab=volumes|glossary|tools|settings|wordpress&volume=<id>|none`: Volumes is a
 two-pane view (volume list, then the selected volume's chapters with a selection bar and per-row ⋯ menu; "No volume" holds
 loose chapters), and its grouping and numbering helpers live in `web/src/library/volumeGroups.ts`. A list over 100 chapters shows as
 collapsible view-only blocks of 100 with a jump bar (`chapterBlocks`); only open blocks render. `documents.series_id` is
@@ -180,8 +180,13 @@ Library filters: `series.status` (`ongoing` / `on_hold` / `dropped` / `completed
 `source` (`syosetu` / `epub` / `other`, set at creation: `POST /series` from a `syosetu_url`, EPUB import, ta.db import by URL; the Settings tab edits it),
 `archived_at` and `syosetu_updated_at` (syosetu's latest chapter post date). `POST /series/{id}/archive|unarchive` set and clear `archived_at`;
 archiving hides a series only from the Library's default filter, never from the API lists, its chapters or the series page, which shows
-an "Archived" note with Unarchive. The Library's sort, direction and filters are pure in `web/src/library/libraryQuery.ts` and persist in
-`localStorage` via `libraryPrefs.ts` (`ta.librarySort`, `ta.libraryFilters`). Spec: `docs/superpowers/specs/2026-10-25-library-filters-sort-archive-design.md`.
+an "Archived" note with Unarchive. The Library's view, sort, direction and filters are pure in `web/src/library/libraryQuery.ts`;
+they are account settings `library_view`, `library_sort` and `library_filters` (read and written through
+`web/src/settings/useAccountPref.ts`), mirrored in `localStorage` (`ta.libraryView`, `ta.librarySort`, `ta.libraryFilters`,
+`libraryPrefs.ts`) so the page paints before `/settings` arrives. The account's value wins once it does, and a browser's value
+with no account one is written up once. Validation is in `api/settings_rules.py`. Specs:
+`docs/superpowers/specs/2026-10-25-library-filters-sort-archive-design.md`,
+`docs/superpowers/specs/2026-10-30-series-page-revision-design.md` §5.
 
 Series summary: the desktop's chapter 0 is `series.wp_summary` (columns added by migration `6fd2c71c71da`), edited on the series'
 WordPress tab (`?tab=wordpress`, `web/src/library/SeriesWp.tsx`, status rules in `summaryStatus.ts`). Saving a changed non-blank text sets
@@ -192,6 +197,33 @@ pure, in `api/core/wp_summary.py`. `build_chapter` refuses a chapter numbered 0 
 turn live chapter-0 documents into the summary; the migration also clears a non-live index 0 to NULL, and the importer
 stores `wp_chapter_index` NULL for any imported chapter whose desktop value is 0 and caps the summary (the line caps, and none
 written over 100,000 characters). Spec: `docs/superpowers/specs/2026-10-25-series-wordpress-tab-design.md`.
+
+Series page revision: the chapter table (`web/src/library/ChapterTable.tsx`) has a Select toggle: in select mode a
+row click ticks it (shift-click a range over the rows on screen, `rangeToggle.ts`), the title is text and the drag
+grip is hidden; Esc, Done and Clear leave the mode. Columns are the user setting `series_columns` (validated in
+`api/settings_rules.py`, ids in `web/src/library/chapterColumns.ts`, cells in `chapterCells.tsx`); # and Chapter
+cannot be hidden, the WordPress ones only show with a WordPress credential (`useWpConfigured`). The account-saved
+preference hook is `web/src/settings/useAccountPref.ts` (`localStorage` copy, the account wins, a browser-only value
+is written up once). The tag (`web/src/publish/wpTag.ts`, `WpTagButton.tsx`) reads Published / Scheduled /
+**Published?** (a schedule whose time has passed) / Not posted from the stored `wp_status`; clicking it checks the
+live status and offers Reschedule… (`PublishDialog` mode, sends `confirm_republish` itself), Update post… or
+Publish…. Check status in the selection bar loops the per-chapter route, 50 a click. New counts on
+`DocumentListItem`: `char_count`, `word_count`, `ollama_waiting`. `DELETE /documents/{id}?images=move` moves a
+chapter's images to its volume's Illustrations chapter (`api/image_moves.py`: a clashing `src_path` is renamed, not
+dropped; 409 outside a volume, in a syosetu series, or for the Illustrations chapter), and the delete dialog asks;
+multi-select stays one request per chapter. Series-wide Ollama queue/flush live in Tools. Spec:
+`docs/superpowers/specs/2026-10-30-series-page-revision-design.md`.
+
+Series Gallery: the series page's Gallery tab (`?tab=gallery`, `web/src/library/gallery/`) shows every
+`document_images` row of the series' chapters plus each volume's cover, grouped by volume (`volume_order`,
+cover first, "No volume" last) with a volume filter; the grouping and display order are pure in `galleryGroups.ts`.
+`GET /series/{id}/images` returns the rows (cover rows use `volume_covers.id`) and never the bytes; tiles load
+`GET /images/{id}` / `GET /covers/{id}` with `loading="lazy"`, and no thumbnails or other derived images are stored.
+A tile opens a native `<dialog>` viewer: Set as volume cover (`POST /images/{id}/cover` copies the bytes into a new
+`volume_covers` row, 415 for a non-raster image), Move to Illustrations (`POST /images/{id}/move`, `check_can_move`'s
+409s) and Delete (`DELETE /images/{id}`). A loose chapter's image offers neither cover nor move, and nothing in the
+Gallery opens the editor. An Illustrations chapter left with no images by a Gallery delete is deleted in the same
+request (`image_moves.drop_if_empty`), `arrange()` runs and its WordPress page is left alone.
 
 Editor status bar and reading aid: the status bar groups a breadcrumb, previous/next chapter buttons with the volume's chapter
 list, place, progress and tools; every move out of the chapter (arrows, list, end card) goes through `useLeave`, which flushes the

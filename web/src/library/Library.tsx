@@ -1,30 +1,35 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import PageHeader from "../ui/PageHeader";
+import { useAccountPref } from "../settings/useAccountPref";
 import { useAllVolumes, useDocuments, useSeriesList } from "./queries";
 import { CompactList, Shelf } from "./SeriesCards";
 import { FilterChips, FiltersButton, SortControl } from "./LibraryFilters";
-import { DEFAULT_FILTERS, emptyReason, filterCards, sortCards, type LibraryFilters, type LibrarySort } from "./libraryQuery";
-import { readFilters, readSort, writeFilters, writeSort } from "./libraryPrefs";
+import { DEFAULT_FILTERS, DEFAULT_SORT, emptyReason, filterCards, sortCards } from "./libraryQuery";
+import { parseFilters, parseSort } from "./libraryPrefs";
 import { seriesCards } from "./shelf";
-import { readView, writeView, type LibraryView } from "./viewPref";
+import { parseView } from "./viewPref";
 
 export default function Library() {
   const docs = useDocuments();
   const series = useSeriesList();
   const volumes = useAllVolumes();
   const [filter, setFilter] = useState("");
-  const [view, setView] = useState<LibraryView>(() => readView());
-  const [sort, setSort] = useState<LibrarySort>(() => readSort());
-  const [filters, setFilters] = useState<LibraryFilters>(() => readFilters());
+  const [view, setView] = useAccountPref({
+    key: "library_view", local: "ta.libraryView", localFormat: "text",
+    parse: parseView, fallback: "shelf",
+  });
+  const [sort, setSort] = useAccountPref({
+    key: "library_sort", local: "ta.librarySort", parse: parseSort, fallback: DEFAULT_SORT,
+  });
+  const [filters, setFilters] = useAccountPref({
+    key: "library_filters", local: "ta.libraryFilters", parse: parseFilters, fallback: DEFAULT_FILTERS,
+  });
   const all = useMemo(
     () => (docs.data && series.data && volumes.data ? seriesCards(series.data, docs.data, volumes.data) : []),
     [docs.data, series.data, volumes.data],
   );
   const cards = useMemo(() => sortCards(filterCards(all, filters, filter), sort), [all, filters, filter, sort]);
-  const pick = (v: LibraryView) => { setView(v); writeView(v); };
-  const changeSort = (s: LibrarySort) => { setSort(s); writeSort(s); };
-  const changeFilters = (f: LibraryFilters) => { setFilters(f); writeFilters(f); };
 
   const newSeries = <Link className="btn primary" to="/new">New series</Link>;
   const importLink = <Link className="btn" to="/import">Import…</Link>;
@@ -38,18 +43,18 @@ export default function Library() {
         <>
           <input type="search" aria-label="Search series" placeholder="Search series" value={filter}
             onChange={(e) => setFilter(e.target.value)} />
-          <SortControl sort={sort} onChange={changeSort} />
-          <FiltersButton filters={filters} onChange={changeFilters} />
+          <SortControl sort={sort} onChange={setSort} />
+          <FiltersButton filters={filters} onChange={setFilters} />
           <div className="seg" role="group" aria-label="View">
-            <button type="button" aria-pressed={view === "shelf"} onClick={() => pick("shelf")}>Bookshelf</button>
-            <button type="button" aria-pressed={view === "list"} onClick={() => pick("list")}>List</button>
+            <button type="button" aria-pressed={view === "shelf"} onClick={() => setView("shelf")}>Bookshelf</button>
+            <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button>
           </div>
           {importLink}
           {newSeries}
         </>
       } />
       {!pending && !failed && all.length > 0 && (
-        <FilterChips filters={filters} onChange={changeFilters} shown={cards.length} total={all.length} />
+        <FilterChips filters={filters} onChange={setFilters} shown={cards.length} total={all.length} />
       )}
       {pending && <p className="muted">Loading…</p>}
       {failed && <p className="error" role="alert">{failed.message}</p>}
@@ -65,14 +70,14 @@ export default function Library() {
         reason === "all-archived" ? (
           <div className="library-empty">
             <p className="muted">All your series are archived.</p>
-            <button type="button" onClick={() => changeFilters({ ...filters, archived: "include" })}>Show archived</button>
+            <button type="button" onClick={() => setFilters({ ...filters, archived: "include" })}>Show archived</button>
           </div>
         ) : reason === "search" ? (
           <p className="muted">No series match "{filter}".</p>
         ) : (
           <div className="library-empty">
             <p className="muted">No series match these filters.</p>
-            <button type="button" onClick={() => changeFilters(DEFAULT_FILTERS)}>Clear all</button>
+            <button type="button" onClick={() => setFilters(DEFAULT_FILTERS)}>Clear all</button>
           </div>
         )
         );

@@ -421,7 +421,11 @@ export interface paths {
         get: operations["get_document_documents__document_id__get"];
         put?: never;
         post?: never;
-        /** Delete Document */
+        /**
+         * Delete Document
+         * @description Delete a chapter; ``images=move`` first moves its images to the volume's
+         *     Illustrations chapter (409 when that is not possible).
+         */
         delete: operations["delete_document_documents__document_id__delete"];
         options?: never;
         head?: never;
@@ -717,11 +721,55 @@ export interface paths {
         get: operations["get_image_images__image_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Image
+         * @description Remove the image; an Illustrations chapter it leaves empty goes with it.
+         */
+        delete: operations["delete_image_images__image_id__delete"];
         options?: never;
         head?: never;
         /** Update Image */
         patch: operations["update_image_images__image_id__patch"];
+        trace?: never;
+    };
+    "/images/{image_id}/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Image As Cover
+         * @description Copy the image's bytes into its chapter's volume cover (a new row, as the upload does).
+         */
+        post: operations["set_image_as_cover_images__image_id__cover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/images/{image_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move Image To Illustrations
+         * @description Append the image to the end of its volume's Illustrations chapter (409 when it may not).
+         */
+        post: operations["move_image_to_illustrations_images__image_id__move_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/import/tadb": {
@@ -1293,6 +1341,27 @@ export interface paths {
         put?: never;
         /** Import Csv */
         post: operations["import_csv_series__series_id__glossary_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/series/{series_id}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Series Images
+         * @description Volumes by ``volume_order`` (loose chapters last), each volume's cover first, then its
+         *     chapters by ``series_order``, then each chapter's images by anchor. No bytes.
+         */
+        get: operations["list_series_images_series__series_id__images_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2472,6 +2541,8 @@ export interface components {
             chapter_number?: number | null;
             /** Chapter Title */
             chapter_title: string;
+            /** Char Count */
+            char_count: number;
             /**
              * Created At
              * Format: date-time
@@ -2487,6 +2558,8 @@ export interface components {
             last_position: number;
             /** Line Count */
             line_count: number;
+            /** Ollama Waiting */
+            ollama_waiting: number;
             /** Progress */
             progress: number;
             /** Series Id */
@@ -2508,6 +2581,8 @@ export interface components {
             updated_at: string;
             /** Volume Id */
             volume_id: number | null;
+            /** Word Count */
+            word_count: number;
             /** Wp Post Url */
             wp_post_url: string;
             /** Wp Published At */
@@ -2657,6 +2732,29 @@ export interface components {
         FlushOut: {
             /** Cleared */
             cleared: number;
+        };
+        /**
+         * GalleryImageOut
+         * @description An image tile: a chapter's own image or a volume's cover, never its bytes.
+         */
+        GalleryImageOut: {
+            /** Anchor Position */
+            anchor_position: number;
+            /** Document Id */
+            document_id: number | null;
+            /** Exclude Export */
+            exclude_export: boolean;
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "image" | "cover";
+            /** Src Path */
+            src_path: string;
+            /** Volume Id */
+            volume_id: number | null;
         };
         /** GlossaryIn */
         GlossaryIn: {
@@ -4594,7 +4692,9 @@ export interface operations {
     };
     delete_document_documents__document_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                images?: "delete" | "move";
+            };
             header?: never;
             path: {
                 document_id: number;
@@ -5174,6 +5274,35 @@ export interface operations {
             };
         };
     };
+    delete_image_images__image_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_image_images__image_id__patch: {
         parameters: {
             query?: never;
@@ -5197,6 +5326,66 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ImageOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_image_as_cover_images__image_id__cover_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeCoverOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_image_to_illustrations_images__image_id__move_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -6346,6 +6535,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_series_images_series__series_id__images_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GalleryImageOut"][];
                 };
             };
             /** @description Validation Error */
