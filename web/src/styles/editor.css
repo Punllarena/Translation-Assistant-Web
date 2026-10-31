@@ -1,7 +1,8 @@
 /* The phase 3b editor rules on tokens. The layout redesign is phase 7b. */
 .editor-page { font-size: var(--editor-font, 18px); }
-.statusbar { position: sticky; top: 0; z-index: 2; display: grid; gap: 4px; padding: 6px 32px 8px; font-size: 13px;
-  color: var(--muted); background: color-mix(in oklch, var(--bg) 94%, transparent); border-bottom: 1px solid var(--line); }
+.editor-top { position: sticky; top: 0; z-index: 2; background: var(--bg); }
+.statusbar { display: grid; gap: 4px; padding: 6px 32px 8px; font-size: 13px;
+  color: var(--muted); border-bottom: 1px solid var(--line); }
 .sb-crumbs { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; font-size: 12px; }
 .sb-crumbs a { color: var(--muted); text-decoration: none; }
 .sb-crumbs a:hover { color: var(--ink); text-decoration: underline; }
@@ -65,8 +66,9 @@
 .sentence-current { background: var(--sent); border-radius: 2px; }
 .find-current { background: var(--hit-cur); color: var(--ink); }
 .misspelled { text-decoration: underline wavy var(--danger); text-decoration-skip-ink: none; }
-.findbar { position: sticky; top: 2.4rem; z-index: 2; display: flex; gap: .4rem; align-items: center; max-width: 60rem;
+.findbar { display: flex; gap: .4rem; align-items: center; max-width: 60rem;
   margin: 0 auto; padding: .3rem 1rem; background: var(--surface); border-bottom: 1px solid var(--line); }
+.findbar input { flex: 1 1 8rem; min-width: 0; max-width: 20rem; }
 .findbar input.notfound { background: var(--danger-soft); }
 .spell-menu { position: fixed; z-index: 10; display: grid; min-width: 12rem; padding: .25rem; background: var(--surface);
   border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 16px 40px -16px var(--shadow); }
@@ -78,7 +80,16 @@
   max-height: 70vh; overflow: auto; background: var(--field); }
 .editor-layout { display: flex; gap: 1rem; align-items: flex-start; justify-content: center; }
 .editor-layout .editor { flex: 1; min-width: 0; }
-.side-col { position: sticky; top: 3rem; width: 18rem; flex: none; font-size: .875rem; max-height: calc(100vh - 3.5rem); overflow-y: auto; }
+.side-col { position: sticky; top: var(--top-h, 5rem); width: 18rem; flex: none; font-size: .875rem;
+  max-height: calc(100vh - var(--top-h, 5rem)); overflow-y: auto; counter-reset: use; }
+/* The number Alt+1..9 picks. The alt text keeps it out of the button's accessible name. */
+[data-use]::before { counter-increment: use; content: counter(use); content: counter(use) / ""; margin-right: .5em;
+  font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+.key-help { max-height: 60vh; overflow-y: auto; font-size: 14px; }
+.key-help h3 { margin: 0 0 6px; }
+.key-help dl { display: grid; gap: 4px; margin: 0; }
+.key-help dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.key-help dd { margin: 0; flex: none; }
 .tm-panel { font-size: .875rem; padding: .5rem; }
 .tm-panel h2 { font-size: .875rem; margin: 0 0 .4rem; }
 .tm-panel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }

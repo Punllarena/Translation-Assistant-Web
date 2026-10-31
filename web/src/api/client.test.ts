@@ -26,3 +26,9 @@ describe("call", () => {
     await expect(call(ok)).resolves.toEqual({ id: 1 });
   });
 });
+
+describe("call", () => {
+  it("names the status when the server sends no reason", async () => {
+    await expect(call(Promise.resolve({ response: new Response(null, { status: 500 }) }))).rejects.toThrow("The server answered 500.");
+  });
+});

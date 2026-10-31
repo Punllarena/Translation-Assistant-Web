@@ -250,6 +250,7 @@ as `<rt class="rt-glossary">` ruby (`web/src/editor/glossaryRuby.ts`); glossary 
 ruby wins over glossary marks. The lines endpoint sends `LineOut.glossary_marks` (UTF-16 `from`/`to` into `plain_text`, plus
 `shown_from`/`shown_to` and the translation; computed by `api/core/glossary_marks.py`, which mirrors `replace_and_parse`), and
 `LineOut.plain_text` (`raw_text` with `$`/`%` stripped anywhere). E2E: `web/e2e/editor-nav.spec.ts` with the `Nav series` seed.
+Focus and keys: `useEditorKeys` lets bound keys run from buttons and links (except Enter), Esc returns to the editor, and typing on the bare page lands in it. A failed save retries itself with backoff (`useEditor`), and `useLeaveGuard` (`useLeave.ts`) holds links outside the editor while a save is pending, asking only if it failed. `Use suggestion N` (Alt+1..9) clicks the Nth `[data-use]` button in the aid column, numbered on screen by a CSS counter. `KeyHelp.tsx` is the Ctrl+/ sheet. `StickyTop.tsx` holds the status and find bars and publishes `--top-h`.
 Spec: `docs/superpowers/specs/2026-10-27-editor-status-bar-reading-aid-design.md`.
 
 Backup and restore: `api/backup/` writes one zip per server — `tables/<name>.csv` (Postgres `COPY ... FORMAT csv, HEADER`,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useBlocker, useNavigate } from "react-router";
 import type { SaveState, SaveStore } from "./saveStore";
 
 /**
@@ -22,4 +22,27 @@ export function useLeave(store: SaveStore, saveState: SaveState) {
     navigate(to);
   }, [store, navigate]);
   return { leave, notice };
+}
+
+/**
+ * Links outside the editor (the app header) don't pass through `leave`, so catch them here: wait for the
+ * save, then go on, or return the blocker for the caller to ask when it failed. The sign-in redirect
+ * after a 401 always passes; the stash is restored after it.
+ */
+export function useLeaveGuard(store: SaveStore) {
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    store.pending() && nextLocation.pathname !== currentLocation.pathname && nextLocation.pathname !== "/login");
+  const [failed, setFailed] = useState(false);
+  const { state, proceed } = blocker;
+  useEffect(() => {
+    if (state !== "blocked") return setFailed(false);
+    let live = true;
+    void store.flush().then(() => {
+      if (!live) return;
+      if (store.getState().state === "error") setFailed(true);
+      else proceed?.();
+    });
+    return () => { live = false; };
+  }, [state, proceed, store]);
+  return failed ? blocker : null;
 }

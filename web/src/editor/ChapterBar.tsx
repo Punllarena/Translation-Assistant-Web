@@ -4,13 +4,14 @@ import { shownTitle, type Doc } from "../library/shelf";
 const label = (d: Doc) => (d.chapter_number != null ? `Ch. ${d.chapter_number}` : "");
 
 /** Previous / next chapter buttons and the list of the chapter's volume. */
-export default function ChapterNav({ doc, chapters, onGo }: {
+export default function ChapterNav({ doc, chapters, onGo, prevKey, nextKey }: {
   doc: Doc; chapters: { prev: Doc | null; next: Doc | null; volume: Doc[] }; onGo: (d: Doc) => void;
+  prevKey: string; nextKey: string;
 }) {
   const { prev, next, volume } = chapters;
   return (
     <span className="chapter-nav">
-      <button type="button" className="quiet" aria-label="Previous chapter" disabled={!prev}
+      <button type="button" className="quiet" aria-label="Previous chapter" title={`Previous chapter (${prevKey})`} disabled={!prev}
         onClick={() => prev && onGo(prev)}>‹</button>
       <Menu align="start" buttonLabel={`${[label(doc), shownTitle(doc)].filter(Boolean).join(" ")}, chapter list`}
         label={<>
@@ -26,7 +27,7 @@ export default function ChapterNav({ doc, chapters, onGo }: {
           </button>
         ))}
       </Menu>
-      <button type="button" className="quiet" aria-label="Next chapter" disabled={!next}
+      <button type="button" className="quiet" aria-label="Next chapter" title={`Next chapter (${nextKey})`} disabled={!next}
         onClick={() => next && onGo(next)}>›</button>
     </span>
   );

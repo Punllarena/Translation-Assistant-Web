@@ -2,6 +2,7 @@ import type { EditorView } from "@codemirror/view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router";
+import { ConfirmDialog } from "../ui/Dialog";
 import SpellMenu from "./SpellMenu";
 import { useSpell } from "./useSpell";
 import { api, call, type Schemas } from "../api/client";
@@ -17,7 +18,9 @@ import PhraseDialog from "./PhraseDialog";
 import ReadingSwitch from "./ReadingSwitch";
 import { readingMode, type ReadingMode } from "./ruby";
 import { useReadings } from "./useReadings";
-import StatusBar, { type Crumbs } from "./StatusBar";
+import StatusBar, { linesText, type Crumbs } from "./StatusBar";
+import StickyTop from "./StickyTop";
+import KeyHelp from "./KeyHelp";
 import Menu from "../ui/Menu";
 import { Memory, Picture, Ruby, Translate } from "../ui/icons";
 import MtPanels from "./MtPanels";
@@ -26,13 +29,15 @@ import ChapterNav from "./ChapterBar";
 import { chapterNeighbours } from "./chapterNav";
 import JumpBack from "./JumpBack";
 import ChapterEnd from "./ChapterEnd";
-import { useLeave } from "./useLeave";
+import { useLeave, useLeaveGuard } from "./useLeave";
 import { useAllVolumes, useDocuments, useSeriesList } from "../library/queries";
 import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
 import { useBindings, useEditorKeys } from "./useEditorKeys";
 
 type Data = Schemas["DocumentLines"];
+
+const READING_ORDER: ReadingMode[] = ["off", "hiragana", "katakana", "romaji"];
 
 export default function Editor({ id, data }: { id: number; data: Data }) {
   const lines = data.lines;
@@ -86,6 +91,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     volume: { id: volumeId, label: volumes.data?.find((v) => v.id === volumeId)?.label ?? "Volume" },
   };
   const { leave, notice: leaveNotice } = useLeave(ed.store, ed.save.state);
+  const blockedLeave = useLeaveGuard(ed.store);
+  const [showKeys, setShowKeys] = useState(false);
   const chapters = useMemo(() => chapterNeighbours(docs.data ?? [], id), [docs.data, id]);
   const listed = docs.data?.find((d) => d.id === id);
   const gone = ed.missing.length
@@ -184,12 +191,44 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       case "find":
         find.show();
         break;
+      case "next_chapter":
+        if (chapters.next) void leave(`/documents/${chapters.next.id}`);
+        break;
+      case "prev_chapter":
+        if (chapters.prev) void leave(`/documents/${chapters.prev.id}`);
+        break;
+      case "toggle_tm":
+        saveSetting("tm_visible", !tmVisible);
+        break;
+      case "toggle_mt":
+        saveSetting("mt_visible", !mtVisible);
+        break;
+      case "toggle_glossary_ruby":
+        saveSetting("glossary_ruby", !glossaryRuby);
+        break;
+      case "cycle_reading":
+        if (readings.available) setMode(READING_ORDER[(READING_ORDER.indexOf(mode) + 1) % READING_ORDER.length]);
+        break;
+      case "key_help":
+        setShowKeys(true);
+        break;
       default:
         if (action.startsWith("punct_")) insertAtCursor(view.current, PUNCTUATIONS[Number(action.slice(6))], 1);
+        if (action.startsWith("use_")) {
+          // ponytail: numbered by position, so a late result in an earlier panel shifts the rest; the
+          // numbers on screen (a CSS counter over the same buttons) always match. Fixed slots if that grates.
+          const uses = document.querySelectorAll<HTMLElement>(".side-col [data-use]");
+          const k = Number(action.slice(4));
+          if (uses[k - 1]) uses[k - 1].click();
+          else setNotice(`No suggestion ${k} on this line`);
+        }
     }
   };
   const bindings = useBindings();
-  useEditorKeys(bindings, run);
+  useEditorKeys(bindings, run, () => view.current?.focus());
+  // Everything behind a modal <dialog> is inert until it has gone.
+  const focusAfterDialog = () => void setTimeout(() => view.current?.focus());
+  const keyed = (label: string, action: string) => `${label} (${bindings[action]})`;
   // Every hook stays above this early return; later tasks add theirs here too and read
   // `current?.` (it is undefined for a chapter with no lines).
 
@@ -204,30 +243,40 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     <button type="button" className="icon" aria-label="Images" title="Images"
       aria-pressed={!imagesCollapsed} onClick={() => saveSetting("images_collapsed", !imagesCollapsed)}><Picture /></button>
   ) : null;
-  const addPhraseLabel = `Add glossary phrase… (${bindings.add_phrase})`;
   const chapterMenu = (withLines: boolean) => (
     <Menu label="⋯" buttonLabel="Chapter actions"
       onPointerDown={() => { pendingSelection.current = window.getSelection()?.toString().trim() ?? ""; }}>
       {(close) => ([
         ["Edit source", () => void leave(`/documents/${id}/source`)],
         ["Split chapter", () => void leave(`/documents/${id}/split`)],
-        ...(withLines ? [["Go to line…", () => run("go_to_line")] as const] : []),
+        ...(withLines ? [[keyed("Go to line…", "go_to_line"), () => run("go_to_line")] as const] : []),
         ["Series glossary", () => void leave(`/series/${seriesId}?tab=glossary`)],
-        ...(withLines ? [[addPhraseLabel, () => run("add_phrase")] as const] : []),
+        ...(withLines ? [[keyed("Add glossary phrase…", "add_phrase"), () => run("add_phrase")] as const] : []),
         ["Series tools", () => void leave(`/series/${seriesId}?tab=tools`)],
+        ...(withLines ? [[keyed("Keyboard shortcuts", "key_help"), () => setShowKeys(true)] as const] : []),
       ] as const).map(([text, act]) => (
         <button key={text} type="button" role="menuitem"
           onClick={() => { close(); act(); pendingSelection.current = ""; }}>{text}</button>
       ))}
     </Menu>
   );
+  const unsavedLines = ed.save.state === "error" ? ed.store.unsaved().map((e) => e.line_number + 1) : [];
+  const restoredNotice = ed.restored
+    ? `Restored ${ed.restored} unsaved ${ed.restored === 1 ? "line" : "lines"} from earlier in this tab`
+    : null;
+  const leaveDialog = blockedLeave && (
+    <ConfirmDialog title="Leave with unsaved lines?" danger confirmLabel="Leave anyway"
+      message={<p>{linesText(unsavedLines)} could not be saved: {ed.save.error} The text is kept in this tab and sent again when you reopen this chapter here. Closing the tab loses it.</p>}
+      onConfirm={() => blockedLeave.proceed?.()} onClose={() => blockedLeave.reset?.()} />
+  );
   const statusBar = (line: number | null, phraseText: string | null, tools: ReactNode) => (
     <StatusBar crumbs={crumbs} line={line} total={lines.length}
       translated={stats.done} lineCount={stats.total} percent={stats.percent} words={stats.words}
-      phrase={phraseText} save={ed.save} onRetry={() => void ed.store.flush()}
-      notice={leaveNotice ?? notice ?? gone} spellAvailable={spell.available}
+      phrase={phraseText} save={ed.save} unsavedLines={unsavedLines} onRetry={() => void ed.store.flush()}
+      notice={leaveNotice ?? restoredNotice ?? notice ?? gone} spellAvailable={spell.available}
       onLeave={(to) => void leave(to)}
-      nav={listed && <ChapterNav doc={listed} chapters={chapters} onGo={(d) => void leave(`/documents/${d.id}`)} />}
+      nav={listed && <ChapterNav doc={listed} chapters={chapters} prevKey={bindings.prev_chapter} nextKey={bindings.next_chapter}
+        onGo={(d) => void leave(`/documents/${d.id}`)} />}
       tools={tools} />
   );
   const chapterEnd = (
@@ -241,7 +290,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     const only = images.data?.length ? "has only images, no source text" : "has no source text yet";
     return (
       <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
-        {statusBar(null, null, <>{imagesToggle}{imagesToggle && <span className="sb-divider" aria-hidden="true" />}{chapterMenu(false)}</>)}
+        <StickyTop>{statusBar(null, null, <>{imagesToggle}{imagesToggle && <span className="sb-divider" aria-hidden="true" />}{chapterMenu(false)}</>)}</StickyTop>
+        {leaveDialog}
         <main className="editor">
           <p>This chapter {only}. <Link to={`/documents/${id}/source`}>Edit source</Link></p>
           {(images.data ?? []).map((image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />)}
@@ -262,14 +312,15 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   };
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
+      <StickyTop>
       {statusBar(n + 1, ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>
           <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
           <span className="sb-divider" aria-hidden="true" />
-          <button type="button" className="icon" aria-label="Glossary ruby" title="Glossary ruby"
+          <button type="button" className="icon" aria-label="Glossary ruby" title={keyed("Glossary ruby", "toggle_glossary_ruby")}
             aria-pressed={glossaryRuby} onClick={() => saveSetting("glossary_ruby", !glossaryRuby)}><Ruby /></button>
-          <button type="button" className="icon" aria-label="Translation memory" title="Translation memory"
+          <button type="button" className="icon" aria-label="Translation memory" title={keyed("Translation memory", "toggle_tm")}
             aria-pressed={tmVisible} onClick={() => saveSetting("tm_visible", !tmVisible)}><Memory /></button>
-          <button type="button" className="icon" aria-label="Machine translation" title="Machine translation"
+          <button type="button" className="icon" aria-label="Machine translation" title={keyed("Machine translation", "toggle_mt")}
             aria-pressed={mtVisible} onClick={() => saveSetting("mt_visible", !mtVisible)}><Translate /></button>
           {imagesToggle}
           <span className="sb-divider" aria-hidden="true" />
@@ -280,6 +331,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
           onNeedle={find.setNeedle} onStep={find.step}
           onClose={() => { find.close(); view.current?.focus(); }} />
       )}
+      </StickyTop>
       <div className="editor-layout">
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
@@ -296,12 +348,15 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         </div>
       )}
       </div>
-      {phrase !== null && <PhraseDialog initial={phrase} onClose={() => { setPhrase(null); view.current?.focus(); }} onSave={async (p, t) => {
+      {phrase !== null && <PhraseDialog initial={phrase} onClose={() => { setPhrase(null); focusAfterDialog(); }} onSave={async (p, t) => {
         await call(api.POST("/series/{series_id}/glossary", { params: { path: { series_id: seriesId } }, body: { phrase: p, translation: t } }));
         await queryClient.invalidateQueries({ queryKey: ["glossary", seriesId] });
         await queryClient.invalidateQueries({ queryKey: ["document"] });
         setNotice(`Added \u201c${p}\u201d to the glossary`);
       }} />}
+      {leaveDialog}
+      {showKeys && <KeyHelp bindings={bindings} onClose={() => { setShowKeys(false); focusAfterDialog(); }}
+        onChange={() => { setShowKeys(false); void leave("/settings/shortcuts"); }} />}
       {menu && <SpellMenu {...menu} onClose={closeMenu} onAdd={(scope) => { void addWord(menu.word.word, scope); closeMenu(); }}
         onPick={(s) => {
           const v = view.current;

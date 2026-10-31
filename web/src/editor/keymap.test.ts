@@ -67,3 +67,10 @@ describe("keymap", () => {
     }
   });
 });
+
+describe("new action defaults", () => {
+  it("give each suggestion its own key", () => {
+    expect(effective({}).use_1).toBe("Alt+1");
+    expect(effective({}).use_9).toBe("Alt+9");
+  });
+});

@@ -70,7 +70,8 @@ export function useEditor(id: number, lines: Line[], startAt: number) {
             },
             (e) => {
               signedOutOn401(queryClient, e);
-              throw e;
+              // fetch itself failing is a TypeError with a browser-specific message
+              throw e instanceof TypeError ? new Error("The server can't be reached.") : e;
             },
           ),
       }),
@@ -78,6 +79,8 @@ export function useEditor(id: number, lines: Line[], startAt: number) {
   );
   const save = useSyncExternalStore(store.subscribe, store.getState);
   const [active, setActive] = useState(startAt);
+  const [restored, setRestored] = useState(0);
+  const retries = useRef(0);
   const [parse, setParse] = useState(-1);
   const [texts, setTexts] = useState<Record<number, string>>(() =>
     Object.fromEntries(lines.map((l) => [l.line_number, l.translated_text])),
@@ -95,9 +98,11 @@ export function useEditor(id: number, lines: Line[], startAt: number) {
 
   useEffect(() => {
     const known = new Set(linesRef.current.map((l) => l.line_number));
-    takeStash(id)
-      .filter((e) => known.has(e.line_number))
-      .forEach((e) => setText(e.line_number, e.translated_text));
+    const kept = takeStash(id).filter((e) => known.has(e.line_number));
+    kept.forEach((e) => setText(e.line_number, e.translated_text));
+    // The keepalive save usually got there first; only text the server lacks is news.
+    const lost = kept.filter((e) => linesRef.current.find((l) => l.line_number === e.line_number)?.translated_text !== e.translated_text);
+    if (lost.length) setRestored(lost.length);
     const onHide = () => {
       stash(id, store.unsaved());
       store.flushOnExit();
@@ -126,6 +131,19 @@ export function useEditor(id: number, lines: Line[], startAt: number) {
     };
   }, [id, store, setText]);
 
+  // A failed save tries again by itself, sooner when the browser says it is back online.
+  useEffect(() => {
+    if (save.state === "saved") retries.current = 0;
+    if (save.state !== "error") return;
+    const retry = () => void store.flush();
+    const timer = setTimeout(retry, Math.min(2000 * 2 ** retries.current++, 30_000));
+    window.addEventListener("online", retry);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("online", retry);
+    };
+  }, [save.state, store]);
+
   useEffect(() => {
     void call(api.PUT("/settings", { body: { last_document_id: id } })).catch(() => {});
   }, [id]);
@@ -146,7 +164,8 @@ export function useEditor(id: number, lines: Line[], startAt: number) {
     if (i === null) return;
     setActive(i);
     setParse(-1);
+    setRestored(0);
   }, []);
 
-  return { store, save, active, activate, parse, setParse, texts, setText, missing };
+  return { store, save, active, activate, parse, setParse, texts, setText, missing, restored };
 }
