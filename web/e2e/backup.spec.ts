@@ -11,7 +11,7 @@ async function signIn(page: Page) {
 // No restore here: it would replace the shared ta_e2e database under every other spec.
 test("an admin downloads a backup named with the date", async ({ page }) => {
   await signIn(page);
-  await page.goto("/admin");
+  await page.goto("/settings/admin/backup");
   const form = page.getByRole("form", { name: "Download a backup" });
   const passphrase = "e2e-backup-passphrase";
   await form.getByLabel("Passphrase", { exact: true }).fill(passphrase);
@@ -23,7 +23,7 @@ test("an admin downloads a backup named with the date", async ({ page }) => {
 
 test("the form refuses a mismatch before anything is sent", async ({ page }) => {
   await signIn(page);
-  await page.goto("/admin");
+  await page.goto("/settings/admin/backup");
   const form = page.getByRole("form", { name: "Download a backup" });
   await form.getByLabel("Passphrase", { exact: true }).fill("e2e-backup-passphrase");
   await form.getByLabel("Repeat passphrase").fill("e2e-backup-passphrase-2");

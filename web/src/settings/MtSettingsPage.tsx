@@ -87,7 +87,7 @@ export default function MtSettingsPage() {
   const typed = (v: FormDataEntryValue | null) => String(v ?? "").trim();
 
   return (
-    <main className="settings">
+    <div className="settings">
       <PageHeader title="Machine translation"
         subtitle="Which panels appear beside the editor, in what order, and how each service is reached."
         actions={note ? <span role="status" className="saved-note">{note}</span> : undefined} />
@@ -191,6 +191,6 @@ export default function MtSettingsPage() {
           </section>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

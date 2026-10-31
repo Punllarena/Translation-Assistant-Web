@@ -11,7 +11,8 @@ async function signIn(page: Page) {
 
 test("an admin changes a server setting and resets it", async ({ page }) => {
   await signIn(page);
-  await page.getByRole("link", { name: "Admin" }).click();
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Server" }).click();
   const delay = page.getByLabel("Seconds between syosetu requests", { exact: true });
   const before = await delay.inputValue();
   await delay.fill("7");
@@ -24,7 +25,7 @@ test("an admin changes a server setting and resets it", async ({ page }) => {
 
 test("an admin creates an invite link and revokes it", async ({ page }) => {
   await signIn(page);
-  await page.goto("/admin");
+  await page.goto("/settings/admin/invites");
   await page.getByLabel("Email (optional)").fill("friend@example.com");
   await page.getByRole("button", { name: "Create invite" }).click();
   await expect(page.getByLabel("Invite link")).toHaveValue(/\/invite\?token=/);
@@ -36,7 +37,7 @@ test("an admin creates an invite link and revokes it", async ({ page }) => {
 
 test("an admin uploads a Conjugations file; the env-set EDICT2 is read-only", async ({ page }) => {
   await signIn(page);
-  await page.goto("/admin");
+  await page.goto("/settings/admin/dictionary");
   await expect(page.getByRole("group", { name: "EDICT2" })).toContainText("set by the server's environment");
   await expect(page.getByRole("group", { name: "EDICT2" }).getByRole("button", { name: "Download from EDRDG" })).toHaveCount(0);
   await page.getByLabel("Upload Conjugations").setInputFiles(

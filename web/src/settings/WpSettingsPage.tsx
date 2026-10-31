@@ -50,7 +50,7 @@ export default function WpSettingsPage() {
   const error = prefs.error ?? creds.error ?? saveCred.error ?? savePrefs.error ?? test.error;
   const p = prefs.data;
   return (
-    <main className="settings">
+    <div className="settings">
       <PageHeader title="WordPress" subtitle="Publishing goes through the TA Publisher plugin on your site."
         actions={note ? <span role="status" className="saved-note">{note}</span> : undefined} />
       {error && <p className="error" role="alert">{error.message}</p>}
@@ -99,6 +99,6 @@ export default function WpSettingsPage() {
           </form>
         )}
       </div>
-    </main>
+    </div>
   );
 }
