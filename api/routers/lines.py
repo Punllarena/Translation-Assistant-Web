@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from api.core.glossary_marks import glossary_marks
 from api.core.text import DEFAULT_PARSE_CHARS, replace_and_parse, split_parse_chars
 from api.deps import current_user, db_session, scoped
 from api.illustrations import IllustrationsRule, check_no_text, rule_conflict
@@ -12,7 +13,14 @@ from api.models import Document, GlossaryEntry, Line, User, UserSetting
 from api.ollama import store
 from api.routing import api_router
 from api.schemas.documents import DocumentOut
-from api.schemas.lines import DocumentLines, LineBatch, LineOut, SaveResult, SourceUpdate
+from api.schemas.lines import (
+    DocumentLines,
+    GlossaryMark,
+    LineBatch,
+    LineOut,
+    SaveResult,
+    SourceUpdate,
+)
 
 router = api_router(tags=["lines"])
 
@@ -61,14 +69,27 @@ def get_lines(
         select(Line).where(Line.document_id == doc.id).order_by(Line.line_number)
     ):
         display, sentences, replaced = replace_and_parse(line.raw_text, glossary, parse_chars)
+        plain_text = line.raw_text.replace("$", "").replace("%", "")
+        marks = glossary_marks(line.raw_text, glossary)
         lines.append(
             LineOut(
                 line_number=line.line_number,
                 prefix=line.prefix,
                 raw_text=line.raw_text,
+                plain_text=plain_text,
                 display_text=display,
                 sentences=sentences,
                 replaced=replaced,
+                glossary_marks=[
+                    GlossaryMark(
+                        from_=m.from_,
+                        to=m.to,
+                        translation=m.translation,
+                        shown_from=m.shown_from,
+                        shown_to=m.shown_to,
+                    )
+                    for m in marks
+                ],
                 translated_text=line.translated_text,
             )
         )

@@ -13,6 +13,7 @@ export interface Ruby {
   to: number;
   rt: string;
   hide?: [number, number];
+  cls?: string; // an extra class on the <rt>
 }
 
 const MODES: readonly ReadingMode[] = ["off", "hiragana", "katakana", "romaji"];

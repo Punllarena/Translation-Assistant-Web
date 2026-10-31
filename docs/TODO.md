@@ -33,14 +33,12 @@ To decide:
 - Keep the picker's untick, or always include all? The cover image should stay out (it goes to `volume_covers`).
 - The `epub_safety.py` per-import image budget then counts copies.
 
-## Editor: copy source
+## Editor: JParser dictionary words inside a Latin run
 
 *Raised 2026-10-29.* Ctrl+Z after Use and JParser's Latin runs were fixed in PR #31.
 
-- **Copy original text button** next to the line number on each card (`LineCard.tsx`): copies the line's
-  raw source to the clipboard. Decide raw text or glossary-replaced text.
-- **JParser, dictionary words inside a Latin run**: an unmatched Latin run is taken whole, so a dictionary
-  entry starting mid-run is not looked up. Minor; revisit only if it shows up.
+- An unmatched Latin run is taken whole, so a dictionary entry starting mid-run is not looked up. Minor;
+  revisit only if it shows up.
 
 ## Yomitan dictionaries: deferred formats and fields
 

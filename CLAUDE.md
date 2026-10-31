@@ -244,8 +244,13 @@ save first and refuses to move on a failed save. Floating `JumpBack` buttons and
 (`api/routers/readings.py`) tokenises text with MeCab and returns surfaces and readings only (`available: false` without the
 `mecab` extra); the SPA places them as ruby. The user setting `reading_aid` (`off` / `hiragana` / `katakana` / `romaji`) picks the
 mode; generated readings show on the active card only. Author ruby (`漢字(かんじ)` in the source) renders as `<ruby>` on every card
-whatever the mode (`web/src/editor/ruby.ts`, `authorRuby`). E2E: `web/e2e/editor-nav.spec.ts` with the `Nav series` seed. Spec:
-`docs/superpowers/specs/2026-10-27-editor-status-bar-reading-aid-design.md`.
+whatever the mode (`web/src/editor/ruby.ts`, `authorRuby`). A status-bar "Glossary ruby" toggle (the account setting
+`glossary_ruby`, default off) shows the card's source as the original text with each glossary match carrying its translation
+as `<rt class="rt-glossary">` ruby (`web/src/editor/glossaryRuby.ts`); glossary ruby wins over generated reading ruby and author
+ruby wins over glossary marks. The lines endpoint sends `LineOut.glossary_marks` (UTF-16 `from`/`to` into `plain_text`, plus
+`shown_from`/`shown_to` and the translation; computed by `api/core/glossary_marks.py`, which mirrors `replace_and_parse`), and
+`LineOut.plain_text` (`raw_text` with `$`/`%` stripped anywhere). E2E: `web/e2e/editor-nav.spec.ts` with the `Nav series` seed.
+Spec: `docs/superpowers/specs/2026-10-27-editor-status-bar-reading-aid-design.md`.
 
 Backup and restore: `api/backup/` writes one zip per server — `tables/<name>.csv` (Postgres `COPY ... FORMAT csv, HEADER`,
 so it is version-portable), the `dict/` files that live under `TA_DATA_DIR`, and a `manifest.json` (format 1, the alembic

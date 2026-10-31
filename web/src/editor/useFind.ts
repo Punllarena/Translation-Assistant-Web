@@ -2,13 +2,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { findHits, firstFrom, wrapStep } from "./find";
 import type { Row } from "./rows";
 
-export function useFind(rows: Row[], texts: Record<number, string>, active: number, activate: (i: number) => void) {
+export function useFind(rows: Row[], texts: Record<number, string>, active: number, activate: (i: number) => void, glossaryRuby = false) {
   const [find, setFind] = useState({ open: 0, needle: "", at: -1 });
   const hits = useMemo(
     () => findHits(rows.flatMap((r) => r.kind === "line"
-      ? [{ index: r.index, source: r.line.display_text, translation: texts[r.line.line_number] ?? "" }]
+      ? [{
+          index: r.index,
+          source: glossaryRuby ? r.line.plain_text : r.line.display_text,
+          translation: texts[r.line.line_number] ?? "",
+        }]
       : []), find.needle),
-    [rows, texts, find.needle],
+    [rows, texts, find.needle, glossaryRuby],
   );
   const at = find.at < hits.length ? find.at : -1;
   const hit = find.open && at >= 0 ? hits[at] : null;

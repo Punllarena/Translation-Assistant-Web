@@ -41,6 +41,27 @@ def test_lines_apply_the_series_glossary(app_client, db, me, doc):
     assert [line["line_number"] for line in body["lines"]] == [0, 1, 2]
 
 
+def test_lines_return_glossary_marks(app_client, db, me, doc):
+    _glossary(db, doc.series_id, ("太郎", "Taro"))
+    first = app_client.get(f"/documents/{doc.id}/lines").json()["lines"][0]
+    assert first["plain_text"] == "太郎は、走った。"
+    assert [m["from"] for m in first["glossary_marks"]] == [0]
+    mark = first["glossary_marks"][0]
+    assert (mark["to"], mark["translation"], mark["shown_from"], mark["shown_to"]) == (
+        2,
+        "Taro",
+        0,
+        4,
+    )
+
+
+def test_plain_text_strips_markers(app_client, me, make_doc):
+    doc = make_doc(me, ["100%です。"], translated=False)
+    first = app_client.get(f"/documents/{doc.id}/lines").json()["lines"][0]
+    assert first["raw_text"] == "100%です。"
+    assert first["plain_text"] == "100です。"
+
+
 def test_lines_use_own_series_glossary(app_client, db, me, make_series, make_doc):
     a, b = make_series(me, "A"), make_series(me, "B")
     _glossary(db, b.id, ("太郎", "Tarou"))  # inserted first: a leak would apply it

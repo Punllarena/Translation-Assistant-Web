@@ -15,9 +15,10 @@ interface Props {
   misspelled?(text: string): Misspelling[];
   renderImage?(image: Image): ReactNode;
   readings?: Ruby[]; // the active card's ruby when the reading aid is on
+  glossaryRuby?: boolean; // show the original text with glossary translations as ruby
 }
 
-export default function CardList({ rows, active, parse, texts, onActivate, editor, highlight, misspelled, renderImage, readings }: Props) {
+export default function CardList({ rows, active, parse, texts, onActivate, editor, highlight, misspelled, renderImage, readings, glossaryRuby = false }: Props) {
   return (
     <>
       {rows.map((row) => {
@@ -29,7 +30,8 @@ export default function CardList({ rows, active, parse, texts, onActivate, edito
             parse={isActive ? parse : -1} text={text}
             highlight={highlight?.index === row.index ? highlight : null}
             misspelled={misspelled?.(text) ?? NONE} onActivate={onActivate}
-            editor={isActive ? editor : undefined} readings={isActive ? readings : undefined} />
+            editor={isActive ? editor : undefined} readings={isActive ? readings : undefined}
+            glossaryRuby={glossaryRuby} />
         );
       })}
     </>

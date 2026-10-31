@@ -40,7 +40,16 @@ def main() -> None:
 
     from api.db import SessionLocal
     from api.library import write_lines
-    from api.models import Document, DocumentImage, Line, Series, User, Volume, VolumeCover
+    from api.models import (
+        Document,
+        DocumentImage,
+        GlossaryEntry,
+        Line,
+        Series,
+        User,
+        Volume,
+        VolumeCover,
+    )
     from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
     from api.ollama.work import raw_sha
     from api.security import hash_password
@@ -298,6 +307,16 @@ def main() -> None:
                              src_path="gallery-plate.png", data=PNG_1X1))
         db.add(VolumeCover(volume_id=gl_vol.id, src_path="gallery-cover.png", data=PNG_1X1))
         db.flush()
+        # glossary-ruby.spec: its own series with a glossary entry whose phrase occurs only here
+        gr = Series(user_id=user.id, title="E2E glossary ruby series")
+        db.add(gr)
+        db.flush()
+        gr_doc = Document(user_id=user.id, title="Ruby target", series_id=gr.id, series_order=1)
+        db.add(gr_doc)
+        db.flush()
+        write_lines(db, gr_doc.id, [{"line_number": 0, "prefix": "%", "raw_text": "東京です。",
+                                      "translated_text": ""}])
+        db.add(GlossaryEntry(series_id=gr.id, phrase="東京", translation="Tokyo", sort_order=0))
         # tadb.spec: an empty account, so the dry run is not refused for existing documents
         tadb = User(email="tadb@example.com", password_hash=hash_password("tadb-password-123"))
         db.add(tadb)
