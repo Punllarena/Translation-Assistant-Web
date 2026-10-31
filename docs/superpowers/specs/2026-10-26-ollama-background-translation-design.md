@@ -179,7 +179,9 @@ after it. Mid-sentence splits are always `$` lines, so:
 
 ### Checking the answer
 
-- Every asked id is present exactly once, in order, with no ids that were not asked.
+- Every asked id is present exactly once, in order. Entries for lines that were not asked are
+  ignored: a small model often returns the whole chunk, `(done)` lines included, and its answers
+  for the asked lines are still good.
 - An empty text is accepted only for a `$` line.
 - An answer that is the asked source line itself (letters compared, so stripped punctuation or spacing does not hide
   it) is a copy, not a translation, and is rejected like any other bad answer. A line with no letters (a scene break

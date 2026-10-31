@@ -64,6 +64,18 @@ async def test_good_answer_one_request():
     assert seen[0]["options"]["num_thread"] == 4 and "think" not in seen[0]
 
 
+async def test_an_answer_that_also_returns_the_done_lines_is_accepted():
+    """The model returning the whole chunk (a (done) line included) is the common failure with
+    small models; the asked line is there, so no split is needed."""
+    def handler(body):
+        return httpx.Response(200, content=ndjson(answer(*asked_ids(body))))
+
+    async with client(handler) as c:
+        r = await translate(c, ep(), [], items(1, 2, known=(2,)))
+    assert r.lines == {1: "T1"} and r.failed == []
+    assert len(r.requests) == 1 and r.requests[0].ok
+
+
 async def test_bad_answer_halves_then_succeeds():
     def handler(body):
         ids = asked_ids(body)
@@ -157,7 +169,7 @@ async def test_single_line_failure_is_recorded_not_raised():
         r = await translate(c, ep(), [], items(5))
     assert r.lines == {} and r.failed == [5]
     assert len(r.requests) == 1 and not r.requests[0].ok
-    assert r.requests[0].error == "expected 1 lines, got 0"
+    assert r.requests[0].error == "missing 1 of 1 lines: 5"
 
 
 async def test_clamped_when_over_model_context():
