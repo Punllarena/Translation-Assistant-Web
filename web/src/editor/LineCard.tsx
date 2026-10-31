@@ -34,6 +34,25 @@ export function Painted({ text, spans, ruby = NO_RUBY }: { text: string; spans: 
   );
 }
 
+/** Copy through a hidden textarea, for contexts where `navigator.clipboard` is missing or refuses. */
+function legacyCopy(text: string): boolean {
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+  const prev = document.activeElement as HTMLElement | null;
+  document.body.appendChild(area);
+  area.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    area.remove();
+    prev?.focus?.();
+  }
+}
+
 interface Props {
   index: number;
   line: Line;
@@ -65,8 +84,9 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, onA
       if (copyTimer.current) clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopied("idle"), 1500);
     };
-    if (!navigator.clipboard) return finish("failed");
-    navigator.clipboard.writeText(line.raw_text).then(() => finish("copied"), () => finish("failed"));
+    const fallback = () => finish(legacyCopy(line.raw_text) ? "copied" : "failed");
+    if (!navigator.clipboard) return fallback(); // plain-http origins (a LAN address) have no async clipboard
+    navigator.clipboard.writeText(line.raw_text).then(() => finish("copied"), fallback);
   };
   const source = glossaryRuby ? line.plain_text : parse === -2 ? line.raw_text : line.display_text;
   const sourceSpans = useMemo(() => {
