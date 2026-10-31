@@ -37,11 +37,11 @@
 **Interfaces:**
 - Produces: `has_letter(text: str) -> bool` in `api/core/text.py`.
 
-- [ ] **Step 1: Write failing tests.** `test_core_text.py::test_has_letter`: true for `"漢字"`, `"ひら"`, `"ー"`, `"abc"`; false for `"■"`, `"◇◇◇"`, `"……"`, `"12"`, `"***"`, `"「……！」"`, `""`, `"  "`. `test_memory_tm.py::test_symbol_only_line_has_no_matches`: two chapters of the user share a `■` line, one translated; the other's `/tm/matches` returns `[]`; and a shared letter-bearing line still returns its match (reuse the file's fixtures).
-- [ ] **Step 2: Run** `pytest tests/test_core_text.py tests/test_memory_tm.py -v`. Expected: FAIL.
-- [ ] **Step 3: Implement** `has_letter(text)` as `any(ch.isalpha() for ch in text)`, and in `tm_matches` return `[]` when `not has_letter(raw)` right after the blank check.
-- [ ] **Step 4: Run the same tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(tm): no matches for symbol-only lines`.
+- [x] **Step 1: Write failing tests.** `test_core_text.py::test_has_letter`: true for `"漢字"`, `"ひら"`, `"ー"`, `"abc"`; false for `"■"`, `"◇◇◇"`, `"……"`, `"12"`, `"***"`, `"「……！」"`, `""`, `"  "`. `test_memory_tm.py::test_symbol_only_line_has_no_matches`: two chapters of the user share a `■` line, one translated; the other's `/tm/matches` returns `[]`; and a shared letter-bearing line still returns its match (reuse the file's fixtures).
+- [x] **Step 2: Run** `pytest tests/test_core_text.py tests/test_memory_tm.py -v`. Expected: FAIL.
+- [x] **Step 3: Implement** `has_letter(text)` as `any(ch.isalpha() for ch in text)`, and in `tm_matches` return `[]` when `not has_letter(raw)` right after the blank check.
+- [x] **Step 4: Run the same tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(tm): no matches for symbol-only lines`.
 
 ### Task 2: Ollama skips and fills symbol-only lines
 

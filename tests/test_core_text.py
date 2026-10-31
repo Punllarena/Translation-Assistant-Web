@@ -9,6 +9,7 @@ from api.core.text import (
     build_new_file,
     calculate_progress,
     db_rows_to_arrays,
+    has_letter,
     lines_to_db_rows,
     natural_key,
     parse_file_content,
@@ -392,6 +393,17 @@ def test_natural_key_mixed_and_plain():
     titles = ["Chapter 12 - End", "Chapter 2 - Start", "Prologue"]
     assert sorted(titles, key=natural_key) == [
         "Chapter 2 - Start", "Chapter 12 - End", "Prologue"]
+
+
+# ---------------------------------------------------------------------------
+# has_letter — symbol-only lines (scene breaks)
+# ---------------------------------------------------------------------------
+
+def test_has_letter():
+    for text in ("漢字", "ひら", "ー", "abc"):
+        assert has_letter(text) is True, text
+    for text in ("■", "◇◇◇", "……", "12", "***", "「……！」", "", "  "):
+        assert has_letter(text) is False, text
 
 
 # ---------------------------------------------------------------------------
