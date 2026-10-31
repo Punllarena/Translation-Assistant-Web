@@ -35,6 +35,12 @@ def echoes_source(item: Item, text: str) -> bool:
 
 
 def check(answer: str, asked: list[Item]) -> dict[int, str]:
+    """The asked lines from the model's JSON answer, keyed by line number.
+
+    Only the asked lines matter: an entry for any other line (a model that returns the whole
+    chunk, `(done)` lines included) is ignored. Each asked line must come back exactly once,
+    in the order asked, and must not be empty, malformed or its own source.
+    """
     try:
         data = json.loads(answer)
     except ValueError as exc:
@@ -42,16 +48,32 @@ def check(answer: str, asked: list[Item]) -> dict[int, str]:
     lines = data.get("lines") if isinstance(data, dict) else None
     if not isinstance(lines, list):
         raise AnswerError("no lines array")
-    if len(lines) != len(asked):
-        raise AnswerError(f"expected {len(asked)} lines, got {len(lines)}")
+    wanted = {item.line_number for item in asked}
+    found: dict[int, str] = {}
+    order: list[int] = []
+    for entry in lines:
+        if not isinstance(entry, dict):
+            continue  # an extra of no use: the ids of the asked lines are what we read
+        number = entry.get("id")
+        if not isinstance(number, int) or isinstance(number, bool) or number not in wanted:
+            continue  # not one of ours, e.g. a line that was already translated
+        if number in found:
+            raise AnswerError(f"line {number} was returned twice")
+        text = entry.get("text")
+        if not isinstance(text, str):
+            raise AnswerError(f"line {number} is malformed")
+        found[number] = text
+        order.append(number)
+    expected = [item.line_number for item in asked]
+    if len(found) != len(expected):
+        missing = [n for n in expected if n not in found]
+        names = ", ".join(str(n) for n in missing[:5]) + ("…" if len(missing) > 5 else "")
+        raise AnswerError(f"missing {len(missing)} of {len(expected)} lines: {names}")
+    if order != expected:
+        raise AnswerError("asked lines came back out of order")
     out: dict[int, str] = {}
-    for entry, item in zip(lines, asked, strict=True):
-        if not isinstance(entry, dict) or not isinstance(entry.get("id"), int) \
-                or isinstance(entry.get("id"), bool) or not isinstance(entry.get("text"), str):
-            raise AnswerError("malformed line")
-        if entry["id"] != item.line_number:
-            raise AnswerError(f"expected id {item.line_number}, got {entry['id']}")
-        text = entry["text"].strip()
+    for item in asked:
+        text = found[item.line_number].strip()
         if not text and item.prefix != "$":
             raise AnswerError(f"line {item.line_number} is empty")
         if echoes_source(item, text):
