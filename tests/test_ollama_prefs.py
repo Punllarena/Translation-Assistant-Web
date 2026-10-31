@@ -20,3 +20,11 @@ def test_large_is_whole_chapter_and_num_thread_bounds():
     assert parse({"ollama_preset": "large"}).chunk_lines == 0
     assert parse({"ollama_num_thread": 4}).num_thread == 4
     assert parse({"ollama_num_thread": 0}).num_thread is None
+
+
+def test_think_defaults_on_and_only_a_bool_turns_it_off():
+    assert parse({}).think is True  # unset: the model's own default, as before the toggle
+    assert parse({"ollama_think": True}).think is True
+    assert parse({"ollama_think": False}).think is False
+    assert parse({"ollama_think": "no"}).think is True  # a wrong shape is ignored
+    assert parse({"ollama_think": 0}).think is True

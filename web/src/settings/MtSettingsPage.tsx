@@ -168,7 +168,12 @@ export default function MtSettingsPage() {
                 const f = form(e);
                 putSetting.mutate({ ollama_model: typed(f.get("m")), ollama_system_prompt: String(f.get("p") ?? "") });
               }}>
-                <label className="field"><span>Model</span><input name="m" className="mono" aria-label="Ollama model" defaultValue={String(s.ollama_model ?? "")} /></label>
+                <div className="row-fields">
+                  <label className="field"><span>Model</span><input name="m" className="mono" aria-label="Ollama model" defaultValue={String(s.ollama_model ?? "")} /></label>
+                  <label className="check"><input type="checkbox" aria-label="Ollama thinking" checked={s.ollama_think !== false}
+                    onChange={(e) => putSetting.mutate({ ollama_think: e.target.checked })} />Thinking</label>
+                </div>
+                <p className="hint">Thinking lets a reasoning model plan before it answers. Turn it off when it spends the answer thinking and fails to translate.</p>
                 <label className="field"><span>System prompt</span>
                   <textarea name="p" aria-label="Ollama system prompt" rows={8} placeholder={backends.data?.ollama_default_prompt}
                     defaultValue={String(s.ollama_system_prompt ?? "")} aria-describedby="prompt-hint" /></label>

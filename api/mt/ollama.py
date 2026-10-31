@@ -74,13 +74,14 @@ async def show(client: httpx.AsyncClient, url: str, token: str, model: str) -> M
 
 async def chat(
     client: httpx.AsyncClient, url: str, token: str, model: str, messages: list[dict], *,
-    schema: dict, options: dict, think: bool, keep_alive: str,
+    schema: dict, options: dict, think: bool | None, keep_alive: str,
 ) -> AsyncIterator[Event]:
-    """Stream /api/chat as JSON: thinking and content deltas, then one stats event."""
+    """Stream /api/chat as JSON: thinking and content deltas, then one stats event.
+    ``think`` is True to ask for reasoning, False to forbid it, None to leave it to the model."""
     payload = {"model": model, "stream": True, "messages": messages, "format": schema,
                "options": options, "keep_alive": keep_alive}
-    if think:
-        payload["think"] = True
+    if think is not None:
+        payload["think"] = think
     try:
         async with client.stream("POST", f"{url.rstrip('/')}/api/chat", json=payload,
                                  headers=_headers(token), timeout=TIMEOUT) as r:

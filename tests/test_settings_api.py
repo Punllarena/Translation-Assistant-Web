@@ -215,6 +215,13 @@ def test_invalid_ollama_schedule_is_422(app_client, make_user, login):
     assert app_client.delete("/settings/ollama_schedule").status_code == 204
 
 
+def test_ollama_think_is_a_boolean_setting(app_client, me):
+    assert app_client.put("/settings", json={"ollama_think": False}).status_code == 200
+    assert app_client.get("/settings").json()["ollama_think"] is False
+    assert app_client.put("/settings", json={"ollama_think": "off"}).status_code == 422
+    assert app_client.put("/settings", json={"ollama_think": None}).status_code == 200
+
+
 @pytest.mark.parametrize(
     "bad", ["images", ["num", 3], ["nope"], {"a": 1}]
 )

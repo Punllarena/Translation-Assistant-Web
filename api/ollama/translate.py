@@ -29,6 +29,7 @@ class Endpoint:
     dst: str
     num_thread: int | None
     info: ModelInfo
+    think: bool = True  # ask a thinking model to reason; models without it ignore this
 
 
 @dataclass
@@ -77,7 +78,7 @@ async def translate(
     started = _now()
     async for kind, data in ollama.chat(
         client, ep.url, ep.token, ep.model, messages, schema=FORMAT_SCHEMA, options=options,
-        think=ep.info.thinking, keep_alive=ollama.KEEP_ALIVE,
+        think=ep.think if ep.info.thinking else None, keep_alive=ollama.KEEP_ALIVE,
     ):
         if kind == "thinking":
             thinking.append(data["text"])

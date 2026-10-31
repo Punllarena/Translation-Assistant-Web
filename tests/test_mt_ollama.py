@@ -23,7 +23,7 @@ async def test_available_pings_tags():
 
 async def chat(c):
     return await collect(ollama.chat(c, "http://ol", "", "m", [], schema={}, options={},
-                                     think=False, keep_alive="10m"))
+                                     think=None, keep_alive="10m"))
 
 
 async def test_chat_http_errors_carry_ollamas_detail():
@@ -48,7 +48,7 @@ async def test_closing_the_chat_early_closes_the_upstream_response():
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(
             lambda r: httpx.Response(200, stream=Body()))) as c:
-        agen = ollama.chat(c, "http://ol", "", "m", [], schema={}, options={}, think=False,
+        agen = ollama.chat(c, "http://ol", "", "m", [], schema={}, options={}, think=None,
                            keep_alive="10m")
         await agen.__anext__()
         await agen.aclose()
@@ -127,7 +127,7 @@ async def test_chat_sends_format_options_and_omits_think():
     msgs = [{"role": "user", "content": "x"}]
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
         await collect(ollama.chat(c, "http://ol", "tok", "m", msgs, schema=FORMAT_SCHEMA,
-                                  options={"num_ctx": 4096}, think=False, keep_alive="10m"))
+                                  options={"num_ctx": 4096}, think=None, keep_alive="10m"))
     body = seen["body"]
     assert body["format"] == FORMAT_SCHEMA
     assert body["options"]["num_ctx"] == 4096
@@ -149,6 +149,19 @@ async def test_chat_sends_think_true_when_asked():
     assert seen["body"]["think"] is True
 
 
+async def test_chat_sends_think_false_when_forbidden():
+    seen = {}
+
+    def handler(request):
+        seen.update(body=json.loads(request.content))
+        return httpx.Response(200, content=(FIXTURES / "ollama_chunk_stream.ndjson").read_bytes())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        await collect(ollama.chat(c, "http://ol", "", "m", [], schema={}, options={},
+                                  think=False, keep_alive="10m"))
+    assert seen["body"]["think"] is False
+
+
 async def test_chat_yields_content_then_stats():
     data = (FIXTURES / "ollama_chunk_stream.ndjson").read_bytes()
     async with httpx.AsyncClient(transport=httpx.MockTransport(
@@ -168,7 +181,7 @@ async def test_chat_stats_missing_fields_are_none_and_truncation_raises():
     async with httpx.AsyncClient(transport=httpx.MockTransport(
         lambda r: httpx.Response(200, content=done))) as c:
         events = await collect(ollama.chat(c, "http://ol", "", "m", [], schema={}, options={},
-                                           think=False, keep_alive="10m"))
+                                           think=None, keep_alive="10m"))
     assert events == [("stats", dict.fromkeys(
         ("prompt_tokens", "output_tokens", "prompt_ms", "eval_ms", "load_ms", "total_ms")))]
     part = b'{"message":{"content":"a"},"done":false}\n'
@@ -176,4 +189,4 @@ async def test_chat_stats_missing_fields_are_none_and_truncation_raises():
         lambda r: httpx.Response(200, content=part))) as c:
         with pytest.raises(BackendError, match="ended the stream early"):
             await collect(ollama.chat(c, "http://ol", "", "m", [], schema={}, options={},
-                                      think=False, keep_alive="10m"))
+                                      think=None, keep_alive="10m"))

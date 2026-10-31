@@ -263,6 +263,10 @@ Next to the existing model and system prompt:
   - Custom: shown when either number is edited
 - **Chunk size** (lines, or "whole chapter") and **context lines**.
 - **CPU threads** (`num_thread`), optional, under an advanced fold.
+- **Thinking** (`ollama_think`), a toggle beside the model field: on (the default) asks a thinking model
+  to reason before it answers, off sends `think: false`; a model that does not report the capability is
+  never sent the option. Turn it off for a model that spends the whole answer thinking and fails to
+  translate.
 - New user setting keys, parsed with defaults in `api/mt/prefs.py` like the existing ones.
 
 ### The editor
