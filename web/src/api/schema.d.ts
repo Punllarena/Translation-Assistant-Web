@@ -2770,6 +2770,19 @@ export interface components {
             /** Entries */
             entries: components["schemas"]["GlossaryIn"][];
         };
+        /** GlossaryMark */
+        GlossaryMark: {
+            /** From */
+            from: number;
+            /** Shown From */
+            shown_from: number;
+            /** Shown To */
+            shown_to: number;
+            /** To */
+            to: number;
+            /** Translation */
+            translation: string;
+        };
         /** GlossaryOut */
         GlossaryOut: {
             /** Id */
@@ -2921,8 +2934,12 @@ export interface components {
         LineOut: {
             /** Display Text */
             display_text: string;
+            /** Glossary Marks */
+            glossary_marks: components["schemas"]["GlossaryMark"][];
             /** Line Number */
             line_number: number;
+            /** Plain Text */
+            plain_text: string;
             /** Prefix */
             prefix: string;
             /** Raw Text */
