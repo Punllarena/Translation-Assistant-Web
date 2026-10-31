@@ -118,7 +118,11 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, onA
   }, [misspelled, highlight]);
   return (
     <article ref={ref} data-index={index} className={active ? "card active" : "card"} aria-current={active || undefined}
-      onClick={() => { if (!active) onActivate(index); }}>
+      onClick={(e) => {
+        if (!active) onActivate(index);
+        // Selecting source text to look it up keeps the selection; any other click stays ready to type.
+        else if (window.getSelection()?.isCollapsed !== false) e.currentTarget.querySelector<HTMLElement>(".cm-content")?.focus();
+      }}>
       <span className="card-number">{line.line_number + 1}</span>
       <button type="button" className="copy-original" aria-label="Copy original text" title="Copy original text" onClick={copy}>
         {copied === "copied" ? <Check /> : copied === "failed" ? <Cross /> : <Copy />}

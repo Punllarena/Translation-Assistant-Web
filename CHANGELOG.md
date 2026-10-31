@@ -8,6 +8,10 @@ package version is `0.1.0`. Each entry links to the design spec or phase plan th
 
 ### Added
 
+- **Editor keyboard and save safety.** Alt+1..9 use a numbered suggestion, with keys for chapter moves and
+  panels and a Ctrl+/ shortcut sheet. Stray focus no longer loses typing, failed saves retry by themselves and
+  name their lines, and links outside the editor ask before leaving unsaved lines. The find bar no longer
+  covers the save state.
 - **Series glossaries.** Each series owns its glossary and a series dictionary; an account-wide
   dictionary and the parse characters live under Settings → Editor. Profiles are removed; the
   migration copies each series the glossary and words it used.

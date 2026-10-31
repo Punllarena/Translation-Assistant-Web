@@ -34,6 +34,18 @@ export const ACTIONS: Action[] = [
     label: `Insert ${PUNCT_NAMES[i]} ${p}`,
     binding: `F${i + 1}`,
   })),
+  ...Array.from({ length: 9 }, (_, i) => ({
+    key: `use_${i + 1}`,
+    label: `Use suggestion ${i + 1}`,
+    binding: `Alt+${i + 1}`,
+  })),
+  { key: "next_chapter", label: "Next chapter", binding: "Alt+PageDown" },
+  { key: "prev_chapter", label: "Previous chapter", binding: "Alt+PageUp" },
+  { key: "toggle_tm", label: "Show or hide translation memory", binding: "Alt+T" },
+  { key: "toggle_mt", label: "Show or hide machine translation", binding: "Alt+M" },
+  { key: "toggle_glossary_ruby", label: "Glossary ruby on or off", binding: "Alt+R" },
+  { key: "cycle_reading", label: "Next reading aid", binding: "Alt+Y" },
+  { key: "key_help", label: "Show keyboard shortcuts", binding: "Ctrl+/" },
 ];
 
 /** Combinations browsers do not let a page handle. */

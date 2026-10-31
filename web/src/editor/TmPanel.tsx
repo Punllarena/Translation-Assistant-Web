@@ -20,7 +20,7 @@ export default function TmPanel({ documentId, lineNumber, onUse }: {
       <ul>
         {matches.map((m, i) => (
           <li key={i}>
-            <button onClick={() => onUse(m.translated_text)}>{m.translated_text}</button>
+            <button data-use onClick={() => onUse(m.translated_text)}>{m.translated_text}</button>
             <span className="muted">{m.document_title}, {m.updated_at.slice(0, 10)}</span>
           </li>
         ))}

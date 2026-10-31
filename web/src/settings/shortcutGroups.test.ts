@@ -5,7 +5,7 @@ import { groupActions } from "./shortcutGroups";
 describe("shortcut sections", () => {
   it("puts every action in exactly one section, keeping order", () => {
     const groups = groupActions(ACTIONS);
-    expect(groups.map((g) => g.title)).toEqual(["Moving between lines", "Phrases and tools", "Insert characters", "Text size"]);
+    expect(groups.map((g) => g.title)).toEqual(["Moving between lines", "Phrases and tools", "Insert characters", "Text size", "Suggestions, chapters and panels"]);
     expect(groups.flatMap((g) => g.actions).map((a) => a.key).sort()).toEqual(ACTIONS.map((a) => a.key).sort());
     expect(groups[0].actions.map((a) => a.key)).toEqual(
       ["save_next", "next", "next_alt", "prev", "prev_alt", "next_untranslated", "first", "go_to_line"]);

@@ -82,7 +82,7 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse }
       {state === "error" && <p role="alert">{stream.message} <button onClick={() => ask(stream === rerollLive)}>Retry</button></p>}
       {sugs.error && <p className="error" role="alert">{sugs.error.message}</p>}
       <div className="mt-actions">
-        {text && <button onClick={() => onUse(text)}>Use</button>}
+        {text && <button data-use onClick={() => onUse(text)}>Use</button>}
         {suggestion && (state === "saved" || state === "stale") && (<>
           <button onClick={() => setReasoning(suggestion.chunk_id)}>Reasoning</button>
           <button onClick={() => ask(true)}>Reroll lines {lineRange(suggestion.first_line, suggestion.last_line)}</button>

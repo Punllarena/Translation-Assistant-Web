@@ -34,6 +34,9 @@ export async function call<T>(
   request: Promise<{ data?: T; error?: unknown; response: Response }>,
 ): Promise<T> {
   const { data, error, response } = await request;
-  if (!response.ok) throw new ApiError(response.status, errorMessage(error));
+  if (!response.ok) {
+    const message = errorMessage(error);
+    throw new ApiError(response.status, message === "request failed" ? `The server answered ${response.status}.` : message);
+  }
   return data as T;
 }

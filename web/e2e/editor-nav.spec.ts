@@ -158,3 +158,77 @@ test("a chapter with no lines keeps the way on", async ({ page }) => {
   await page.getByRole("button", { name: "Next chapter", exact: true }).click();
   await expect(page.getByText("This chapter has no source text yet.")).toBeVisible();
 });
+
+/** Saves answer as told, so these flows leave the shared seed alone. */
+async function fakeSaves(page: Page, status: () => number) {
+  await page.route("**/documents/*/lines", (r) => r.request().method() === "PATCH"
+    ? r.fulfill({ status: status(), contentType: "application/json", body: status() === 200 ? '{"missing":[]}' : "" })
+    : r.continue());
+}
+const box = (page: Page) => page.getByRole("textbox", { name: "Translation" });
+
+test("focus comes home: toggles, the card's own source, Esc and stray typing", async ({ page }) => {
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  await box(page).click();
+  await page.getByRole("button", { name: "Translation memory", exact: true }).click();
+  await page.keyboard.type("a");
+  await expect(box(page)).toHaveText("One.a");
+  await page.getByRole("button", { name: "Translation memory", exact: true }).click();
+  await card(page, 0).locator("p.source").click();
+  await page.keyboard.type("b");
+  await expect(box(page)).toHaveText("One.ab");
+  await page.getByRole("button", { name: "Next chapter", exact: true }).focus();
+  await page.keyboard.press("Escape");
+  await expect(box(page)).toBeFocused();
+  await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+  await page.keyboard.type("c");
+  await expect(box(page)).toHaveText("One.abc");
+  await page.getByRole("button", { name: "Machine translation", exact: true }).focus();
+  await page.keyboard.press("Control+ArrowDown");
+  await expect(card(page, 1)).toHaveAttribute("aria-current", "true");
+});
+
+test("a failing save retries itself, names its lines, and guards header links", async ({ page }) => {
+  await open(page, "Nav one");
+  let status = 500;
+  await fakeSaves(page, () => status);
+  const url = page.url();
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  await expect(page.getByRole("alert")).toContainText("not saved: The server answered 500. Retrying…", { timeout: 10_000 });
+  await page.getByRole("link", { name: "Statistics" }).click();
+  const dialog = page.getByRole("dialog", { name: "Leave with unsaved lines?" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  expect(page.url()).toBe(url);
+  status = 200;
+  await expect(page.locator(".save-state")).toHaveText("Saved", { timeout: 40_000 });
+  await page.getByRole("link", { name: "Statistics" }).click();
+  await expect(page).toHaveURL(/stat/);
+});
+
+test("the keyboard reaches the aids; the find bar leaves the save state visible", async ({ page }) => {
+  await page.route("**/tm/matches*", (r) => r.fulfill({ contentType: "application/json",
+    body: JSON.stringify([{ translated_text: "From memory", document_title: "Other", updated_at: "2026-01-01T00:00:00Z" }]) }));
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  await box(page).click();
+  await page.keyboard.press("Alt+1");
+  await expect(box(page)).toHaveText("From memory");
+  await page.keyboard.press("Alt+9");
+  await expect(page.getByText("No suggestion 9 on this line")).toBeVisible();
+  await page.keyboard.press("Control+/");
+  const help = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+  await expect(help.getByText("Use suggestion 1")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(box(page)).toBeFocused();
+  await page.keyboard.press("Control+f");
+  await page.mouse.wheel(0, 600);
+  const save = await page.locator(".save-state").boundingBox();
+  const bar = await page.locator(".findbar").boundingBox();
+  expect(save!.y + save!.height).toBeLessThanOrEqual(bar!.y);
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Alt+PageDown");
+  await expect(page.getByText("二話目です。")).toBeVisible();
+});

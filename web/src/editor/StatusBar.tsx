@@ -23,10 +23,18 @@ interface Props {
   words: number;
   phrase: string | null;
   save: { state: SaveState; error: string | null };
+  unsavedLines: number[]; // 1-based, shown while a save is failing
   onRetry(): void;
   notice?: string | null;
   spellAvailable?: boolean;
   onLeave(to: string): void; // leaves through the save flush
+}
+
+/** "Line 3", "Lines 3, 7", "Lines 3, 7, 9, 12, 20 and 4 more". */
+export function linesText(lines: number[]) {
+  const shown = lines.slice(0, 5).join(", ");
+  const more = lines.length > 5 ? ` and ${lines.length - 5} more` : "";
+  return `${lines.length === 1 ? "Line" : "Lines"} ${shown}${more}`;
 }
 
 const R = 7;
@@ -43,7 +51,7 @@ function Ring({ percent }: { percent: number }) {
 }
 
 export default function StatusBar({
-  crumbs, nav, tools, line, total, translated, lineCount, percent, words, phrase, save, onRetry, notice,
+  crumbs, nav, tools, line, total, translated, lineCount, percent, words, phrase, save, unsavedLines, onRetry, notice,
   spellAvailable = true, onLeave,
 }: Props) {
   const { series, volume } = crumbs;
@@ -74,13 +82,16 @@ export default function StatusBar({
             {line != null && <span className="sb-line" title={`Line ${line} of ${total}`}>at L{line}</span>}
             <span className={save.state === "saved" ? "save-state muted" : "save-state"}>{SAVE_TEXT[save.state]}</span>
           </div>
-          {save.state === "error" && <span role="alert" className="error">{save.error}</span>}
+          {save.state === "error" && <span role="alert" className="error">{linesText(unsavedLines)} not saved: {save.error} Retrying…</span>}
           {save.state === "error" && <button type="button" className="small" onClick={onRetry}>Retry</button>}
           {phrase && <span>{phrase}</span>}
-          {notice && <span className="muted">{notice}</span>}
+          {notice && <span className="muted" role="status">{notice}</span>}
           {!spellAvailable && <span className="muted">Spellcheck unavailable</span>}
         </div>
-        <div className="sb-tools">{tools}</div>
+        {/* A mouse press on a toggle keeps the caret where it is, so typing carries on. */}
+        <div className="sb-tools" onMouseDown={(e) => {
+          if ((e.target as Element).closest("button[aria-pressed]")) e.preventDefault();
+        }}>{tools}</div>
       </div>
     </div>
   );

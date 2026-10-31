@@ -46,7 +46,7 @@ function Card({ name, label, documentId, lineNumber, onUse }: {
       {state.entries.length > 0 && <ul className="mt-entries">{state.entries.map((e, i) => <EntryRow key={i} e={e} />)}</ul>}
       {state.status === "setup" && <p className="muted">{state.message} <Link to="/settings/mt">Set up</Link></p>}
       {state.status === "error" && <p role="alert">{state.message} <button onClick={retry}>Retry</button></p>}
-      {state.text && <button onClick={() => onUse(state.text)}>Use</button>}
+      {state.text && <button data-use onClick={() => onUse(state.text)}>Use</button>}
     </section>
   );
 }
