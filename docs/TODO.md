@@ -42,26 +42,12 @@ Shortcuts. Replace them with one "Settings" link opening a tabbed page with thos
 series page's `?tab=`. Keep `/settings/editor|mt|wp|shortcuts` working (redirect or route per tab) so
 bookmarks survive.
 
-## Edit Source: allow removing all the text
-
-*Raised 2026-10-29.*
-
-`PUT /documents/{id}/source` refuses blank text (422 "source text is empty", `api/routers/lines.py`).
-Allow it, behind a confirm dialog ("Remove all of this chapter's text? Its translations go too.") in
-`web/src/editor/SourcePage.tsx` using `ConfirmDialog`, not `window.confirm`. Decide what an empty chapter
-holds (zero lines, or one blank line) and check the editor, progress, export, publish and Ollama work
-handle a chapter with no lines. An Illustrations chapter is already text-free.
-
-## Editor: copy source, undo across cards
+## Editor: copy source
 
 *Raised 2026-10-29.* Ctrl+Z after Use and JParser's Latin runs were fixed in PR #31.
 
 - **Copy original text button** next to the line number on each card (`LineCard.tsx`): copies the line's
   raw source to the clipboard. Decide raw text or glossary-replaced text.
-- **Undo after leaving the card**: `CodeEditor` is keyed per line, so its undo history starts fresh each
-  time a card opens, and Ctrl+Z cannot reach a Use or edit made before moving away and back. Options: an
-  "Undo" toast after Use that restores the previous text, or keep each line's history while the chapter
-  is open.
 - **JParser, dictionary words inside a Latin run**: an unmatched Latin run is taken whole, so a dictionary
   entry starting mid-run is not looked up. Minor; revisit only if it shows up.
 
