@@ -42,14 +42,12 @@ Shortcuts. Replace them with one "Settings" link opening a tabbed page with thos
 series page's `?tab=`. Keep `/settings/editor|mt|wp|shortcuts` working (redirect or route per tab) so
 bookmarks survive.
 
-## Editor: copy source
+## Editor: JParser dictionary words inside a Latin run
 
 *Raised 2026-10-29.* Ctrl+Z after Use and JParser's Latin runs were fixed in PR #31.
 
-- **Copy original text button** next to the line number on each card (`LineCard.tsx`): copies the line's
-  raw source to the clipboard. Decide raw text or glossary-replaced text.
-- **JParser, dictionary words inside a Latin run**: an unmatched Latin run is taken whole, so a dictionary
-  entry starting mid-run is not looked up. Minor; revisit only if it shows up.
+- An unmatched Latin run is taken whole, so a dictionary entry starting mid-run is not looked up. Minor;
+  revisit only if it shows up.
 
 ## Ollama and translation memory: skip symbol-only lines
 

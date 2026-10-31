@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState, type MouseEvent, type React
 import type { Schemas } from "../api/client";
 import { Check, Copy, Cross } from "../ui/icons";
 import type { Hit } from "./find";
+import { marksToRuby, mergeReadings, shownToPlain } from "./glossaryRuby";
 import { jpSpans, layout, type Segment, type Span } from "./paint";
 import { sentenceRanges } from "./parse";
 import type { Line } from "./rows";
@@ -44,11 +45,12 @@ interface Props {
   onActivate(index: number): void;
   editor?: ReactNode;
   readings?: Ruby[]; // the active card's complete ruby list (generated + author), when the reading aid is on
+  glossaryRuby?: boolean; // show the original text with glossary translations as ruby
 }
 
 /** One source paragraph and its translation. The active card holds the CodeMirror
  *  editor; the others are painted text. */
-function LineCard({ index, line, active, parse, text, highlight, misspelled, onActivate, editor, readings }: Props) {
+function LineCard({ index, line, active, parse, text, highlight, misspelled, onActivate, editor, readings, glossaryRuby = false }: Props) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     if (active) ref.current?.scrollIntoView({ block: "center" });
@@ -66,17 +68,29 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, onA
     if (!navigator.clipboard) return finish("failed");
     navigator.clipboard.writeText(line.raw_text).then(() => finish("copied"), () => finish("failed"));
   };
-  const source = parse === -2 ? line.raw_text : line.display_text;
+  const source = glossaryRuby ? line.plain_text : parse === -2 ? line.raw_text : line.display_text;
   const sourceSpans = useMemo(() => {
     const spans = jpSpans(source);
     if (parse >= 0) {
       const [from, to] = sentenceRanges(line.display_text, line.sentences)[parse] ?? [0, 0];
-      spans.push({ from, to, cls: "sentence-current" });
+      if (glossaryRuby) {
+        spans.push({
+          from: shownToPlain(line.glossary_marks, from),
+          to: shownToPlain(line.glossary_marks, to),
+          cls: "sentence-current",
+        });
+      } else {
+        spans.push({ from, to, cls: "sentence-current" });
+      }
     }
     if (highlight?.field === "source") spans.push({ from: highlight.from, to: highlight.to, cls: "find-current" });
     return spans;
-  }, [source, parse, line, highlight]);
-  const ruby = useMemo(() => readings ?? authorRuby(source), [readings, source]);
+  }, [source, parse, line, highlight, glossaryRuby]);
+  const author = useMemo(() => authorRuby(source), [source]);
+  const ruby = useMemo(() => {
+    const base = readings ?? author;
+    return glossaryRuby ? mergeReadings(marksToRuby(line.glossary_marks, author), base) : base;
+  }, [readings, author, glossaryRuby, line.glossary_marks]);
   const textSpans = useMemo(() => {
     const spans: Span[] = misspelled.map((m) => ({ from: m.start, to: m.end, cls: "misspelled" }));
     if (highlight?.field === "translation") spans.push({ from: highlight.from, to: highlight.to, cls: "find-current" });

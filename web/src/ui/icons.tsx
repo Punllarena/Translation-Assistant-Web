@@ -9,3 +9,4 @@ export const Translate = () => <svg {...box}><path d="M2.5 4h6M5.5 2.5V4M7.5 4c-
 export const Picture = () => <svg {...box}><path d="M2.5 3.5h11v9h-11zM2.5 10.5l3-3 3 3 2-2 3 3" /><circle cx="10.5" cy="6" r="1" /></svg>;
 export const Copy = () => <svg {...box}><rect x="5.5" y="5.5" width="7" height="7" rx="1" /><path d="M10.5 5.5V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v5.5a1 1 0 0 0 1 1h1.5" /></svg>;
 export const Check = () => <svg {...box}><path d="M3 8.5l3 3 7-7" /></svg>;
+export const Ruby = () => <svg {...box}><path d="M3 10.5h10" /><path d="M4.5 5.5h2.5M9 5.5h2.5" /></svg>;

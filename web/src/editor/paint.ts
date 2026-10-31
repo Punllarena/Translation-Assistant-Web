@@ -78,7 +78,7 @@ export function layout(text: string, spans: Span[], ruby: Ruby[]): Piece[] {
     let piece = pieceOf.get(r);
     if (!piece) {
       const hit = r.hide && spans.some((s) => s.cls === "find-current" && s.from < r.hide![1] && s.to > r.hide![0]);
-      const rtClasses = [...(hit ? ["find-current"] : []), ...(LATIN.test(r.rt) ? ["rt-latin"] : [])];
+      const rtClasses = [...(r.cls ? [r.cls] : []), ...(hit ? ["find-current"] : []), ...(LATIN.test(r.rt) ? ["rt-latin"] : [])];
       piece = { kind: "ruby", base: [], rt: r.rt, rtClasses };
       pieceOf.set(r, piece);
       out.push(piece);

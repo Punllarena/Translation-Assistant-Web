@@ -19,7 +19,7 @@ import { readingMode, type ReadingMode } from "./ruby";
 import { useReadings } from "./useReadings";
 import StatusBar, { type Crumbs } from "./StatusBar";
 import Menu from "../ui/Menu";
-import { Memory, Picture, Translate } from "../ui/icons";
+import { Memory, Picture, Ruby, Translate } from "../ui/icons";
 import MtPanels from "./MtPanels";
 import TmPanel from "./TmPanel";
 import ChapterNav from "./ChapterBar";
@@ -54,6 +54,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const tmVisible = settings.data?.tm_visible !== false;
   const mtVisible = settings.data?.mt_visible !== false;
   const imagesCollapsed = Boolean(settings.data?.images_collapsed);
+  const glossaryRuby = settings.data?.glossary_ruby === true;
   const stats = useMemo(() => progress(lines, ed.texts), [lines, ed.texts]);
   const onReady = useCallback((v: EditorView | null) => { view.current = v; }, []);
   const current = lines[ed.active];
@@ -68,7 +69,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   // The text selected when the Chapter actions menu opens, captured on the button press
   // (a click moves focus and drops the DOM selection before the item runs).
   const pendingSelection = useRef("");
-  const find = useFind(rows, ed.texts, ed.active, ed.activate);
+  const find = useFind(rows, ed.texts, ed.active, ed.activate, glossaryRuby);
   const { hit } = find;
   const activate = useCallback((i: number | null) => { find.stepped.current = false; edRef.current.activate(i); }, [find.stepped]);
   const seriesId = data.document.series_id;
@@ -115,7 +116,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   };
   const closeMenu = useCallback(() => { setMenu(null); view.current?.focus(); }, []);
   const mode = readingMode(settings.data?.reading_aid);
-  const shown = current ? (ed.parse === -2 ? current.raw_text : current.display_text) : "";
+  const shown = current ? (glossaryRuby ? current.plain_text : ed.parse === -2 ? current.raw_text : current.display_text) : "";
   const readings = useReadings(shown, mode);
   const setMode = (m: ReadingMode) => saveSetting("reading_aid", m);
   const activeText = current ? (ed.texts[current.line_number] ?? "") : "";
@@ -264,6 +265,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       {statusBar(n + 1, ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>
           <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
           <span className="sb-divider" aria-hidden="true" />
+          <button type="button" className="icon" aria-label="Glossary ruby" title="Glossary ruby"
+            aria-pressed={glossaryRuby} onClick={() => saveSetting("glossary_ruby", !glossaryRuby)}><Ruby /></button>
           <button type="button" className="icon" aria-label="Translation memory" title="Translation memory"
             aria-pressed={tmVisible} onClick={() => saveSetting("tm_visible", !tmVisible)}><Memory /></button>
           <button type="button" className="icon" aria-label="Machine translation" title="Machine translation"
@@ -281,7 +284,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
           onActivate={activate} editor={editor} highlight={hit}
-          misspelled={spell.misspelled} readings={readings.ruby}
+          misspelled={spell.misspelled} readings={readings.ruby} glossaryRuby={glossaryRuby}
           renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
         {chapterEnd}
         <JumpBack active={ed.active} untranslated={firstLeft} onActivate={goToLine} onReturn={returnToActive} />
