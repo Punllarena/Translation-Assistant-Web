@@ -41,15 +41,15 @@
 **Interfaces:**
 - Produces: `PERSONAL: {to, label}[]` and `ADMIN: {to, label}[]` in `settingsNav.ts` (labels Editor, Machine translation, WordPress, Shortcuts / Server, Invites, Dictionary, Backup & restore); `isSettingsPath(pathname: string): boolean` (true for `/settings` and anything under `/settings/`); `<AdminOnly />` (layout route element: renders `<Outlet />` for `useMe().data?.is_admin`, else the `Admin only.` box).
 
-- [ ] **Step 1: Write the failing test** in `settingsNav.test.ts`: `isSettingsPath("/settings/admin/server")` true, `"/settings"` true, `"/settingsx"` false, `"/"` false; `ADMIN.map(i => i.to)` equals the four admin URLs in spec order.
-- [ ] **Step 2: Run** `cd web && npx vitest run src/settings/settingsNav.test.ts`. Expected: FAIL (module missing).
-- [ ] **Step 3: Implement `settingsNav.ts`** as specified.
-- [ ] **Step 4: Run the test.** Expected: PASS.
-- [ ] **Step 5: Implement `SettingsLayout`** (`<main className="settings-layout">` holding `<nav aria-label="Settings">` with `NavLink`s from `PERSONAL`, then, when `useMe().data?.is_admin`, a non-link "Admin" heading and the `ADMIN` links; then `<Outlet />`). Wrap each admin panel in a small route element that gives it `PageHeader` plus the `panel sec` look (`ServerSettingsForm`, `InvitesPanel`, `DictionaryPanel`, `BackupPanel` are existing components in `web/src/admin/`).
-- [ ] **Step 6: Wire `App.tsx`** per the spec's route table (layout route `settings`; admin children under an `AdminOnly` layout route; redirects with `<Navigate replace>`; `admin` path redirects to `/settings/admin/server`). Header in `Shell.tsx`: one `NavLink to="/settings/editor"` labelled "Settings" with `aria-current="page"` when `isSettingsPath(pathname)`; remove the five old links. `RunningJobs.tsx`: `dict_download` goes to `/settings/admin/dictionary`.
-- [ ] **Step 7: Styles** in `settings.css`: two-column layout (sidebar fixed width, content flexible); below the breakpoint `narrow.spec.ts` already uses, the sidebar is a horizontally scrollable row. Tokens only.
-- [ ] **Step 8: Verify** `cd web && npx tsc --noEmit && npm test`. Expected: clean, all pass.
-- [ ] **Step 9: Commit** `feat(settings): one Settings page with a sidebar`.
+- [x] **Step 1: Write the failing test** in `settingsNav.test.ts`: `isSettingsPath("/settings/admin/server")` true, `"/settings"` true, `"/settingsx"` false, `"/"` false; `ADMIN.map(i => i.to)` equals the four admin URLs in spec order.
+- [x] **Step 2: Run** `cd web && npx vitest run src/settings/settingsNav.test.ts`. Expected: FAIL (module missing).
+- [x] **Step 3: Implement `settingsNav.ts`** as specified.
+- [x] **Step 4: Run the test.** Expected: PASS.
+- [x] **Step 5: Implement `SettingsLayout`** (`<main className="settings-layout">` holding `<nav aria-label="Settings">` with `NavLink`s from `PERSONAL`, then, when `useMe().data?.is_admin`, a non-link "Admin" heading and the `ADMIN` links; then `<Outlet />`). Wrap each admin panel in a small route element that gives it `PageHeader` plus the `panel sec` look (`ServerSettingsForm`, `InvitesPanel`, `DictionaryPanel`, `BackupPanel` are existing components in `web/src/admin/`).
+- [x] **Step 6: Wire `App.tsx`** per the spec's route table (layout route `settings`; admin children under an `AdminOnly` layout route; redirects with `<Navigate replace>`; `admin` path redirects to `/settings/admin/server`). Header in `Shell.tsx`: one `NavLink to="/settings/editor"` labelled "Settings" with `aria-current="page"` when `isSettingsPath(pathname)`; remove the five old links. `RunningJobs.tsx`: `dict_download` goes to `/settings/admin/dictionary`.
+- [x] **Step 7: Styles** in `settings.css`: two-column layout (sidebar fixed width, content flexible); below the breakpoint `narrow.spec.ts` already uses, the sidebar is a horizontally scrollable row. Tokens only.
+- [x] **Step 8: Verify** `cd web && npx tsc --noEmit && npm test`. Expected: clean, all pass.
+- [x] **Step 9: Commit** `feat(settings): one Settings page with a sidebar`.
 
 ### Task 2: End-to-end specs
 
