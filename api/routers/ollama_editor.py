@@ -34,7 +34,7 @@ from api.ollama.lane import LANES
 from api.ollama.prefs import OllamaPrefs
 from api.ollama.prompt import steady_ctx
 from api.ollama.translate import ChunkResult, Endpoint, translate
-from api.ollama.work import Plan, plan_for_line, raw_sha, save
+from api.ollama.work import Plan, SymbolOnly, plan_for_line, raw_sha, save
 from api.routing import api_router
 from api.schemas.ollama import ChunkOut, SuggestionOut
 
@@ -87,6 +87,7 @@ class _Prepared:
     plan: Plan | None  # None: the line has no text to translate
     ep: Endpoint | None = None
     setup: str | None = None
+    problem: str | None = None  # plan is None: what to tell the card (a scene break, say)
 
 
 @dataclass
@@ -111,6 +112,8 @@ def _prepare(
     p = endpoint.prefs_for(db, user_id)
     try:
         plan = plan_for_line(db, user_id, doc, line_number, p, reroll=reroll)
+    except SymbolOnly as exc:  # a scene break: nothing is asked, and the card says why
+        return _Prepared(user_id, doc.id, line_number, reroll, p, None, problem=str(exc))
     except ValueError:  # blank line or an illustrations chapter
         return _Prepared(user_id, doc.id, line_number, reroll, p, None)
     ep, setup = endpoint.load(db, user_id)
@@ -320,7 +323,10 @@ async def _events(prep: _Prepared) -> AsyncIterator[Event]:
     """Every stream ends with one terminal event: done, needs_setup or error. A request for a
     line of a chunk already in flight follows that chunk instead of asking again."""
     if prep.plan is None:
-        yield ("done", {})
+        if prep.problem:
+            yield ("error", {"message": prep.problem})  # a scene break: nothing to translate
+        else:
+            yield ("done", {})
         return
     if prep.ep is None:
         yield ("needs_setup", {"message": prep.setup or "Ollama is not set up"})

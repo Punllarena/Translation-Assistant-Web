@@ -6,11 +6,11 @@ import hashlib
 from dataclasses import dataclass, replace
 from typing import cast
 
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import and_, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from api.core.text import replace_and_parse
+from api.core.text import has_letter, replace_and_parse
 from api.models import Document, Line
 from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
 from api.ollama.chunks import Item, RequestStats, chunk_index, context_before, cut
@@ -37,7 +37,13 @@ def _sql_sha(raw):
 
 def _with_work(db: Session, doc_ids: list[int]) -> set[int]:
     """The chapters with a non-blank line that has no translation and no current suggestion:
-    one query, so a queue pass does not run rows_for (glossary and parse) over finished ones."""
+    one query, so a queue pass does not run rows_for (glossary and parse) over finished ones.
+
+    An upper bound: a symbol-only line (a scene break, `has_letter` false) still counts as work
+    here, because the rule is not ported to SQL (Postgres `[[:alpha:]]` depends on the locale).
+    `next_plan` fills such a line with its source before reading the chapter, after which the
+    query no longer sees it; a chapter with only scene breaks left is cleared without a request.
+    """
     if not doc_ids:
         return set()
     suggested = exists().where(
@@ -74,7 +80,8 @@ class Plan:
 
 
 def rows_for(db: Session, user_id: int, doc: Document) -> list[Row]:
-    """Every line in order; `known` is the translation, else a suggestion matching the source."""
+    """Every line in order; `known` is the translation, else a suggestion matching the source.
+    A symbol-only line with neither is known as its own source: a scene break is never asked."""
     glossary, parse_chars = editor_context(db, user_id, doc)  # once per document
     lines = db.execute(
         select(Line, OllamaSuggestion.text, OllamaSuggestion.raw_sha)
@@ -88,11 +95,35 @@ def rows_for(db: Session, user_id: int, doc: Document) -> list[Row]:
         known = None
         if line.translated_text:
             known = line.translated_text
+        elif line.raw_text.strip() and not has_letter(line.raw_text):
+            known = line.raw_text.strip()  # a scene break stands for itself
         elif sug_text is not None and sug_sha == sha:
             known = sug_text
         text = replace_and_parse(line.raw_text, glossary, parse_chars)[0].strip()
         rows.append(Row(line.line_number, line.prefix, text, known, line.id, sha))
     return rows
+
+
+def fill_symbol_lines(db: Session, doc: Document) -> int:
+    """Copy the source into the translation of the chapter's untranslated symbol-only lines
+    (scene breaks), which Ollama never asks about, in one UPDATE. A line that already has a
+    translation is left alone, and `translated_at` stays NULL: a copy is not a day's work.
+    Flushes only: the caller owns the transaction. Returns how many lines were filled."""
+    rows = db.execute(
+        select(Line.id, Line.raw_text).where(
+            Line.document_id == doc.id, Line.translated_text == ""
+        )
+    ).all()
+    values = [
+        {"id": line_id, "translated_text": raw.strip()}
+        for line_id, raw in rows
+        if raw.strip() and not has_letter(raw)
+    ]
+    if not values:
+        return 0
+    db.execute(update(Line), values)
+    db.flush()
+    return len(values)
 
 
 def _documents(db: Session, user_id: int, item: OllamaQueueItem) -> list[Document]:
@@ -130,6 +161,7 @@ def next_plan(
         for doc in docs:
             if doc.id not in pending:
                 continue
+            fill_symbol_lines(db, doc)  # scene breaks are answered here, not by the model
             rows = rows_for(db, user_id, doc)
             for chunk in cut(rows, p.chunk_lines):
                 todo = [r for r in cast(list[Row], chunk) if r.known is None]
@@ -142,10 +174,22 @@ def next_plan(
     return None
 
 
+class SymbolOnly(ValueError):
+    """A symbol-only line (a scene break): it has nothing to translate, and Ollama never asks
+    it. The by-hand route reports the message instead of asking the model."""
+
+
 def plan_for_line(
     db: Session, user_id: int, doc: Document, line_number: int, p: OllamaPrefs, *, reroll: bool
 ) -> Plan:
     """The chunk holding the line; the line is always asked, reroll asks all untranslated."""
+    raw = db.scalar(
+        select(Line.raw_text).where(
+            Line.document_id == doc.id, Line.line_number == line_number
+        )
+    )
+    if raw is not None and raw.strip() and not has_letter(raw):
+        raise SymbolOnly(f"line {line_number} has nothing to translate")
     rows = rows_for(db, user_id, doc)
     chunks = cut(rows, p.chunk_lines)
     n = chunk_index(chunks, line_number)
@@ -238,7 +282,8 @@ def save(
 
 
 def lines_left(db: Session, user_id: int, item: OllamaQueueItem) -> int:
-    """Non-blank lines in the item's chapters with no translation and no current suggestion."""
+    """Non-blank lines in the item's chapters with no translation and no current suggestion.
+    Symbol-only lines are not counted: they are filled with their source, never asked."""
     ids = [d.id for d in _documents(db, user_id, item)]
     if not ids:
         return 0
@@ -249,7 +294,7 @@ def lines_left(db: Session, user_id: int, item: OllamaQueueItem) -> int:
         .where(Line.document_id.in_(ids), Line.translated_text == "")
     )
     for raw, sug_text, sug_sha in rows:
-        if not raw.strip():
+        if not raw.strip() or not has_letter(raw):
             continue
         if sug_text is not None and sug_sha == raw_sha(raw):
             continue

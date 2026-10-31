@@ -1,10 +1,19 @@
+import pytest
 from sqlalchemy import select
 
 from api.models import Document, Line, Volume
 from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
 from api.ollama.chunks import RequestStats
 from api.ollama.prefs import OllamaPrefs
-from api.ollama.work import lines_left, next_plan, plan_for_line, raw_sha, rows_for, save
+from api.ollama.work import (
+    fill_symbol_lines,
+    lines_left,
+    next_plan,
+    plan_for_line,
+    raw_sha,
+    rows_for,
+    save,
+)
 
 P = OllamaPrefs("small", 2, 1, None)
 
@@ -264,3 +273,72 @@ def test_lines_left(db, make_user, make_series, make_doc):
     db.flush()
     item = _queue(db, u, "series", s, 1)
     assert lines_left(db, u.id, item) == 2  # c (stale suggestion) and e
+
+
+# ---------------------------------------------------------------------------
+# Symbol-only lines (scene breaks): never asked, filled with their source
+# ---------------------------------------------------------------------------
+
+def test_rows_symbol_line_is_known(db, make_user, make_doc):
+    u = make_user()
+    doc = make_doc(u, ["a", "■", "b"], translated=False)
+    assert [r.known for r in rows_for(db, u.id, doc)] == [None, "■", None]
+
+
+def test_fill_symbol_lines_copies_source_and_keeps_translated_at_null(
+        db, make_user, make_doc):
+    u = make_user()
+    doc = make_doc(u, ["a", "■", "……", "「……！」"], translated=False)
+    assert fill_symbol_lines(db, doc) == 3
+    ls = _lines(db, doc)
+    assert [ls[n].translated_text for n in range(4)] == ["", "■", "……", "「……！」"]
+    assert all(ls[n].translated_at is None for n in (1, 2, 3))
+
+
+def test_fill_symbol_lines_never_overwrites(db, make_user, make_doc):
+    u = make_user()
+    doc = make_doc(u, ["■"], translated=False)
+    _lines(db, doc)[0].translated_text = "*"
+    db.flush()
+    assert fill_symbol_lines(db, doc) == 0
+    assert _lines(db, doc)[0].translated_text == "*"
+
+
+def test_lines_left_ignores_symbol_lines(db, make_user, make_series, make_doc):
+    u = make_user()
+    s = make_series(u)
+    make_doc(u, ["a", "■", "◇◇◇", " "], series=s, translated=False)
+    item = _queue(db, u, "series", s, 1)
+    assert lines_left(db, u.id, item) == 1
+
+
+def test_next_plan_fills_and_never_asks_symbol_lines(db, make_user, make_series, make_doc):
+    u = make_user()
+    s = make_series(u)
+    doc = make_doc(u, ["■", "a", "b"], series=s, translated=False)
+    _queue(db, u, "series", s, 1)
+    plan = next_plan(db, u.id, P)
+    assert plan.document_id == doc.id
+    assert [r.line_number for r in plan.chunk] == [0, 1]
+    assert [r.line_number for r in plan.asked] == [1]
+    assert [r.known for r in plan.asked] == [None]
+    assert _lines(db, doc)[0].translated_text == "■"
+
+
+def test_next_plan_drains_item_with_only_scene_breaks_left(
+        db, make_user, make_series, make_doc):
+    u = make_user()
+    s = make_series(u)
+    doc = make_doc(u, ["■", "◇◇◇"], series=s, translated=False)
+    _queue(db, u, "documents", s, 1, ids=[doc.id])
+    assert next_plan(db, u.id, P) is None
+    assert db.scalar(select(OllamaQueueItem.id)) is None
+    assert [ls.translated_text for ls in _lines(db, doc).values()] == ["■", "◇◇◇"]
+
+
+def test_plan_for_line_symbol_only_raises(db, make_user, make_doc):
+    u = make_user()
+    doc = make_doc(u, ["■"], translated=False)
+    with pytest.raises(ValueError, match="has nothing to translate"):
+        plan_for_line(db, u.id, doc, 0, P, reroll=False)
+

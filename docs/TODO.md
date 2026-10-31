@@ -51,21 +51,6 @@ bookmarks survive.
 - **JParser, dictionary words inside a Latin run**: an unmatched Latin run is taken whole, so a dictionary
   entry starting mid-run is not looked up. Minor; revisit only if it shows up.
 
-## Ollama and translation memory: skip symbol-only lines
-
-*Raised 2026-10-29.*
-
-Lines with no letters or kana/kanji — scene breaks like `■` or `◇◇◇`, a lone `……` — should not be sent to
-Ollama and should not appear as translation memory matches or sources.
-
-- Ollama: `rows_for` / `lines_left` / `_with_work` in `api/ollama/work.py` treat only blank lines as no-work;
-  add the same rule there (the SQL in `_with_work` and the Python must agree, as `raw_sha`/`_sql_sha` already
-  do). Decide whether such a line counts toward progress as done (e.g. its source copied as its translation)
-  or is simply left out.
-- Translation memory (`/tm/matches`, `api/routers/memory.py`): skip symbol-only lines as the query and as
-  candidates.
-- One shared predicate ("has a letter", Unicode-aware) in `api/core/text.py`.
-
 ## Yomitan dictionaries: deferred formats and fields
 
 *Raised 2026-10-22 during the Yomitan dictionaries work
