@@ -41,7 +41,7 @@ export default function ShortcutsPage() {
   }, [capturing, bindings, bind]);
   const error = problem ?? bind.error?.message ?? reset.error?.message;
   return (
-    <main className="settings">
+    <div className="settings">
       <PageHeader title="Keyboard shortcuts" subtitle="Editor keys. Press Change, then the new key; Esc cancels." />
       {error && <p className="box danger" role="alert">{error}</p>}
       <div className="shortcut-groups">
@@ -76,6 +76,6 @@ export default function ShortcutsPage() {
           </section>
         ))}
       </div>
-    </main>
+    </div>
   );
 }

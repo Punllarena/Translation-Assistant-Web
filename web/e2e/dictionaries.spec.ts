@@ -23,7 +23,7 @@ test("an admin uploads a Yomitan dictionary and JParser uses it", async ({ page 
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"));
   await cleanup(page);
-  await page.goto("/admin");
+  await page.goto("/settings/admin/dictionary");
   await page.getByLabel("Upload Yomitan dictionary").setInputFiles(path.resolve(import.meta.dirname, "fixtures/yomitan-e2e.zip"));
   await expect(page.getByRole("status").filter({ hasText: "Installed E2E Yomitan (1 entry)" })).toBeVisible();
   const order = page.getByRole("list", { name: "Dictionary order" });
@@ -34,7 +34,7 @@ test("an admin uploads a Yomitan dictionary and JParser uses it", async ({ page 
   await expect(items.nth(0)).toContainText("E2E Yomitan");
   await openChapter(page, "Yomitan spec", "Yomitan target");
   await expect(page.getByRole("region", { name: "JParser" })).toContainText("yomitan e2e gloss");
-  await page.goto("/admin");
+  await page.goto("/settings/admin/dictionary");
   await page.getByRole("button", { name: "Remove E2E Yomitan" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Remove" }).click();
   await expect(order).not.toContainText("E2E Yomitan");

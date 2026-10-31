@@ -39,6 +39,14 @@ def test_blank_source_line_has_no_matches(app_client, me, make_doc):
     assert tm(app_client, current).json() == []
 
 
+def test_symbol_only_line_has_no_matches(app_client, me, make_doc):
+    make_doc(me, ["■"], title="other")
+    make_doc(me, ["文。"], title="text")
+    current = make_doc(me, ["■", "文。"], translated=False)
+    assert tm(app_client, current, 0).json() == []
+    assert [m["translated_text"] for m in tm(app_client, current, 1).json()] == ["tr:文。"]
+
+
 def test_never_returns_another_users_lines(app_client, me, make_user, make_doc):
     other = make_user(email="other@example.com")
     make_doc(other, ["秘密。"], title="theirs")

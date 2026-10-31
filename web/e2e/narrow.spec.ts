@@ -17,7 +17,7 @@ test("restyled pages fit a phone without sideways scrolling", async ({ page }) =
   await page.getByLabel("Password").fill("e2e-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
-  for (const path of ["/stats", "/settings/editor", "/settings/mt", "/settings/wp", "/settings/shortcuts", "/import"]) {
+  for (const path of ["/stats", "/settings/editor", "/settings/mt", "/settings/wp", "/settings/shortcuts", "/settings/admin/server", "/import"]) {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     expect(await overflow(page), path).toBeLessThanOrEqual(0);

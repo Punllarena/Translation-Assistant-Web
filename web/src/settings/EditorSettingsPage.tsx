@@ -25,7 +25,7 @@ export default function EditorSettingsPage() {
   const translator = typeof storedTranslator === "string" ? storedTranslator : "";
   const error = settings.error?.message ?? save.error?.message ?? saveTranslator.error?.message;
   return (
-    <main>
+    <div>
       <PageHeader title="Editor" />
       {error && <p className="error" role="alert">{error}</p>}
       {settings.data && (
@@ -65,6 +65,6 @@ export default function EditorSettingsPage() {
         </form>
       )}
       <WordList path="/words" title="Dictionary" hint="Accepted by spellcheck in every series." />
-    </main>
+    </div>
   );
 }

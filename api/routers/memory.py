@@ -5,7 +5,7 @@ from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.orm import Session
 
 from api.core import nouns
-from api.core.text import needle_pattern, replace_all
+from api.core.text import has_letter, needle_pattern, replace_all
 from api.deps import current_user, db_session, scoped
 from api.models import Document, GlossaryEntry, Line, Series, User
 from api.routing import api_router
@@ -48,6 +48,8 @@ def tm_matches(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "no such line")
     if not raw.strip():
         return []
+    if not has_letter(raw):
+        return []  # symbol-only line: a scene break has no translation to recall
     rows = db.execute(
         select(Line.translated_text, Document.id, Document.title, Document.updated_at)
         .join(Document, Document.id == Line.document_id)

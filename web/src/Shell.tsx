@@ -5,6 +5,7 @@ import { forgetUserData, useMe } from "./auth/session";
 import RunningJobs from "./jobs/RunningJobs";
 import ThemeMenu from "./theme/ThemeMenu";
 import { useThemeSync } from "./theme/useThemeSync";
+import { isSettingsPath } from "./settings/settingsNav";
 
 /** The Library link stays marked inside a series, a chapter and the import page. */
 const LIBRARY = /^\/($|series\/|documents\/|import$)/;
@@ -29,11 +30,7 @@ export default function Shell() {
           <Link to="/" aria-current={LIBRARY.test(pathname) ? "page" : undefined}>Library</Link>
           <NavLink to="/stats">Statistics</NavLink>
           <NavLink to="/jobs">Jobs</NavLink>
-          <NavLink to="/settings/editor">Editor</NavLink>
-          <NavLink to="/settings/mt">Machine translation</NavLink>
-          <NavLink to="/settings/wp">WordPress</NavLink>
-          <NavLink to="/settings/shortcuts">Shortcuts</NavLink>
-          {me.data?.is_admin && <NavLink to="/admin">Admin</NavLink>}
+          <Link to="/settings/editor" aria-current={isSettingsPath(pathname) ? "page" : undefined}>Settings</Link>
         </nav>
         <div className="who">
           <RunningJobs />
