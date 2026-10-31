@@ -182,6 +182,34 @@ async def test_a_line_that_keeps_failing_is_not_asked_again_in_the_same_run(setu
     assert len(seen) < 10
 
 
+async def test_run_log_and_chunk_row_name_the_rejected_answer(setup, in_test_db):
+    """A rejected answer is no longer just "an answer did not check out": the log entry and
+    the stored chunk row carry check()'s reason, so a failed run can be diagnosed later."""
+    runlog.clear()
+    _, _, job = setup()
+    runner.claim(in_test_db)
+
+    def handle(request):
+        if request.url.path == "/api/show":
+            return httpx.Response(200, json=SHOW)
+        body = json.loads(request.content)
+        sources = {}
+        for ln in body["messages"][1]["content"].split("Translate:\n")[1].splitlines():
+            if ln.startswith("["):
+                sources[int(ln[1:ln.index("]")])] = ln.split("] ", 1)[1]
+        # the model copies the source back instead of translating it
+        return httpx.Response(200, content=_ndjson(json.dumps(
+            {"lines": [{"id": n, "text": t} for n, t in sources.items()]})))
+
+    await runner.run_one(job.id, lambda: httpx.AsyncClient(transport=httpx.MockTransport(handle)))
+    texts = [e.text for e in runlog.read(job.id).entries]
+    rejected = [t for t in texts if "did not check out" in t]
+    assert rejected and "returned as its source" in rejected[0]
+    failed = in_test_db.scalars(select(OllamaChunk).where(OllamaChunk.ok.is_(False))).all()
+    assert failed
+    assert all("returned as its source" in (c.error or "") for c in failed)
+
+
 async def test_num_ctx_is_steady_for_the_preset(setup, in_test_db):
     u, _, job = setup()
     runner.claim(in_test_db)

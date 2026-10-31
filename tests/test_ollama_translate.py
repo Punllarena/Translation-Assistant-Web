@@ -76,6 +76,7 @@ async def test_bad_answer_halves_then_succeeds():
         r = await translate(c, ep(), [], items(1, 2, 3, 4))
     assert r.lines == {1: "T1", 2: "T2", 3: "T3", 4: "T4"}
     assert [q.ok for q in r.requests] == [False, True, True]
+    assert [q.error for q in r.requests] == ["not JSON, got: not json", None, None]
     assert [q.depth for q in r.requests] == [0, 1, 1]
     # the second half sees the first half's answers as context
     assert "[2] orig2 => T2" in seen[2]["messages"][1]["content"]
@@ -141,6 +142,7 @@ async def test_single_line_failure_is_recorded_not_raised():
         r = await translate(c, ep(), [], items(5))
     assert r.lines == {} and r.failed == [5]
     assert len(r.requests) == 1 and not r.requests[0].ok
+    assert r.requests[0].error == "expected 1 lines, got 0"
 
 
 async def test_clamped_when_over_model_context():
@@ -227,6 +229,7 @@ async def test_a_single_copied_line_fails_instead_of_saving_the_source():
         r = await translate(c, ep(), [], items(5))
     assert r.lines == {} and r.failed == [5]
     assert len(r.requests) == 1 and not r.requests[0].ok
+    assert r.requests[0].error == "line 5 was returned as its source"
 
 
 async def test_a_letterless_line_may_come_back_unchanged():

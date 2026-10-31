@@ -53,6 +53,7 @@ export default function ReasoningDialog({ chunkId, onClose }: { chunkId: number;
             <dt>Generation</dt><dd>{ms(c.eval_ms)}</dd>
             <dt>Total</dt><dd>{ms(c.total_ms)}</dd>
             <dt>Outcome</dt><dd>{c.ok ? "ok" : "failed"}{c.depth ? `, split ${c.depth}×` : ""} · {c.used_count} used, {c.edited_count} edited, {c.ignored_count} ignored</dd>
+            {!c.ok && c.error && <><dt>Rejected</dt><dd>{c.error}</dd></>}
             <dt>Source</dt><dd>{c.source} · {new Date(c.created_at).toLocaleString()}</dd>
           </dl>
         )}

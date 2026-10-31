@@ -97,7 +97,8 @@ async def translate(
 
     try:
         lines = check("".join(content), asked)
-    except AnswerError:
+    except AnswerError as exc:
+        stats.error = str(exc)
         result = ChunkResult(requests=[stats], num_ctx=sent)
         if len(asked) == 1:
             result.failed.append(asked[0].line_number)

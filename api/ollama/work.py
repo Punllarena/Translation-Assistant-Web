@@ -190,7 +190,8 @@ def save(
             first_line=r.first_line, last_line=r.last_line, asked=r.asked,
             prompt_tokens=r.prompt_tokens or 0, output_tokens=r.output_tokens or 0,
             prompt_ms=r.prompt_ms, eval_ms=r.eval_ms, load_ms=r.load_ms, total_ms=r.total_ms,
-            first_token_ms=r.first_token_ms, reasoning=r.reasoning or None, prompt=r.prompt,
+            first_token_ms=r.first_token_ms, reasoning=r.reasoning or None,
+            error=r.error or None, prompt=r.prompt,
         )
         db.add(chunk)
         db.flush()

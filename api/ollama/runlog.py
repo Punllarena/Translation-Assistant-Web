@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import threading
-from collections import OrderedDict, deque
+from collections import Counter, OrderedDict, deque
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -93,8 +93,16 @@ def duration(ms: float) -> str:
     return f"{s} s" if s < 120 else f"{s // 60} min {s % 60} s"
 
 
+def _rejected(result: ChunkResult) -> str:
+    """The distinct reasons check() rejected an answer, most frequent first (at most three)."""
+    counts = Counter(r.error for r in result.requests if r.error)
+    return "; ".join(f"{why}" + (f" ×{n}" if n > 1 else "")
+                     for why, n in counts.most_common(3))
+
+
 def answered(result: ChunkResult, asked: int) -> str:
-    """The entry for a saved chunk: how much came back, how long it took."""
+    """The entry for a saved chunk: how much came back, how long it took, and why an answer
+    was rejected when one was."""
     parts = [f"Got {len(result.lines):,} of {lines(asked)}"]
     if result.failed:
         parts.append(f"{len(result.failed):,} failed")
@@ -106,7 +114,10 @@ def answered(result: ChunkResult, asked: int) -> str:
     if tokens and eval_ms:
         parts.append(f"{tokens / eval_ms * 1000:.1f} tokens/s")
     if len(result.requests) > 1:
-        parts.append(f"split into {len(result.requests)} requests (an answer did not check out)")
+        parts.append(f"split into {len(result.requests)} requests")
+    rejected = _rejected(result)
+    if rejected:
+        parts.append(f"an answer did not check out: {rejected}")
     return ", ".join(parts)
 
 

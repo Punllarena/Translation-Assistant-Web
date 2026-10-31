@@ -44,6 +44,7 @@ class OllamaChunk(Base):
     used_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     edited_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ignored_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error: Mapped[str | None] = mapped_column(Text)  # why an answer was rejected; NULL when ok
     reasoning: Mapped[str | None] = mapped_column(Text)
     prompt: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(

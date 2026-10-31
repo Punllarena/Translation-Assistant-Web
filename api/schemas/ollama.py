@@ -81,6 +81,7 @@ class ChunkOut(BaseModel):
     used_count: int
     edited_count: int
     ignored_count: int
+    error: str | None
     reasoning: str | None
     prompt: str | None
     created_at: datetime

@@ -12,6 +12,15 @@ class AnswerError(ValueError):
     pass
 
 
+def _excerpt(text: str, limit: int = 120) -> str:
+    """The start of an answer, whitespace collapsed, for the error message: enough to tell a
+    markdown fence from a thinking preamble when a run is diagnosed later."""
+    flat = " ".join(text.split())
+    if not flat:
+        return "(empty answer)"
+    return flat[:limit] + ("…" if len(flat) > limit else "")
+
+
 def _letters(text: str) -> str:
     """The text's letters only: punctuation, digits and spacing are ignored, so a model
     echo (the source with its punctuation stripped, say) still reads as the source."""
@@ -29,7 +38,7 @@ def check(answer: str, asked: list[Item]) -> dict[int, str]:
     try:
         data = json.loads(answer)
     except ValueError as exc:
-        raise AnswerError("not JSON") from exc
+        raise AnswerError(f"not JSON, got: {_excerpt(answer)}") from exc
     lines = data.get("lines") if isinstance(data, dict) else None
     if not isinstance(lines, list):
         raise AnswerError("no lines array")
