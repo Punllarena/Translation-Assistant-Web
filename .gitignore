@@ -19,3 +19,4 @@ web/.e2e-data/
 .superpowers/
 /*.sql
 docs/superpowers/handoff/
+.impeccable/
