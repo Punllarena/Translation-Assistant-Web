@@ -42,9 +42,9 @@ def load(db: Session, user_id: int) -> tuple[Endpoint | None, str | None]:
         return None, job.setup
     if not job.model:
         return None, NOT_SET["ollama"]
-    num_thread = prefs_for(db, user_id).num_thread
-    return Endpoint(job.url, job.key, job.model, job.prompt, "ja", p.target, num_thread,
-                    UNKNOWN), None
+    op = prefs_for(db, user_id)
+    return Endpoint(job.url, job.key, job.model, job.prompt, "ja", p.target,
+                    op.num_thread, UNKNOWN, op.think), None
 
 
 def recheck(db: Session, url: str) -> str | None:

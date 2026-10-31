@@ -65,6 +65,8 @@ def _check_filters(value: Any) -> bool:
 def check(key: str, value: Any) -> str | None:
     if value is None:
         return None
+    if key == "ollama_think":
+        return None if isinstance(value, bool) else "ollama_think must be true or false"
     if key == schedule.KEY:
         return None if schedule.parse(value) is not None else BAD_SCHEDULE
     if key == "series_columns":

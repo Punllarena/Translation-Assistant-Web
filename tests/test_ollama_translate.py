@@ -13,7 +13,7 @@ from api.ollama.translate import Endpoint, translate
 def ep(**kw):
     info = kw.pop("info", ModelInfo(thinking=False, context_length=None))
     return Endpoint("http://ol", "", "m", "sys {src} {dst}", "ja", "en",
-                    kw.pop("num_thread", None), info)
+                    kw.pop("num_thread", None), info, kw.pop("think", True))
 
 
 def items(*nums, known=()):
@@ -80,6 +80,21 @@ async def test_bad_answer_halves_then_succeeds():
     assert [q.depth for q in r.requests] == [0, 1, 1]
     # the second half sees the first half's answers as context
     assert "[2] orig2 => T2" in seen[2]["messages"][1]["content"]
+
+
+async def test_think_follows_the_setting_only_for_thinking_models():
+    seen = []
+    async with client(by_ids, seen) as c:
+        await translate(c, ep(info=ModelInfo(True, None), think=False), [], items(1))
+    assert seen[0]["think"] is False
+    seen.clear()
+    async with client(by_ids, seen) as c:
+        await translate(c, ep(info=ModelInfo(True, None), think=True), [], items(1))
+    assert seen[0]["think"] is True
+    seen.clear()
+    async with client(by_ids, seen) as c:
+        await translate(c, ep(info=ModelInfo(False, None), think=False), [], items(1))
+    assert "think" not in seen[0]
 
 
 async def test_num_ctx_is_the_steady_window_for_every_request():
