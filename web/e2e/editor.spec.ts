@@ -84,3 +84,21 @@ test("no profile picker; Add to dictionary for this series or for all series", a
   await expect(series.getByRole("button", { name: "Remove “zorbleq”" })).toBeVisible();
   await expect(series.getByRole("button", { name: "Remove “quuxbarr”" })).toHaveCount(0);
 });
+
+test("the chapter menu adds a glossary phrase from the selection", async ({ page }) => {
+  await openChapter(page);
+  await expect(page.getByText("一行目です。")).toBeVisible();
+  // Double-click a word in the source text, then open the menu and choose the item: the
+  // menu click must not drop the selection, so the dialog opens prefilled with it.
+  await page.locator("p.source span").first().dblclick();
+  const selected = await page.evaluate(() => window.getSelection()?.toString().trim() ?? "");
+  expect(selected).not.toBe("");
+  await page.getByRole("button", { name: "Chapter actions" }).click();
+  const item = page.getByRole("menuitem", { name: /Add glossary phrase/ });
+  await expect(item).toContainText("Ctrl+L");
+  await item.click();
+  const dialog = page.getByRole("dialog", { name: "Add a glossary phrase" });
+  await expect(dialog.getByLabel("Source phrase")).toHaveValue(selected);
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toHaveCount(0);
+});

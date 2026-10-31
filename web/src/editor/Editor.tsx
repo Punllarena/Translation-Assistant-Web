@@ -65,6 +65,9 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const setFont = (px: number) => saveSetting("editor_font_px", Math.max(12, Math.min(32, px)));
   const edRef = useRef(ed);
   edRef.current = ed;
+  // The text selected when the Chapter actions menu opens, captured on the button press
+  // (a click moves focus and drops the DOM selection before the item runs).
+  const pendingSelection = useRef("");
   const find = useFind(rows, ed.texts, ed.active, ed.activate);
   const { hit } = find;
   const activate = useCallback((i: number | null) => { find.stepped.current = false; edRef.current.activate(i); }, [find.stepped]);
@@ -175,7 +178,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         break;
       }
       case "add_phrase":
-        setPhrase(window.getSelection()?.toString().trim() ?? "");
+        setPhrase(pendingSelection.current || window.getSelection()?.toString().trim() || "");
         break;
       case "find":
         find.show();
@@ -184,7 +187,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         if (action.startsWith("punct_")) insertAtCursor(view.current, PUNCTUATIONS[Number(action.slice(6))], 1);
     }
   };
-  useEditorKeys(useBindings(), run);
+  const bindings = useBindings();
+  useEditorKeys(bindings, run);
   // Every hook stays above this early return; later tasks add theirs here too and read
   // `current?.` (it is undefined for a chapter with no lines).
 
@@ -199,16 +203,20 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     <button type="button" className="icon" aria-label="Images" title="Images"
       aria-pressed={!imagesCollapsed} onClick={() => saveSetting("images_collapsed", !imagesCollapsed)}><Picture /></button>
   ) : null;
+  const addPhraseLabel = `Add glossary phrase… (${bindings.add_phrase})`;
   const chapterMenu = (withLines: boolean) => (
-    <Menu label="⋯" buttonLabel="Chapter actions">
+    <Menu label="⋯" buttonLabel="Chapter actions"
+      onPointerDown={() => { pendingSelection.current = window.getSelection()?.toString().trim() ?? ""; }}>
       {(close) => ([
         ["Edit source", () => void leave(`/documents/${id}/source`)],
         ["Split chapter", () => void leave(`/documents/${id}/split`)],
         ...(withLines ? [["Go to line…", () => run("go_to_line")] as const] : []),
         ["Series glossary", () => void leave(`/series/${seriesId}?tab=glossary`)],
+        ...(withLines ? [[addPhraseLabel, () => run("add_phrase")] as const] : []),
         ["Series tools", () => void leave(`/series/${seriesId}?tab=tools`)],
       ] as const).map(([text, act]) => (
-        <button key={text} type="button" role="menuitem" onClick={() => { close(); act(); }}>{text}</button>
+        <button key={text} type="button" role="menuitem"
+          onClick={() => { close(); act(); pendingSelection.current = ""; }}>{text}</button>
       ))}
     </Menu>
   );

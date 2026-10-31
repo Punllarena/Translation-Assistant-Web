@@ -40,11 +40,11 @@
 **Interfaces:**
 - Consumes: `run("add_phrase")` and `useBindings()` already in `Editor.tsx`; the shortcut formatting used by `web/src/settings/ShortcutsPage.tsx`.
 
-- [ ] **Step 1: Write the failing e2e test** `"the chapter menu adds a glossary phrase from the selection"`: open a seeded chapter, select a word in a card's source text (triple/double-click), open "Chapter actions", click "Add glossary phrase…"; expect the dialog's phrase field to hold the selection and the menu item text to contain the key binding.
-- [ ] **Step 2: Run** `cd web && npm run e2e -- glossary`. Expected: the new test FAILS (no such menu item).
-- [ ] **Step 3: Implement** the item (after "Series glossary", only in the `withLines` menu) with a visible binding hint taken from `useBindings()` for `add_phrase`; if the selection is lost on menu open, capture it in the menu button's `onPointerDown`.
-- [ ] **Step 4: Run** the same command. Expected: PASS; also `npx tsc --noEmit`.
-- [ ] **Step 5: Commit** `feat(editor): add glossary phrase in the chapter menu`.
+- [x] **Step 1: Write the failing e2e test** `"the chapter menu adds a glossary phrase from the selection"`: open a seeded chapter, select a word in a card's source text (triple/double-click), open "Chapter actions", click "Add glossary phrase…"; expect the dialog's phrase field to hold the selection and the menu item text to contain the key binding.
+- [x] **Step 2: Run** `cd web && npm run e2e -- glossary`. Expected: the new test FAILS (no such menu item).
+- [x] **Step 3: Implement** the item (after "Series glossary", only in the `withLines` menu) with a visible binding hint taken from `useBindings()` for `add_phrase`; if the selection is lost on menu open, capture it in the menu button's `onPointerDown`.
+- [x] **Step 4: Run** the same command. Expected: PASS; also `npx tsc --noEmit`.
+- [x] **Step 5: Commit** `feat(editor): add glossary phrase in the chapter menu`.
 
 ### Task 2: Copy original text button
 
