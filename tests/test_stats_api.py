@@ -1,6 +1,9 @@
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import select
+
 from api.models import Line
+from api.ollama.work import fill_symbol_lines
 
 
 def stamp(db, doc, when, text=None):
@@ -62,3 +65,20 @@ def test_series_breakdown_counts_a_series_chapters(app_client, me, make_doc, mak
 
 def test_bad_zone_is_422(app_client, me):
     assert app_client.get("/stats", params={"tz": "Mars/Base"}).status_code == 422
+
+
+def test_a_filled_symbol_line_is_no_days_work(app_client, me, make_doc, db):
+    """The copy is translated for progress and publish, but the heatmap counts translated_at,
+    which a copy leaves NULL: nobody typed it."""
+    doc = make_doc(me, ["一", "■"], translated=False)
+    assert fill_symbol_lines(db, doc) == 1
+    first = db.scalar(
+        select(Line).where(Line.document_id == doc.id, Line.line_number == 0)
+    )
+    first.translated_text = "one"
+    first.translated_at = datetime.now(UTC)
+    db.flush()
+    assert [d["paragraphs"] for d in app_client.get("/stats").json()["daily"]] == [1]
+    row = next(d for d in app_client.get("/documents").json() if d["id"] == doc.id)
+    assert row["progress"] == 100  # the chapter reads as done, the copy included
+

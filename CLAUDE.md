@@ -53,7 +53,9 @@ night windows and the once-a-minute tick that starts runs and cleans up), `store
 prompts and reasoning) and `stats`. `GET /documents/{id}/ollama/stream` (`api/routers/ollama_editor.py`) translates a chunk by
 hand in a task that outlives its subscriber, so closing the card leaves it running and asking again follows it. Suggestions live
 in `ollama_suggestions` (one per line; the text is NULLed by a flush or the clean-up, never by use or dismissal); chunk rows in `ollama_chunks` keep the settings,
-timings and reasoning. The SPA has the `/jobs` page (running, Ollama queue, scheduled, history; Run now answers 409 with the setup
+timings and reasoning. A symbol-only line (a scene break such as `■` or `……`: non-blank with no letter by `has_letter` in
+`api/core/text.py`) is never asked: `next_plan` fills it with its source (`fill_symbol_lines`, which leaves `translated_at` NULL
+so the day heatmap does not count the copy) and `/tm/matches` returns nothing for it. The SPA has the `/jobs` page (running, Ollama queue, scheduled, history; Run now answers 409 with the setup
 text without a URL) and Statistics → Ollama. Spec: `docs/superpowers/specs/2026-10-26-ollama-background-translation-design.md`.
 
 Yomitan dictionaries: an admin can upload Yomitan format-3 term dictionaries (JMdict, 新和英, ...; kanji, frequency and
@@ -90,6 +92,17 @@ tokens, never literal colours. Fonts are self-hosted through `@fontsource` (`web
 preference is the user setting `ui_theme` (`system`/`light`/`dark`), mirrored in `localStorage` `ta.theme`;
 an inline script in `web/index.html` paints it before the bundle loads, `web/src/theme/` owns the rules, and
 the account's value wins once `/settings` arrives. Spec: `docs/superpowers/specs/2026-10-14-web-redesign-design.md`.
+
+Settings page: the header has one Settings link (`Shell.tsx`, marked current for any `/settings/*` by `isSettingsPath`
+in `web/src/settings/settingsNav.ts`) instead of the old Editor/Machine translation/WordPress/Shortcuts/Admin links.
+It opens a layout route (`SettingsLayout.tsx`) whose sidebar (`nav aria-label="Settings"`) lists Editor, Machine
+translation, WordPress and Shortcuts, then for admins an "Admin" group of Server, Invites, Dictionary and Backup &
+restore; below 60rem the sidebar is a horizontally scrollable row. The sections are the same pages and panels as
+before, each with a `div` root (the layout owns the page's only `<main>`); the admin panels sit in `AdminSections.tsx`
+wrappers that give them a `PageHeader` and the `panel sec` look, behind one `AdminOnly` layout route (a non-admin sees
+the `Admin only.` box and no panel mounts). `/settings` and `/settings/admin` redirect with `replace` to
+`/settings/editor` and `/settings/admin/server`, `/admin` redirects to the latter, and `/settings/profiles` still lands
+on Editor. Spec: `docs/superpowers/specs/2026-10-31-settings-sidebar-design.md`.
 
 Onboarding: with no users, the SPA sends every page to `/setup` (`GET /setup/status`, `POST /setup/admin`,
 which takes a Postgres advisory lock; `api/accounts.py`). Admin-only `/admin/settings` rows in `server_settings`
@@ -231,8 +244,13 @@ save first and refuses to move on a failed save. Floating `JumpBack` buttons and
 (`api/routers/readings.py`) tokenises text with MeCab and returns surfaces and readings only (`available: false` without the
 `mecab` extra); the SPA places them as ruby. The user setting `reading_aid` (`off` / `hiragana` / `katakana` / `romaji`) picks the
 mode; generated readings show on the active card only. Author ruby (`漢字(かんじ)` in the source) renders as `<ruby>` on every card
-whatever the mode (`web/src/editor/ruby.ts`, `authorRuby`). E2E: `web/e2e/editor-nav.spec.ts` with the `Nav series` seed. Spec:
-`docs/superpowers/specs/2026-10-27-editor-status-bar-reading-aid-design.md`.
+whatever the mode (`web/src/editor/ruby.ts`, `authorRuby`). A status-bar "Glossary ruby" toggle (the account setting
+`glossary_ruby`, default off) shows the card's source as the original text with each glossary match carrying its translation
+as `<rt class="rt-glossary">` ruby (`web/src/editor/glossaryRuby.ts`); glossary ruby wins over generated reading ruby and author
+ruby wins over glossary marks. The lines endpoint sends `LineOut.glossary_marks` (UTF-16 `from`/`to` into `plain_text`, plus
+`shown_from`/`shown_to` and the translation; computed by `api/core/glossary_marks.py`, which mirrors `replace_and_parse`), and
+`LineOut.plain_text` (`raw_text` with `$`/`%` stripped anywhere). E2E: `web/e2e/editor-nav.spec.ts` with the `Nav series` seed.
+Spec: `docs/superpowers/specs/2026-10-27-editor-status-bar-reading-aid-design.md`.
 
 Backup and restore: `api/backup/` writes one zip per server — `tables/<name>.csv` (Postgres `COPY ... FORMAT csv, HEADER`,
 so it is version-portable), the `dict/` files that live under `TA_DATA_DIR`, and a `manifest.json` (format 1, the alembic

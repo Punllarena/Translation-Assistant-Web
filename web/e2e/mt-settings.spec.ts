@@ -6,7 +6,7 @@ test("machine translation: DeepL key persists and enables the panel", async ({ p
   await page.getByLabel("Password").fill("e2e-password-123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
-  await page.getByRole("link", { name: "Machine translation" }).click();
+  await page.goto("/settings/mt");
   await expect(page.getByRole("heading", { name: "Machine translation" })).toBeVisible();
   const show = page.getByLabel("Show DeepL");
   const saved = () => page.waitForResponse((r) => r.url().endsWith("/api/settings") && r.request().method() === "PUT");

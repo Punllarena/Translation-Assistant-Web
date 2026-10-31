@@ -39,10 +39,18 @@
 .card.active { background: var(--surface); border-color: color-mix(in oklch, var(--accent-text) 45%, transparent);
   box-shadow: 0 10px 28px -14px var(--shadow); cursor: auto; }
 .card-number { float: right; font-family: var(--mono); font-size: .7em; color: var(--muted); }
+.copy-original { float: right; display: inline-flex; align-items: center; gap: .3em; margin-left: .6em;
+  padding: .15em .45em; border: 0; border-radius: 6px; background: none; color: var(--muted);
+  font-size: .7em; cursor: pointer; visibility: hidden; }
+.copy-original svg { width: .9em; height: .9em; }
+.copy-feedback { font-family: var(--sans); }
+.card:hover .copy-original, .card:focus-within .copy-original, .card.active .copy-original { visibility: visible; }
+.copy-original:hover { background: var(--raised); color: var(--ink); }
 .source { margin: 0 0 .3em; font-family: var(--jp); line-height: 1.85; color: var(--src); }
 .card.active .source { color: var(--ink); }
 .source rt { font-size: .5em; color: var(--muted); }
 .source rt.rt-latin { font-family: var(--sans); }
+.source rt.rt-glossary { color: var(--accent-text); font-family: var(--sans); }
 .source rt.find-current { color: var(--ink); }
 .card.active .source.with-readings { line-height: 2.2; }
 .translation { margin: 0; white-space: pre-wrap; font-family: var(--serif); }

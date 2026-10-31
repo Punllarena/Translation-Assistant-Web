@@ -22,7 +22,7 @@ export function jobLink(job: Job): { label: string; to: string | null } {
   const series = job.params.series_id;
   switch (job.kind) {
     case "tadb_import": return { label, to: "/import" };
-    case "dict_download": return { label, to: "/admin" };
+    case "dict_download": return { label, to: "/settings/admin/dictionary" };
     case "wp_publish": return { label, to: "/" };
     case "ollama_run": return { label, to: "/jobs?tab=ollama" };
     case "syosetu_fetch":

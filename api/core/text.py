@@ -140,6 +140,13 @@ def line_has_content(raw: str) -> bool:
     return bool(raw.lstrip("%$").strip())
 
 
+def has_letter(text: str) -> bool:
+    """True if the text holds a letter in the Unicode sense: Latin, kana, kanji and `ー` do,
+    digits and punctuation do not. A non-blank line without one is symbol-only (a scene break),
+    which Ollama never asks about and translation memory never matches."""
+    return any(ch.isalpha() for ch in text)
+
+
 def calculate_progress(
     raw_lines: list[str], translated_lines: list[str]
 ) -> tuple[int, int]:

@@ -5,8 +5,11 @@ const ITEMS = '[role^="menuitem"]';
 /** A button that opens a popover menu. The caller renders the items (buttons with a menuitem role).
  *  On open the checked item (else the first) takes focus; arrow keys move; Escape closes and returns
  *  focus to the button; a press outside closes. */
-export default function Menu({ label, buttonLabel, align = "end", children }: {
-  label: ReactNode; buttonLabel?: string; align?: "start" | "end"; children: (close: () => void) => ReactNode;
+export default function Menu({ label, buttonLabel, align = "end", onPointerDown, children }: {
+  label: ReactNode; buttonLabel?: string; align?: "start" | "end";
+  /** Captures the moment the trigger button is pressed, before focus/selection moves. */
+  onPointerDown?: () => void;
+  children: (close: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -46,7 +49,8 @@ export default function Menu({ label, buttonLabel, align = "end", children }: {
   return (
     <div className="menu-root" ref={root} onKeyDown={onKeyDown}>
       <button ref={button} type="button" className="quiet" aria-haspopup="menu" aria-expanded={open}
-        aria-controls={open ? id : undefined} aria-label={buttonLabel} onClick={() => setOpen((o) => !o)}>
+        aria-controls={open ? id : undefined} aria-label={buttonLabel} onClick={() => setOpen((o) => !o)}
+        onPointerDown={onPointerDown}>
         {label}
       </button>
       {open && <div className={`menu menu-${align}`} role="menu" id={id}>{children(close)}</div>}

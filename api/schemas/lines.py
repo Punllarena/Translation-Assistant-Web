@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from pydantic import AfterValidator, BaseModel, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from api.schemas.documents import MAX_RAW_CHARS, DocumentOut
 
@@ -18,13 +18,27 @@ def _reject_nul(v: str) -> str:
 NoNulStr = Annotated[str, AfterValidator(_reject_nul)]
 
 
+class GlossaryMark(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    # UTF-16 offsets into the plain text (raw_text with $ / % stripped).
+    from_: int = Field(alias="from")
+    to: int
+    translation: str
+    # UTF-16 offsets into the replaced (display) text, for highlight mapping.
+    shown_from: int
+    shown_to: int
+
+
 class LineOut(BaseModel):
     line_number: int
     prefix: str
     raw_text: str
-    display_text: str  # raw_text with markers stripped and the glossary applied
+    plain_text: str  # raw_text with markers stripped (what replace_and_parse starts from)
+    display_text: str  # plain_text with the glossary applied
     sentences: list[str]  # display_text split on the user's parse characters
     replaced: bool  # whether the glossary changed anything
+    glossary_marks: list[GlossaryMark]  # glossary matches, offsets into plain_text
     translated_text: str
 
 
