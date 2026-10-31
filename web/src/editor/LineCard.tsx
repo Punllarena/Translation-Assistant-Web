@@ -1,5 +1,6 @@
-import { memo, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { Schemas } from "../api/client";
+import { Check, Copy, Cross } from "../ui/icons";
 import type { Hit } from "./find";
 import { jpSpans, layout, type Segment, type Span } from "./paint";
 import { sentenceRanges } from "./parse";
@@ -52,6 +53,19 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, onA
   useEffect(() => {
     if (active) ref.current?.scrollIntoView({ block: "center" });
   }, [active]);
+  const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
+  const copyTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
+  const copy = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation(); // the card's onClick must not fire
+    const finish = (state: "copied" | "failed") => {
+      setCopied(state);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = window.setTimeout(() => setCopied("idle"), 1500);
+    };
+    if (!navigator.clipboard) return finish("failed");
+    navigator.clipboard.writeText(line.raw_text).then(() => finish("copied"), () => finish("failed"));
+  };
   const source = parse === -2 ? line.raw_text : line.display_text;
   const sourceSpans = useMemo(() => {
     const spans = jpSpans(source);
@@ -72,6 +86,10 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, onA
     <article ref={ref} data-index={index} className={active ? "card active" : "card"} aria-current={active || undefined}
       onClick={() => { if (!active) onActivate(index); }}>
       <span className="card-number">{line.line_number + 1}</span>
+      <button type="button" className="copy-original" aria-label="Copy original text" title="Copy original text" onClick={copy}>
+        {copied === "copied" ? <Check /> : copied === "failed" ? <Cross /> : <Copy />}
+        {copied !== "idle" && <span className="copy-feedback">{copied === "copied" ? "Copied" : "Failed"}</span>}
+      </button>
       <p className={readings?.length ? "source with-readings" : "source"} lang="ja">
         <Painted text={source} spans={sourceSpans} ruby={ruby} />
       </p>

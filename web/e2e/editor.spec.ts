@@ -102,3 +102,19 @@ test("the chapter menu adds a glossary phrase from the selection", async ({ page
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toHaveCount(0);
 });
+
+test("copy original text puts the raw source on the clipboard", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await openChapter(page);
+  await expect(page.getByText("三行目です。")).toBeVisible();
+  const activeIndex = await page.locator("article.card.active").getAttribute("data-index");
+  // Hover a non-active card to reveal its copy button; clicking it copies the original
+  // text (no glossary, no prefix) and does not activate the card.
+  const card = page.locator("article.card:not(.active)").filter({ hasText: "三行目です。" });
+  await card.hover();
+  await card.getByRole("button", { name: "Copy original text" }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("三行目です。");
+  await expect(page.locator("article.card.active")).toHaveAttribute("data-index", activeIndex!);
+  await expect(card.getByText("Copied")).toBeVisible();
+  await expect(card.getByText("Copied")).toBeHidden({ timeout: 3000 });
+});

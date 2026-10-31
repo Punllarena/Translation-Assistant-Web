@@ -55,11 +55,11 @@
 **Interfaces:**
 - Produces: a button with accessible name `Copy original text` inside each card; after a click it shows a "Copied" state for ~1.5 s.
 
-- [ ] **Step 1: Write the failing e2e test** `"copy original text puts the raw source on the clipboard"` (`context.grantPermissions(["clipboard-read","clipboard-write"])`; hover a non-active card, click the button, read `navigator.clipboard.readText()`, expect the line's original text; expect the active card unchanged and "Copied" visible, then gone).
-- [ ] **Step 2: Run** `cd web && npm run e2e -- editor`. Expected: FAIL.
-- [ ] **Step 3: Implement** the button: `navigator.clipboard.writeText(line.raw_text)`, `stopPropagation` on click, visible on the active card and on card hover/`:focus-within`, a failed state when the promise rejects. Existing icon set and tokens.
-- [ ] **Step 4: Run** the same command. Expected: PASS; `npx tsc --noEmit`.
-- [ ] **Step 5: Commit** `feat(editor): copy a card's original text`.
+- [x] **Step 1: Write the failing e2e test** `"copy original text puts the raw source on the clipboard"` (`context.grantPermissions(["clipboard-read","clipboard-write"])`; hover a non-active card, click the button, read `navigator.clipboard.readText()`, expect the line's original text; expect the active card unchanged and "Copied" visible, then gone).
+- [x] **Step 2: Run** `cd web && npm run e2e -- editor`. Expected: FAIL.
+- [x] **Step 3: Implement** the button: `navigator.clipboard.writeText(line.raw_text)`, `stopPropagation` on click, visible on the active card and on card hover/`:focus-within`, a failed state when the promise rejects. Existing icon set and tokens.
+- [x] **Step 4: Run** the same command. Expected: PASS; `npx tsc --noEmit`.
+- [x] **Step 5: Commit** `feat(editor): copy a card's original text`.
 
 ### Task 3: Server glossary marks
 
