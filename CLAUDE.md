@@ -53,7 +53,9 @@ night windows and the once-a-minute tick that starts runs and cleans up), `store
 prompts and reasoning) and `stats`. `GET /documents/{id}/ollama/stream` (`api/routers/ollama_editor.py`) translates a chunk by
 hand in a task that outlives its subscriber, so closing the card leaves it running and asking again follows it. Suggestions live
 in `ollama_suggestions` (one per line; the text is NULLed by a flush or the clean-up, never by use or dismissal); chunk rows in `ollama_chunks` keep the settings,
-timings and reasoning. The SPA has the `/jobs` page (running, Ollama queue, scheduled, history; Run now answers 409 with the setup
+timings and reasoning. A symbol-only line (a scene break such as `■` or `……`: non-blank with no letter by `has_letter` in
+`api/core/text.py`) is never asked: `next_plan` fills it with its source (`fill_symbol_lines`, which leaves `translated_at` NULL
+so the day heatmap does not count the copy) and `/tm/matches` returns nothing for it. The SPA has the `/jobs` page (running, Ollama queue, scheduled, history; Run now answers 409 with the setup
 text without a URL) and Statistics → Ollama. Spec: `docs/superpowers/specs/2026-10-26-ollama-background-translation-design.md`.
 
 Yomitan dictionaries: an admin can upload Yomitan format-3 term dictionaries (JMdict, 新和英, ...; kanji, frequency and

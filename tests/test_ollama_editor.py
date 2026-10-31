@@ -263,6 +263,16 @@ def test_stream_blank_line_unset_and_errors(app_client, me, make_user, make_doc,
     assert _suggested(db, doc) == {}
 
 
+def test_a_symbol_only_line_by_hand_answers_nothing_to_translate(
+        app_client, me, make_doc, db, wire):
+    _set_up(db, me)
+    _, calls = wire
+    doc = make_doc(me, ["a", "■"], translated=False)
+    ev = events(_stream(app_client, doc, 1).text)
+    assert ev == [("error", {"message": "line 1 has nothing to translate"})]
+    assert calls == [] and _suggested(db, doc) == {}
+
+
 def test_rejected_answer_is_halved_and_only_the_checked_lines_are_saved(
         app_client, me, make_doc, db, wire, monkeypatch):
     _set_up(db, me)

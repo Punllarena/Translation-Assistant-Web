@@ -287,6 +287,28 @@ async def test_run_log_tells_what_the_run_did(setup, in_test_db):
     assert [e.text for e in runlog.read(job.id, after=snap.next - 1).entries] == [texts[-1]]
 
 
+async def test_a_symbol_line_is_filled_and_never_asked(setup, in_test_db):
+    _, doc, job = setup()
+    in_test_db.add(Line(document_id=doc.id, line_number=4, prefix="%", raw_text="■",
+                        translated_text=""))
+    in_test_db.flush()
+    runner.claim(in_test_db)
+    bodies, asked = [], []
+
+    def on_chat(body):
+        bodies.append(body)
+        asked.extend(_asked(body))
+
+    await runner.run_one(job.id, ollama(on_chat=on_chat))
+    in_test_db.refresh(job)
+    assert asked == [0, 1, 2, 3]  # the scene break was never one of them
+    assert all("■" not in b["messages"][1]["content"] for b in bodies)
+    line = in_test_db.scalar(
+        select(Line).where(Line.document_id == doc.id, Line.line_number == 4))
+    assert line.translated_text == "■" and line.translated_at is None
+    assert job.state == "done" and job.result_json["lines"] == 4
+
+
 async def test_run_log_records_retries_and_failure(setup, in_test_db):
     runlog.clear()
     _, _, job = setup()

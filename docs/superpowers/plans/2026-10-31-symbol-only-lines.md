@@ -37,11 +37,11 @@
 **Interfaces:**
 - Produces: `has_letter(text: str) -> bool` in `api/core/text.py`.
 
-- [ ] **Step 1: Write failing tests.** `test_core_text.py::test_has_letter`: true for `"漢字"`, `"ひら"`, `"ー"`, `"abc"`; false for `"■"`, `"◇◇◇"`, `"……"`, `"12"`, `"***"`, `"「……！」"`, `""`, `"  "`. `test_memory_tm.py::test_symbol_only_line_has_no_matches`: two chapters of the user share a `■` line, one translated; the other's `/tm/matches` returns `[]`; and a shared letter-bearing line still returns its match (reuse the file's fixtures).
-- [ ] **Step 2: Run** `pytest tests/test_core_text.py tests/test_memory_tm.py -v`. Expected: FAIL.
-- [ ] **Step 3: Implement** `has_letter(text)` as `any(ch.isalpha() for ch in text)`, and in `tm_matches` return `[]` when `not has_letter(raw)` right after the blank check.
-- [ ] **Step 4: Run the same tests.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(tm): no matches for symbol-only lines`.
+- [x] **Step 1: Write failing tests.** `test_core_text.py::test_has_letter`: true for `"漢字"`, `"ひら"`, `"ー"`, `"abc"`; false for `"■"`, `"◇◇◇"`, `"……"`, `"12"`, `"***"`, `"「……！」"`, `""`, `"  "`. `test_memory_tm.py::test_symbol_only_line_has_no_matches`: two chapters of the user share a `■` line, one translated; the other's `/tm/matches` returns `[]`; and a shared letter-bearing line still returns its match (reuse the file's fixtures).
+- [x] **Step 2: Run** `pytest tests/test_core_text.py tests/test_memory_tm.py -v`. Expected: FAIL.
+- [x] **Step 3: Implement** `has_letter(text)` as `any(ch.isalpha() for ch in text)`, and in `tm_matches` return `[]` when `not has_letter(raw)` right after the blank check.
+- [x] **Step 4: Run the same tests.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(tm): no matches for symbol-only lines`.
 
 ### Task 2: Ollama skips and fills symbol-only lines
 
@@ -53,10 +53,10 @@
 - Consumes: `has_letter` (Task 1).
 - Produces: `fill_symbol_lines(db: Session, doc: Document) -> int` in `work.py` (sets `translated_text = raw_text.strip()` for the document's symbol-only lines with empty `translated_text`, one UPDATE, returns the count, flushes only; `translated_at` untouched).
 
-- [ ] **Step 1: Write failing tests** in `test_ollama_work.py` (use its `make_user`, `make_series`, `make_doc` fixtures): `test_rows_symbol_line_is_known` (a `■` line's `Row.known == "■"`); `test_fill_symbol_lines_copies_source_and_keeps_translated_at_null`; `test_fill_symbol_lines_never_overwrites` (a `■` line translated as `"*"` stays `"*"`); `test_lines_left_ignores_symbol_lines`; `test_next_plan_fills_and_never_asks_symbol_lines` (the returned plan's `asked` has no `■` row and the DB line now reads `■`); `test_next_plan_drains_item_with_only_scene_breaks_left` (the queue item is deleted, plan is `None`); `test_plan_for_line_symbol_only_raises` (`ValueError`). In `test_ollama_runner.py` add one test that a run over a chapter with a `■` line sends a prompt not containing `■` as an asked line (follow that file's fake-model seam).
-- [ ] **Step 2: Run** `pytest tests/test_ollama_work.py tests/test_ollama_runner.py -v`. Expected: the new tests FAIL.
-- [ ] **Step 3: Implement** in `work.py`: `rows_for` sets `known` to the line's stripped text for a symbol-only line with no translation; `fill_symbol_lines` as above (SQL UPDATE by line ids found with `has_letter` in Python); `next_plan` calls it before `rows_for` for each pending chapter; `lines_left` skips symbol-only lines; `plan_for_line` raises `ValueError(f"line {line_number} has nothing to translate")` for one; update the `_with_work` docstring to say symbol-only lines are filled after it flags them.
-- [ ] **Step 4: Check the by-hand route** `api/routers/ollama_editor.py` reports that `ValueError` message sensibly (a test in `tests/test_ollama_editor.py` that asking for a `■` line answers the message, not a 500). Adjust only if it does not.
-- [ ] **Step 5: Check statistics.** Read how `/stats` and chapter progress count translated lines; add a test in `tests/test_ollama_stats.py` or the stats test file proving a filled line is not counted in the day heatmap. If counts use `translated_text` alone, do not change the rule: write the finding in the commit message body and the final report.
-- [ ] **Step 6: Run** `pytest -q` and `ruff check .`. Expected: all pass, no lint errors.
-- [ ] **Step 7: Docs and commit.** One sentence in the `CLAUDE.md` Ollama paragraph; delete the TODO entry "Ollama and translation memory: skip symbol-only lines". Commit `feat(ollama): skip symbol-only lines and fill them with their source`.
+- [x] **Step 1: Write failing tests** in `test_ollama_work.py` (use its `make_user`, `make_series`, `make_doc` fixtures): `test_rows_symbol_line_is_known` (a `■` line's `Row.known == "■"`); `test_fill_symbol_lines_copies_source_and_keeps_translated_at_null`; `test_fill_symbol_lines_never_overwrites` (a `■` line translated as `"*"` stays `"*"`); `test_lines_left_ignores_symbol_lines`; `test_next_plan_fills_and_never_asks_symbol_lines` (the returned plan's `asked` has no `■` row and the DB line now reads `■`); `test_next_plan_drains_item_with_only_scene_breaks_left` (the queue item is deleted, plan is `None`); `test_plan_for_line_symbol_only_raises` (`ValueError`). In `test_ollama_runner.py` add one test that a run over a chapter with a `■` line sends a prompt not containing `■` as an asked line (follow that file's fake-model seam).
+- [x] **Step 2: Run** `pytest tests/test_ollama_work.py tests/test_ollama_runner.py -v`. Expected: the new tests FAIL.
+- [x] **Step 3: Implement** in `work.py`: `rows_for` sets `known` to the line's stripped text for a symbol-only line with no translation; `fill_symbol_lines` as above (SQL UPDATE by line ids found with `has_letter` in Python); `next_plan` calls it before `rows_for` for each pending chapter; `lines_left` skips symbol-only lines; `plan_for_line` raises `ValueError(f"line {line_number} has nothing to translate")` for one; update the `_with_work` docstring to say symbol-only lines are filled after it flags them.
+- [x] **Step 4: Check the by-hand route** `api/routers/ollama_editor.py` reports that `ValueError` message sensibly (a test in `tests/test_ollama_editor.py` that asking for a `■` line answers the message, not a 500). Adjust only if it does not.
+- [x] **Step 5: Check statistics.** Read how `/stats` and chapter progress count translated lines; add a test in `tests/test_ollama_stats.py` or the stats test file proving a filled line is not counted in the day heatmap. If counts use `translated_text` alone, do not change the rule: write the finding in the commit message body and the final report.
+- [x] **Step 6: Run** `pytest -q` and `ruff check .`. Expected: all pass, no lint errors.
+- [x] **Step 7: Docs and commit.** One sentence in the `CLAUDE.md` Ollama paragraph; delete the TODO entry "Ollama and translation memory: skip symbol-only lines". Commit `feat(ollama): skip symbol-only lines and fill them with their source`.
