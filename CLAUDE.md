@@ -91,6 +91,17 @@ preference is the user setting `ui_theme` (`system`/`light`/`dark`), mirrored in
 an inline script in `web/index.html` paints it before the bundle loads, `web/src/theme/` owns the rules, and
 the account's value wins once `/settings` arrives. Spec: `docs/superpowers/specs/2026-10-14-web-redesign-design.md`.
 
+Settings page: the header has one Settings link (`Shell.tsx`, marked current for any `/settings/*` by `isSettingsPath`
+in `web/src/settings/settingsNav.ts`) instead of the old Editor/Machine translation/WordPress/Shortcuts/Admin links.
+It opens a layout route (`SettingsLayout.tsx`) whose sidebar (`nav aria-label="Settings"`) lists Editor, Machine
+translation, WordPress and Shortcuts, then for admins an "Admin" group of Server, Invites, Dictionary and Backup &
+restore; below 60rem the sidebar is a horizontally scrollable row. The sections are the same pages and panels as
+before, each with a `div` root (the layout owns the page's only `<main>`); the admin panels sit in `AdminSections.tsx`
+wrappers that give them a `PageHeader` and the `panel sec` look, behind one `AdminOnly` layout route (a non-admin sees
+the `Admin only.` box and no panel mounts). `/settings` and `/settings/admin` redirect with `replace` to
+`/settings/editor` and `/settings/admin/server`, `/admin` redirects to the latter, and `/settings/profiles` still lands
+on Editor. Spec: `docs/superpowers/specs/2026-10-31-settings-sidebar-design.md`.
+
 Onboarding: with no users, the SPA sends every page to `/setup` (`GET /setup/status`, `POST /setup/admin`,
 which takes a Postgres advisory lock; `api/accounts.py`). Admin-only `/admin/settings` rows in `server_settings`
 override `TA_LIBRETRANSLATE_URL`, `TA_MT_ALLOW_PRIVATE_URLS`, `TA_WP_ALLOW_PRIVATE_URLS` and

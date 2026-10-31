@@ -33,15 +33,6 @@ To decide:
 - Keep the picker's untick, or always include all? The cover image should stay out (it goes to `volume_covers`).
 - The `epub_safety.py` per-import image budget then counts copies.
 
-## Settings: one Settings page with tabs
-
-*Raised 2026-10-29.*
-
-The header (`web/src/Shell.tsx`) has four separate links: Editor, Machine translation, WordPress,
-Shortcuts. Replace them with one "Settings" link opening a tabbed page with those four tabs, like the
-series page's `?tab=`. Keep `/settings/editor|mt|wp|shortcuts` working (redirect or route per tab) so
-bookmarks survive.
-
 ## Editor: copy source
 
 *Raised 2026-10-29.* Ctrl+Z after Use and JParser's Latin runs were fixed in PR #31.
