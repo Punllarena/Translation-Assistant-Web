@@ -2355,6 +2355,8 @@ export interface components {
             document_id: number | null;
             /** Edited Count */
             edited_count: number;
+            /** Error */
+            error: string | null;
             /** Eval Ms */
             eval_ms: number | null;
             /** First Line */

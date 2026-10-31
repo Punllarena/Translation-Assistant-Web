@@ -25,6 +25,13 @@ def test_bad_answers_raise(bad):
         check(bad, ASK)
 
 
+def test_a_non_json_answer_says_what_came_back():
+    with pytest.raises(AnswerError, match="not JSON, got: Thinking Process: 1"):
+        check("Thinking Process:\n1. **Analyze**", ASK)
+    with pytest.raises(AnswerError, match=r"not JSON, got: \(empty answer\)"):
+        check("  ", ASK)
+
+
 def test_halves_prefers_paragraph_boundary():
     a, b = halves([Item(1, "%", "a"), Item(2, "$", "b"), Item(3, "$", "c"), Item(4, "%", "d")])
     assert [i.line_number for i in a] == [1, 2, 3]

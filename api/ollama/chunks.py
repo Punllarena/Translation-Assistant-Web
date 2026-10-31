@@ -28,6 +28,7 @@ class RequestStats:
     depth: int
     reasoning: str
     prompt: str  # JSON of the messages
+    error: str | None = None  # why check() rejected the answer; None when it was accepted
     prompt_tokens: int | None = None
     output_tokens: int | None = None
     prompt_ms: int | None = None
