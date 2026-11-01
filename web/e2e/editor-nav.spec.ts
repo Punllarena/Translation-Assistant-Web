@@ -566,6 +566,71 @@ test("a hung save times out", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("The server took too long to answer.", { timeout: 15_000 });
 });
 
+test("landmarks and names", async ({ page }) => {
+  await page.route("**/mt/stream*", (r) => r.fulfill({ status: 200, headers: { "Content-Type": "text/event-stream" },
+    body: 'event: result\ndata: {"text":"Machine"}\n\nevent: done\ndata: {}\n\n' }));
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  await mtBackends(page, ["mecab", "jparser", "deepl"]);
+  try {
+    await page.reload();
+    await expect(page.locator("main")).toHaveCount(1);
+    await expect(page.locator("h1")).toHaveText("Nav one");
+    const status = page.locator('[role="status"].visually-hidden');
+    await card(page, 1).click();
+    await expect(status).toHaveText("Line 2 of 23");
+    await expect(box(page)).toHaveAccessibleDescription(/STATUS/);
+    await expect(page.getByRole("button", { name: "Use DeepL, Alt+3" })).toBeVisible();
+  } finally {
+    await mtBackends(page, ["mecab", "jparser"]);
+  }
+});
+
+test("Alt+S retries", async ({ page }) => {
+  await open(page, "Nav one");
+  let status = 500;
+  let patches = 0;
+  await page.route("**/documents/*/lines", (r) => {
+    if (r.request().method() !== "PATCH") return r.continue();
+    patches++;
+    return r.fulfill({ status, contentType: "application/json", body: status === 200 ? '{"missing":[]}' : "" });
+  });
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  await expect(page.getByRole("alert")).toContainText("not saved");
+  status = 200;
+  const before = patches;
+  await page.keyboard.press("Alt+s");
+  await expect.poll(() => patches, { timeout: 1500 }).toBeGreaterThan(before); // at once, not on the retry timer
+  await expect(page.locator(".save-state")).toHaveText("Saved");
+});
+
+test("the spell menu works by keyboard", async ({ page }) => {
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  await box(page).click();
+  await page.keyboard.type("teh word");
+  const flagged = box(page).locator(".misspelled");
+  await expect(flagged).toHaveCount(1, { timeout: 5000 });
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Control+.");
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  const items = menu.getByRole("menuitem");
+  await expect(items.first()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(items.nth(1)).toBeFocused();
+  const pick = (await items.nth(1).textContent()) ?? "";
+  await page.keyboard.press("Enter");
+  await expect(menu).toHaveCount(0);
+  await expect(box(page)).toBeFocused();
+  expect(await box(page).textContent()).toContain(pick);
+  // a line with nothing misspelled says so instead of doing nothing
+  await page.keyboard.press("PageDown");
+  await page.keyboard.press("Control+.");
+  await expect(page.getByText("No misspelled words on this line")).toBeVisible();
+});
+
 test("the keyboard reaches the aids; the find bar leaves the save state visible", async ({ page }) => {
   await page.route("**/tm/matches*", (r) => r.fulfill({ contentType: "application/json",
     body: JSON.stringify([{ translated_text: "From memory", document_title: "Other", updated_at: "2026-01-01T00:00:00Z" }]) }));

@@ -87,7 +87,7 @@ export default function CodeEditor({ value, label, historyKey, onChange, onBlur,
           keymap.of([{ key: "Shift-Enter", run: insertNewline }, ...historyKeymap, ...defaultKeymap]),
           EditorView.lineWrapping,
           marks,
-          EditorView.contentAttributes.of({ "aria-label": label, spellcheck: "false" }),
+          EditorView.contentAttributes.of({ "aria-label": label, "aria-describedby": "active-source", spellcheck: "false" }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged) entry.latest.current.onChange(u.state.doc.toString());
           }),

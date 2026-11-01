@@ -33,6 +33,7 @@ import { useLeave } from "./useLeave";
 import { useNotice } from "./useNotice";
 import { copyText } from "./clipboard";
 import { useAllVolumes, useDocuments, useSeriesList } from "../library/queries";
+import { shownTitle } from "../library/shelf";
 import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
 import { useBindings, useEditorKeys } from "./useEditorKeys";
@@ -222,6 +223,24 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       case "key_help":
         setShowKeys(true);
         break;
+      case "retry_save":
+        void ed.store.flush();
+        break;
+      case "spell_open": {
+        const v = view.current;
+        if (!v) break;
+        const words = spell.misspelled(v.state.doc.toString());
+        if (!words.length) {
+          setNotice("No misspelled words on this line");
+          break;
+        }
+        // The word under or after the caret, else the first on the line.
+        const head = v.state.selection.main.head;
+        const word = words.find((m) => m.start >= head) ?? words[0];
+        const at = v.coordsAtPos(word.start);
+        if (at) setMenu({ x: at.left, y: at.bottom, word });
+        break;
+      }
       default:
         if (action.startsWith("punct_")) insertAtCursor(view.current, PUNCTUATIONS[Number(action.slice(6))], 1);
         if (action.startsWith("use_")) {
@@ -334,6 +353,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   };
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
+      <h1 className="visually-hidden">{shownTitle(data.document)}</h1>
+      <div role="status" className="visually-hidden">Line {n + 1} of {lines.length}</div>
       <StickyTop>
       {statusBar(n + 1, ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>
           <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
@@ -354,7 +375,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
           onClose={() => { find.close(); view.current?.focus(); }} />
       )}
       </StickyTop>
-      <div className="editor-layout">
+      <main className="editor-layout">
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
           onActivate={activate} editor={editor} highlight={hit} unsaved={unsavedSet}
@@ -370,7 +391,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
             slots={slots} bindings={bindings} />}
         </div>
       )}
-      </div>
+      </main>
       {phrase !== null && <PhraseDialog initial={phrase} onClose={() => { setPhrase(null); focusAfterDialog(); }} onSave={async (p, t) => {
         await call(api.POST("/series/{series_id}/glossary", { params: { path: { series_id: seriesId } }, body: { phrase: p, translation: t } }));
         await queryClient.invalidateQueries({ queryKey: ["glossary", seriesId] });

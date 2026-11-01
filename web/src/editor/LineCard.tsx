@@ -110,7 +110,7 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, uns
         {copied === "copied" ? <Check /> : copied === "failed" ? <Cross /> : <Copy />}
         {copied !== "idle" && <span className="copy-feedback">{copied === "copied" ? "Copied" : "Failed"}</span>}
       </button>
-      <p className={readings?.length ? "source with-readings" : "source"} lang="ja">
+      <p className={readings?.length ? "source with-readings" : "source"} lang="ja" id={active ? "active-source" : undefined}>
         <Painted text={source} spans={sourceSpans} ruby={ruby} />
       </p>
       {active ? (

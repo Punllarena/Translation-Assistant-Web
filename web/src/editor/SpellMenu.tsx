@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { moveMenuFocus } from "../ui/Menu";
 import type { Misspelling } from "./LineCard";
 
 interface Props {
@@ -27,7 +28,10 @@ export default function SpellMenu({ x, y, word, onPick, onAdd, onClose }: Props)
   }, [onClose]);
   return (
     <div ref={menu} className="spell-menu" role="menu" style={pos}
-      onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}>
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+        else moveMenuFocus(e, menu.current);
+      }}>
       {word.suggestions.length ? (
         word.suggestions.map((s) => (
           <button key={s} role="menuitem" onClick={() => onPick(s)}><strong>{s}</strong></button>

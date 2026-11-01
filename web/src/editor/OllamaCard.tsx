@@ -84,7 +84,8 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse, 
       {sugs.error && <p className="error" role="alert">{sugs.error.message}</p>}
       <div className="mt-actions">
         {text && (
-          <button data-use={slot ?? undefined} onClick={() => onUse(text)}>
+          <button data-use={slot ?? undefined} onClick={() => onUse(text)}
+            aria-label={slot !== undefined ? `Use Ollama, ${bindings[`use_${slot}`]}` : "Use Ollama"}>
             {slot !== undefined && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}Use
           </button>
         )}

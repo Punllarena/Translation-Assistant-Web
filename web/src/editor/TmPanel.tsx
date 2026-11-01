@@ -28,6 +28,7 @@ export default function TmPanel({ documentId, lineNumber, onUse, slots, bindings
           return (
             <li key={i}>
               <button data-use={slot ?? undefined} disabled={stale} className={stale ? "muted" : undefined}
+                aria-label={slot !== null ? `Use "${m.translated_text}", ${bindings[`use_${slot}`]}` : `Use "${m.translated_text}"`}
                 onClick={() => onUse(m.translated_text)}>
                 {slot !== null && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}
                 {m.translated_text}

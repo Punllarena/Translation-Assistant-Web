@@ -206,14 +206,14 @@ expect(store.getState()).toEqual({ state: "saved", error: null });
 - Consumes: Retry mounted while `save.error` is set (Task 2); `data-use` slots (Task 1).
 - Produces: actions `retry_save` (Alt+S), `spell_open` (Ctrl+.); `moveMenuFocus(e: KeyboardEvent, root: HTMLElement): void` exported from `ui/Menu.tsx`.
 
-- [ ] **Step 1: Write the failing e2e tests**
+- [x] **Step 1: Write the failing e2e tests**
   - `landmarks and names`: one `main`, one `h1` with the chapter title (`.visually-hidden`); the textbox's accessible description contains the source text; moving a line sets `role=status` text to `Line 2 of 23`; a backend's button is named `Use DeepL, Alt+3`.
   - `Alt+S retries`: PATCH 500 then 200; `Alt+S` sends a PATCH at once.
   - `the spell menu works by keyboard`: on a line with a misspelling, `Control+.` opens the menu at it; ArrowDown moves focus; Enter picks; focus returns to the editor. On a clean line the notice reads `No misspelled words on this line`.
 
-- [ ] **Step 2: Run them and confirm they fail.**
+- [x] **Step 2: Run them and confirm they fail.**
 
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
   - `Editor`: `div.editor-layout` becomes `<main className="editor-layout">`. Add `<h1 className="visually-hidden">` with the chapter title and `<div role="status" className="visually-hidden">Line {n + 1} of {lines.length}</div>`.
   - `LineCard`: `id="active-source"` on the active card's source. `CodeEditor` adds `aria-describedby: "active-source"` to its content attributes.
   - Use buttons: `aria-label={\`Use ${label}, ${key}\`}`; a TM match: `` `Use "${text}", ${key}` ``, without the key when it has no slot. Update e2e locators that name these buttons.
@@ -221,9 +221,9 @@ expect(store.getState()).toEqual({ state: "saved", error: null });
   - `spell_open`: the misspelling at or after the caret, else the first on the line, positioned with `view.coordsAtPos`. Reuses `setMenu`.
   - `retry_save`: `ed.store.flush()`.
 
-- [ ] **Step 4: Run `tsc`, `keymap.test.ts` and `npm run e2e -- editor-nav editor tm mt ollama`** and confirm they pass.
+- [x] **Step 4: Run `tsc`, `keymap.test.ts` and `npm run e2e -- editor-nav editor tm mt ollama`** and confirm they pass.
 
-- [ ] **Step 5: Commit** `fix(editor): landmarks, line announcements, named Use, keyboard spell menu`
+- [x] **Step 5: Commit** `fix(editor): landmarks, line announcements, named Use, keyboard spell menu`
 
 ### Task 5: Silent no-ops (P2)
 
