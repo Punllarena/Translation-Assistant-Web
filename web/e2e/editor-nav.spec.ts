@@ -326,6 +326,96 @@ test("replacing says so", async ({ page }) => {
   await expect(page.getByText("Replaced line 3. Ctrl+Z brings it back")).toBeVisible();
 });
 
+test("a permanent error stops retrying and offers the text", async ({ context, page }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await open(page, "Nav one");
+  let patches = 0;
+  await page.route("**/documents/*/lines", (r) => {
+    if (r.request().method() !== "PATCH") return r.continue();
+    patches++;
+    return r.fulfill({ status: 422, contentType: "application/json", body: '{"detail":[{"loc":["body","lines",0],"msg":"bad"}]}' });
+  });
+  const title = await page.locator(".ch-title").boundingBox();
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("Line 1 not saved: The server refused this text. It may be too long.");
+  await expect(alert).not.toContainText("Retrying");
+  await page.waitForTimeout(6000);
+  expect(patches).toBe(1);
+  // the alert has a row of its own: the chapter title keeps its width
+  expect((await page.locator(".ch-title").boundingBox())!.width).toBeCloseTo(title!.width, 0);
+  const text = await box(page).textContent();
+  await page.getByRole("button", { name: "Copy unsaved text" }).click();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  // Windows hands clipboard lines back with CRLF, whatever was written
+  expect(copied.replace(/\r\n/g, "\n")).toBe(`Line 1\n${text}`);
+});
+
+test("the alert stays through retries and typing", async ({ page }) => {
+  await open(page, "Nav one");
+  let release = () => {};
+  const held = new Promise<void>((done) => { release = done; });
+  let patches = 0;
+  await page.route("**/documents/*/lines", async (r) => {
+    if (r.request().method() !== "PATCH") return r.continue();
+    if (patches++ === 0) return r.fulfill({ status: 500 });
+    await held;
+    await r.fulfill({ status: 500 }).catch(() => {});
+  });
+  await box(page).click();
+  await page.keyboard.type("W");
+  const alert = page.getByRole("alert");
+  const retry = page.getByRole("button", { name: "Retry" });
+  await expect(alert).toContainText("not saved: The server answered 500.");
+  await expect.poll(() => patches).toBeGreaterThanOrEqual(2); // the retry is in flight
+  await expect(alert).toContainText("The server answered 500.");
+  await expect(retry).toBeVisible();
+  release();
+  await page.keyboard.type("x");
+  await expect(alert).toContainText("The server answered 500.");
+  await expect(retry).toBeVisible();
+});
+
+test("missing lines are a failure", async ({ context, page }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await open(page, "Nav one");
+  await page.route("**/documents/*/lines", (r) => r.request().method() === "PATCH"
+    ? r.fulfill({ status: 200, contentType: "application/json", body: '{"missing":[0]}' })
+    : r.continue());
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  await expect(page.locator(".save-state")).toHaveText("Not saved");
+  await expect(page.getByRole("alert")).toContainText("Line 1 no longer exists; reload the chapter");
+  const text = await box(page).textContent();
+  await page.getByRole("button", { name: "Copy unsaved text" }).click();
+  expect((await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, "\n")).toBe(`Line 1\n${text}`);
+});
+
+test("notices expire", async ({ page }) => {
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  await box(page).click();
+  await page.keyboard.press("Alt+9");
+  const notice = page.getByText("No suggestion 9 on this line");
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveCount(0, { timeout: 10_000 });
+  await page.keyboard.press("Alt+9");
+  await expect(notice).toBeVisible();
+  await page.keyboard.press("PageDown");
+  await expect(notice).toHaveCount(0);
+});
+
+test("unsaved cards are marked", async ({ page }) => {
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 500);
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  const dot = page.locator("article.card.active .unsaved-dot");
+  await expect(dot).toHaveAttribute("aria-label", "Not saved");
+  await expect(dot).toHaveAttribute("title", "Not saved");
+});
+
 test("the keyboard reaches the aids; the find bar leaves the save state visible", async ({ page }) => {
   await page.route("**/tm/matches*", (r) => r.fulfill({ contentType: "application/json",
     body: JSON.stringify([{ translated_text: "From memory", document_title: "Other", updated_at: "2026-01-01T00:00:00Z" }]) }));

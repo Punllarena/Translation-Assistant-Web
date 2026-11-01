@@ -30,6 +30,8 @@ import { chapterNeighbours } from "./chapterNav";
 import JumpBack from "./JumpBack";
 import ChapterEnd from "./ChapterEnd";
 import { useLeave, useLeaveGuard } from "./useLeave";
+import { useNotice } from "./useNotice";
+import { copyText } from "./clipboard";
 import { useAllVolumes, useDocuments, useSeriesList } from "../library/queries";
 import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
@@ -85,7 +87,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const spell = useSpell(seriesId, lines.map((l) => ed.texts[l.line_number] ?? ""));
   const [menu, setMenu] = useState<{ x: number; y: number; word: Misspelling } | null>(null);
   const [phrase, setPhrase] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { notice, setNotice } = useNotice(ed.active);
   const docs = useDocuments();
   const volumes = useAllVolumes();
   const seriesList = useSeriesList();
@@ -99,9 +101,12 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const [showKeys, setShowKeys] = useState(false);
   const chapters = useMemo(() => chapterNeighbours(docs.data ?? [], id), [docs.data, id]);
   const listed = docs.data?.find((d) => d.id === id);
-  const gone = ed.missing.length
-    ? `Lines ${ed.missing.map((n) => n + 1).join(", ")} no longer exist (the source was edited elsewhere); reload the chapter`
+  // The server answered, but it has no such line: the source was edited elsewhere, and the
+  // text only exists in this tab now.
+  const missingText = ed.missing.length
+    ? `${linesText(ed.missing.map((n) => n + 1))} ${ed.missing.length === 1 ? "no longer exists" : "no longer exist"}; reload the chapter`
     : null;
+  const barSave = missingText ? { state: "error" as const, error: missingText } : ed.save;
   const addWord = async (word: string, scope: "series" | "all") => {
     word = word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
     if (!word || /\s/.test(word)) return setNotice("Select a single word first");
@@ -262,7 +267,20 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       ))}
     </Menu>
   );
-  const unsavedLines = ed.save.state === "error" ? ed.store.unsaved().map((e) => e.line_number + 1) : [];
+  // The lines whose text the server has not taken: the dirty ones while a save is failing,
+  // plus any the server says are gone. Those keep their text here, and Copy offers it.
+  const failed = ed.save.error ? ed.store.unsaved().map((e) => e.line_number) : [];
+  const unsaved = [...new Set([...failed, ...ed.missing])].sort((a, b) => a - b);
+  const unsavedLines = unsaved.map((n) => n + 1);
+  const unsavedSet = useMemo(() => new Set(unsaved), [unsaved.join(",")]);
+  const copyUnsaved = () => {
+    const edits = ed.store.unsaved();
+    const all = [...edits, ...ed.missing
+      .filter((n) => !edits.some((e) => e.line_number === n))
+      .map((n) => ({ line_number: n, translated_text: ed.texts[n] ?? "" }))].sort((a, b) => a.line_number - b.line_number);
+    void copyText(all.map((e) => `Line ${e.line_number + 1}\n${e.translated_text}`).join("\n\n"))
+      .then((ok) => { if (!ok) setNotice("Could not copy the text"); });
+  };
   const restoredNotice = ed.restored
     ? `Restored ${ed.restored} unsaved ${ed.restored === 1 ? "line" : "lines"} from earlier in this tab`
     : null;
@@ -274,8 +292,10 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const statusBar = (line: number | null, phraseText: string | null, tools: ReactNode) => (
     <StatusBar crumbs={crumbs} line={line} total={lines.length}
       translated={stats.done} lineCount={stats.total} percent={stats.percent} words={stats.words}
-      phrase={phraseText} save={ed.save} unsavedLines={unsavedLines} onRetry={() => void ed.store.flush()}
-      notice={leaveNotice ?? restoredNotice ?? notice ?? gone} spellAvailable={spell.available}
+      phrase={phraseText} save={barSave} unsavedLines={barSave === ed.save ? unsavedLines : []}
+      permanent={ed.savePermanent || Boolean(missingText)}
+      onRetry={() => void ed.store.flush()} onCopy={copyUnsaved}
+      notice={leaveNotice ?? restoredNotice ?? notice} spellAvailable={spell.available}
       onLeave={(to) => void leave(to)}
       nav={listed && <ChapterNav doc={listed} chapters={chapters} prevKey={bindings.prev_chapter} nextKey={bindings.next_chapter}
         onGo={(d) => void leave(`/documents/${d.id}`)} />}
@@ -338,7 +358,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       <div className="editor-layout">
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
-          onActivate={activate} editor={editor} highlight={hit}
+          onActivate={activate} editor={editor} highlight={hit} unsaved={unsavedSet}
           misspelled={spell.misspelled} readings={readings.ruby} glossaryRuby={glossaryRuby}
           renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
         {chapterEnd}

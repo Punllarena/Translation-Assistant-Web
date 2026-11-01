@@ -24,7 +24,9 @@ interface Props {
   phrase: string | null;
   save: { state: SaveState; error: string | null };
   unsavedLines: number[]; // 1-based, shown while a save is failing
+  permanent?: boolean; // retrying cannot help, so nothing says it is
   onRetry(): void;
+  onCopy(): void; // copies the unsaved text out of the tab
   notice?: string | null;
   spellAvailable?: boolean;
   onLeave(to: string): void; // leaves through the save flush
@@ -51,8 +53,8 @@ function Ring({ percent }: { percent: number }) {
 }
 
 export default function StatusBar({
-  crumbs, nav, tools, line, total, translated, lineCount, percent, words, phrase, save, unsavedLines, onRetry, notice,
-  spellAvailable = true, onLeave,
+  crumbs, nav, tools, line, total, translated, lineCount, percent, words, phrase, save, unsavedLines, permanent = false,
+  onRetry, onCopy, notice, spellAvailable = true, onLeave,
 }: Props) {
   const { series, volume } = crumbs;
   // A plain left click leaves through onLeave; modified clicks keep the link's own behaviour (new tab, ...).
@@ -82,8 +84,6 @@ export default function StatusBar({
             {line != null && <span className="sb-line" title={`Line ${line} of ${total}`}>at L{line}</span>}
             <span className={save.state === "saved" ? "save-state muted" : "save-state"}>{SAVE_TEXT[save.state]}</span>
           </div>
-          {save.state === "error" && <span role="alert" className="error">{linesText(unsavedLines)} not saved: {save.error} Retrying…</span>}
-          {save.state === "error" && <button type="button" className="small" onClick={onRetry}>Retry</button>}
           {phrase && <span>{phrase}</span>}
           {notice && <span className="muted" role="status">{notice}</span>}
           {!spellAvailable && <span className="muted">Spellcheck unavailable</span>}
@@ -93,6 +93,18 @@ export default function StatusBar({
           if ((e.target as Element).closest("button[aria-pressed]")) e.preventDefault();
         }}>{tools}</div>
       </div>
+      {/* Its own row, so a long message never squeezes the chapter title; it stays put
+          across attempts instead of being torn down and announced again. */}
+      {save.error !== null && (
+        <div className="sb-alert">
+          <span role="alert" className="error">
+            {unsavedLines.length > 0 && `${linesText(unsavedLines)} not saved: `}
+            {save.error}{!permanent && " Retrying\u2026"}
+          </span>
+          <button type="button" className="small" onClick={onRetry}>Retry</button>
+          <button type="button" className="small" onClick={onCopy}>Copy unsaved text</button>
+        </div>
+      )}
     </div>
   );
 }

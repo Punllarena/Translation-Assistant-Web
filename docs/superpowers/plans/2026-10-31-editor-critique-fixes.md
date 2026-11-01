@@ -106,7 +106,7 @@ expect(assignSlots(["mecab"]).backends).toEqual({});
 **Interfaces:**
 - Produces: `saveFailure(e: unknown): { message: string; permanent: boolean }`; `copyText(text: string): Promise<boolean>`; `ed.savePermanent: boolean`; `ed.missing` still `number[]`; `useNotice(active: number): { notice: string | null; setNotice(text: string): void }`. Task 4 relies on Retry staying mounted while `save.error` is set.
 
-- [ ] **Step 1: Write the failing unit tests**
+- [x] **Step 1: Write the failing unit tests**
 
 ```ts
 // saveErrors.test.ts
@@ -126,34 +126,34 @@ expect(store.getState()).toEqual({ state: "unsaved", error: "offline" });
 expect(store.getState()).toEqual({ state: "saved", error: null });
 ```
 
-- [ ] **Step 2: Run them and confirm they fail.**
+- [x] **Step 2: Run them and confirm they fail.**
 
-- [ ] **Step 3: Implement.**
+- [x] **Step 3: Implement.**
   - `saveFailure` as tested. `useEditor`'s save wrapper rethrows `new Error(message)` and records `permanent` in a ref read during render (it is set before the store's state changes).
   - `saveStore.set(state, error = state === "saved" ? null : snapshot.error)`; the success branch that leaves dirty lines passes `null`.
   - The retry effect in `useEditor` sets no timer or `online` listener when permanent. A new edit still tries again through the normal debounce.
 
-- [ ] **Step 4: Run them and confirm they pass.**
+- [x] **Step 4: Run them and confirm they pass.**
 
-- [ ] **Step 5: Write the failing e2e tests** using `fakeSaves`
+- [x] **Step 5: Write the failing e2e tests** using `fakeSaves`
   - `a permanent error stops retrying and offers the text`: PATCH 422; alert reads `Line 1 not saved: The server refused this text. It may be too long.` with no "Retrying…"; count PATCHes over 6 s stays at 1; Copy unsaved text writes `Line 1\n<text>` (grant clipboard permissions); `.ch-title` keeps its width.
   - `the alert stays through retries and typing`: PATCH 500; the alert and Retry stay visible across an attempt held open by a delayed response, and after one keystroke.
   - `missing lines are a failure`: PATCH 200 with `{"missing":[0]}`; pill reads `Not saved`, alert reads `Line 1 no longer exists; reload the chapter`, Copy still offers the text.
   - `notices expire`: `No suggestion 9` is gone after 8 s, and gone at once on moving a line.
   - `unsaved cards are marked`: during a failure the failed card has `.unsaved-dot` with `aria-label="Not saved"`.
 
-- [ ] **Step 6: Run them and confirm they fail.**
+- [x] **Step 6: Run them and confirm they fail.**
 
-- [ ] **Step 7: Implement the UI.**
+- [x] **Step 7: Implement the UI.**
   - `StatusBar`: move the failure out of `.sb-centre` into its own full-width `.sb-alert` row under `.sb-row`, shown while `save.error` is set. It holds `<span role="alert">`, Retry and Copy unsaved text, and doesn't unmount between attempts. Text: `${linesText(lines)} not saved: ${error}` plus ` Retrying…` unless permanent.
   - `Editor`: when `ed.missing.length`, pass the bar `{ state: "error", error: "<Line N no longer exists / Lines N, M no longer exist>; reload the chapter" }`. Keep those lines' text in `ed.texts` and include them in Copy. Remove `gone` from the notice chain.
   - `clipboard.ts`: move `legacyCopy` out of `LineCard.tsx`; `copyText` tries `navigator.clipboard`, then the fallback. `LineCard.copy` uses it.
   - `useNotice`: 8 s expiry, cleared when `active` changes. Replaces `notice` state in `Editor`.
   - `CardList` and `LineCard`: an `unsaved` boolean, true only while `save.error` is set, so normal typing doesn't flicker. Renders `<span className="unsaved-dot" title="Not saved" aria-label="Not saved" role="img" />` beside `.card-number`, in `--seal`.
 
-- [ ] **Step 8: Run `tsc`, unit tests and `npm run e2e -- editor-nav`** and confirm they pass.
+- [x] **Step 8: Run `tsc`, unit tests and `npm run e2e -- editor-nav`** and confirm they pass.
 
-- [ ] **Step 9: Commit** `fix(editor): make save status true and stop retrying permanent errors`
+- [x] **Step 9: Commit** `fix(editor): make save status true and stop retrying permanent errors`
 
 ### Task 3: One leave flow (P1)
 

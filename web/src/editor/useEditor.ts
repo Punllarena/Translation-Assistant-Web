@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, call } from "../api/client";
 import { signedOutOn401 } from "../auth/session";
 import type { Line } from "./rows";
+import { saveFailure } from "./saveErrors";
 import { createSaveStore, type Edit } from "./saveStore";
 
 const stashKey = (id: number) => `ta-unsaved-${id}`;
@@ -21,6 +22,8 @@ async function saveLines(id: number, edits: Edit[], keepalive: boolean): Promise
   const res = await call(api.PATCH("/documents/{document_id}/lines", {
     params: { path: { document_id: id } },
     body: { lines: edits },
+    // A hung save must end in an error the user can act on, not silence.
+    signal: AbortSignal.timeout(20_000),
   }));
   return res.missing;
 }
@@ -58,6 +61,8 @@ function takeStash(id: number): Edit[] {
 export function useEditor(id: number, lines: Line[], startAt: number) {
   const queryClient = useQueryClient();
   const [missing, setMissing] = useState<number[]>([]);
+  // Read during render, set before the store's state changes and its subscribers run.
+  const permanent = useRef(false);
   const store = useMemo(
     () =>
       createSaveStore({
@@ -66,12 +71,13 @@ export function useEditor(id: number, lines: Line[], startAt: number) {
         save: (edits, keepalive) =>
           saveLines(id, edits, keepalive).then(
             (m) => {
-              if (m.length) setMissing(m);
+              setMissing(m);
             },
             (e) => {
               signedOutOn401(queryClient, e);
-              // fetch itself failing is a TypeError with a browser-specific message
-              throw e instanceof TypeError ? new Error("The server can't be reached.") : e;
+              const failure = saveFailure(e);
+              permanent.current = failure.permanent;
+              throw new Error(failure.message);
             },
           ),
       }),
@@ -132,9 +138,13 @@ export function useEditor(id: number, lines: Line[], startAt: number) {
   }, [id, store, setText]);
 
   // A failed save tries again by itself, sooner when the browser says it is back online.
+  // A refusal (a 404, a 422, ...) would only be refused again, so it waits for an edit.
   useEffect(() => {
-    if (save.state === "saved") retries.current = 0;
-    if (save.state !== "error") return;
+    if (save.state === "saved") {
+      retries.current = 0;
+      permanent.current = false;
+    }
+    if (save.state !== "error" || permanent.current) return;
     const retry = () => void store.flush();
     const timer = setTimeout(retry, Math.min(2000 * 2 ** retries.current++, 30_000));
     window.addEventListener("online", retry);
@@ -167,5 +177,5 @@ export function useEditor(id: number, lines: Line[], startAt: number) {
     setRestored(0);
   }, []);
 
-  return { store, save, active, activate, parse, setParse, texts, setText, missing, restored };
+  return { store, save, savePermanent: permanent.current, active, activate, parse, setParse, texts, setText, missing, restored };
 }

@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { Schemas } from "../api/client";
 import { Check, Copy, Cross } from "../ui/icons";
+import { copyText } from "./clipboard";
 import type { Hit } from "./find";
 import { marksToRuby, mergeReadings, shownToPlain } from "./glossaryRuby";
 import { jpSpans, layout, type Segment, type Span } from "./paint";
@@ -34,25 +35,6 @@ export function Painted({ text, spans, ruby = NO_RUBY }: { text: string; spans: 
   );
 }
 
-/** Copy through a hidden textarea, for contexts where `navigator.clipboard` is missing or refuses. */
-function legacyCopy(text: string): boolean {
-  const area = document.createElement("textarea");
-  area.value = text;
-  area.setAttribute("readonly", "");
-  area.style.cssText = "position:fixed;top:0;left:0;opacity:0";
-  const prev = document.activeElement as HTMLElement | null;
-  document.body.appendChild(area);
-  area.select();
-  try {
-    return document.execCommand("copy");
-  } catch {
-    return false;
-  } finally {
-    area.remove();
-    prev?.focus?.();
-  }
-}
-
 interface Props {
   index: number;
   line: Line;
@@ -61,6 +43,7 @@ interface Props {
   text: string;
   highlight: Hit | null;
   misspelled: Misspelling[];
+  unsaved?: boolean; // this line's text is not on the server
   onActivate(index: number): void;
   editor?: ReactNode;
   readings?: Ruby[]; // the active card's complete ruby list (generated + author), when the reading aid is on
@@ -69,7 +52,7 @@ interface Props {
 
 /** One source paragraph and its translation. The active card holds the CodeMirror
  *  editor; the others are painted text. */
-function LineCard({ index, line, active, parse, text, highlight, misspelled, onActivate, editor, readings, glossaryRuby = false }: Props) {
+function LineCard({ index, line, active, parse, text, highlight, misspelled, unsaved = false, onActivate, editor, readings, glossaryRuby = false }: Props) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     if (active) ref.current?.scrollIntoView({ block: "center" });
@@ -84,9 +67,7 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, onA
       if (copyTimer.current) clearTimeout(copyTimer.current);
       copyTimer.current = window.setTimeout(() => setCopied("idle"), 1500);
     };
-    const fallback = () => finish(legacyCopy(line.raw_text) ? "copied" : "failed");
-    if (!navigator.clipboard) return fallback(); // plain-http origins (a LAN address) have no async clipboard
-    navigator.clipboard.writeText(line.raw_text).then(() => finish("copied"), fallback);
+    void copyText(line.raw_text).then((ok) => finish(ok ? "copied" : "failed"));
   };
   const source = glossaryRuby ? line.plain_text : parse === -2 ? line.raw_text : line.display_text;
   const sourceSpans = useMemo(() => {
@@ -124,6 +105,7 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, onA
         else if (window.getSelection()?.isCollapsed !== false) e.currentTarget.querySelector<HTMLElement>(".cm-content")?.focus();
       }}>
       <span className="card-number">{line.line_number + 1}</span>
+      {unsaved && <span className="unsaved-dot" title="Not saved" aria-label="Not saved" role="img" />}
       <button type="button" className="copy-original" aria-label="Copy original text" title="Copy original text" onClick={copy}>
         {copied === "copied" ? <Check /> : copied === "failed" ? <Cross /> : <Copy />}
         {copied !== "idle" && <span className="copy-feedback">{copied === "copied" ? "Copied" : "Failed"}</span>}

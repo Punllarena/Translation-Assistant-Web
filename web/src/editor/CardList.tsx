@@ -16,9 +16,10 @@ interface Props {
   renderImage?(image: Image): ReactNode;
   readings?: Ruby[]; // the active card's ruby when the reading aid is on
   glossaryRuby?: boolean; // show the original text with glossary translations as ruby
+  unsaved?: ReadonlySet<number>; // line numbers whose text is not on the server
 }
 
-export default function CardList({ rows, active, parse, texts, onActivate, editor, highlight, misspelled, renderImage, readings, glossaryRuby = false }: Props) {
+export default function CardList({ rows, active, parse, texts, onActivate, editor, highlight, misspelled, renderImage, readings, glossaryRuby = false, unsaved }: Props) {
   return (
     <>
       {rows.map((row) => {
@@ -27,7 +28,7 @@ export default function CardList({ rows, active, parse, texts, onActivate, edito
         const isActive = row.index === active;
         return (
           <LineCard key={row.line.line_number} index={row.index} line={row.line} active={isActive}
-            parse={isActive ? parse : -1} text={text}
+            parse={isActive ? parse : -1} text={text} unsaved={unsaved?.has(row.line.line_number) ?? false}
             highlight={highlight?.index === row.index ? highlight : null}
             misspelled={misspelled?.(text) ?? NONE} onActivate={onActivate}
             editor={isActive ? editor : undefined} readings={isActive ? readings : undefined}

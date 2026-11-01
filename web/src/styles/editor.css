@@ -18,6 +18,9 @@
 .sb-ring-track { stroke: var(--line); }
 .sb-ring-fill { stroke: var(--accent-text); stroke-linecap: round; }
 .sb-tools { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: flex-end; }
+/* The save failure's own row: a long message wraps here instead of squeezing the title. */
+.sb-alert { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.sb-alert [role="alert"] { min-width: 0; overflow-wrap: anywhere; }
 .sb-tools button.icon[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
 .sb-tools [role="group"] { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px;
   background: color-mix(in oklch, var(--line) 60%, var(--bg)); }
@@ -40,6 +43,9 @@
 .card.active { background: var(--surface); border-color: color-mix(in oklch, var(--accent-text) 45%, transparent);
   box-shadow: 0 10px 28px -14px var(--shadow); cursor: auto; }
 .card-number { float: right; font-family: var(--mono); font-size: .7em; color: var(--muted); }
+/* A line whose text the server has not taken yet: a small vermilion mark beside its number. */
+.unsaved-dot { float: right; width: .45em; height: .45em; margin: .55em .1em 0 .4em; border-radius: 50%;
+  background: var(--seal); }
 .copy-original { float: right; display: inline-flex; align-items: center; gap: .3em; margin-left: .6em;
   padding: .15em .45em; border: 0; border-radius: 6px; background: none; color: var(--muted);
   font-size: .7em; cursor: pointer; visibility: hidden; }
