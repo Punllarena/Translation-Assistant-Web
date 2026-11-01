@@ -269,9 +269,9 @@ for (const bad of ["abc", "", "0", "11", "2.5", "-1"]) expect(parseLineNumber(ba
 **Files:**
 - Modify: `CLAUDE.md` (the "Focus and keys" paragraph: slots, session history, `saveFailure`, one `useLeave` flow), `CHANGELOG.md`
 
-- [ ] **Step 1: Walk the failure states by eye.** At 1440x900 and 390x844, light and dark: `.sb-alert` with a long message, the leave dialog, the waiting notice, the dots, `.find-hit` in both themes, the key labels on Use. Fix what the look shows.
+- [x] **Step 1: Walk the failure states by eye.** At 1440x900 and 390x844, light and dark: `.sb-alert` with a long message, the leave dialog, the waiting notice, the dots, `.find-hit` in both themes, the key labels on Use. Fix what the look shows.
 
-- [ ] **Step 2: Run everything.**
+- [x] **Step 2: Run everything.**
 
 ```bash
 docker compose --profile tools run --rm tools sh -c "cd web && npx tsc -b --noEmit && npx vitest run && npm run e2e"
@@ -279,9 +279,9 @@ docker compose --profile tools run --rm tools sh -c "cd web && npx tsc -b --noEm
 
 Expected: no type errors, all unit and e2e tests pass.
 
-- [ ] **Step 3: Read the diff** for churn, dead code and leftovers: the CSS counter, `gone`, `useLeaveGuard`.
+- [x] **Step 3: Read the diff** for churn, dead code and leftovers: the CSS counter, `gone`, `useLeaveGuard`.
 
-- [ ] **Step 4: Update `CLAUDE.md` and `CHANGELOG.md`, then commit** `docs: record the editor's Use, save and leave rules`
+- [x] **Step 4: Update `CLAUDE.md` and `CHANGELOG.md`, then commit** `docs: record the editor's Use, save and leave rules`
 
 - [ ] **Step 5: Re-run `/impeccable critique web/src/editor`** to score the result. Close the snapshot only if it shows these issues cleared.
 

@@ -29,3 +29,11 @@ export async function copyText(text: string): Promise<boolean> {
   }
   return legacyCopy(text);
 }
+
+/** The text a failed save would have sent: one block per line, "Line 3" then its text. */
+export function unsavedText(lines: { line_number: number; translated_text: string }[]): string {
+  return [...lines]
+    .sort((a, b) => a.line_number - b.line_number)
+    .map((l) => `Line ${l.line_number + 1}\n${l.translated_text}`)
+    .join("\n\n");
+}

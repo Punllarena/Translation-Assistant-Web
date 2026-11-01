@@ -31,7 +31,7 @@ import JumpBack from "./JumpBack";
 import ChapterEnd from "./ChapterEnd";
 import { useLeave } from "./useLeave";
 import { useNotice } from "./useNotice";
-import { copyText } from "./clipboard";
+import { copyText, unsavedText } from "./clipboard";
 import { useAllVolumes, useDocuments, useSeriesList } from "../library/queries";
 import { shownTitle } from "../library/shelf";
 import { useEditor } from "./useEditor";
@@ -252,8 +252,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         // The word under or after the caret, else the first on the line.
         const head = v.state.selection.main.head;
         const word = words.find((m) => m.start >= head) ?? words[0];
-        const at = v.coordsAtPos(word.start);
-        if (at) setMenu({ x: at.left, y: at.bottom, word });
+        const spot = v.coordsAtPos(word.start);
+        if (spot) setMenu({ x: spot.left, y: spot.bottom, word });
         break;
       }
       default:
@@ -328,9 +328,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     const edits = ed.store.unsaved();
     const all = [...edits, ...ed.missing
       .filter((n) => !edits.some((e) => e.line_number === n))
-      .map((n) => ({ line_number: n, translated_text: ed.texts[n] ?? "" }))].sort((a, b) => a.line_number - b.line_number);
-    void copyText(all.map((e) => `Line ${e.line_number + 1}\n${e.translated_text}`).join("\n\n"))
-      .then((ok) => { if (!ok) setNotice("Could not copy the text"); });
+      .map((n) => ({ line_number: n, translated_text: ed.texts[n] ?? "" }))];
+    void copyText(unsavedText(all)).then((ok) => { if (!ok) setNotice("Could not copy the text"); });
   };
   const restoredNotice = ed.restored
     ? `Restored ${ed.restored} unsaved ${ed.restored === 1 ? "line" : "lines"} from earlier in this tab`
