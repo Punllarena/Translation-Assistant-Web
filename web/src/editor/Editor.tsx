@@ -34,6 +34,7 @@ import { useAllVolumes, useDocuments, useSeriesList } from "../library/queries";
 import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
 import { useBindings, useEditorKeys } from "./useEditorKeys";
+import { assignSlots } from "./useSlots";
 
 type Data = Schemas["DocumentLines"];
 
@@ -61,6 +62,9 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const imagesCollapsed = Boolean(settings.data?.images_collapsed);
   const glossaryRuby = settings.data?.glossary_ruby === true;
   const stats = useMemo(() => progress(lines, ed.texts), [lines, ed.texts]);
+  const backends = useQuery({ queryKey: ["mt", "backends"], queryFn: () => call(api.GET("/mt/backends")) });
+  // Alt+1..9 pick a fixed suggestion: the desktop's two memory matches, then each backend.
+  const slots = useMemo(() => assignSlots(backends.data?.enabled ?? []), [backends.data]);
   const onReady = useCallback((v: EditorView | null) => { view.current = v; }, []);
   const current = lines[ed.active];
   const queryClient = useQueryClient();
@@ -215,11 +219,9 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       default:
         if (action.startsWith("punct_")) insertAtCursor(view.current, PUNCTUATIONS[Number(action.slice(6))], 1);
         if (action.startsWith("use_")) {
-          // ponytail: numbered by position, so a late result in an earlier panel shifts the rest; the
-          // numbers on screen (a CSS counter over the same buttons) always match. Fixed slots if that grates.
-          const uses = document.querySelectorAll<HTMLElement>(".side-col [data-use]");
           const k = Number(action.slice(4));
-          if (uses[k - 1]) uses[k - 1].click();
+          const use = document.querySelector<HTMLElement>(`.side-col [data-use="${k}"]`);
+          if (use) use.click();
           else setNotice(`No suggestion ${k} on this line`);
         }
     }
@@ -302,10 +304,11 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   }
   const n = current.line_number;
   const editor = (
-    <CodeEditor key={n} value={ed.texts[n] ?? ""} label="Translation"
+    <CodeEditor key={n} historyKey={`${id}:${n}`} value={ed.texts[n] ?? ""} label="Translation"
       onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} autoFocus={!find.stepped.current} onContextMenu={onContextMenu} />
   );
   const useText = (t: string) => {
+    if ((ed.texts[n] ?? "") && ed.texts[n] !== t) setNotice(`Replaced line ${n + 1}. Ctrl+Z brings it back`);
     // Through the view, so the replaced translation is one Ctrl+Z away.
     if (view.current) replaceDoc(view.current, t);
     else ed.setText(n, t);
@@ -343,8 +346,9 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       </div>
       {(tmVisible || mtVisible) && (
         <div className="side-col">
-          {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={useText} />}
-          {mtVisible && <MtPanels documentId={id} lineNumber={n} translated={Boolean(ed.texts[n])} onUse={useText} />}
+          {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={useText} slots={slots} bindings={bindings} />}
+          {mtVisible && <MtPanels documentId={id} lineNumber={n} translated={Boolean(ed.texts[n])} onUse={useText}
+            slots={slots} bindings={bindings} />}
         </div>
       )}
       </div>

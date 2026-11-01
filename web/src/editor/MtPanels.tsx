@@ -33,8 +33,9 @@ function EntryRow({ e }: { e: Entry }) {
   );
 }
 
-function Card({ name, label, documentId, lineNumber, onUse }: {
+function Card({ name, label, documentId, lineNumber, onUse, slot, bindings }: {
   name: string; label: string; documentId: number; lineNumber: number; onUse(text: string): void;
+  slot?: number; bindings: Record<string, string>;
 }) {
   const { state, retry } = useMtStream(name, documentId, lineNumber);
   const glyph = state.status === "done" ? (state.cached ? "cached" : "✓") : state.status === "running" ? "…" : "";
@@ -46,15 +47,21 @@ function Card({ name, label, documentId, lineNumber, onUse }: {
       {state.entries.length > 0 && <ul className="mt-entries">{state.entries.map((e, i) => <EntryRow key={i} e={e} />)}</ul>}
       {state.status === "setup" && <p className="muted">{state.message} <Link to="/settings/mt">Set up</Link></p>}
       {state.status === "error" && <p role="alert">{state.message} <button onClick={retry}>Retry</button></p>}
-      {state.text && <button data-use onClick={() => onUse(state.text)}>Use</button>}
+      {/* A stream still sending text offers no Use: half a translation is not one. */}
+      {state.status === "done" && state.text && (
+        <button data-use={slot ?? undefined} onClick={() => onUse(state.text)}>
+          {slot !== undefined && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}Use
+        </button>
+      )}
     </section>
   );
 }
 
 /** Machine translation cards for the active line, one SSE stream per enabled backend
  * (Ollama has its own card and endpoints: `translated` decides whether it asks unprompted). */
-export default function MtPanels({ documentId, lineNumber, translated, onUse }: {
+export default function MtPanels({ documentId, lineNumber, translated, onUse, slots, bindings }: {
   documentId: number; lineNumber: number; translated: boolean; onUse(text: string): void;
+  slots: { backends: Record<string, number> }; bindings: Record<string, string>;
 }) {
   const backends = useQuery({ queryKey: ["mt", "backends"], queryFn: () => call(api.GET("/mt/backends")) });
   const enabled = backends.data?.enabled ?? [];
@@ -62,10 +69,11 @@ export default function MtPanels({ documentId, lineNumber, translated, onUse }: 
   return (
     <div className="mt-panels" aria-label="Machine translation">
       {enabled.map((name) => name === "ollama" ? (
-        <OllamaCard key={name} documentId={documentId} lineNumber={lineNumber} translated={translated} onUse={onUse} />
+        <OllamaCard key={name} documentId={documentId} lineNumber={lineNumber} translated={translated} onUse={onUse}
+          slot={slots.backends[name]} bindings={bindings} />
       ) : (
         <Card key={name} name={name} label={LABELS[name] ?? name}
-          documentId={documentId} lineNumber={lineNumber} onUse={onUse} />
+          documentId={documentId} lineNumber={lineNumber} onUse={onUse} slot={slots.backends[name]} bindings={bindings} />
       ))}
     </div>
   );

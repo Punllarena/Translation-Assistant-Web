@@ -60,28 +60,28 @@ These are the failures most likely to bite that no finding names directly. Each 
 **Interfaces:**
 - Produces: `assignSlots(enabled: string[]): { tm: [1, 2]; backends: Record<string, number> }`; `data-use="<slot>"` on Use buttons; `CodeEditor` prop `historyKey: string`.
 
-- [ ] **Step 1: Write the failing unit test** in `useSlots.test.ts`
+- [x] **Step 1: Write the failing unit test** in `useSlots.test.ts`
 
 ```ts
 expect(assignSlots(["deepl", "mecab", "jparser", "ollama"])).toEqual({ tm: [1, 2], backends: { deepl: 3, ollama: 4 } });
 expect(assignSlots(["mecab"]).backends).toEqual({});
 ```
 
-- [ ] **Step 2: Run it and confirm it fails** with `assignSlots` not defined.
+- [x] **Step 2: Run it and confirm it fails** with `assignSlots` not defined.
 
-- [ ] **Step 3: Implement `assignSlots`.** MeCab and JParser have no Use button, so they take no slot. TM always holds 1 and 2; TM matches past the second stay clickable with no number.
+- [x] **Step 3: Implement `assignSlots`.** MeCab and JParser have no Use button, so they take no slot. TM always holds 1 and 2; TM matches past the second stay clickable with no number.
 
-- [ ] **Step 4: Run it and confirm it passes.**
+- [x] **Step 4: Run it and confirm it passes.**
 
-- [ ] **Step 5: Write the failing e2e tests** in `editor-nav.spec.ts`
+- [x] **Step 5: Write the failing e2e tests** in `editor-nav.spec.ts`
   - `Use can't take a stale or partial suggestion`: delay `**/tm/matches*` by 1 s for line 2; press Enter then `Alt+1`; expect the box to stay as it was. Stub a stream that sends a chunk and stays open; expect no Use button on that card until `done`.
   - `suggestion numbers don't move`: a backend's Use has the same `data-use` before and after a TM match arrives.
   - `undo survives moving between lines, per chapter`: on Nav one line 1, `Alt+1`, Enter, PageUp, `Control+z`; expect the original text and a mocked PATCH carrying it. Then in Nav two line 1, `Control+z`; expect no change.
   - `replacing says so`: `Alt+1` on a line with text shows `Replaced line 1. Ctrl+Z brings it back`; on an empty line it shows nothing.
 
-- [ ] **Step 6: Run them and confirm they fail.**
+- [x] **Step 6: Run them and confirm they fail.**
 
-- [ ] **Step 7: Implement.**
+- [x] **Step 7: Implement.**
   - `TmPanel`: while `tm.isPlaceholderData`, render matches `disabled` with no `data-use`. Take `slots` and `bindings` props.
   - `MtPanels.Card`: show Use only when `state.status === "done"`.
   - `OllamaCard`: leave `text` as is (a `line` event carries a whole line); add `data-use`.
@@ -90,9 +90,9 @@ expect(assignSlots(["mecab"]).backends).toEqual({});
   - `CodeEditor`: a module-level `Map<string, { state: EditorState; latest: Ref }>` keyed by `historyKey` (`${documentId}:${lineNumber}`). Save `view.state` on unmount and reuse it on mount. The entry owns the `latest` ref, because the saved state's listeners close over it; refresh `latest.current` on mount. The existing `value` effect already reconciles a document changed elsewhere. Comment with `ponytail:` that the map is unbounded until reload.
   - `Editor.useText`: when the line has different non-empty text, `setNotice(\`Replaced line ${n + 1}. Ctrl+Z brings it back\`)`.
 
-- [ ] **Step 8: Run `tsc`, the unit tests and `npm run e2e -- editor-nav tm mt ollama`** and confirm they pass; `tm.spec.ts` covers Ctrl+Z after Use.
+- [x] **Step 8: Run `tsc`, the unit tests and `npm run e2e -- editor-nav tm mt ollama`** and confirm they pass; `tm.spec.ts` covers Ctrl+Z after Use.
 
-- [ ] **Step 9: Commit** `fix(editor): make Use safe, with fixed slots and undo across lines`
+- [x] **Step 9: Commit** `fix(editor): make Use safe, with fixed slots and undo across lines`
 
 ### Task 2: True save status (P1)
 

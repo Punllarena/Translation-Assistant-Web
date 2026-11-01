@@ -81,10 +81,9 @@
 .editor-layout { display: flex; gap: 1rem; align-items: flex-start; justify-content: center; }
 .editor-layout .editor { flex: 1; min-width: 0; }
 .side-col { position: sticky; top: var(--top-h, 5rem); width: 18rem; flex: none; font-size: .875rem;
-  max-height: calc(100vh - var(--top-h, 5rem)); overflow-y: auto; counter-reset: use; }
-/* The number Alt+1..9 picks. The alt text keeps it out of the button's accessible name. */
-[data-use]::before { counter-increment: use; content: counter(use); content: counter(use) / ""; margin-right: .5em;
-  font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+  max-height: calc(100vh - var(--top-h, 5rem)); overflow-y: auto; }
+/* The real key that picks this suggestion, printed in full (Alt included). */
+.use-key { margin-right: .5em; font-family: var(--mono); font-size: .75rem; color: var(--muted); }
 .key-help { max-height: 60vh; overflow-y: auto; font-size: 14px; }
 .key-help h3 { margin: 0 0 6px; }
 .key-help dl { display: grid; gap: 4px; margin: 0; }

@@ -208,6 +208,124 @@ test("a failing save retries itself, names its lines, and guards header links", 
   await expect(page).toHaveURL(/stat/);
 });
 
+/** One translation-memory answer, or a slow one for every line but the first. */
+async function tmAnswers(page: Page, slowMs = 0) {
+  await page.route("**/tm/matches*", async (r) => {
+    const line = new URL(r.request().url()).searchParams.get("line_number");
+    if (line !== "0" && slowMs) await new Promise((done) => setTimeout(done, slowMs));
+    const text = line === "0" ? "Old match" : "New match";
+    await r.fulfill({ json: [{ translated_text: text, document_title: "Other", updated_at: "2026-01-01T00:00:00Z" }] }).catch(() => {});
+  });
+}
+
+/** The backends the machine-translation test turns on, put back whatever the page set. */
+async function mtBackends(page: Page, enabled: string[]) {
+  const put = await page.request.put("/api/settings", { data: { mt_enabled: enabled } });
+  if (!put.ok()) throw new Error(`the backends could not be set: ${put.status()}`);
+}
+
+test("Use can't take a stale or partial suggestion", async ({ page }) => {
+  await tmAnswers(page, 1000);
+  await page.route("**/mt/stream*", (r) => {
+    const line = new URL(r.request().url()).searchParams.get("line_number");
+    // a stream that sends a chunk and then ends without done is still running
+    const body = line === "0"
+      ? 'event: chunk\ndata: {"text":"partial"}\n\n'
+      : 'event: result\ndata: {"text":"Partial"}\n\nevent: done\ndata: {}\n\n';
+    return r.fulfill({ status: 200, headers: { "Content-Type": "text/event-stream" }, body });
+  });
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  await mtBackends(page, ["mecab", "jparser", "deepl"]);
+  try {
+    await page.reload();
+    await expect(page.getByRole("complementary", { name: "Translation memory" })).toContainText("Old match");
+    await box(page).click();
+    await page.keyboard.type("draft");
+    // a card still streaming offers no Use
+    const deepl = page.getByRole("region", { name: "DeepL" });
+    await expect(deepl).toContainText("partial");
+    await expect(deepl.locator("[data-use]")).toHaveCount(0);
+    // line 2's memory still holds line 1's match while its own answer is on the way
+    await page.keyboard.press("Enter");
+    await expect(card(page, 1)).toHaveAttribute("aria-current", "true");
+    await page.keyboard.press("Alt+1");
+    await expect(box(page)).not.toContainText("Old match");
+    await page.keyboard.press("PageDown");
+    await expect(page.getByRole("region", { name: "DeepL" })).toContainText("Partial");
+    await expect(page.getByRole("region", { name: "DeepL" }).locator("[data-use]")).toHaveCount(1);
+  } finally {
+    await mtBackends(page, ["mecab", "jparser"]);
+  }
+});
+
+test("suggestion numbers don't move", async ({ page }) => {
+  await tmAnswers(page, 1000);
+  await page.route("**/mt/stream*", (r) => r.fulfill({ status: 200, headers: { "Content-Type": "text/event-stream" },
+    body: 'event: result\ndata: {"text":"Machine"}\n\nevent: done\ndata: {}\n\n' }));
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  await mtBackends(page, ["mecab", "jparser", "deepl"]);
+  try {
+    await page.reload();
+    const use = page.getByRole("region", { name: "DeepL" }).locator("[data-use]");
+    await expect(use).toHaveAttribute("data-use", "3");
+    const panel = page.getByRole("complementary", { name: "Translation memory" });
+    await expect(panel).toContainText("Old match");
+    await expect(use).toHaveAttribute("data-use", "3");
+    await expect(panel.locator('[data-use="1"]')).toHaveText(/Old match/);
+  } finally {
+    await mtBackends(page, ["mecab", "jparser"]);
+  }
+});
+
+test("undo survives moving between lines, per chapter", async ({ page }) => {
+  const patches: { lines: { line_number: number; translated_text: string }[] }[] = [];
+  await page.route("**/documents/*/lines", (r) => {
+    if (r.request().method() !== "PATCH") return r.continue();
+    patches.push(r.request().postDataJSON());
+    return r.fulfill({ json: { missing: [] } });
+  });
+  await page.route("**/tm/matches*", (r) => r.fulfill({ json: [{ translated_text: "From memory",
+    document_title: "Other", updated_at: "2026-01-01T00:00:00Z" }] }));
+  await open(page, "Nav one");
+  await box(page).click();
+  const original = (await box(page).textContent()) ?? ""; // an earlier test may have typed here
+  await page.keyboard.press("Alt+1");
+  await expect(box(page)).toHaveText("From memory");
+  await page.keyboard.press("Enter");
+  await expect(card(page, 1)).toHaveAttribute("aria-current", "true");
+  await page.keyboard.press("PageUp");
+  await expect(card(page, 0)).toHaveAttribute("aria-current", "true");
+  await page.keyboard.press("Control+z");
+  await expect(box(page)).toHaveText(original);
+  await expect.poll(() => patches.some((p) => p.lines.some(
+    (l) => l.line_number === 0 && l.translated_text === original))).toBe(true);
+  // another chapter's first line has its own history, so the same line number does not undo there
+  await page.getByRole("button", { name: /, chapter list$/ }).click();
+  await page.getByRole("menuitemradio", { name: /^2 · Nav two/ }).click();
+  const other = (await box(page).textContent()) ?? "";
+  await page.keyboard.press("Control+z");
+  await expect(box(page)).toHaveText(other);
+  await expect(box(page)).not.toHaveText("From memory");
+});
+
+test("replacing says so", async ({ page }) => {
+  await page.route("**/tm/matches*", (r) => r.fulfill({ json: [{ translated_text: "From memory",
+    document_title: "Other", updated_at: "2026-01-01T00:00:00Z" }] }));
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  // line 3: no other flow in this file types into it, so it starts empty
+  await card(page, 2).click();
+  await box(page).click();
+  await page.keyboard.press("Alt+1"); // an empty line: nothing was replaced
+  await expect(box(page)).toHaveText("From memory");
+  await expect(page.getByText(/^Replaced line 3\./)).toHaveCount(0);
+  await page.keyboard.type("draft");
+  await page.keyboard.press("Alt+1");
+  await expect(page.getByText("Replaced line 3. Ctrl+Z brings it back")).toBeVisible();
+});
+
 test("the keyboard reaches the aids; the find bar leaves the save state visible", async ({ page }) => {
   await page.route("**/tm/matches*", (r) => r.fulfill({ contentType: "application/json",
     body: JSON.stringify([{ translated_text: "From memory", document_title: "Other", updated_at: "2026-01-01T00:00:00Z" }]) }));
