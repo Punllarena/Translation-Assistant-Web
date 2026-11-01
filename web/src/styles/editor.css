@@ -70,6 +70,7 @@
 .jp-kanji { color: color-mix(in oklch, var(--seal) 40%, currentColor); }
 .jp-punct { opacity: .6; }
 .sentence-current { background: var(--sent); border-radius: 2px; }
+.find-hit { background: var(--hit); color: var(--ink); }
 .find-current { background: var(--hit-cur); color: var(--ink); }
 .misspelled { text-decoration: underline wavy var(--danger); text-decoration-skip-ink: none; }
 .findbar { display: flex; gap: .4rem; align-items: center; max-width: 60rem;

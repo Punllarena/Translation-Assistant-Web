@@ -237,32 +237,32 @@ expect(store.getState()).toEqual({ state: "saved", error: null });
 - Consumes: `useNotice` (Task 2).
 - Produces: `parseLineNumber(answer: string, total: number): number | null` in `rows.ts`; `useEditorKeys(bindings, run, focusEditor, closeFind: () => boolean)`; `useFind` also returns `hits: Hit[]`, empty while closed.
 
-- [ ] **Step 1: Write the failing unit test** in `rows.test.ts`
+- [x] **Step 1: Write the failing unit test** in `rows.test.ts`
 
 ```ts
 expect(parseLineNumber("3", 10)).toBe(3);
 for (const bad of ["abc", "", "0", "11", "2.5", "-1"]) expect(parseLineNumber(bad, 10)).toBeNull();
 ```
 
-- [ ] **Step 2: Write the failing e2e tests**
+- [x] **Step 2: Write the failing e2e tests**
   - `keys that can't act say why`: on an untranslated line, `Control+End` shows `This line has no translation yet`. With none left, it shows `No untranslated lines left`. The jump itself is unchanged, for desktop parity.
   - `Enter on the last line goes to the end card`: focus lands on `.chapter-end .primary`; Enter there runs it.
   - `go to line is a dialog`: `Control+g` opens a dialog; `abc` shows `Enter a line number from 1 to 23` and stays open; `5` moves there and focuses the editor; Esc returns to the editor.
   - `Find`: all matches have `.find-hit`, the current one `.find-current`. `Escape` from the editor closes Find. An Esc dispatched with `isComposing: true` doesn't.
   - `typing after a menu`: open ⋯, Esc, type `x`; it lands in the box. Space on the trigger still opens the menu.
 
-- [ ] **Step 3: Run them and confirm they fail.**
+- [x] **Step 3: Run them and confirm they fail.**
 
-- [ ] **Step 4: Implement.**
+- [x] **Step 4: Implement.**
   - `useEditorKeys`: `if (e.isComposing) return` before any Esc or typing handling. Esc runs `closeFind()` first, and falls through to `focusEditor` when it returns false, including from inside the editor.
   - Typing on a control now goes to the editor too, except Space: `typed && e.key !== " "`.
   - `run`: `save_next` with `nextContent(...) === null` flushes, then focuses and scrolls to `.chapter-end .primary`.
   - `go_to_line`: `PromptDialog` state in `Editor`, with `parseLineNumber` then `lineAtOrAfter`. Closes through `focusAfterDialog`.
   - `useFind.hits` flows through `CardList` to `LineCard` as per-card spans with class `find-hit`, using a shared empty constant so `memo` holds. The active translation adds them in the existing marks effect. `.find-hit { background: var(--hit); color: var(--ink); }` goes before `.find-current`.
 
-- [ ] **Step 5: Run `tsc`, unit tests and `npm run e2e -- editor-nav editor`** and confirm they pass.
+- [x] **Step 5: Run `tsc`, unit tests and `npm run e2e -- editor-nav editor`** and confirm they pass.
 
-- [ ] **Step 6: Commit** `fix(editor): say why a key did nothing, and finish Find and go to line`
+- [x] **Step 6: Commit** `fix(editor): say why a key did nothing, and finish Find and go to line`
 
 ### Task 6: Polish and verify
 

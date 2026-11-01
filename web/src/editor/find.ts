@@ -5,6 +5,9 @@ export interface Hit {
   to: number;
 }
 
+/** No hits, as one shared array, so a memoised card is not re-rendered for a new empty one. */
+export const NO_HITS: Hit[] = [];
+
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Case-insensitive occurrences of `needle`, as UTF-16 [from, to). */
@@ -25,8 +28,7 @@ export function findHits(
   ]);
 }
 
-/** The next position after `current` in `dir`, wrapping; -1 when there is nothing. */
-export function wrapStep(current: number, total: number, dir: 1 | -1): number {
+/** The next position after `current` in `dir`, wrapping; -1 when there is nothing. */export function wrapStep(current: number, total: number, dir: 1 | -1): number {
   if (total === 0) return -1;
   if (current < 0) return dir === 1 ? 0 : total - 1;
   return (current + dir + total) % total;

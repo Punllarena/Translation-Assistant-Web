@@ -631,6 +631,110 @@ test("the spell menu works by keyboard", async ({ page }) => {
   await expect(page.getByText("No misspelled words on this line")).toBeVisible();
 });
 
+test("keys that can't act say why", async ({ page }) => {
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  // line 3 has no translation in the seed and no other flow types into it
+  await card(page, 2).click();
+  await expect(box(page)).toHaveText("");
+  await page.keyboard.press("Control+End");
+  await expect(page.getByText("This line has no translation yet")).toBeVisible();
+  // with every line translated there is none left
+  const id = Number(new URL(page.url()).pathname.split("/").pop());
+  const lines = (await (await page.request.get(`/api/documents/${id}/lines`)).json()).lines as { line_number: number }[];
+  await page.request.patch(`/api/documents/${id}/lines`, {
+    data: { lines: lines.map((l) => ({ line_number: l.line_number, translated_text: "x" })) },
+  });
+  await page.reload();
+  await box(page).click();
+  await page.keyboard.press("Control+End");
+  await expect(page.getByText("No untranslated lines left")).toBeVisible();
+});
+
+test("Enter on the last line goes to the end card", async ({ page }) => {
+  await open(page, "Nav two");
+  await fakeSaves(page, () => 200);
+  const id = Number(new URL(page.url()).pathname.split("/").pop());
+  // the one line translated, so the end card's primary is the way on
+  await page.request.patch(`/api/documents/${id}/lines`, {
+    data: { lines: [{ line_number: 0, translated_text: "The story." }] },
+  });
+  await page.reload();
+  await box(page).click();
+  await page.keyboard.press("Enter");
+  const primary = page.locator(".chapter-end .primary");
+  await expect(primary).toBeFocused();
+  await expect(primary).toBeInViewport();
+  await page.keyboard.press("Enter"); // the focused control runs
+  await expect(page.getByText("This chapter has no source text yet.")).toBeVisible();
+});
+
+test("go to line is a dialog", async ({ page }) => {
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  await page.keyboard.press("Control+g");
+  const dialog = page.getByRole("dialog", { name: "Go to line" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel(/Line number/).fill("abc");
+  await dialog.getByRole("button", { name: "Go" }).click();
+  await expect(dialog.getByText("Enter a line number from 1 to 23")).toBeVisible();
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel(/Line number/).fill("5");
+  await dialog.getByRole("button", { name: "Go" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(box(page)).toBeFocused();
+  await expect(page.locator('[role="status"].visually-hidden')).toHaveText("Line 5 of 23");
+  await page.keyboard.press("Control+g");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(box(page)).toBeFocused();
+});
+
+test("Find marks every match, and Escape closes it", async ({ page }) => {
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  await page.keyboard.press("Control+f");
+  const bar = page.getByRole("search");
+  await bar.getByLabel("Find", { exact: true }).fill("行");
+  await expect(page.locator(".find-hit")).toHaveCount(20, { timeout: 5000 });
+  await bar.getByLabel("Find", { exact: true }).press("Enter"); // step to the first match
+  await expect(page.locator(".find-current")).toHaveCount(1);
+  // Esc from the editor closes Find without leaving the line
+  await box(page).click();
+  await page.keyboard.press("Escape");
+  await expect(bar).toHaveCount(0);
+  await expect(box(page)).toBeFocused();
+  // but not while an IME is composing
+  await page.keyboard.press("Control+f");
+  await expect(bar).toBeVisible();
+  await box(page).click();
+  await page.evaluate(() => {
+    const e = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    Object.defineProperty(e, "isComposing", { value: true });
+    (document.activeElement as HTMLElement).dispatchEvent(e);
+  });
+  await expect(bar).toBeVisible();
+});
+
+test("typing after a menu", async ({ page }) => {
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 200);
+  const trigger = page.getByRole("button", { name: "Chapter actions" });
+  await trigger.click();
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await page.keyboard.type("x");
+  await expect(box(page)).toHaveText(/x$/);
+  // Space still presses the focused button
+  await trigger.focus();
+  await page.keyboard.press(" ");
+  await expect(menu).toBeVisible();
+});
+
 test("the keyboard reaches the aids; the find bar leaves the save state visible", async ({ page }) => {
   await page.route("**/tm/matches*", (r) => r.fulfill({ contentType: "application/json",
     body: JSON.stringify([{ translated_text: "From memory", document_title: "Other", updated_at: "2026-01-01T00:00:00Z" }]) }));

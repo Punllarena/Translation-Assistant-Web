@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent,
+  buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, parseLineNumber,
   prevContent, progress, sourceText, type Image, type Line,
 } from "./rows";
 
@@ -28,6 +28,10 @@ describe("rows", () => {
   });
   it("lineAtOrAfter clamps and moves to the next translatable line", () => {
     expect([lineAtOrAfter(L, 1), lineAtOrAfter(L, 2), lineAtOrAfter(L, 99), lineAtOrAfter(L, -5)]).toEqual([0, 2, 4, 0]);
+  });
+  it("parseLineNumber takes only a whole number the chapter has", () => {
+    expect(parseLineNumber("3", 10)).toBe(3);
+    for (const bad of ["abc", "", "0", "11", "2.5", "-1"]) expect(parseLineNumber(bad, 10)).toBeNull();
   });
   it("progress counts translatable lines and words of non-empty translations", () => {
     expect(progress(L, { 0: "two words", 2: "", 4: "x" })).toEqual({ percent: 66, words: 3, done: 2, total: 3 });

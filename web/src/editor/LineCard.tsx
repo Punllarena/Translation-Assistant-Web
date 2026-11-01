@@ -3,6 +3,7 @@ import type { Schemas } from "../api/client";
 import { Check, Copy, Cross } from "../ui/icons";
 import { copyText } from "./clipboard";
 import type { Hit } from "./find";
+import { NO_HITS } from "./find";
 import { marksToRuby, mergeReadings, shownToPlain } from "./glossaryRuby";
 import { jpSpans, layout, type Segment, type Span } from "./paint";
 import { sentenceRanges } from "./parse";
@@ -42,6 +43,7 @@ interface Props {
   parse: number; // -1 unless active
   text: string;
   highlight: Hit | null;
+  hits?: Hit[]; // every match in the chapter; this card marks its own
   misspelled: Misspelling[];
   unsaved?: boolean; // this line's text is not on the server
   onActivate(index: number): void;
@@ -52,7 +54,7 @@ interface Props {
 
 /** One source paragraph and its translation. The active card holds the CodeMirror
  *  editor; the others are painted text. */
-function LineCard({ index, line, active, parse, text, highlight, misspelled, unsaved = false, onActivate, editor, readings, glossaryRuby = false }: Props) {
+function LineCard({ index, line, active, parse, text, highlight, hits = NO_HITS, misspelled, unsaved = false, onActivate, editor, readings, glossaryRuby = false }: Props) {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
     if (active) ref.current?.scrollIntoView({ block: "center" });
@@ -70,8 +72,11 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, uns
     void copyText(line.raw_text).then((ok) => finish(ok ? "copied" : "failed"));
   };
   const source = glossaryRuby ? line.plain_text : parse === -2 ? line.raw_text : line.display_text;
+  const mine = useMemo(() => hits.filter((h) => h.index === index), [hits, index]);
   const sourceSpans = useMemo(() => {
     const spans = jpSpans(source);
+    spans.push(...mine.filter((h) => h.field === "source")
+      .map((h) => ({ from: h.from, to: h.to, cls: "find-hit" })));
     if (parse >= 0) {
       const [from, to] = sentenceRanges(line.display_text, line.sentences)[parse] ?? [0, 0];
       if (glossaryRuby) {
@@ -86,7 +91,7 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, uns
     }
     if (highlight?.field === "source") spans.push({ from: highlight.from, to: highlight.to, cls: "find-current" });
     return spans;
-  }, [source, parse, line, highlight, glossaryRuby]);
+  }, [source, parse, line, highlight, glossaryRuby, mine]);
   const author = useMemo(() => authorRuby(source), [source]);
   const ruby = useMemo(() => {
     const base = readings ?? author;
@@ -94,9 +99,11 @@ function LineCard({ index, line, active, parse, text, highlight, misspelled, uns
   }, [readings, author, glossaryRuby, line.glossary_marks]);
   const textSpans = useMemo(() => {
     const spans: Span[] = misspelled.map((m) => ({ from: m.start, to: m.end, cls: "misspelled" }));
+    spans.push(...mine.filter((h) => h.field === "translation")
+      .map((h) => ({ from: h.from, to: h.to, cls: "find-hit" })));
     if (highlight?.field === "translation") spans.push({ from: highlight.from, to: highlight.to, cls: "find-current" });
     return spans;
-  }, [misspelled, highlight]);
+  }, [misspelled, highlight, mine]);
   return (
     <article ref={ref} data-index={index} className={active ? "card active" : "card"} aria-current={active || undefined}
       onClick={(e) => {

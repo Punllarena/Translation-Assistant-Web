@@ -2,7 +2,7 @@ import type { EditorView } from "@codemirror/view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router";
-import { ConfirmDialog } from "../ui/Dialog";
+import { ConfirmDialog, PromptDialog } from "../ui/Dialog";
 import SpellMenu from "./SpellMenu";
 import { useSpell } from "./useSpell";
 import { api, call, type Schemas } from "../api/client";
@@ -13,7 +13,7 @@ import FindBar from "./FindBar";
 import ImageCard from "./ImageCard";
 import { PUNCTUATIONS } from "./keymap";
 import { advanceParse, retreatParse } from "./parse";
-import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, prevContent, progress } from "./rows";
+import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, parseLineNumber, prevContent, progress } from "./rows";
 import PhraseDialog from "./PhraseDialog";
 import ReadingSwitch from "./ReadingSwitch";
 import { readingMode, type ReadingMode } from "./ruby";
@@ -90,6 +90,9 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const spell = useSpell(seriesId, lines.map((l) => ed.texts[l.line_number] ?? ""));
   const [menu, setMenu] = useState<{ x: number; y: number; word: Misspelling } | null>(null);
   const [phrase, setPhrase] = useState<string | null>(null);
+  const [goTo, setGoTo] = useState<string | null>(null);
+  const [goToError, setGoToError] = useState<string | null>(null);
+  const [wantEnd, setWantEnd] = useState(false);
   const { notice, setNotice } = useNotice(ed.active);
   const docs = useDocuments();
   const volumes = useAllVolumes();
@@ -151,10 +154,17 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     const at = ed.active;
     if (!lines[at] || phrase !== null) return;
     switch (action) {
-      case "save_next":
+      case "save_next": {
         void ed.store.flush();
-        activate(nextContent(lines, at));
+        const next = nextContent(lines, at);
+        if (next !== null) {
+          activate(next);
+          break;
+        }
+        // The last line: the way on is the end card, whose button may still be loading.
+        setWantEnd(true);
         break;
+      }
       case "next":
       case "next_alt":
         activate(nextContent(lines, at));
@@ -166,22 +176,27 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       case "first":
         activate(firstContent(lines));
         break;
-      case "next_untranslated":
+      case "next_untranslated": {
         // desktop: only from a line that already has a translation
-        if (ed.texts[lines[at].line_number]) activate(firstUntranslated(lines, ed.texts));
+        if (!ed.texts[lines[at].line_number]) {
+          setNotice("This line has no translation yet");
+          break;
+        }
+        const next = firstUntranslated(lines, ed.texts);
+        if (next === null) setNotice("No untranslated lines left");
+        else activate(next);
         break;
+      }
       case "parse_next":
         ed.setParse((p) => advanceParse(p, lines[at].sentences.length));
         break;
       case "parse_prev":
         ed.setParse((p) => retreatParse(p, lines[at].replaced));
         break;
-      case "go_to_line": {
-        const answer = window.prompt(`Go to line (1\u2013${lines.length})`);
-        const k = Number(answer);
-        if (answer && Number.isInteger(k)) activate(lineAtOrAfter(lines, k));
+      case "go_to_line":
+        setGoToError(null);
+        setGoTo("");
         break;
-      }
       case "font_larger":
         setFont(fontPx + 1);
         break;
@@ -252,7 +267,13 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     }
   };
   const bindings = useBindings();
-  useEditorKeys(bindings, run, () => view.current?.focus());
+  const closeFind = () => {
+    if (!find.open) return false;
+    find.close();
+    view.current?.focus();
+    return true;
+  };
+  useEditorKeys(bindings, run, () => view.current?.focus(), closeFind);
   const keyed = (label: string, action: string) => `${label} (${bindings[action]})`;
   // Every hook stays above this early return; later tasks add theirs here too and read
   // `current?.` (it is undefined for a chapter with no lines).
@@ -263,6 +284,18 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     document.querySelector(`article[data-index="${ed.active}"]`)?.scrollIntoView({ block: "center" });
     view.current?.focus();
   };
+  // Land on the end card's button once it exists (the chapter list may still be loading).
+  useEffect(() => {
+    if (!wantEnd) return;
+    const primary = document.querySelector<HTMLElement>(".chapter-end .primary");
+    if (primary) {
+      primary.scrollIntoView({ block: "center" });
+      primary.focus();
+      setWantEnd(false);
+    } else if (docs.data !== undefined) {
+      setWantEnd(false); // there is no way on from here
+    }
+  });
   const goToLine = (i: number) => (i === ed.active ? returnToActive() : activate(i));
   const imagesToggle = images.data?.length ? (
     <button type="button" className="icon" aria-label="Images" title="Images"
@@ -378,7 +411,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       <main className="editor-layout">
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
-          onActivate={activate} editor={editor} highlight={hit} unsaved={unsavedSet}
+          onActivate={activate} editor={editor} highlight={hit} hits={find.hits} unsaved={unsavedSet}
           misspelled={spell.misspelled} readings={readings.ruby} glossaryRuby={glossaryRuby}
           renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
         {chapterEnd}
@@ -399,6 +432,23 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         setNotice(`Added \u201c${p}\u201d to the glossary`);
       }} />}
       {leaveDialog}
+      {goTo !== null && (
+        <PromptDialog title="Go to line" label={`Line number (1\u2013${lines.length})`} initial={goTo}
+          confirmLabel="Go" error={goToError}
+          onSubmit={(value) => {
+            const n = parseLineNumber(value, lines.length);
+            if (n === null) {
+              setGoToError(`Enter a line number from 1 to ${lines.length}`);
+              return;
+            }
+            setGoTo(null);
+            setGoToError(null);
+            focusAfterDialog();
+            const at = lineAtOrAfter(lines, n);
+            if (at !== null) activate(at);
+          }}
+          onClose={() => { setGoTo(null); setGoToError(null); focusAfterDialog(); }} />
+      )}
       {showKeys && <KeyHelp bindings={bindings} onClose={() => { setShowKeys(false); focusAfterDialog(); }}
         onChange={() => { setShowKeys(false); void leave("/settings/shortcuts"); }} />}
       {menu && <SpellMenu {...menu} onClose={closeMenu} onAdd={(scope) => { void addWord(menu.word.word, scope); closeMenu(); }}
