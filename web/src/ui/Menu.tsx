@@ -2,6 +2,18 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode 
 
 const ITEMS = '[role^="menuitem"]';
 
+/** Move focus to the next or previous item in the menu under `root`, wrapping. Shared by the
+ *  popover menu and the spell menu, so both answer the arrow keys the same way. */
+export function moveMenuFocus(e: { key: string; preventDefault(): void }, root: HTMLElement | null): void {
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  e.preventDefault();
+  const list = [...(root?.querySelectorAll<HTMLElement>(ITEMS) ?? [])];
+  const at = list.indexOf(document.activeElement as HTMLElement);
+  const step = e.key === "ArrowDown" ? 1 : -1;
+  const next = at < 0 ? (step > 0 ? 0 : list.length - 1) : (at + step + list.length) % list.length;
+  list[next]?.focus();
+}
+
 /** A button that opens a popover menu. The caller renders the items (buttons with a menuitem role).
  *  On open the checked item (else the first) takes focus; arrow keys move; Escape closes and returns
  *  focus to the button; a press outside closes. */
@@ -38,13 +50,7 @@ export default function Menu({ label, buttonLabel, align = "end", onPointerDown,
       close();
       return;
     }
-    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-    e.preventDefault();
-    const list = items();
-    const at = list.indexOf(document.activeElement as HTMLElement);
-    const step = e.key === "ArrowDown" ? 1 : -1;
-    const next = at < 0 ? (step > 0 ? 0 : list.length - 1) : (at + step + list.length) % list.length;
-    list[next]?.focus();
+    moveMenuFocus(e, root.current);
   };
   return (
     <div className="menu-root" ref={root} onKeyDown={onKeyDown}>

@@ -58,6 +58,42 @@ describe("save store", () => {
     expect(store.getState()).toEqual({ state: "saved", error: null });
   });
 
+  it("keeps the error through a retry and a new edit; only success clears it", async () => {
+    let fail = true;
+    const store = createSaveStore({ save: async () => { if (fail) throw new Error("offline"); } });
+    store.edit(1, "a");
+    await store.flush();
+    expect(store.getState()).toEqual({ state: "error", error: "offline" });
+    await store.flush(); // the retry fails too and the message stays
+    expect(store.getState()).toEqual({ state: "error", error: "offline" });
+    store.edit(1, "ab");
+    expect(store.getState()).toEqual({ state: "unsaved", error: "offline" });
+    fail = false;
+    await store.flush();
+    expect(store.getState()).toEqual({ state: "saved", error: null });
+  });
+
+  it("a save that succeeds clears the error even when newer edits are still dirty", async () => {
+    const gate = deferred();
+    let calls = 0;
+    const store = createSaveStore({
+      save: async () => {
+        calls++;
+        if (calls === 1) throw new Error("offline");
+        if (calls === 2) await gate.promise;
+      },
+    });
+    store.edit(1, "a");
+    await store.flush();
+    expect(store.getState()).toEqual({ state: "error", error: "offline" });
+    store.edit(1, "ab");
+    const flushing = store.flush();
+    store.edit(1, "abc");
+    gate.resolve();
+    await flushing;
+    expect(store.getState()).toEqual({ state: "unsaved", error: null });
+  });
+
   it("clears only the lines it sent; lines past the batch cap stay dirty", async () => {
     const calls: Edit[][] = [];
     const store = createSaveStore({ save: async (edits) => { calls.push(edits); } });

@@ -17,8 +17,9 @@ const streamUrl = (documentId: number, want: Want | null) => want && `/api/docum
 
 /** The Ollama card: the line's saved suggestion (Use / Reasoning / Reroll), or by-hand
  * translation of the chunk the line belongs to, streamed line by line. */
-export default function OllamaCard({ documentId, lineNumber, translated, onUse }: {
+export default function OllamaCard({ documentId, lineNumber, translated, onUse, slot, bindings }: {
   documentId: number; lineNumber: number; translated: boolean; onUse(text: string): void;
+  slot?: number; bindings: Record<string, string>;
 }) {
   const queryClient = useQueryClient();
   const sugs = useQuery({
@@ -82,7 +83,12 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse }
       {state === "error" && <p role="alert">{stream.message} <button onClick={() => ask(stream === rerollLive)}>Retry</button></p>}
       {sugs.error && <p className="error" role="alert">{sugs.error.message}</p>}
       <div className="mt-actions">
-        {text && <button data-use onClick={() => onUse(text)}>Use</button>}
+        {text && (
+          <button data-use={slot ?? undefined} onClick={() => onUse(text)}
+            aria-label={slot !== undefined ? `Use Ollama, ${bindings[`use_${slot}`]}` : "Use Ollama"}>
+            {slot !== undefined && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}Use
+          </button>
+        )}
         {suggestion && (state === "saved" || state === "stale") && (<>
           <button onClick={() => setReasoning(suggestion.chunk_id)}>Reasoning</button>
           <button onClick={() => ask(true)}>Reroll lines {lineRange(suggestion.first_line, suggestion.last_line)}</button>

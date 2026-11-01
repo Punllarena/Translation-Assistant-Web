@@ -250,7 +250,24 @@ as `<rt class="rt-glossary">` ruby (`web/src/editor/glossaryRuby.ts`); glossary 
 ruby wins over glossary marks. The lines endpoint sends `LineOut.glossary_marks` (UTF-16 `from`/`to` into `plain_text`, plus
 `shown_from`/`shown_to` and the translation; computed by `api/core/glossary_marks.py`, which mirrors `replace_and_parse`), and
 `LineOut.plain_text` (`raw_text` with `$`/`%` stripped anywhere). E2E: `web/e2e/editor-nav.spec.ts` with the `Nav series` seed.
-Focus and keys: `useEditorKeys` lets bound keys run from buttons and links (except Enter), Esc returns to the editor, and typing on the bare page lands in it. A failed save retries itself with backoff (`useEditor`), and `useLeaveGuard` (`useLeave.ts`) holds links outside the editor while a save is pending, asking only if it failed. `Use suggestion N` (Alt+1..9) clicks the Nth `[data-use]` button in the aid column, numbered on screen by a CSS counter. `KeyHelp.tsx` is the Ctrl+/ sheet. `StickyTop.tsx` holds the status and find bars and publishes `--top-h`.
+Focus and keys: `useEditorKeys` lets bound keys run from buttons and links (except Enter), Esc closes Find first and
+then returns to the editor, and typing on the bare page lands in it (Space still presses a focused button). A key that
+cannot act says why (`This line has no translation yet`, `No untranslated lines left`, `No misspelled words on this
+line`); Enter on the last line lands on the chapter end card, and Go to line is a `PromptDialog` that refuses a number
+the chapter does not have (`parseLineNumber`, `rows.ts`). `useLeave` (`useLeave.ts`) is the one way out — arrows, crumbs,
+the end card and links in the app header all queue a move that goes when the save lands and asks once when it fails
+(`Leave with unsaved lines?`, the lines and error frozen at that moment); Cancel or Esc keeps the page, a later success
+carries the move out, a 401 passes to sign-in, and a save gives up after 20 s.
+`saveFailure` (`saveErrors.ts`) names a refused save and marks it permanent, so a 404 or a 422 is never retried; the
+`.sb-alert` row under the status bar holds the message with Retry and Copy unsaved text and stays mounted across
+attempts, and notices (`useNotice`, 8 s) clear when the line changes.
+`Use suggestion N` (Alt+1..9) clicks the `[data-use="N"]` button in the aid column: slots are fixed by `assignSlots`
+(`useSlots.ts`) — translation memory 1 and 2, then each backend that has a Use button (MeCab and JParser have none) —
+and each button prints its real key in `.use-key`. A memory match still on the previous line and a machine card still
+streaming cannot be used. Each line keeps its CodeMirror history for the session (`CodeEditor`'s module map keyed
+`${documentId}:${lineNumber}`), so Ctrl+Z after a Use restores the replaced text after moving away and back; the map is
+unbounded until reload. `KeyHelp.tsx` is the Ctrl+/ sheet. `StickyTop.tsx` holds the status and find bars and publishes
+`--top-h`.
 Spec: `docs/superpowers/specs/2026-10-27-editor-status-bar-reading-aid-design.md`.
 
 Backup and restore: `api/backup/` writes one zip per server — `tables/<name>.csv` (Postgres `COPY ... FORMAT csv, HEADER`,

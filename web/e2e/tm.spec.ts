@@ -14,7 +14,7 @@ test("translation memory offers another chapter's translation and a click fills 
   await openChapter(page);
   const panel = page.getByRole("complementary", { name: "Translation memory" });
   await expect(panel).toContainText("Memory source");
-  await panel.getByRole("button", { name: "Remembered translation." }).click();
+  await panel.getByRole("button", { name: 'Use "Remembered translation.", Alt+1' }).click();
   await expect(page.getByRole("textbox", { name: "Translation" })).toHaveText("Remembered translation.");
   const toggle = page.getByRole("button", { name: "Translation memory" });
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
@@ -33,7 +33,7 @@ test("Ctrl+Z undoes a Use and brings the earlier translation back", async ({ pag
   await page.keyboard.press("Control+a"); // the test above may have saved a translation here
   await page.keyboard.type("my own draft");
   const panel = page.getByRole("complementary", { name: "Translation memory" });
-  await panel.getByRole("button", { name: "Remembered translation." }).click();
+  await panel.getByRole("button", { name: 'Use "Remembered translation.", Alt+1' }).click();
   await expect(box).toHaveText("Remembered translation.");
   await box.press("Control+z");
   await expect(box).toHaveText("my own draft");

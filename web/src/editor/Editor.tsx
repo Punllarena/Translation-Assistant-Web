@@ -2,7 +2,7 @@ import type { EditorView } from "@codemirror/view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router";
-import { ConfirmDialog } from "../ui/Dialog";
+import { ConfirmDialog, PromptDialog } from "../ui/Dialog";
 import SpellMenu from "./SpellMenu";
 import { useSpell } from "./useSpell";
 import { api, call, type Schemas } from "../api/client";
@@ -13,7 +13,7 @@ import FindBar from "./FindBar";
 import ImageCard from "./ImageCard";
 import { PUNCTUATIONS } from "./keymap";
 import { advanceParse, retreatParse } from "./parse";
-import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, prevContent, progress } from "./rows";
+import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, parseLineNumber, prevContent, progress } from "./rows";
 import PhraseDialog from "./PhraseDialog";
 import ReadingSwitch from "./ReadingSwitch";
 import { readingMode, type ReadingMode } from "./ruby";
@@ -29,11 +29,15 @@ import ChapterNav from "./ChapterBar";
 import { chapterNeighbours } from "./chapterNav";
 import JumpBack from "./JumpBack";
 import ChapterEnd from "./ChapterEnd";
-import { useLeave, useLeaveGuard } from "./useLeave";
+import { useLeave } from "./useLeave";
+import { useNotice } from "./useNotice";
+import { copyText, unsavedText } from "./clipboard";
 import { useAllVolumes, useDocuments, useSeriesList } from "../library/queries";
+import { shownTitle } from "../library/shelf";
 import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
 import { useBindings, useEditorKeys } from "./useEditorKeys";
+import { assignSlots } from "./useSlots";
 
 type Data = Schemas["DocumentLines"];
 
@@ -61,7 +65,12 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const imagesCollapsed = Boolean(settings.data?.images_collapsed);
   const glossaryRuby = settings.data?.glossary_ruby === true;
   const stats = useMemo(() => progress(lines, ed.texts), [lines, ed.texts]);
+  const backends = useQuery({ queryKey: ["mt", "backends"], queryFn: () => call(api.GET("/mt/backends")) });
+  // Alt+1..9 pick a fixed suggestion: the desktop's two memory matches, then each backend.
+  const slots = useMemo(() => assignSlots(backends.data?.enabled ?? []), [backends.data]);
   const onReady = useCallback((v: EditorView | null) => { view.current = v; }, []);
+  // Everything behind a modal <dialog> is inert until it has gone.
+  const focusAfterDialog = useCallback(() => void setTimeout(() => view.current?.focus()), []);
   const current = lines[ed.active];
   const queryClient = useQueryClient();
   const saveSetting = (key: string, value: unknown) => {
@@ -81,7 +90,10 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const spell = useSpell(seriesId, lines.map((l) => ed.texts[l.line_number] ?? ""));
   const [menu, setMenu] = useState<{ x: number; y: number; word: Misspelling } | null>(null);
   const [phrase, setPhrase] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [goTo, setGoTo] = useState<string | null>(null);
+  const [goToError, setGoToError] = useState<string | null>(null);
+  const [wantEnd, setWantEnd] = useState(false);
+  const { notice, setNotice } = useNotice(ed.active);
   const docs = useDocuments();
   const volumes = useAllVolumes();
   const seriesList = useSeriesList();
@@ -90,14 +102,16 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     series: { id: seriesId, title: seriesList.data?.find((s) => s.id === seriesId)?.title ?? "Series" },
     volume: { id: volumeId, label: volumes.data?.find((v) => v.id === volumeId)?.label ?? "Volume" },
   };
-  const { leave, notice: leaveNotice } = useLeave(ed.store, ed.save.state);
-  const blockedLeave = useLeaveGuard(ed.store);
+  const { leave, waiting, asking, goAnyway, stay } = useLeave(ed.store, ed.save.state, focusAfterDialog);
   const [showKeys, setShowKeys] = useState(false);
   const chapters = useMemo(() => chapterNeighbours(docs.data ?? [], id), [docs.data, id]);
   const listed = docs.data?.find((d) => d.id === id);
-  const gone = ed.missing.length
-    ? `Lines ${ed.missing.map((n) => n + 1).join(", ")} no longer exist (the source was edited elsewhere); reload the chapter`
+  // The server answered, but it has no such line: the source was edited elsewhere, and the
+  // text only exists in this tab now.
+  const missingText = ed.missing.length
+    ? `${linesText(ed.missing.map((n) => n + 1))} ${ed.missing.length === 1 ? "no longer exists" : "no longer exist"}; reload the chapter`
     : null;
+  const barSave = missingText ? { state: "error" as const, error: missingText } : ed.save;
   const addWord = async (word: string, scope: "series" | "all") => {
     word = word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
     if (!word || /\s/.test(word)) return setNotice("Select a single word first");
@@ -140,10 +154,17 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     const at = ed.active;
     if (!lines[at] || phrase !== null) return;
     switch (action) {
-      case "save_next":
+      case "save_next": {
         void ed.store.flush();
-        activate(nextContent(lines, at));
+        const next = nextContent(lines, at);
+        if (next !== null) {
+          activate(next);
+          break;
+        }
+        // The last line: the way on is the end card, whose button may still be loading.
+        setWantEnd(true);
         break;
+      }
       case "next":
       case "next_alt":
         activate(nextContent(lines, at));
@@ -155,22 +176,27 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       case "first":
         activate(firstContent(lines));
         break;
-      case "next_untranslated":
+      case "next_untranslated": {
         // desktop: only from a line that already has a translation
-        if (ed.texts[lines[at].line_number]) activate(firstUntranslated(lines, ed.texts));
+        if (!ed.texts[lines[at].line_number]) {
+          setNotice("This line has no translation yet");
+          break;
+        }
+        const next = firstUntranslated(lines, ed.texts);
+        if (next === null) setNotice("No untranslated lines left");
+        else activate(next);
         break;
+      }
       case "parse_next":
         ed.setParse((p) => advanceParse(p, lines[at].sentences.length));
         break;
       case "parse_prev":
         ed.setParse((p) => retreatParse(p, lines[at].replaced));
         break;
-      case "go_to_line": {
-        const answer = window.prompt(`Go to line (1\u2013${lines.length})`);
-        const k = Number(answer);
-        if (answer && Number.isInteger(k)) activate(lineAtOrAfter(lines, k));
+      case "go_to_line":
+        setGoToError(null);
+        setGoTo("");
         break;
-      }
       case "font_larger":
         setFont(fontPx + 1);
         break;
@@ -212,22 +238,42 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       case "key_help":
         setShowKeys(true);
         break;
+      case "retry_save":
+        void ed.store.flush();
+        break;
+      case "spell_open": {
+        const v = view.current;
+        if (!v) break;
+        const words = spell.misspelled(v.state.doc.toString());
+        if (!words.length) {
+          setNotice("No misspelled words on this line");
+          break;
+        }
+        // The word under or after the caret, else the first on the line.
+        const head = v.state.selection.main.head;
+        const word = words.find((m) => m.start >= head) ?? words[0];
+        const spot = v.coordsAtPos(word.start);
+        if (spot) setMenu({ x: spot.left, y: spot.bottom, word });
+        break;
+      }
       default:
         if (action.startsWith("punct_")) insertAtCursor(view.current, PUNCTUATIONS[Number(action.slice(6))], 1);
         if (action.startsWith("use_")) {
-          // ponytail: numbered by position, so a late result in an earlier panel shifts the rest; the
-          // numbers on screen (a CSS counter over the same buttons) always match. Fixed slots if that grates.
-          const uses = document.querySelectorAll<HTMLElement>(".side-col [data-use]");
           const k = Number(action.slice(4));
-          if (uses[k - 1]) uses[k - 1].click();
+          const use = document.querySelector<HTMLElement>(`.side-col [data-use="${k}"]`);
+          if (use) use.click();
           else setNotice(`No suggestion ${k} on this line`);
         }
     }
   };
   const bindings = useBindings();
-  useEditorKeys(bindings, run, () => view.current?.focus());
-  // Everything behind a modal <dialog> is inert until it has gone.
-  const focusAfterDialog = () => void setTimeout(() => view.current?.focus());
+  const closeFind = () => {
+    if (!find.open) return false;
+    find.close();
+    view.current?.focus();
+    return true;
+  };
+  useEditorKeys(bindings, run, () => view.current?.focus(), closeFind);
   const keyed = (label: string, action: string) => `${label} (${bindings[action]})`;
   // Every hook stays above this early return; later tasks add theirs here too and read
   // `current?.` (it is undefined for a chapter with no lines).
@@ -238,6 +284,18 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     document.querySelector(`article[data-index="${ed.active}"]`)?.scrollIntoView({ block: "center" });
     view.current?.focus();
   };
+  // Land on the end card's button once it exists (the chapter list may still be loading).
+  useEffect(() => {
+    if (!wantEnd) return;
+    const primary = document.querySelector<HTMLElement>(".chapter-end .primary");
+    if (primary) {
+      primary.scrollIntoView({ block: "center" });
+      primary.focus();
+      setWantEnd(false);
+    } else if (docs.data !== undefined) {
+      setWantEnd(false); // there is no way on from here
+    }
+  });
   const goToLine = (i: number) => (i === ed.active ? returnToActive() : activate(i));
   const imagesToggle = images.data?.length ? (
     <button type="button" className="icon" aria-label="Images" title="Images"
@@ -260,20 +318,34 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       ))}
     </Menu>
   );
-  const unsavedLines = ed.save.state === "error" ? ed.store.unsaved().map((e) => e.line_number + 1) : [];
+  // The lines whose text the server has not taken: the dirty ones while a save is failing,
+  // plus any the server says are gone. Those keep their text here, and Copy offers it.
+  const failed = ed.save.error ? ed.store.unsaved().map((e) => e.line_number) : [];
+  const unsaved = [...new Set([...failed, ...ed.missing])].sort((a, b) => a - b);
+  const unsavedLines = unsaved.map((n) => n + 1);
+  const unsavedSet = useMemo(() => new Set(unsaved), [unsaved.join(",")]);
+  const copyUnsaved = () => {
+    const edits = ed.store.unsaved();
+    const all = [...edits, ...ed.missing
+      .filter((n) => !edits.some((e) => e.line_number === n))
+      .map((n) => ({ line_number: n, translated_text: ed.texts[n] ?? "" }))];
+    void copyText(unsavedText(all)).then((ok) => { if (!ok) setNotice("Could not copy the text"); });
+  };
   const restoredNotice = ed.restored
     ? `Restored ${ed.restored} unsaved ${ed.restored === 1 ? "line" : "lines"} from earlier in this tab`
     : null;
-  const leaveDialog = blockedLeave && (
+  const leaveDialog = asking && (
     <ConfirmDialog title="Leave with unsaved lines?" danger confirmLabel="Leave anyway"
-      message={<p>{linesText(unsavedLines)} could not be saved: {ed.save.error} The text is kept in this tab and sent again when you reopen this chapter here. Closing the tab loses it.</p>}
-      onConfirm={() => blockedLeave.proceed?.()} onClose={() => blockedLeave.reset?.()} />
+      message={<p>{linesText(asking.lines)} could not be saved: {asking.error} The text is kept in this tab and sent again when you reopen this chapter here. Closing the tab loses it.</p>}
+      onConfirm={goAnyway} onClose={stay} />
   );
   const statusBar = (line: number | null, phraseText: string | null, tools: ReactNode) => (
     <StatusBar crumbs={crumbs} line={line} total={lines.length}
       translated={stats.done} lineCount={stats.total} percent={stats.percent} words={stats.words}
-      phrase={phraseText} save={ed.save} unsavedLines={unsavedLines} onRetry={() => void ed.store.flush()}
-      notice={leaveNotice ?? restoredNotice ?? notice ?? gone} spellAvailable={spell.available}
+      phrase={phraseText} save={barSave} unsavedLines={barSave === ed.save ? unsavedLines : []}
+      permanent={ed.savePermanent || Boolean(missingText)}
+      onRetry={() => void ed.store.flush()} onCopy={copyUnsaved}
+      notice={waiting ? "Leaving once saved. Esc to stay." : restoredNotice ?? notice} spellAvailable={spell.available}
       onLeave={(to) => void leave(to)}
       nav={listed && <ChapterNav doc={listed} chapters={chapters} prevKey={bindings.prev_chapter} nextKey={bindings.next_chapter}
         onGo={(d) => void leave(`/documents/${d.id}`)} />}
@@ -302,16 +374,19 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   }
   const n = current.line_number;
   const editor = (
-    <CodeEditor key={n} value={ed.texts[n] ?? ""} label="Translation"
+    <CodeEditor key={n} historyKey={`${id}:${n}`} value={ed.texts[n] ?? ""} label="Translation"
       onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} autoFocus={!find.stepped.current} onContextMenu={onContextMenu} />
   );
   const useText = (t: string) => {
+    if ((ed.texts[n] ?? "") && ed.texts[n] !== t) setNotice(`Replaced line ${n + 1}. Ctrl+Z brings it back`);
     // Through the view, so the replaced translation is one Ctrl+Z away.
     if (view.current) replaceDoc(view.current, t);
     else ed.setText(n, t);
   };
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
+      <h1 className="visually-hidden">{shownTitle(data.document)}</h1>
+      <div role="status" className="visually-hidden">Line {n + 1} of {lines.length}</div>
       <StickyTop>
       {statusBar(n + 1, ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>
           <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
@@ -332,10 +407,10 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
           onClose={() => { find.close(); view.current?.focus(); }} />
       )}
       </StickyTop>
-      <div className="editor-layout">
+      <main className="editor-layout">
       <div className="editor">
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
-          onActivate={activate} editor={editor} highlight={hit}
+          onActivate={activate} editor={editor} highlight={hit} hits={find.hits} unsaved={unsavedSet}
           misspelled={spell.misspelled} readings={readings.ruby} glossaryRuby={glossaryRuby}
           renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
         {chapterEnd}
@@ -343,11 +418,12 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       </div>
       {(tmVisible || mtVisible) && (
         <div className="side-col">
-          {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={useText} />}
-          {mtVisible && <MtPanels documentId={id} lineNumber={n} translated={Boolean(ed.texts[n])} onUse={useText} />}
+          {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={useText} slots={slots} bindings={bindings} />}
+          {mtVisible && <MtPanels documentId={id} lineNumber={n} translated={Boolean(ed.texts[n])} onUse={useText}
+            slots={slots} bindings={bindings} />}
         </div>
       )}
-      </div>
+      </main>
       {phrase !== null && <PhraseDialog initial={phrase} onClose={() => { setPhrase(null); focusAfterDialog(); }} onSave={async (p, t) => {
         await call(api.POST("/series/{series_id}/glossary", { params: { path: { series_id: seriesId } }, body: { phrase: p, translation: t } }));
         await queryClient.invalidateQueries({ queryKey: ["glossary", seriesId] });
@@ -355,6 +431,23 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         setNotice(`Added \u201c${p}\u201d to the glossary`);
       }} />}
       {leaveDialog}
+      {goTo !== null && (
+        <PromptDialog title="Go to line" label={`Line number (1\u2013${lines.length})`} initial={goTo}
+          confirmLabel="Go" error={goToError}
+          onSubmit={(value) => {
+            const n = parseLineNumber(value, lines.length);
+            if (n === null) {
+              setGoToError(`Enter a line number from 1 to ${lines.length}`);
+              return;
+            }
+            setGoTo(null);
+            setGoToError(null);
+            focusAfterDialog();
+            const at = lineAtOrAfter(lines, n);
+            if (at !== null) activate(at);
+          }}
+          onClose={() => { setGoTo(null); setGoToError(null); focusAfterDialog(); }} />
+      )}
       {showKeys && <KeyHelp bindings={bindings} onClose={() => { setShowKeys(false); focusAfterDialog(); }}
         onChange={() => { setShowKeys(false); void leave("/settings/shortcuts"); }} />}
       {menu && <SpellMenu {...menu} onClose={closeMenu} onAdd={(scope) => { void addWord(menu.word.word, scope); closeMenu(); }}
