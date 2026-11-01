@@ -29,7 +29,7 @@ import ChapterNav from "./ChapterBar";
 import { chapterNeighbours } from "./chapterNav";
 import JumpBack from "./JumpBack";
 import ChapterEnd from "./ChapterEnd";
-import { useLeave, useLeaveGuard } from "./useLeave";
+import { useLeave } from "./useLeave";
 import { useNotice } from "./useNotice";
 import { copyText } from "./clipboard";
 import { useAllVolumes, useDocuments, useSeriesList } from "../library/queries";
@@ -68,6 +68,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   // Alt+1..9 pick a fixed suggestion: the desktop's two memory matches, then each backend.
   const slots = useMemo(() => assignSlots(backends.data?.enabled ?? []), [backends.data]);
   const onReady = useCallback((v: EditorView | null) => { view.current = v; }, []);
+  // Everything behind a modal <dialog> is inert until it has gone.
+  const focusAfterDialog = useCallback(() => void setTimeout(() => view.current?.focus()), []);
   const current = lines[ed.active];
   const queryClient = useQueryClient();
   const saveSetting = (key: string, value: unknown) => {
@@ -96,8 +98,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     series: { id: seriesId, title: seriesList.data?.find((s) => s.id === seriesId)?.title ?? "Series" },
     volume: { id: volumeId, label: volumes.data?.find((v) => v.id === volumeId)?.label ?? "Volume" },
   };
-  const { leave, notice: leaveNotice } = useLeave(ed.store, ed.save.state);
-  const blockedLeave = useLeaveGuard(ed.store);
+  const { leave, waiting, asking, goAnyway, stay } = useLeave(ed.store, ed.save.state, focusAfterDialog);
   const [showKeys, setShowKeys] = useState(false);
   const chapters = useMemo(() => chapterNeighbours(docs.data ?? [], id), [docs.data, id]);
   const listed = docs.data?.find((d) => d.id === id);
@@ -233,8 +234,6 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   };
   const bindings = useBindings();
   useEditorKeys(bindings, run, () => view.current?.focus());
-  // Everything behind a modal <dialog> is inert until it has gone.
-  const focusAfterDialog = () => void setTimeout(() => view.current?.focus());
   const keyed = (label: string, action: string) => `${label} (${bindings[action]})`;
   // Every hook stays above this early return; later tasks add theirs here too and read
   // `current?.` (it is undefined for a chapter with no lines).
@@ -284,10 +283,10 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const restoredNotice = ed.restored
     ? `Restored ${ed.restored} unsaved ${ed.restored === 1 ? "line" : "lines"} from earlier in this tab`
     : null;
-  const leaveDialog = blockedLeave && (
+  const leaveDialog = asking && (
     <ConfirmDialog title="Leave with unsaved lines?" danger confirmLabel="Leave anyway"
-      message={<p>{linesText(unsavedLines)} could not be saved: {ed.save.error} The text is kept in this tab and sent again when you reopen this chapter here. Closing the tab loses it.</p>}
-      onConfirm={() => blockedLeave.proceed?.()} onClose={() => blockedLeave.reset?.()} />
+      message={<p>{linesText(asking.lines)} could not be saved: {asking.error} The text is kept in this tab and sent again when you reopen this chapter here. Closing the tab loses it.</p>}
+      onConfirm={goAnyway} onClose={stay} />
   );
   const statusBar = (line: number | null, phraseText: string | null, tools: ReactNode) => (
     <StatusBar crumbs={crumbs} line={line} total={lines.length}
@@ -295,7 +294,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       phrase={phraseText} save={barSave} unsavedLines={barSave === ed.save ? unsavedLines : []}
       permanent={ed.savePermanent || Boolean(missingText)}
       onRetry={() => void ed.store.flush()} onCopy={copyUnsaved}
-      notice={leaveNotice ?? restoredNotice ?? notice} spellAvailable={spell.available}
+      notice={waiting ? "Leaving once saved. Esc to stay." : restoredNotice ?? notice} spellAvailable={spell.available}
       onLeave={(to) => void leave(to)}
       nav={listed && <ChapterNav doc={listed} chapters={chapters} prevKey={bindings.prev_chapter} nextKey={bindings.next_chapter}
         onGo={(d) => void leave(`/documents/${d.id}`)} />}

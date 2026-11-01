@@ -45,7 +45,9 @@ test("failed save stops the move", async ({ page }) => {
   await page.getByRole("textbox", { name: "Translation" }).click();
   await page.keyboard.type("Unsaved words.");
   await page.getByRole("button", { name: "Next chapter", exact: true }).click();
-  await expect(page.getByText("Not moved: the last changes are not saved yet")).toBeVisible({ timeout: 10_000 });
+  const dialog = page.getByRole("dialog", { name: "Leave with unsaved lines?" });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await expect(dialog).toContainText("The server answered 500.");
   expect(page.url()).toBe(oneUrl);
 });
 
@@ -414,6 +416,154 @@ test("unsaved cards are marked", async ({ page }) => {
   const dot = page.locator("article.card.active .unsaved-dot");
   await expect(dot).toHaveAttribute("aria-label", "Not saved");
   await expect(dot).toHaveAttribute("title", "Not saved");
+});
+
+test("every exit asks the same way", async ({ page }) => {
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 500);
+  const url = page.url();
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  await expect(page.getByRole("alert")).toContainText("not saved: The server answered 500.");
+  const dialog = page.getByRole("dialog", { name: "Leave with unsaved lines?" });
+  const exits = [
+    page.getByRole("button", { name: "Next chapter", exact: true }),
+    page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Library" }),
+    page.getByRole("link", { name: "Statistics" }),
+  ];
+  for (const exit of exits) {
+    await exit.click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Line 1");
+    await expect(dialog).toContainText("The server answered 500.");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toHaveCount(0);
+  }
+  expect(page.url()).toBe(url);
+});
+
+test("the dialog text holds through retries", async ({ page }) => {
+  await open(page, "Nav one");
+  let patches = 0;
+  await page.route("**/documents/*/lines", (r) => {
+    if (r.request().method() !== "PATCH") return r.continue();
+    patches++;
+    return r.fulfill({ status: 500 });
+  });
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  await page.getByRole("button", { name: "Next chapter", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Leave with unsaved lines?" });
+  await expect(dialog).toBeVisible();
+  const body = await dialog.locator("p").textContent();
+  await expect.poll(() => patches).toBeGreaterThanOrEqual(2); // a retry has run
+  expect(await dialog.locator("p").textContent()).toBe(body);
+});
+
+test("a recovered save carries on", async ({ page }) => {
+  await open(page, "Nav one");
+  let status = 500;
+  await fakeSaves(page, () => status);
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  await page.getByRole("button", { name: "Next chapter", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Leave with unsaved lines?" })).toBeVisible();
+  status = 200;
+  await expect(page.getByText("二話目です。")).toBeVisible({ timeout: 20_000 });
+});
+
+test("Cancel stays", async ({ page }) => {
+  await open(page, "Nav one");
+  let status = 500;
+  await fakeSaves(page, () => status);
+  const url = page.url();
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  await page.getByRole("button", { name: "Next chapter", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Leave with unsaved lines?" });
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(box(page)).toBeFocused();
+  status = 200;
+  await expect(page.locator(".save-state")).toHaveText("Saved", { timeout: 20_000 });
+  await page.waitForTimeout(3000);
+  expect(page.url()).toBe(url);
+});
+
+test("a slow save says it's waiting", async ({ page }) => {
+  await open(page, "Nav one");
+  let release = () => {};
+  const held = new Promise<void>((done) => { release = done; });
+  await page.route("**/documents/*/lines", async (r) => {
+    if (r.request().method() !== "PATCH") return r.continue();
+    await held;
+    await r.fulfill({ json: { missing: [] } }).catch(() => {});
+  });
+  const url = page.url();
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  await page.waitForTimeout(1200); // the debounced save is on its way
+  await page.getByRole("button", { name: "Next chapter", exact: true }).click();
+  const waiting = page.getByText("Leaving once saved. Esc to stay.");
+  await expect(waiting).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(waiting).toHaveCount(0);
+  release();
+  await page.waitForTimeout(1500);
+  expect(page.url()).toBe(url);
+});
+
+test("typing while waiting", async ({ page }) => {
+  await open(page, "Nav one");
+  const bodies: string[] = [];
+  let release = () => {};
+  const held = new Promise<void>((done) => { release = done; });
+  await page.route("**/documents/*/lines", async (r) => {
+    if (r.request().method() !== "PATCH") return r.continue();
+    bodies.push(r.request().postData() ?? "");
+    if (bodies.length === 1) await held;
+    await r.fulfill({ json: { missing: [] } }).catch(() => {});
+  });
+  const url = page.url();
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  await page.waitForTimeout(1200);
+  await page.getByRole("button", { name: "Next chapter", exact: true }).click();
+  await expect(page.getByText("Leaving once saved. Esc to stay.")).toBeVisible();
+  await box(page).click();
+  await page.keyboard.type("!");
+  await page.waitForTimeout(900);
+  expect(page.url()).toBe(url); // the first save is still open: nothing has moved
+  release();
+  await expect(page.getByText("二話目です。")).toBeVisible({ timeout: 20_000 });
+  expect(bodies).toHaveLength(2);
+  expect(bodies[1]).toContain("!");
+});
+
+test("a 401 while waiting goes to sign-in", async ({ page }) => {
+  await open(page, "Nav one");
+  await fakeSaves(page, () => 401);
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  await page.getByRole("button", { name: "Next chapter", exact: true }).click();
+  await expect(page).toHaveURL(/\/login\?next=/, { timeout: 15_000 });
+  await expect(page.getByRole("dialog", { name: "Leave with unsaved lines?" })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() =>
+    Object.keys(sessionStorage).some((k) => k.startsWith("ta-unsaved-")))).toBe(true);
+});
+
+test("a hung save times out", async ({ page }) => {
+  await page.addInitScript(() => {
+    const real = AbortSignal.timeout.bind(AbortSignal);
+    Object.defineProperty(AbortSignal, "timeout", { value: (ms: number) => real(Math.min(ms, 200)) });
+  });
+  await open(page, "Nav one");
+  await page.route("**/documents/*/lines", async (r) => {
+    if (r.request().method() !== "PATCH") return r.continue();
+    await new Promise(() => {});
+  });
+  await box(page).click();
+  await page.keyboard.type("Words.");
+  await expect(page.getByRole("alert")).toContainText("The server took too long to answer.", { timeout: 15_000 });
 });
 
 test("the keyboard reaches the aids; the find bar leaves the save state visible", async ({ page }) => {

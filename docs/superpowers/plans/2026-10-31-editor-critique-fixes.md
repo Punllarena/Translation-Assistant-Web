@@ -167,7 +167,7 @@ expect(store.getState()).toEqual({ state: "saved", error: null });
 - Consumes: `ed.store`, `ed.save.state`, `linesText`.
 - Produces: `useLeave(store, saveState, onStay: () => void)` returning `{ leave(to: string): void; waiting: boolean; asking: { lines: number[]; error: string } | null; goAnyway(): void; stay(): void }`. `useLeaveGuard` and the "Not moved" notice are removed.
 
-- [ ] **Step 1: Write the failing e2e tests**
+- [x] **Step 1: Write the failing e2e tests**
   - `every exit asks the same way`: PATCH 500; Next chapter, a breadcrumb link and the Statistics header link each open `Leave with unsaved lines?`, naming `Line 1` and `The server answered 500.`
   - `the dialog text holds through retries`: the body stays the same across two attempts.
   - `a recovered save carries on`: dialog open, PATCH turns 200; the page moves to the target by itself.
@@ -177,22 +177,22 @@ expect(store.getState()).toEqual({ state: "saved", error: null });
   - `a 401 while waiting goes to sign-in`: PATCH 401; the URL becomes `/login?next=…` with no dialog; `sessionStorage` holds the stash.
   - `a hung save times out`: stub `AbortSignal.timeout` to 200 ms with `page.addInitScript`; PATCH never answers; alert reads `The server took too long to answer.`
 
-- [ ] **Step 2: Run them and confirm they fail.**
+- [x] **Step 2: Run them and confirm they fail.**
 
-- [ ] **Step 3: Implement `useLeave` as one state machine.**
+- [x] **Step 3: Implement `useLeave` as one state machine.**
   - State `queued: { go(): void; cancel(): void } | null`. `leave(to)` queues `navigate(to)` and flushes. The blocker queues `blocker.proceed`, with `cancel` = `blocker.reset`.
   - An effect on `[queued, saveState]`: when `saved` and `!store.pending()`, run `go`. When `error`, set `asking` once, snapshotting `store.unsaved()` lines (1-based) and the error, so retries can't change the text.
   - A `bypass` ref read by the blocker lets `goAnyway` and `go` pass. The blocker's condition stays `store.pending()`, a different pathname, and not `/login`.
   - While waiting, a capture-phase Esc listener calls `stay()`. `stay` clears everything and calls `onStay`, which is `focusAfterDialog` in `Editor`.
   - A second `leave` replaces the queued one.
 
-- [ ] **Step 4: Add the timeout.** In `saveLines`, non-keepalive only: `signal: AbortSignal.timeout(20_000)`. `saveFailure` already names it.
+- [x] **Step 4: Add the timeout.** In `saveLines`, non-keepalive only: `signal: AbortSignal.timeout(20_000)`. `saveFailure` already names it.
 
-- [ ] **Step 5: Wire it in `Editor` and `StatusBar`.** `waiting` shows the notice `Leaving once saved. Esc to stay.` in `role="status"`. The dialog reads `asking`: title `Leave with unsaved lines?`, body `${linesText(lines)} could not be saved: ${error} The text is kept in this tab and sent again when you reopen this chapter here. Closing the tab loses it.`, confirm `Leave anyway`, danger. Delete `unsavedLines`'s use in the dialog. Update `failed save stops the move` to expect the dialog.
+- [x] **Step 5: Wire it in `Editor` and `StatusBar`.** `waiting` shows the notice `Leaving once saved. Esc to stay.` in `role="status"`. The dialog reads `asking`: title `Leave with unsaved lines?`, body `${linesText(lines)} could not be saved: ${error} The text is kept in this tab and sent again when you reopen this chapter here. Closing the tab loses it.`, confirm `Leave anyway`, danger. Delete `unsavedLines`'s use in the dialog. Update `failed save stops the move` to expect the dialog.
 
-- [ ] **Step 6: Run `tsc` and `npm run e2e -- editor-nav`** and confirm they pass.
+- [x] **Step 6: Run `tsc` and `npm run e2e -- editor-nav`** and confirm they pass.
 
-- [ ] **Step 7: Commit** `fix(editor): one leave flow that waits, asks and recovers`
+- [x] **Step 7: Commit** `fix(editor): one leave flow that waits, asks and recovers`
 
 ### Task 4: Screen reader and keyboard path (P2)
 

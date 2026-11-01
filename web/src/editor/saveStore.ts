@@ -85,6 +85,8 @@ export function createSaveStore({
         } else {
           done.forEach((resolve) => resolve());
         }
+        // pending() has changed even when the state text has not: a waiting move looks again.
+        listeners.forEach((fn) => fn());
       });
     return inFlight;
   }
