@@ -1,7 +1,8 @@
-import { createBrowserRouter, createRoutesFromElements, Route, Navigate } from "react-router";
+import { createBrowserRouter, createRoutesFromElements, Route, Navigate, Outlet } from "react-router";
 import AcceptInvite from "./auth/AcceptInvite";
 import Login from "./auth/Login";
 import { RequireAuth, SetupGate } from "./auth/session";
+import { useBrandHead } from "./brand/useBranding";
 import EditorPage from "./editor/EditorPage";
 import SourcePage from "./editor/SourcePage";
 import ImportPage from "./library/ImportPage";
@@ -21,9 +22,15 @@ import SetupPage from "./setup/SetupPage";
 import RestorePage from "./restore/RestorePage";
 import Shell from "./Shell";
 
+/** Every route, the pre-login ones included, keeps the tab's title and icon in step. */
+function BrandHead() {
+  useBrandHead();
+  return <Outlet />;
+}
+
 export const router = createBrowserRouter(
   createRoutesFromElements(
-    <>
+    <Route element={<BrandHead />}>
       <Route path="/restore" element={<RestorePage />} />
       <Route element={<SetupGate />}>
         <Route path="/setup" element={<SetupPage />} />
@@ -57,6 +64,6 @@ export const router = createBrowserRouter(
           <Route path="documents/:id/split" element={<SourcePage mode="split" />} />
         </Route>
       </Route>
-    </>,
+    </Route>,
   ),
 );

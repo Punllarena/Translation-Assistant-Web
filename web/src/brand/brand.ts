@@ -83,3 +83,23 @@ export function headState(brand: Branding): { title: string; iconHref: string } 
     iconHref: brand.faviconId === null ? "/favicon.svg" : imageUrl(brand.faviconId),
   };
 }
+
+/** What the header and the auth pages show: the 訳 mark when there is no logo, the name
+ *  unless an admin hid it beside a logo, and the dark logo's url when one was uploaded. */
+export function brandView(brand: Branding): {
+  showMark: boolean;
+  showName: boolean;
+  logo: string | null;
+  logoDark: string | null;
+} {
+  if (brand.logoId === null) {
+    // A dark logo without a light one is not shown: there is nothing to swap it with.
+    return { showMark: true, showName: true, logo: null, logoDark: null };
+  }
+  return {
+    showMark: false,
+    showName: brand.showName,
+    logo: imageUrl(brand.logoId),
+    logoDark: brand.logoDarkId === null ? null : imageUrl(brand.logoDarkId),
+  };
+}

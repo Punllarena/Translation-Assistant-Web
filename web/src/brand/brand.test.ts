@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_BRANDING,
+  brandView,
   clearCache,
   fromApi,
   headState,
@@ -73,6 +74,53 @@ describe("branding data", () => {
     expect(headState({ ...DEFAULT_BRANDING, faviconId: 7 })).toEqual({
       title: "Translation Assistant",
       iconHref: "/api/branding/image/7",
+    });
+  });
+});
+
+describe("brandView", () => {
+  it("shows the mark and the name with no logo", () => {
+    expect(brandView(DEFAULT_BRANDING)).toEqual({
+      showMark: true,
+      showName: true,
+      logo: null,
+      logoDark: null,
+    });
+  });
+
+  it("shows the logo and the name, without the mark", () => {
+    expect(brandView({ ...DEFAULT_BRANDING, logoId: 3 })).toEqual({
+      showMark: false,
+      showName: true,
+      logo: "/api/branding/image/3",
+      logoDark: null,
+    });
+  });
+
+  it("shows the logo only when the name is hidden", () => {
+    expect(brandView({ ...DEFAULT_BRANDING, logoId: 3, showName: false })).toEqual({
+      showMark: false,
+      showName: false,
+      logo: "/api/branding/image/3",
+      logoDark: null,
+    });
+  });
+
+  it("treats a dark logo with no light logo as no logo", () => {
+    expect(brandView({ ...DEFAULT_BRANDING, logoDarkId: 5 })).toEqual({
+      showMark: true,
+      showName: true,
+      logo: null,
+      logoDark: null,
+    });
+  });
+
+  it("shows both logo urls when a dark logo exists", () => {
+    expect(brandView({ ...DEFAULT_BRANDING, logoId: 3, logoDarkId: 5 })).toEqual({
+      showMark: false,
+      showName: true,
+      logo: "/api/branding/image/3",
+      logoDark: "/api/branding/image/5",
     });
   });
 });

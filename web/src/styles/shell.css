@@ -4,6 +4,12 @@
   letter-spacing: .01em; text-decoration: none; white-space: nowrap; }
 .mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 3px;
   background: var(--seal); color: #fff; font-family: var(--jp); font-size: 16px; }
+/* An uploaded logo: bounded so a wide one cannot break the header. The dark logo is only
+   rendered when one exists, and only it shows under the dark theme. */
+.brand-logo, .brand-logo-dark { max-height: 28px; max-width: 160px; object-fit: contain; }
+.brand-logo-dark { display: none; }
+:root[data-theme="dark"] .brand-logo-dark { display: inline-block; }
+:root[data-theme="dark"] .brand-logo:has(+ .brand-logo-dark) { display: none; }
 .app-header nav { display: flex; gap: 4px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .app-header nav a { padding: 16px 12px 14px; border-bottom: 2px solid transparent; color: var(--muted);
   font-size: 14px; text-decoration: none; white-space: nowrap; }
