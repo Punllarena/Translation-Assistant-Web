@@ -2660,6 +2660,8 @@ export interface components {
             empty: string[];
             /** Errors */
             errors: components["schemas"]["ChapterError"][];
+            /** Images Added */
+            images_added?: number;
             /** Imported */
             imported: string[];
             /** Series Id */

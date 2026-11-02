@@ -366,7 +366,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         {leaveDialog}
         <main className="editor">
           <p>This chapter {only}. <Link to={`/documents/${id}/source`}>Edit source</Link></p>
-          {(images.data ?? []).map((image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />)}
+          {(images.data ?? []).map((image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} chapters={chapters.volume} lineCount={lines.length} />)}
           {chapterEnd}
         </main>
       </div>
@@ -412,7 +412,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         <CardList rows={rows} active={ed.active} parse={ed.parse} texts={ed.texts}
           onActivate={activate} editor={editor} highlight={hit} hits={find.hits} unsaved={unsavedSet}
           misspelled={spell.misspelled} readings={readings.ruby} glossaryRuby={glossaryRuby}
-          renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} />} />
+          renderImage={(image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} chapters={chapters.volume} lineCount={lines.length} />} />
         {chapterEnd}
         <JumpBack active={ed.active} untranslated={firstLeft} onActivate={goToLine} onReturn={returnToActive} />
       </div>

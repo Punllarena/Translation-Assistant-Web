@@ -45,9 +45,11 @@ def illustration_src(el) -> str:
 
 
 def _is_standalone_illustration(p) -> bool:
-    """True if a <p>'s only meaningful child is a single <img>."""
-    children = [c for c in p.children if not (isinstance(c, str) and not c.strip())]
-    return len(children) == 1 and getattr(children[0], "name", None) == "img"
+    """True if a <p> holds a single <img> and no text, even inside wrapper spans (Kobo's
+    koboSpan)."""
+    if p.name != "p":
+        return False
+    return len(p.find_all("img")) == 1 and not p.get_text(strip=True)
 
 
 def para_text(p) -> str:
