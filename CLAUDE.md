@@ -96,13 +96,30 @@ the account's value wins once `/settings` arrives. Spec: `docs/superpowers/specs
 Settings page: the header has one Settings link (`Shell.tsx`, marked current for any `/settings/*` by `isSettingsPath`
 in `web/src/settings/settingsNav.ts`) instead of the old Editor/Machine translation/WordPress/Shortcuts/Admin links.
 It opens a layout route (`SettingsLayout.tsx`) whose sidebar (`nav aria-label="Settings"`) lists Editor, Machine
-translation, WordPress and Shortcuts, then for admins an "Admin" group of Server, Invites, Dictionary and Backup &
-restore; below 60rem the sidebar is a horizontally scrollable row. The sections are the same pages and panels as
+translation, WordPress and Shortcuts, then for admins an "Admin" group of Server, Invites, Dictionary, Branding and
+Backup & restore (five entries); below 60rem the sidebar is a horizontally scrollable row. The sections are the same pages and panels as
 before, each with a `div` root (the layout owns the page's only `<main>`); the admin panels sit in `AdminSections.tsx`
 wrappers that give them a `PageHeader` and the `panel sec` look, behind one `AdminOnly` layout route (a non-admin sees
 the `Admin only.` box and no panel mounts). `/settings` and `/settings/admin` redirect with `replace` to
 `/settings/editor` and `/settings/admin/server`, `/admin` redirects to the latter, and `/settings/profiles` still lands
 on Editor. Spec: `docs/superpowers/specs/2026-10-31-settings-sidebar-design.md`.
+
+Branding: an admin sets the site's brand name, logo (with an optional dark-mode logo and a show-name choice) and favicon
+in Settings → Admin → Branding. `branding` holds one row (the name, NULL for the default, and `show_name`);
+`brand_images` holds one row per kind (`logo` / `logo_dark` / `favicon`), replaced by delete + insert, so an image id is
+a cache key. `GET /branding` is public (the pre-login pages need it; a failed or slow fetch falls back to the defaults)
+and `GET /branding/image/{id}` serves bytes typed from their content with `Cache-Control: immutable`,
+`X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`; SVG is only ever shown through `<img>` /
+`<link>`. The admin writes are `PUT /admin/branding` (name and flag; blank means the default, over 60 characters is 422),
+`PUT` / `DELETE /admin/branding/{kind}` and `DELETE /admin/branding` (reset). Uploads are PNG, WebP or SVG, plus ICO for
+the favicon, sniffed from the bytes and capped at 1 MiB (`api/branding.py`). Defaults: the name "Translation Assistant",
+the 訳 mark in the header and the static `web/public/favicon.svg`; a logo (max 28px high, 160px wide) replaces the mark,
+the dark logo swaps in under `:root[data-theme="dark"]`, and the name hides only when a logo is set and the admin
+unticked it. The SPA reads it through `useBranding` (React Query key `["branding"]`, seeded from `localStorage` `ta.brand`)
+and one `Brand` component (`web/src/brand/SiteBrand.tsx`, named so it does not collide with `brand.ts` on
+case-insensitive filesystems); `useBrandHead` keeps the tab title and icon in step at every route. Reset clears
+`ta.brand`; `/branding` is not in `MAINTENANCE_ALLOWED`.
+Spec: `docs/superpowers/specs/2026-11-02-admin-branding-design.md`.
 
 Onboarding: with no users, the SPA sends every page to `/setup` (`GET /setup/status`, `POST /setup/admin`,
 which takes a Postgres advisory lock; `api/accounts.py`). Admin-only `/admin/settings` rows in `server_settings`
@@ -366,7 +383,7 @@ line each, e.g.:
 
 ```
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Co-Authored-By: DeepSeek V4.1 Flash <noreply@opencode.ai>
+Co-Authored-By: DeepSeek V4.1 Flash <contact@opencode.ai>
 ```
 
 A delegate uses its own model name and adds its line to every commit it makes for the delegated task; Claude's line stays
