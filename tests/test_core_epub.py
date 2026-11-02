@@ -1085,3 +1085,14 @@ def test_parsed_text_per_book_is_capped(monkeypatch):
 
 def test_text_entry_cap_is_4_mib():
     assert MAX_TEXT_ENTRY == 4 * 1024 * 1024 and MAX_PARSED_TEXT == 32 * 1024 * 1024
+
+
+class TestKoboWrappedIllustration:
+    def test_img_inside_kobo_span_is_an_illustration(self, tmp_path):
+        body = ('<p>Before.</p><p><span class="koboSpan" id="kobo.1.1">'
+                '<img class="fit" src="../images/pic1.png" alt=""/></span></p><p>After.</p>')
+        path, href = _make_illustration_epub(tmp_path, body)
+        text, images = extract_chapter_content(path, href)
+        assert text == "Before.\nAfter."
+        assert [i["src_path"] for i in images] == ["OEBPS/images/pic1.png"]
+        assert images[0]["anchor_position"] == 1

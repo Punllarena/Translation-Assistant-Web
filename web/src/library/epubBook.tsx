@@ -155,7 +155,8 @@ export function EpubResult({ r, children }: { r: Schemas["EpubImportOut"]; child
     <div className="box ok result" role="status">
       <p><b>{r.imported.length ? "Import complete." : "Import finished — nothing new imported."}</b></p>
       <p>Imported: {r.imported.length}</p>
-      <p>Skipped: {r.skipped.length} (already imported)</p>
+      <p>Skipped: {r.skipped.length} (already imported; missing images are added back)</p>
+      {(r.images_added ?? 0) > 0 && <p>Images restored in existing chapters: {r.images_added}</p>}
       <p>Errors: {r.errors.length}</p>
       {r.skipped.length > 0 && <p>Skipped: {r.skipped.join(", ")}</p>}
       {r.empty.length > 0 && (

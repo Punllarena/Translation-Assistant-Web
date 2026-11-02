@@ -115,3 +115,40 @@ def test_delete_move_without_images_creates_nothing(app_client, db, me, make_doc
     assert app_client.delete(f"/documents/{plain.id}?images=move").status_code == 204
     db.expire_all()
     assert db.query(Document).filter_by(volume_id=v2.id, is_illustrations=True).count() == 0
+
+
+def test_patch_moves_an_image_within_its_chapter_clamped(app_client, db, lib):
+    _, _, _, docs = lib
+    img = db.query(DocumentImage).filter_by(document_id=docs["t"].id, src_path="y.png").one()
+    r = app_client.patch(f"/images/{img.id}", json={"anchor_position": 99})
+    assert r.status_code == 200 and r.json()["anchor_position"] == 1  # one line
+    assert app_client.patch(f"/images/{img.id}", json={"anchor_position": 0}).json()[
+        "anchor_position"] == 0
+    assert app_client.patch(f"/images/{img.id}", json={"anchor_position": -1}).status_code == 422
+
+
+def test_patch_moves_an_image_to_another_chapter_of_the_volume(app_client, db, lib):
+    _, _, _, docs = lib
+    img = db.query(DocumentImage).filter_by(document_id=docs["t"].id, src_path="x.png").one()
+    r = app_client.patch(f"/images/{img.id}",
+                         json={"document_id": docs["a"].id, "anchor_position": 0})
+    assert r.status_code == 200 and r.json()["document_id"] == docs["a"].id
+    assert r.json()["src_path"] == "x-2.png"  # a already holds x.png
+    assert _held(db, docs["t"].id) == ["y.png"]
+
+
+def test_patch_refuses_another_volume(app_client, db, lib):
+    _, _, _, docs = lib
+    img = db.query(DocumentImage).filter_by(document_id=docs["t"].id, src_path="y.png").one()
+    r = app_client.patch(f"/images/{img.id}", json={"document_id": docs["d"].id})
+    assert r.status_code == 409
+
+
+def test_patch_emptying_an_illustrations_chapter_deletes_it(app_client, db, lib):
+    _, _, _, docs = lib
+    img = db.query(DocumentImage).filter_by(document_id=docs["a"].id).one()
+    a_id = docs["a"].id
+    r = app_client.patch(f"/images/{img.id}", json={"document_id": docs["t"].id})
+    assert r.status_code == 200
+    db.expire_all()
+    assert db.get(Document, a_id) is None

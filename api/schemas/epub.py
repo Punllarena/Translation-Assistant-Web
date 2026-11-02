@@ -32,3 +32,4 @@ class EpubImportOut(BaseModel):
     skipped: list[str]
     empty: list[str]
     errors: list[ChapterError]
+    images_added: int = 0
