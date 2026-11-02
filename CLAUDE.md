@@ -357,3 +357,17 @@ that database each run; conftest refuses any database name not ending in `_test`
   transaction too (`run` in `api/backup/restore.py`: the jobs table it would report to is replaced mid-run). WordPress calls take an injected `httpx.Client`
   the same way (`http_client` seams in `api/routers/wp.py` and `api/publish_job.py`).
 - Tests set `TA_RUN_JOBS_WORKER=false` and drive jobs with `jobs.run_next()`, swapping `api.jobs.SessionLocal` for the test session.
+
+## Commit attribution
+
+Commits and PR descriptions made with Claude keep the attribution lines they are given. When part of the work was
+delegated to another agent or model (an OpenCode model, say), that agent also adds itself, one `Co-Authored-By`
+line each, e.g.:
+
+```
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Co-Authored-By: DeepSeek V4.1 Flash <noreply@opencode.ai>
+```
+
+A delegate uses its own model name and adds its line to every commit it makes for the delegated task; Claude's line stays
+on commits Claude makes or amends.
