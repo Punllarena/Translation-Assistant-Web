@@ -9,6 +9,7 @@ served with a sandboxing CSP and only ever shown through ``<img>`` / ``<link>``,
 """
 
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from api.models import BrandImage, Branding
@@ -78,17 +79,21 @@ def clean_name(raw: str) -> str | None:
 
 
 def get(db: Session) -> Branding:
-    """The branding row, created with the defaults on first read."""
-    row = db.get(Branding, 1)
-    if row is None:
-        row = Branding(id=1, name=None, show_name=True)
-        db.add(row)
-        db.flush()
-    return row
+    """The branding row, or an unsaved one with the defaults. Reads never write: the public
+    route is hit by many first visitors at once, and two inserts of row 1 would collide."""
+    return db.get(Branding, 1) or Branding(id=1, name=None, show_name=True)
+
+
+def _row(db: Session) -> Branding:
+    """The row to change; created race-safely (ON CONFLICT DO NOTHING) on the first write."""
+    db.execute(
+        insert(Branding).values(id=1, show_name=True).on_conflict_do_nothing(index_elements=["id"])
+    )
+    return db.get(Branding, 1)
 
 
 def set_text(db: Session, name: str | None, show_name: bool) -> Branding:
-    row = get(db)
+    row = _row(db)
     row.name = name
     row.show_name = show_name
     db.flush()
@@ -113,7 +118,7 @@ def clear_image(db: Session, kind: str) -> None:
 
 def reset(db: Session) -> None:
     """Back to the defaults: no name, the flag on, no images."""
-    row = get(db)
+    row = _row(db)
     row.name = None
     row.show_name = True
     db.execute(delete(BrandImage))
