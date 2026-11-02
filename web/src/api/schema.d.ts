@@ -24,6 +24,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Branding
+         * @description Save the name and the show-name flag; a blank name means the default.
+         */
+        put: operations["put_branding_admin_branding_put"];
+        post?: never;
+        /**
+         * Reset Branding
+         * @description Back to the defaults: the default name, the flag on and no images.
+         */
+        delete: operations["reset_branding_admin_branding_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/branding/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upload Image */
+        put: operations["upload_image_admin_branding__kind__put"];
+        post?: never;
+        /**
+         * Delete Image
+         * @description Remove the kind's image; already absent is still 204.
+         */
+        delete: operations["delete_image_admin_branding__kind__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/dictionary": {
         parameters: {
             query?: never;
@@ -239,6 +284,46 @@ export interface paths {
         };
         /** Me */
         get: operations["me_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Branding
+         * @description The name, the show-name flag and the image ids; no login (pre-login pages need it).
+         */
+        get: operations["read_branding_branding_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/branding/image/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Image
+         * @description The bytes, typed from the bytes and cached for good (a replace is a new id).
+         */
+        get: operations["read_image_branding_image__image_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2275,6 +2360,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_upload_image_admin_branding__kind__put */
+        Body_upload_image_admin_branding__kind__put: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_import_tadb_post */
         Body_upload_import_tadb_post: {
             /** File */
@@ -2316,6 +2406,32 @@ export interface components {
             publisher: string;
             /** Title */
             title: string;
+        };
+        /**
+         * BrandingIn
+         * @description The text part an admin saves; images have their own upload route.
+         */
+        BrandingIn: {
+            /** Name */
+            name: string;
+            /** Show Name */
+            show_name: boolean;
+        };
+        /**
+         * BrandingOut
+         * @description What the public endpoint and every admin write answer with.
+         */
+        BrandingOut: {
+            /** Favicon Id */
+            favicon_id: number | null;
+            /** Logo Dark Id */
+            logo_dark_id: number | null;
+            /** Logo Id */
+            logo_id: number | null;
+            /** Name */
+            name: string;
+            /** Show Name */
+            show_name: boolean;
         };
         /** ChapterError */
         ChapterError: {
@@ -3927,6 +4043,121 @@ export interface operations {
             };
         };
     };
+    put_branding_admin_branding_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_branding_admin_branding_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    upload_image_admin_branding__kind__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_image_admin_branding__kind__put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_image_admin_branding__kind__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_dictionary_admin_dictionary_get: {
         parameters: {
             query?: never;
@@ -4343,6 +4574,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+        };
+    };
+    read_branding_branding_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandingOut"];
+                };
+            };
+        };
+    };
+    read_image_branding_image__image_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
