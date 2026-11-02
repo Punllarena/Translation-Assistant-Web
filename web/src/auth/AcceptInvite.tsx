@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, call } from "../api/client";
+import Brand from "../brand/SiteBrand";
 
 /** /invite?token=… — the link an admin hands out. Creates the account; the user then signs in. */
 export default function AcceptInvite() {
@@ -22,7 +23,7 @@ export default function AcceptInvite() {
     return (
       <main className="auth">
         <div className="auth-card">
-          <span className="brand"><span className="mark" aria-hidden="true">訳</span>Translation Assistant</span>
+          <span className="brand"><Brand /></span>
           <h1>Account created</h1>
           <p><Link to="/login">Sign in</Link> with your email or username and your password.</p>
         </div>
@@ -32,7 +33,7 @@ export default function AcceptInvite() {
   return (
     <main className="auth">
       <form className="auth-card" onSubmit={submit}>
-        <span className="brand"><span className="mark" aria-hidden="true">訳</span>Translation Assistant</span>
+        <span className="brand"><Brand /></span>
         <h1>Create your account</h1>
         {!token && <p className="box danger">This link has no invite token.</p>}
         <label className="field"><span>Email</span>

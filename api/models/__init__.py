@@ -1,3 +1,4 @@
+from api.models.branding import BrandImage, Branding
 from api.models.content import (
     Document,
     DocumentImage,
@@ -25,7 +26,8 @@ from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
 from api.models.server import ServerSetting
 
 __all__ = [
-    "ApiCredential", "CustomWord", "Dictionary", "DictionaryTerm", "Document", "DocumentImage",
+    "ApiCredential", "BrandImage", "Branding", "CustomWord", "Dictionary", "DictionaryTerm",
+    "Document", "DocumentImage",
     "GlossaryEntry",
     "Invite", "Job", "Line", "MtCache", "OllamaChunk", "OllamaQueueItem", "OllamaSuggestion",
     "Series", "ServerSetting", "Session", "Shortcut",

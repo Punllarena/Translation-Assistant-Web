@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="訳">
+  <rect width="64" height="64" rx="8" fill="#3d3fa6"/>
+  <text x="32" y="33" text-anchor="middle" dominant-baseline="central"
+    font-family="'Noto Serif JP', 'Yu Mincho', 'Hiragino Mincho ProN', serif"
+    font-size="42" fill="#ffffff">訳</text>
+</svg>
