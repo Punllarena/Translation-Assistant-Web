@@ -45,6 +45,16 @@
 .glossary-table input.en { font-family: var(--serif); font-size: 17px; }
 .glossary-table tr.changed td:first-child { box-shadow: inset 3px 0 0 var(--seal); }
 .row-actions { width: 1%; white-space: nowrap; }
+/* Admin → Branding: each image on its preview swatch, with upload / remove beside it. */
+.brand-image { margin: 0; padding: 16px 0 0; border: 0; border-top: 1px solid var(--line); min-width: 0; }
+.brand-image legend { padding: 0 0 8px; font-weight: 500; }
+.brand-image-row { display: flex; gap: 16px; align-items: flex-start; }
+.brand-preview { display: grid; place-items: center; flex: none; width: 160px; min-height: 64px; padding: 8px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--raised); }
+.brand-preview.dark { background: var(--accent); border-color: var(--accent); }
+.brand-preview img { max-width: 100%; max-height: 48px; object-fit: contain; }
+.brand-image-actions { display: flex; flex: 1; flex-direction: column; gap: 8px; min-width: 0; }
+@media (max-width: 480px) { .brand-image-row { flex-direction: column; } }
 .cols > .mt-order { flex: 1 1 360px; max-width: 460px; }
 .cols > .stack-col { flex: 2 1 560px; }
 .stack-col { display: flex; flex-direction: column; gap: 24px; }

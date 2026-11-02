@@ -15,7 +15,7 @@ import WpSettingsPage from "./settings/WpSettingsPage";
 import ShortcutsPage from "./settings/ShortcutsPage";
 import SettingsLayout from "./settings/SettingsLayout";
 import AdminOnly from "./settings/AdminOnly";
-import { AdminBackup, AdminDictionary, AdminInvites, AdminServer } from "./settings/AdminSections";
+import { AdminBackup, AdminBranding, AdminDictionary, AdminInvites, AdminServer } from "./settings/AdminSections";
 import StatsPage from "./stats/StatsPage";
 import JobsPage from "./jobs/JobsPage";
 import SetupPage from "./setup/SetupPage";
@@ -56,6 +56,7 @@ export const router = createBrowserRouter(
               <Route path="admin/server" element={<AdminServer />} />
               <Route path="admin/invites" element={<AdminInvites />} />
               <Route path="admin/dictionary" element={<AdminDictionary />} />
+              <Route path="admin/branding" element={<AdminBranding />} />
               <Route path="admin/backup" element={<AdminBackup />} />
             </Route>
           </Route>

@@ -2,7 +2,6 @@ import { useQuery, type QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { api, call } from "../api/client";
 import {
-  BRAND_KEY,
   DEFAULT_BRANDING,
   fromApi,
   headState,
@@ -11,7 +10,7 @@ import {
   type Branding,
 } from "./brand";
 
-const KEY = [BRAND_KEY] as const;
+const KEY = ["branding"] as const;
 const STALE_MS = 5 * 60_000;
 
 /** Storage can be missing or throw (private windows, blocked site data). */

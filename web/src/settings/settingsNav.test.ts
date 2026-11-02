@@ -9,14 +9,17 @@ describe("settings navigation", () => {
     expect(isSettingsPath("/")).toBe(false);
   });
 
-  it("lists the four admin sections in sidebar order", () => {
+  it("lists the five admin sections in sidebar order", () => {
     expect(ADMIN.map((i) => i.to)).toEqual([
       "/settings/admin/server",
       "/settings/admin/invites",
       "/settings/admin/dictionary",
+      "/settings/admin/branding",
       "/settings/admin/backup",
     ]);
-    expect(ADMIN.map((i) => i.label)).toEqual(["Server", "Invites", "Dictionary", "Backup & restore"]);
+    expect(ADMIN.map((i) => i.label)).toEqual([
+      "Server", "Invites", "Dictionary", "Branding", "Backup & restore",
+    ]);
   });
 
   it("lists the four personal sections in sidebar order", () => {
