@@ -230,7 +230,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               {check.capped && !check.running && check.done > 0 && (
                 <span className="muted">Checked the first {check.total} of {checkedCount}</span>
               )}
-              <Menu label={exportZip.isPending ? "Exporting…" : "Organise ▾"} align="start">
+              <Menu label={exportZip.isPending ? "Exporting…" : "More ▾"} align="start">
                 {(close) => (
                   <>
                     <div role="group" aria-label="Export as">
@@ -244,7 +244,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
                     <button type="button" role="menuitem" disabled={n === 0}
                       onClick={() => { close(); setOpen("move"); }}>Move to…</button>
                     <button type="button" role="menuitem" disabled={n < 2}
-                      onClick={() => { close(); merge.reset(); setOpen("merge"); }}>Merge</button>
+                      onClick={() => { close(); merge.reset(); setOpen("merge"); }}>Merge…</button>
                   </>
                 )}
               </Menu>

@@ -175,19 +175,19 @@ test("the Volumes tab has no series-wide Ollama buttons, and the Tools tab has t
   await expect(page.getByRole("button", { name: "Flush Ollama output…" })).toBeVisible();
 });
 
-test("the selection bar offers Organise with Move to and Merge, and Merge needs two rows", async ({ page }) => {
+test("the selection bar's More menu offers Move to and Merge…, and Merge needs two rows", async ({ page }) => {
   await signIn(page);
   await openSeries(page, SERIES);
   await page.getByLabel("Select Spec one").check();
   await expect(page.getByRole("button", { name: "Move to…" })).toHaveCount(0);
-  const organise = page.getByRole("button", { name: "Organise ▾" });
-  await organise.click();
-  await expect(page.getByRole("menuitem", { name: "Merge" })).toBeDisabled();
+  const more = page.getByRole("button", { name: "More ▾" });
+  await more.click();
+  await expect(page.getByRole("menuitem", { name: "Merge…" })).toBeDisabled();
   await page.getByLabel("Select Spec image").check();
-  await organise.click();
-  await expect(page.getByRole("menuitem", { name: "Merge" })).toBeEnabled();
+  await more.click();
+  await expect(page.getByRole("menuitem", { name: "Merge…" })).toBeEnabled();
   await page.keyboard.press("Escape");
-  await expect(organise).toBeFocused();
+  await expect(more).toBeFocused();
 });
 
 test("series tabs read Volumes, Glossary, Gallery, Tools, Settings in that order", async ({ page }) => {
