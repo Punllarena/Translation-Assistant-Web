@@ -33,7 +33,7 @@ test("an admin uploads a Yomitan dictionary and JParser uses it", async ({ page 
   await page.getByRole("button", { name: "Move E2E Yomitan up" }).click();
   await expect(items.nth(0)).toContainText("E2E Yomitan");
   await openChapter(page, "Yomitan spec", "Yomitan target");
-  await expect(page.getByRole("region", { name: "JParser" })).toContainText("yomitan e2e gloss");
+  await expect(page.getByRole("region", { name: "Dictionary" })).toContainText("yomitan e2e gloss");
   await page.goto("/settings/admin/dictionary");
   await page.getByRole("button", { name: "Remove E2E Yomitan" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Remove" }).click();

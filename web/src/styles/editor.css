@@ -114,6 +114,9 @@
 .mt-reading, .mt-lemma { font-family: var(--jp); font-size: .8125rem; color: var(--muted); }
 .mt-pos { margin-right: .4em; font-family: var(--serif); font-style: italic; font-size: .875rem; color: var(--muted); }
 .mt-gloss { flex-basis: 100%; font-family: var(--serif); font-size: .9375rem; line-height: 1.4; text-wrap: pretty; }
+.mt-statuses { display: flex; gap: .75em; }
+.mt-gram { margin-left: auto; font-size: 12px; color: var(--muted); }
+.mt-flag { flex-basis: 100%; margin-top: 2px; padding: 1px .4em; border-radius: 4px; font-size: 12px; background: var(--warn-soft); color: var(--warn-ink); }
 .mt-nomatch { font-style: italic; color: var(--muted); }
 .mt-card .mt-actions { display: flex; flex-wrap: wrap; gap: .3rem; }
 .ollama-detail { max-height: 55vh; overflow-y: auto; }
