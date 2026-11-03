@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -12,10 +13,9 @@ from api.settings_rules import check
 
 router = api_router(tags=["settings"])
 
-# A concurrent first write of the same key loses the race on the unique constraint.
+# A concurrent first write of the same shortcut loses the race on the unique constraint.
 # Savepoint + 409 (as in series and credentials), so the loser neither 500s nor
 # discards the rest of the request's work.
-CONCURRENT_SETTING = "that setting was written concurrently; retry"
 CONCURRENT_SHORTCUT = "that shortcut was written concurrently; retry"
 
 
@@ -45,18 +45,13 @@ def put_settings(
         problem = check(key, value)
         if problem is not None:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problem)
-    existing = {
-        r.key: r for r in db.scalars(select(UserSetting).where(UserSetting.user_id == user.id))
-    }
-    try:
-        with db.begin_nested():
-            for key, value in body.items():
-                if key in existing:
-                    existing[key].value_json = value
-                else:
-                    db.add(UserSetting(user_id=user.id, key=key, value_json=value))
-    except IntegrityError as exc:
-        raise conflict(exc, CONCURRENT_SETTING) from exc
+    # Last write wins: two quick toggles of one key must both land, even on a first write.
+    for key, value in body.items():
+        stmt = insert(UserSetting).values(user_id=user.id, key=key, value_json=value)
+        db.execute(stmt.on_conflict_do_update(
+            index_elements=[UserSetting.user_id, UserSetting.key], set_={"value_json": value}
+        ))
+    db.flush()
     return _load_settings(db, user.id)
 
 

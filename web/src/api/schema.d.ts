@@ -2776,8 +2776,11 @@ export interface components {
             empty: string[];
             /** Errors */
             errors: components["schemas"]["ChapterError"][];
-            /** Images Added */
-            images_added?: number;
+            /**
+             * Images Added
+             * @default 0
+             */
+            images_added: number;
             /** Imported */
             imported: string[];
             /** Series Id */
@@ -2940,6 +2943,10 @@ export interface components {
         };
         /** ImageUpdate */
         ImageUpdate: {
+            /** Anchor Position */
+            anchor_position?: number | null;
+            /** Document Id */
+            document_id?: number | null;
             /** Exclude Export */
             exclude_export?: boolean | null;
         };
