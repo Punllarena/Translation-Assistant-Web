@@ -3,13 +3,26 @@ button, .btn { display: inline-flex; align-items: center; justify-content: cente
   background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; font-weight: 500;
   line-height: 1.2; text-decoration: none; cursor: pointer; }
 button:hover:not(:disabled), .btn:hover { border-color: var(--muted); }
-button:disabled { opacity: .5; cursor: default; }
+button:disabled { cursor: default; }
 button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 button.quiet, .btn.quiet { background: none; border-color: transparent; color: var(--muted); }
 button.quiet:hover:not(:disabled), .btn.quiet:hover { color: var(--ink); border-color: transparent; }
 button.danger { color: var(--danger); }
 button.primary.danger { background: var(--danger); border-color: var(--danger); color: var(--surface); }
 button.primary.danger:hover:not(:disabled) { border-color: var(--danger); filter: brightness(1.08); }
+/* A disabled button stays readable instead of being faded with opacity, which took a solid
+   primary's white label to about 1.2:1 against its own background. Each of these keeps at least
+   3:1: default 7.03:1, primary 5.97:1, quiet 6.64:1, danger 7.26:1 (light theme; dark is higher). */
+button:disabled { color: var(--muted); }
+button.primary:disabled { background: var(--accent-soft); border-color: var(--line); color: var(--muted); }
+button.quiet:disabled { background: none; border-color: transparent; color: var(--muted); }
+button.danger:disabled { color: color-mix(in srgb, var(--danger) 65%, var(--muted)); }
+button.primary.danger:disabled {
+  background: var(--danger-soft); border-color: var(--line);
+  color: color-mix(in srgb, var(--danger) 65%, var(--muted));
+}
+.menu [role^="menuitem"]:disabled { color: var(--muted); }
+.menu [role^="menuitem"].danger:disabled { color: color-mix(in srgb, var(--danger) 65%, var(--muted)); }
 button.icon { width: 36px; padding: 0; border-color: transparent; background: none; color: var(--muted); }
 button.icon:hover:not(:disabled) { background: var(--raised); color: var(--ink); border-color: transparent; }
 button.small, .btn.small { min-height: 30px; padding: 0 10px; font-size: 13px; }
@@ -62,7 +75,18 @@ kbd { display: inline-block; min-width: 28px; padding: 2px 8px; border: 1px soli
   border-radius: 5px; background: var(--raised); font-family: var(--mono); font-size: 13px; text-align: center; white-space: nowrap; }
 
 .menu-root { position: relative; display: inline-block; }
-.menu { position: absolute; top: calc(100% + 6px); z-index: 20; min-width: 200px; padding: 6px;
+/* The ⋯ triggers (the volume header's and each row's) read as buttons: darker ink than the
+   quiet default, and a visible edge on hover and keyboard focus. The hit area is unchanged. */
+.menu-root > button.quiet[aria-label^="Actions for"],
+.menu-root > button.quiet[aria-label="Volume actions"] { color: var(--ink); }
+.menu-root > button.quiet[aria-label^="Actions for"]:hover,
+.menu-root > button.quiet[aria-label="Volume actions"]:hover,
+.menu-root > button.quiet[aria-label^="Actions for"]:focus-visible,
+.menu-root > button.quiet[aria-label="Volume actions"]:focus-visible {
+  color: var(--ink); border-color: var(--line);
+}
+.menu { position: absolute; top: calc(100% + 6px); z-index: 20; min-width: 200px; width: max-content;
+  max-width: min(24rem, calc(100vw - 32px)); padding: 6px;
   display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line);
   border-radius: 8px; box-shadow: 0 16px 40px -16px var(--shadow); }
 .menu-end { right: 0; }
@@ -70,7 +94,7 @@ kbd { display: inline-block; min-width: 28px; padding: 2px 8px; border: 1px soli
 /* A fixed menu is placed by Menu.tsx from the trigger's rect; the align classes' edges are not used. */
 .menu.menu-fixed { position: fixed; top: auto; right: auto; bottom: auto; left: auto; }
 .menu [role^="menuitem"] { justify-content: flex-start; width: 100%; min-height: 40px; border: 0;
-  background: none; color: var(--ink); font-weight: 400; }
+  background: none; color: var(--ink); font-weight: 400; text-align: left; }
 .menu [role^="menuitem"]:hover, .menu [role^="menuitem"]:focus-visible { background: var(--raised); outline: none; }
 .menu [role="menuitemradio"]::before, .menu [role="menuitemcheckbox"]::before { content: ""; width: 16px; flex: none; }
 .menu [role="menuitemradio"][aria-checked="true"]::before,
