@@ -89,3 +89,19 @@ test("the volume menu lists series-wide items under an All volumes heading, and 
   }
   await expect(menu.getByText("All volumes", { exact: true })).toBeVisible();
 });
+
+test("an empty volume says why Publish volume is disabled", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  await page.getByRole("button", { name: "New volume" }).click();
+  const dialog = page.getByRole("dialog", { name: "New volume" });
+  await dialog.getByRole("button", { name: "Create" }).click();
+  await expect(dialog).toBeHidden();
+  const publish = page.getByRole("button", { name: "Publish volume…" });
+  await expect(publish).toBeDisabled();
+  await expect(publish).toHaveAttribute("title", "This volume has no chapters yet.");
+  await page.getByRole("button", { name: "Volume actions" }).click();
+  const queue = page.getByRole("menuitem", { name: "Queue volume for Ollama" });
+  await expect(queue).toBeDisabled();
+  await expect(queue).toHaveAttribute("title", "This volume has no chapters yet.");
+});

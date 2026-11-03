@@ -224,8 +224,9 @@ Publish…. Check status in the selection bar loops the per-chapter route, 50 a 
 `DocumentListItem`: `char_count`, `word_count`, `ollama_waiting`. `DELETE /documents/{id}?images=move` moves a
 chapter's images to its volume's Illustrations chapter (`api/image_moves.py`: a clashing `src_path` is renamed, not
 dropped; 409 outside a volume, in a syosetu series, or for the Illustrations chapter), and the delete dialog asks;
-multi-select stays one request per chapter. Series-wide Ollama queue/flush live in Tools. Spec:
-`docs/superpowers/specs/2026-10-30-series-page-revision-design.md`.
+multi-select stays one request per chapter. Series-wide Ollama queue/flush live in Tools (the Volumes tab carries
+neither), the selection bar appears only while rows are ticked, and each chapter row's ⋯ menu has Move up / Move
+down (never in a syosetu series). Spec: `docs/superpowers/specs/2026-10-30-series-page-revision-design.md`.
 
 Series Gallery: the series page's Gallery tab (`?tab=gallery`, `web/src/library/gallery/`) shows every
 `document_images` row of the series' chapters plus each volume's cover, grouped by volume (`volume_order`,
