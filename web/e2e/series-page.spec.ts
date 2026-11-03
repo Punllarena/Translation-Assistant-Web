@@ -68,7 +68,7 @@ test("Columns shows a column, and the choice survives a reload", async ({ page }
 
 test("a row's ⋯ menu is not clipped by the table wrapper", async ({ page }) => {
   // Tall enough that the whole menu has room: the point is that the wrapper does not clip it.
-  await page.setViewportSize({ width: 1280, height: 1000 });
+  await page.setViewportSize({ width: 1280, height: 1300 });
   await signIn(page);
   await openSeries(page, SERIES);
   await page.getByRole("button", { name: "Actions for Spec one" }).click();
@@ -94,6 +94,25 @@ test("a row's ⋯ menu is not clipped by the table wrapper", async ({ page }) =>
   const wrap = await page.locator(".chapters-wrap")
     .evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
   expect(wrap.scroll).toBeLessThanOrEqual(wrap.client + 1);
+});
+
+test("the chapter menu groups its items and keeps Delete last", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  await page.getByRole("button", { name: "Actions for Spec one" }).click();
+  const menu = page.locator(".menu");
+  const items = await menu.getByRole("menuitem").allTextContents();
+  expect(items.at(-1)).toBe("Delete");
+  const group = (label: string) =>
+    menu.getByRole("group", { name: label }).getByRole("menuitem").allTextContents();
+  expect(await group("Chapter")).toEqual(["Open", "Rename…"]);
+  expect(await group("Reorder")).toEqual(["Move up", "Move down"]);
+  expect(await group("Export")).toEqual(["Export TXT", "Export Markdown", "Export Ruby Markdown"]);
+  const pipeline = await group("Pipeline");
+  expect(pipeline.indexOf("Queue for Ollama")).toBeGreaterThanOrEqual(0);
+  expect(pipeline.indexOf("Flush Ollama output…")).toBeGreaterThan(pipeline.indexOf("Queue for Ollama"));
+  expect(await menu.locator(":scope > [role=separator]").count()).toBeGreaterThanOrEqual(3);
+  await page.keyboard.press("Escape");
 });
 
 test("Select mode with nothing ticked shows quick picks but no selection bar", async ({ page }) => {

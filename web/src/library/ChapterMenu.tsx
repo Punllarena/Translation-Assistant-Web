@@ -80,28 +80,45 @@ export default function ChapterMenu({ doc, onMove, canMove }: {
       <Menu label="⋯" buttonLabel={`Actions for ${title}`} fixed>
         {(close) => (
           <>
+            <div role="group" aria-label="Chapter">
+              <div className="menu-label" aria-hidden="true">Chapter</div>
+              <Link role="menuitem" className="btn" to={`/documents/${doc.id}`}>Open</Link>
+              {item("Rename…", () => { rename.reset(); setOpen("rename"); }, close)}
+            </div>
             {onMove && (
               <>
-                <button type="button" role="menuitem" disabled={!canMove?.up}
-                  onClick={() => { close(); onMove(-1); }}>Move up</button>
-                <button type="button" role="menuitem" disabled={!canMove?.down}
-                  onClick={() => { close(); onMove(1); }}>Move down</button>
+                <div role="separator" className="menu-sep" />
+                <div role="group" aria-label="Reorder">
+                  <div className="menu-label" aria-hidden="true">Reorder</div>
+                  <button type="button" role="menuitem" disabled={!canMove?.up}
+                    onClick={() => { close(); onMove(-1); }}>Move up</button>
+                  <button type="button" role="menuitem" disabled={!canMove?.down}
+                    onClick={() => { close(); onMove(1); }}>Move down</button>
+                </div>
               </>
             )}
-            <Link role="menuitem" className="btn" to={`/documents/${doc.id}`}>Open</Link>
-            {item("Rename…", () => { rename.reset(); setOpen("rename"); }, close)}
-            <a role="menuitem" className="btn" href={exportUrl("txt")} download onClick={close}>Export TXT</a>
-            <a role="menuitem" className="btn" href={exportUrl("md")} download onClick={close}>Export Markdown</a>
-            <a role="menuitem" className="btn" href={exportUrl("md-ruby")} download onClick={close}>Export Ruby Markdown</a>
-            {doc.source_url && item("Re-fetch…", () => { refetch.reset(); setOpen("refetch"); }, close)}
-            {item("Queue for Ollama", () => ollama.queue({ kind: "documents", series_id: doc.series_id, document_ids: [doc.id] }), close)}
-            {item("Flush Ollama output…", () => { flush.reset(); setOpen("flush"); }, close)}
-            {wpConfigured && item(publishLabel, () => { setPublishMode(mode); setOpen("publish"); }, close)}
-            {doc.is_illustrations
-              ? item("Unmark Illustrations", () => mark.mutate(false), close)
-              : doc.line_count === 0 && item("Mark as Illustrations", () => mark.mutate(true), close)}
-            <Link role="menuitem" className="btn" to={`/documents/${doc.id}/split`}>Split…</Link>
+            <div role="separator" className="menu-sep" />
+            <div role="group" aria-label="Export">
+              <div className="menu-label" aria-hidden="true">Export</div>
+              <a role="menuitem" className="btn" href={exportUrl("txt")} download onClick={close}>Export TXT</a>
+              <a role="menuitem" className="btn" href={exportUrl("md")} download onClick={close}>Export Markdown</a>
+              <a role="menuitem" className="btn" href={exportUrl("md-ruby")} download onClick={close}>Export Ruby Markdown</a>
+            </div>
+            <div role="separator" className="menu-sep" />
+            <div role="group" aria-label="Pipeline">
+              <div className="menu-label" aria-hidden="true">Pipeline</div>
+              {doc.source_url && item("Re-fetch…", () => { refetch.reset(); setOpen("refetch"); }, close)}
+              {item("Queue for Ollama", () => ollama.queue({ kind: "documents", series_id: doc.series_id, document_ids: [doc.id] }), close)}
+              {item("Flush Ollama output…", () => { flush.reset(); setOpen("flush"); }, close)}
+              {wpConfigured && item(publishLabel, () => { setPublishMode(mode); setOpen("publish"); }, close)}
+              {doc.is_illustrations
+                ? item("Unmark Illustrations", () => mark.mutate(false), close)
+                : doc.line_count === 0 && item("Mark as Illustrations", () => mark.mutate(true), close)}
+            </div>
+            <div role="separator" className="menu-sep" />
             {item("Move to…", () => setOpen("move"), close)}
+            <Link role="menuitem" className="btn" to={`/documents/${doc.id}/split`}>Split…</Link>
+            <div role="separator" className="menu-sep" />
             {item("Delete", () => setOpen("delete"), close, "danger")}
           </>
         )}
