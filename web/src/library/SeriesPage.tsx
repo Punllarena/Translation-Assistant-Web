@@ -11,11 +11,11 @@ import VolumesTab from "./VolumesTab";
 
 const TABS = [
   { id: "volumes", label: "Volumes" },
-  { id: "gallery", label: "Gallery" },
   { id: "glossary", label: "Glossary" },
+  { id: "wordpress", label: "WordPress", wp: true },
+  { id: "gallery", label: "Gallery" },
   { id: "tools", label: "Tools" },
   { id: "settings", label: "Settings" },
-  { id: "wordpress", label: "WordPress", wp: true },
 ] as const;
 
 export default function SeriesPage() {

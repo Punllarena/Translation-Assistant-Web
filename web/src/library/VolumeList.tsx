@@ -54,7 +54,7 @@ export default function VolumeList({ groups, selected, onSelect, onNewVolume, on
   return (
     <nav className="vol-list" aria-label="Volumes">
       <div className="vol-list-head">
-        <button type="button" onClick={onToggleSelecting}>{selecting ? "Done" : "Select"}</button>
+        <button type="button" onClick={onToggleSelecting}>{selecting ? "Done" : "Select volumes"}</button>
       </div>
       {selecting && picked.size >= 2 && (
         <div className="vol-merge-bar">
