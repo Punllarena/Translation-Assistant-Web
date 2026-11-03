@@ -65,6 +65,15 @@ test("Columns shows a column, and the choice survives a reload", async ({ page }
   await expect(page.getByRole("columnheader", { name: "Images" })).toHaveCount(0);
 });
 
+test("the Volumes tab has no series-wide Ollama buttons, and the Tools tab has them", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  await expect(page.getByRole("button", { name: "Queue series for Ollama" })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Tools" }).click();
+  await expect(page.getByRole("button", { name: "Queue series for Ollama" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Flush Ollama output…" })).toBeVisible();
+});
+
 test("deleting a chapter with an image offers to move it, and the Illustrations chapter appears", async ({ page }) => {
   await signIn(page);
   await openSeries(page, SERIES);
