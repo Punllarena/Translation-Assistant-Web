@@ -103,6 +103,12 @@ test("the selection bar offers Organise with Move to and Merge, and Merge needs 
   await expect(organise).toBeFocused();
 });
 
+test("series tabs read Volumes, Glossary, Gallery, Tools, Settings in that order", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  await expect(page.getByRole("tab")).toHaveText(["Volumes", "Glossary", "Gallery", "Tools", "Settings"]);
+});
+
 test("deleting a chapter with an image offers to move it, and the Illustrations chapter appears", async ({ page }) => {
   await signIn(page);
   await openSeries(page, SERIES);
