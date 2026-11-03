@@ -15,7 +15,8 @@ button.primary.danger:hover:not(:disabled) { border-color: var(--danger); filter
    3:1: default 7.03:1, primary 5.97:1, quiet 6.64:1, danger 7.26:1 (light theme; dark is higher). */
 button:disabled { color: var(--muted); }
 button.primary:disabled { background: var(--accent-soft); border-color: var(--line); color: var(--muted); }
-button.quiet:disabled { background: none; border-color: transparent; color: var(--muted); }
+/* A quiet button is already muted when enabled, so only a lighter weight tells it apart from a disabled one. */
+button.quiet:disabled { background: none; border-color: transparent; color: var(--muted); opacity: .75; }
 button.danger:disabled { color: color-mix(in srgb, var(--danger) 65%, var(--muted)); }
 button.primary.danger:disabled {
   background: var(--danger-soft); border-color: var(--line);

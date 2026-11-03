@@ -226,8 +226,9 @@ chapter's images to its volume's Illustrations chapter (`api/image_moves.py`: a 
 dropped; 409 outside a volume, in a syosetu series, or for the Illustrations chapter), and the delete dialog asks;
 multi-select stays one request per chapter. Series-wide Ollama queue/flush live in Tools (the Volumes tab carries
 neither), the selection bar appears only while rows are ticked, and each chapter row's ⋯ menu has Move up / Move
-down (never in a syosetu series). The row menu is fixed-positioned (Menu's `fixed` prop, so the table wrapper cannot
-clip it) and grouped, and the selection bar's menu is "More ▾". Spec:
+down (never in a syosetu series). Every `Menu` (`web/src/ui/Menu.tsx`) is fixed-positioned by default (clamped to the viewport, flipped above when
+there is no room, closed on page scroll; `fixed={false}` opts out), its arrow keys skip disabled items, the row menu is
+grouped, and the selection bar's menu is "More ▾". Spec:
 `docs/superpowers/specs/2026-10-30-series-page-revision-design.md`.
 
 Series Gallery: the series page's Gallery tab (`?tab=gallery`, `web/src/library/gallery/`) shows every

@@ -78,6 +78,55 @@ test("Columns shows a column, and the choice survives a reload", async ({ page }
   await expect(page.getByRole("columnheader", { name: "Images" })).toHaveCount(0);
 });
 
+test("every menu stays inside a phone viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page);
+  await openSeries(page, SERIES);
+  for (const name of ["Columns ▾", "Volume actions", "Export volume ▾"]) {
+    await page.getByRole("button", { name, exact: true }).click();
+    const rect = await page.getByRole("menu").evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, w: window.innerWidth, h: window.innerHeight };
+    });
+    expect(rect.left, name).toBeGreaterThanOrEqual(0);
+    expect(rect.right, name).toBeLessThanOrEqual(rect.w);
+    expect(rect.top, name).toBeGreaterThanOrEqual(0);
+    expect(rect.bottom, name).toBeLessThanOrEqual(rect.h);
+    expect(await overflow(page), name).toBeLessThanOrEqual(0);
+    await page.keyboard.press("Escape");
+  }
+});
+
+test("arrow keys skip a disabled menu item", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  // The first row cannot move up, so its menu holds a disabled "Move up".
+  await page.locator(".chapters tbody tr").first().getByRole("button", { name: /^Actions for/ }).click();
+  await expect(page.getByRole("menuitem", { name: "Open" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("menuitem", { name: "Rename…" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("menuitem", { name: "Move down" })).toBeFocused();
+});
+
+test("a disabled quiet button is lighter than an enabled one", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  const opacity = await page.evaluate(() => {
+    const make = (disabled: boolean) => {
+      const b = document.createElement("button");
+      b.className = "quiet small";
+      b.disabled = disabled;
+      document.body.append(b);
+      const o = getComputedStyle(b).opacity;
+      b.remove();
+      return Number(o);
+    };
+    return { on: make(false), off: make(true) };
+  });
+  expect(opacity.off).toBeLessThan(opacity.on);
+});
+
 test("scrolling inside a tall row menu does not close it", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 500 });
   await signIn(page);

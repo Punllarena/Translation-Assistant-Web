@@ -1,18 +1,20 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 
-const ITEMS = '[role^="menuitem"]';
+// A disabled item cannot take focus, so the arrow keys and the first-focus rule skip it.
+const ITEMS = '[role^="menuitem"]:not(:disabled):not([aria-disabled="true"])';
 const GAP = 6; // between the trigger and the popover
 const MARGIN = 8; // kept clear at the viewport's edges
 const MIN_ROOM = 80; // below/above room the flipped menu may use
 
 /** A button that opens a popover menu. The caller renders the items (buttons with a menuitem role).
  *  On open the checked item (else the first) takes focus; arrow keys move; Escape closes and returns
- *  focus to the button; a press outside closes. With `fixed` the popover is placed from the trigger's
- *  rect instead of being absolutely positioned: a scrolling table wrapper would otherwise clip it. */
-export default function Menu({ label, buttonLabel, align = "end", fixed = false, onPointerDown, children }: {
+ *  focus to the button; a press outside closes. The popover is placed from the trigger's rect with
+ *  `position: fixed` (so no scrolling wrapper clips it and it stays inside the viewport); `fixed={false}`
+ *  keeps the plain absolute placement. */
+export default function Menu({ label, buttonLabel, align = "end", fixed = true, onPointerDown, children }: {
   label: ReactNode; buttonLabel?: string; align?: "start" | "end";
   /** Place the popover with `position: fixed` inside the viewport, flipping above the trigger when
-   *  there is no room below; it closes on window scroll and resize. */
+   *  there is no room below; it closes on window scroll and resize. On by default. */
   fixed?: boolean;
   /** Captures the moment the trigger button is pressed, before focus/selection moves. */
   onPointerDown?: () => void;

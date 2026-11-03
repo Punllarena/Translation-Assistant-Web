@@ -77,7 +77,7 @@ export default function ChapterMenu({ doc, onMove, canMove }: {
   );
   return (
     <>
-      <Menu label="⋯" buttonLabel={`Actions for ${title}`} fixed>
+      <Menu label="⋯" buttonLabel={`Actions for ${title}`}>
         {(close) => (
           <>
             <div role="group" aria-label="Chapter">
