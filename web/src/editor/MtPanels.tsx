@@ -30,16 +30,17 @@ function EntryRow({ e }: { e: Entry }) {
   const lemma = [e.lemma, e.base_form].filter((x, i, a) => x && a.indexOf(x) === i && x !== e.surface).join(" / ");
   const reading = e.reading && !KANA_ONLY.test(e.surface) ? e.reading : "";
   const pos = e.pos?.split(",").map((t) => POS_WORDS[t.trim()] ?? t.trim()).join(", ");
+  const noMatch = e.matched === false && !e.gloss;
   return (
     <li className={e.matched === false ? "muted" : undefined}>
       <span className="mt-surface" lang="ja">{e.surface}</span>
       {reading && <span className="mt-reading" lang="ja"><span aria-hidden>【</span>{reading}<span aria-hidden>】</span></span>}
       {lemma && <span className="mt-lemma" lang="ja"><span aria-hidden>← </span>{lemma}</span>}
-      {(pos || e.tense || e.gloss) && (
+      {(pos || e.tense || e.gloss || noMatch) && (
         <span className="mt-gloss">
           {pos && <span className="mt-pos" title={e.pos} lang={/[^\u0000-\u007f]/.test(pos) ? "ja" : undefined}>{pos}</span>}
           {e.tense && <span className="mt-pos">{e.tense}</span>}
-          {e.gloss}
+          {noMatch ? <span className="mt-nomatch">no entry</span> : e.gloss}
         </span>
       )}
     </li>
@@ -53,7 +54,10 @@ function Card({ name, label, documentId, lineNumber, onUse }: {
   const glyph = state.status === "done" ? (state.cached ? "cached" : "✓") : state.status === "running" ? "…" : "";
   return (
     <section className="mt-card" aria-label={label}>
-      <header><h3>{label}</h3><span className="muted mt-glyph">{glyph}</span></header>
+      <header><h3>{label}</h3><span className="muted mt-glyph" role="status">
+        <span aria-hidden>{glyph}</span>
+        {glyph && <span className="visually-hidden">{state.status === "done" ? (state.cached ? "Cached" : "Done") : "Translating"}</span>}
+      </span></header>
       {state.text && <p className="mt-text">{state.text}</p>}
       {state.thinking && <details><summary>Thinking</summary><p className="mt-text muted">{state.thinking}</p></details>}
       {state.entries.length > 0 && <ul className="mt-entries">{state.entries.map((e, i) => <EntryRow key={i} e={e} />)}</ul>}
