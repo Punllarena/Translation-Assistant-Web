@@ -138,6 +138,10 @@
 }
 
 @media (max-width: 767px) {
+  /* The selection bar scrolls sideways rather than wrapping: a second line made it taller than
+     the 46px spacer and pushed the rows down the moment the first row was ticked. */
+  .selbar { flex-wrap: nowrap; overflow-x: auto; }
+  .selbar > * { flex: none; }
   .vol-panes { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .vol-list { padding: 0 0 8px; border-right: 0; border-bottom: 1px solid var(--line); display: flex; gap: 8px; overflow-x: auto; }
   .vol-list ul { flex-direction: row; margin: 0; }
