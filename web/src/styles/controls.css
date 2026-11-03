@@ -67,6 +67,8 @@ kbd { display: inline-block; min-width: 28px; padding: 2px 8px; border: 1px soli
   border-radius: 8px; box-shadow: 0 16px 40px -16px var(--shadow); }
 .menu-end { right: 0; }
 .menu-start { left: 0; }
+/* A fixed menu is placed by Menu.tsx from the trigger's rect; the align classes' edges are not used. */
+.menu.menu-fixed { position: fixed; top: auto; right: auto; bottom: auto; left: auto; }
 .menu [role^="menuitem"] { justify-content: flex-start; width: 100%; min-height: 40px; border: 0;
   background: none; color: var(--ink); font-weight: 400; }
 .menu [role^="menuitem"]:hover, .menu [role^="menuitem"]:focus-visible { background: var(--raised); outline: none; }

@@ -77,7 +77,7 @@ export default function ChapterMenu({ doc, onMove, canMove }: {
   );
   return (
     <>
-      <Menu label="⋯" buttonLabel={`Actions for ${title}`}>
+      <Menu label="⋯" buttonLabel={`Actions for ${title}`} fixed>
         {(close) => (
           <>
             {onMove && (

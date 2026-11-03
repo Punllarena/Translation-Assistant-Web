@@ -66,6 +66,36 @@ test("Columns shows a column, and the choice survives a reload", async ({ page }
   await expect(page.getByRole("columnheader", { name: "Images" })).toHaveCount(0);
 });
 
+test("a row's ⋯ menu is not clipped by the table wrapper", async ({ page }) => {
+  // Tall enough that the whole menu has room: the point is that the wrapper does not clip it.
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await signIn(page);
+  await openSeries(page, SERIES);
+  await page.getByRole("button", { name: "Actions for Spec one" }).click();
+  const items = page.locator(".menu [role=menuitem]");
+  await expect(items.first()).toBeVisible();
+  const boxes = await items.evaluateAll((els) => els.map((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return {
+      top: r.top, left: r.left, right: r.right, bottom: r.bottom,
+      viewport: { w: window.innerWidth, h: window.innerHeight },
+      hit: hit !== null && (hit === el || el.contains(hit)),
+    };
+  }));
+  expect(boxes.length).toBeGreaterThan(10);
+  for (const b of boxes) {
+    expect(b.top).toBeGreaterThanOrEqual(0);
+    expect(b.left).toBeGreaterThanOrEqual(0);
+    expect(b.right).toBeLessThanOrEqual(b.viewport.w);
+    expect(b.bottom).toBeLessThanOrEqual(b.viewport.h);
+    expect(b.hit).toBe(true);
+  }
+  const wrap = await page.locator(".chapters-wrap")
+    .evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+  expect(wrap.scroll).toBeLessThanOrEqual(wrap.client + 1);
+});
+
 test("Select mode with nothing ticked shows quick picks but no selection bar", async ({ page }) => {
   await signIn(page);
   await openSeries(page, SERIES);
