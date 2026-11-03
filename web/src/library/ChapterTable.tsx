@@ -173,6 +173,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
     </tr>
   );
   const error = reorder.error ?? exportZip.error;
+  const summary = summaryText(volumeSummary(shown, new Date()), wpConfigured, nextSlot);
   return (
     <>
       {error && <p className="error" role="alert">{error.message}</p>}
@@ -187,9 +188,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
       {shown.length === 0 ? <p className="muted">No chapters here yet.</p> : (
         <>
           <div className="ch-tools">
-            <p className="ch-tools-summary muted">
-              {summaryText(volumeSummary(shown, new Date()), wpConfigured, nextSlot)}
-            </p>
+            {summary !== "" && <p className="ch-tools-summary muted">{summary}</p>}
             <button type="button" className="small" aria-pressed={selecting}
               onClick={() => (selecting ? leave() : setSelecting(true))}>{selecting ? "Done" : "Select"}</button>
             {selecting && (
