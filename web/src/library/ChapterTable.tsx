@@ -95,7 +95,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [selecting]);
-  const barVisible = selecting || n > 0;
+  const barVisible = n > 0;
   const done = async () => { await invalidateLibrary(queryClient); leave(); setOpen(null); };
   const reorder = useMutation({
     mutationFn: (ids: number[]) =>
@@ -179,8 +179,20 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
       {shown.length === 0 ? <p className="muted">No chapters here yet.</p> : (
         <>
           <div className="ch-tools">
+            <p className="ch-tools-summary muted">
+              {summaryText(volumeSummary(shown, new Date()), wpConfigured, nextSlot)}
+            </p>
             <button type="button" className="small" aria-pressed={selecting}
               onClick={() => (selecting ? leave() : setSelecting(true))}>{selecting ? "Done" : "Select"}</button>
+            {selecting && (
+              <Menu label="Select ▾" align="start">
+                {(close) => QUICK_PICKS.map((p: QuickPick) => (
+                  <button key={p} type="button" role="menuitem" onClick={() => { close(); setTicked(quickPick(shown, p)); }}>
+                    {QUICK_LABEL[p]}
+                  </button>
+                ))}
+              </Menu>
+            )}
             <Menu label="Columns ▾">
               {() => COLUMNS.map((c) => (
                 <button key={c.id} type="button" role="menuitemcheckbox" aria-checked={chosen.includes(c.id)}
@@ -189,19 +201,9 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               ))}
             </Menu>
           </div>
-          <p className="ch-summary muted">
-            {summaryText(volumeSummary(shown, new Date()), wpConfigured, nextSlot)}
-          </p>
           {barVisible && (
             <div className="selbar" role="toolbar" aria-label="Selected chapters">
               <b>{n} selected</b>
-              <Menu label="Select ▾" align="start">
-                {(close) => QUICK_PICKS.map((p: QuickPick) => (
-                  <button key={p} type="button" role="menuitem" onClick={() => { close(); setTicked(quickPick(shown, p)); }}>
-                    {QUICK_LABEL[p]}
-                  </button>
-                ))}
-              </Menu>
               {wpConfigured && (
                 <button type="button" className="small primary" disabled={n === 0}
                   onClick={() => setOpen("publish")}>Publish…</button>

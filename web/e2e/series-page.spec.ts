@@ -27,6 +27,7 @@ test("a row click in select mode ticks it and never opens the editor", async ({ 
   await row(page, "Spec image").locator(".ch-title").click();
   await expect(page.getByText("2 selected")).toBeVisible();
   expect(page.url()).toBe(before);
+  await expect(page.getByRole("button", { name: "Clear" })).toBeVisible();
   await page.getByRole("button", { name: "Clear" }).click();
   await expect(page.getByText("2 selected")).toHaveCount(0);
 });
@@ -63,6 +64,19 @@ test("Columns shows a column, and the choice survives a reload", async ({ page }
   await page.getByRole("button", { name: "Columns ▾" }).click();
   await page.getByRole("menuitemcheckbox", { name: "Images" }).click();
   await expect(page.getByRole("columnheader", { name: "Images" })).toHaveCount(0);
+});
+
+test("Select mode with nothing ticked shows quick picks but no selection bar", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  const chapters = await page.locator(".chapters tbody tr").count();
+  const tools = page.locator(".ch-tools");
+  await tools.getByRole("button", { name: "Select", exact: true }).click();
+  await expect(page.getByRole("toolbar", { name: "Selected chapters" })).toHaveCount(0);
+  await tools.getByRole("button", { name: "Select ▾" }).click();
+  await page.getByRole("menuitem", { name: "All", exact: true }).click();
+  await expect(page.getByRole("toolbar", { name: "Selected chapters" })).toBeVisible();
+  await expect(page.getByText(`${chapters} selected`)).toBeVisible();
 });
 
 test("the Volumes tab has no series-wide Ollama buttons, and the Tools tab has them", async ({ page }) => {

@@ -80,7 +80,8 @@
 .chapters th, .chapters td { padding: 8px 6px; }
 /* Fixed layout: the title takes the leftover width and is one ellipsised line; every other
    column sizes to its content's typical width, and the wrapper scrolls if they still cannot fit. */
-.ch-tools { display: flex; justify-content: flex-end; gap: 8px; margin: 0 0 8px; }
+.ch-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin: 0 0 8px; }
+.ch-tools-summary { flex: 1; margin: 0; font-size: 13px; }
 .chapters-wrap { overflow-x: auto; max-width: 100%; }
 .chapters { table-layout: fixed; width: 100%; }
 /* No sticky header: the wrapper scrolls sideways, which makes it the header's scroll container,
@@ -104,7 +105,6 @@
 .pbar { display: inline-block; width: 2.5rem; height: 6px; border-radius: 3px; background: var(--line);
   overflow: hidden; vertical-align: middle; }
 .pbar > span { display: block; height: 100%; background: var(--accent); }
-.ch-summary { margin: 0 0 8px; font-size: 13px; }
 .ch-images, .ch-lines, .ch-chars, .ch-words, .ch-translated, .ch-ollama { text-align: right; }
 .ch-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-title .row-link { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
