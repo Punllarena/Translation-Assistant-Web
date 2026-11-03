@@ -209,6 +209,8 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               ))}
             </Menu>
           </div>
+          {/* Select mode keeps the bar's room even with nothing ticked, so ticking the first row moves nothing. */}
+          {selecting && !barVisible && <div className="selbar-spacer" aria-hidden="true" />}
           {barVisible && (
             <div className="selbar" role="toolbar" aria-label="Selected chapters">
               <b>{n} selected</b>
@@ -231,11 +233,13 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               <Menu label={exportZip.isPending ? "Exporting…" : "Organise ▾"} align="start">
                 {(close) => (
                   <>
-                    <div className="menu-label">Export as</div>
-                    {FORMATS.map(([f, label]) => (
-                      <button key={f} type="button" role="menuitem" disabled={exportZip.isPending || n === 0}
-                        onClick={() => { close(); exportZip.mutate(f); }}>{label}</button>
-                    ))}
+                    <div role="group" aria-label="Export as">
+                      <div className="menu-label" aria-hidden="true">Export as</div>
+                      {FORMATS.map(([f, label]) => (
+                        <button key={f} type="button" role="menuitem" disabled={exportZip.isPending || n === 0}
+                          onClick={() => { close(); exportZip.mutate(f); }}>{label}</button>
+                      ))}
+                    </div>
                     <div role="separator" className="menu-sep" />
                     <button type="button" role="menuitem" disabled={n === 0}
                       onClick={() => { close(); setOpen("move"); }}>Move to…</button>

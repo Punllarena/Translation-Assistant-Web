@@ -104,13 +104,15 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
                         onClick={() => { close(); chooseCover.mutate(); }}>Use as series cover</button>
                     )}
                     <div role="separator" className="menu-sep" />
-                    <div className="menu-label">All volumes</div>
-                    {!syosetu && (
+                    <div role="group" aria-label="All volumes">
+                      <div className="menu-label" aria-hidden="true">All volumes</div>
+                      {!syosetu && (
+                        <button type="button" role="menuitem"
+                          onClick={() => { close(); renumber.reset(); setOpen("renumber"); }}>Renumber all volumes by title</button>
+                      )}
                       <button type="button" role="menuitem"
-                        onClick={() => { close(); renumber.reset(); setOpen("renumber"); }}>Renumber all volumes by title</button>
-                    )}
-                    <button type="button" role="menuitem"
-                      onClick={() => { close(); sort.reset(); setOpen("sort"); }}>Sort volumes by number</button>
+                        onClick={() => { close(); sort.reset(); setOpen("sort"); }}>Sort volumes by number</button>
+                    </div>
                     <div role="separator" className="menu-sep" />
                     <button type="button" role="menuitem" className="danger"
                       onClick={() => { close(); remove.reset(); setOpen("delete"); }}>Delete volume</button>

@@ -128,7 +128,8 @@
 .selbar { position: sticky; top: 0; z-index: 5; margin: 0 0 8px;
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line);
   border-radius: 8px; background: var(--accent-soft); color: var(--ink); font-size: 14px; letter-spacing: normal;
-  text-transform: none; font-weight: 400; }
+  text-transform: none; font-weight: 400; min-height: 46px; box-sizing: border-box; }
+.selbar-spacer { height: 46px; margin: 0 0 8px; }
 .selbar .menu-root > button { min-height: 30px; padding: 0 10px; font-size: 13px; border-color: var(--line); color: var(--ink); background: var(--surface); }
 
 @media (max-width: 767px) {

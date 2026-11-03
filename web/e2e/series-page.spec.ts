@@ -79,6 +79,18 @@ test("Select mode with nothing ticked shows quick picks but no selection bar", a
   await expect(page.getByText(`${chapters} selected`)).toBeVisible();
 });
 
+test("ticking the first row in Select mode does not move the rows", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  await page.locator(".ch-tools").getByRole("button", { name: "Select", exact: true }).click();
+  const second = page.locator(".chapters tbody tr").nth(1);
+  const before = (await second.boundingBox())!.y;
+  await page.locator(".chapters tbody tr").first().locator(".ch-title").click();
+  await expect(page.getByRole("toolbar", { name: "Selected chapters" })).toBeVisible();
+  expect(Math.abs((await second.boundingBox())!.y - before)).toBeLessThan(2);
+  await page.getByRole("button", { name: "Clear" }).click();
+});
+
 test("the Volumes tab has no series-wide Ollama buttons, and the Tools tab has them", async ({ page }) => {
   await signIn(page);
   await openSeries(page, SERIES);
