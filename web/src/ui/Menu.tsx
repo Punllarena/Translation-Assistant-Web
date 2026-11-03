@@ -56,10 +56,12 @@ export default function Menu({ label, buttonLabel, align = "end", fixed = false,
       overflowY: height > room ? "auto" : undefined,
     });
     const dismiss = () => setOpen(false);
-    window.addEventListener("scroll", dismiss, true);
+    // Scrolling inside a tall menu is not the page moving under it.
+    const onScroll = (e: Event) => { if (!pop.current?.contains(e.target as Node)) dismiss(); };
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", dismiss);
     return () => {
-      window.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", dismiss);
     };
   }, [open, fixed, align]);

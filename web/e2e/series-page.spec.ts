@@ -78,6 +78,19 @@ test("Columns shows a column, and the choice survives a reload", async ({ page }
   await expect(page.getByRole("columnheader", { name: "Images" })).toHaveCount(0);
 });
 
+test("scrolling inside a tall row menu does not close it", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 500 });
+  await signIn(page);
+  await openSeries(page, SERIES);
+  await page.getByRole("button", { name: "Actions for Spec one" }).click();
+  const menu = page.locator(".menu-fixed");
+  await expect(menu).toBeVisible();
+  expect(await menu.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await menu.evaluate((el) => { el.scrollTop = 80; });
+  await page.waitForTimeout(150); // a scroll event is async; give a wrongly attached listener time to close it
+  await expect(menu).toBeVisible();
+});
+
 test("a row's ⋯ menu is not clipped by the table wrapper", async ({ page }) => {
   // Tall enough that the whole menu has room: the point is that the wrapper does not clip it.
   await page.setViewportSize({ width: 1280, height: 1300 });
