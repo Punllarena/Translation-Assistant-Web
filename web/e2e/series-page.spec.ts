@@ -109,6 +109,23 @@ test("series tabs read Volumes, Glossary, Gallery, Tools, Settings in that order
   await expect(page.getByRole("tab")).toHaveText(["Volumes", "Glossary", "Gallery", "Tools", "Settings"]);
 });
 
+test("Move down in a chapter's menu reorders it and survives a reload", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  const long = "長".repeat(200);
+  const titles = () => page.locator(".chapters tbody .ch-title");
+  await expect(titles()).toHaveText(["Spec one", long, "Spec image"]);
+  await page.getByRole("button", { name: "Actions for Spec one" }).click();
+  await page.getByRole("menuitem", { name: "Move down" }).click();
+  await expect(titles()).toHaveText([long, "Spec one", "Spec image"]);
+  await page.reload();
+  await expect(titles()).toHaveText([long, "Spec one", "Spec image"]);
+  // A syosetu series keeps syosetu's numbering, so its rows offer no Move up / Move down.
+  await openSeries(page, "Filter spec ongoing");
+  await page.getByRole("button", { name: /^Actions for / }).click();
+  await expect(page.getByRole("menuitem", { name: "Move up" })).toHaveCount(0);
+});
+
 test("deleting a chapter with an image offers to move it, and the Illustrations chapter appears", async ({ page }) => {
   await signIn(page);
   await openSeries(page, SERIES);

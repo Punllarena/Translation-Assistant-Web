@@ -17,7 +17,7 @@ import {
 import { QUICK_LABEL, QUICK_PICKS, quickPick, type QuickPick } from "./chapterPicks";
 import { downloadBlob } from "./download";
 import MoveDialog from "./MoveDialog";
-import { moveItem } from "./order";
+import { moveItem, shiftIndex } from "./order";
 import { queuedIds } from "./queuedForOllama";
 import { rangeToggle } from "./rangeToggle";
 import { shownTitle, type Doc, type SeriesRow } from "./shelf";
@@ -161,7 +161,15 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
           }} />
       </td>
       {columns.map((id) => cell(id, { doc: d, group, syosetu, selecting, queued }))}
-      <td className="ch-menu"><ChapterMenu doc={d} /></td>
+      <td className="ch-menu">
+        <ChapterMenu doc={d}
+          onMove={syosetu ? undefined : (delta) => {
+            const at = shown.findIndex((x) => x.id === d.id);
+            const to = shiftIndex(at, delta, shown.length);
+            if (to !== null) { dragged.current = d.id; drop(to); }
+          }}
+          canMove={syosetu ? undefined : { up: i > 0, down: i < shown.length - 1 }} />
+      </td>
     </tr>
   );
   const error = reorder.error ?? exportZip.error;

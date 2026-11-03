@@ -16,8 +16,11 @@ import { invalidateLibrary, useSeriesList } from "./queries";
 
 type Open = null | "rename" | "refetch" | "publish" | "move" | "delete" | "flush";
 
-/** A chapter row's ⋯ menu and the dialogs its items open. */
-export default function ChapterMenu({ doc }: { doc: Doc }) {
+/** A chapter row's ⋯ menu and the dialogs its items open. `onMove` is omitted for syosetu series,
+ *  whose numbering is fixed. */
+export default function ChapterMenu({ doc, onMove, canMove }: {
+  doc: Doc; onMove?: (delta: -1 | 1) => void; canMove?: { up: boolean; down: boolean };
+}) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState<Open>(null);
   const [conflict, setConflict] = useState<string | null>(null); // the re-fetch 409, asking to force
@@ -77,6 +80,14 @@ export default function ChapterMenu({ doc }: { doc: Doc }) {
       <Menu label="⋯" buttonLabel={`Actions for ${title}`}>
         {(close) => (
           <>
+            {onMove && (
+              <>
+                <button type="button" role="menuitem" disabled={!canMove?.up}
+                  onClick={() => { close(); onMove(-1); }}>Move up</button>
+                <button type="button" role="menuitem" disabled={!canMove?.down}
+                  onClick={() => { close(); onMove(1); }}>Move down</button>
+              </>
+            )}
             <Link role="menuitem" className="btn" to={`/documents/${doc.id}`}>Open</Link>
             {item("Rename…", () => { rename.reset(); setOpen("rename"); }, close)}
             <a role="menuitem" className="btn" href={exportUrl("txt")} download onClick={close}>Export TXT</a>
