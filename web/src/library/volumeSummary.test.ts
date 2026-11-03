@@ -10,15 +10,13 @@ const doc = (id: number, over: Partial<Doc> = {}) =>
 describe("volumeSummary", () => {
   it("summary text with WordPress", () => {
     expect(summaryText(
-      { chapters: 42, progress: 68, posted: 30, scheduled: 5, next: "2026-11-02T09:00:00Z" },
+      { posted: 30, scheduled: 5, next: "2026-11-02T09:00:00Z" },
       true, () => "Nov 2, 18:00",
-    )).toBe("42 chapters · 68% translated · 30 posted · 5 scheduled (next: Nov 2, 18:00)");
+    )).toBe("30 posted · 5 scheduled (next: Nov 2, 18:00)");
   });
 
-  it("without WordPress, and nothing scheduled", () => {
-    expect(summaryText(
-      { chapters: 1, progress: 0, posted: 0, scheduled: 0, next: null }, false, String,
-    )).toBe("1 chapter · 0% translated");
+  it("without WordPress there is nothing left to say", () => {
+    expect(summaryText({ posted: 1, scheduled: 0, next: null }, false, String)).toBe("");
   });
 
   it("a passed schedule counts as posted", () => {
@@ -29,7 +27,7 @@ describe("volumeSummary", () => {
       doc(4),
     ];
     expect(volumeSummary(docs, now)).toEqual({
-      chapters: 4, progress: 50, posted: 2, scheduled: 1, next: "2026-11-02T09:00:00Z",
+      posted: 2, scheduled: 1, next: "2026-11-02T09:00:00Z",
     });
   });
 

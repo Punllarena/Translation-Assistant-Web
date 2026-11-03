@@ -95,6 +95,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [selecting]);
+  // The bar only exists while rows are ticked, so its actions never need a "nothing selected" state.
   const barVisible = n > 0;
   const done = async () => { await invalidateLibrary(queryClient); leave(); setOpen(null); };
   const reorder = useMutation({
@@ -173,6 +174,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
     </tr>
   );
   const error = reorder.error ?? exportZip.error;
+  const summary = summaryText(volumeSummary(shown, new Date()), wpConfigured, nextSlot);
   return (
     <>
       {error && <p className="error" role="alert">{error.message}</p>}
@@ -187,14 +189,12 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
       {shown.length === 0 ? <p className="muted">No chapters here yet.</p> : (
         <>
           <div className="ch-tools">
-            <p className="ch-tools-summary muted">
-              {summaryText(volumeSummary(shown, new Date()), wpConfigured, nextSlot)}
-            </p>
+            {summary !== "" && <p className="ch-tools-summary muted">{summary}</p>}
             <button type="button" className="small" aria-pressed={selecting}
               onClick={() => (selecting ? leave() : setSelecting(true))}>{selecting ? "Done" : "Select"}</button>
             {selecting && (
-              <Menu label="Select ▾" align="start">
-                {(close) => QUICK_PICKS.map((p: QuickPick) => (
+              <Menu label="Pick ▾" align="start">
+                {(close) => QUICK_PICKS.filter((p) => wpConfigured || p !== "unposted").map((p: QuickPick) => (
                   <button key={p} type="button" role="menuitem" onClick={() => { close(); setTicked(quickPick(shown, p)); }}>
                     {QUICK_LABEL[p]}
                   </button>
@@ -202,7 +202,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               </Menu>
             )}
             <Menu label="Columns ▾">
-              {() => COLUMNS.map((c) => (
+              {() => COLUMNS.filter((c) => wpConfigured || !c.wp).map((c) => (
                 <button key={c.id} type="button" role="menuitemcheckbox" aria-checked={chosen.includes(c.id)}
                   disabled={c.id === "num" || c.id === "title"}
                   onClick={() => setChosen(toggleColumn(chosen, c.id))}>{c.label}</button>
@@ -215,7 +215,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
             <div className="selbar" role="toolbar" aria-label="Selected chapters">
               <b>{n} selected</b>
               {wpConfigured && (
-                <button type="button" className="small primary" disabled={n === 0}
+                <button type="button" className="small primary"
                   onClick={() => setOpen("publish")}>Publish selected…</button>
               )}
               {wpConfigured && (check.running ? (
@@ -224,31 +224,31 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
                   <button type="button" className="small" onClick={check.stop}>Stop</button>
                 </>
               ) : (
-                <button type="button" className="small" disabled={n === 0}
+                <button type="button" className="small"
                   onClick={() => { setCheckedCount(n); check.run(selected); }}>Check status</button>
               ))}
               {check.capped && !check.running && check.done > 0 && (
                 <span className="muted">Checked the first {check.total} of {checkedCount}</span>
               )}
-              <Menu label={exportZip.isPending ? "Exporting…" : "Organise ▾"} align="start">
+              <Menu label={exportZip.isPending ? "Exporting…" : "More ▾"} align="start">
                 {(close) => (
                   <>
                     <div role="group" aria-label="Export as">
                       <div className="menu-label" aria-hidden="true">Export as</div>
                       {FORMATS.map(([f, label]) => (
-                        <button key={f} type="button" role="menuitem" disabled={exportZip.isPending || n === 0}
+                        <button key={f} type="button" role="menuitem" disabled={exportZip.isPending}
                           onClick={() => { close(); exportZip.mutate(f); }}>{label}</button>
                       ))}
                     </div>
                     <div role="separator" className="menu-sep" />
-                    <button type="button" role="menuitem" disabled={n === 0}
+                    <button type="button" role="menuitem"
                       onClick={() => { close(); setOpen("move"); }}>Move to…</button>
                     <button type="button" role="menuitem" disabled={n < 2}
-                      onClick={() => { close(); merge.reset(); setOpen("merge"); }}>Merge</button>
+                      onClick={() => { close(); merge.reset(); setOpen("merge"); }}>Merge…</button>
                   </>
                 )}
               </Menu>
-              <button type="button" className="small danger" disabled={n === 0} onClick={() => setOpen("delete")}>Delete</button>
+              <button type="button" className="small danger" onClick={() => setOpen("delete")}>Delete</button>
               <span className="spacer" />
               <button type="button" className="small quiet" onClick={leave}>Clear</button>
             </div>
