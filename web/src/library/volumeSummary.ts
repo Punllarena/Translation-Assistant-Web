@@ -1,10 +1,9 @@
 import { wpTag } from "../publish/wpTag";
-import { progressOf, type Doc } from "./shelf";
+import type { Doc } from "./shelf";
 
-/** What the line above the chapter table says about the volume. */
+/** What the line above the chapter table adds to the volume header: the WordPress counts only.
+ *  The chapter count and the translated percent live in the header, so they are not repeated. */
 export interface VolumeSummary {
-  chapters: number;
-  progress: number;
   /** Published, plus a schedule whose time has passed (the "Published?" tag). */
   posted: number;
   scheduled: number;
@@ -25,19 +24,14 @@ export function volumeSummary(docs: Doc[], now: Date): VolumeSummary {
     const at = doc.wp_scheduled_for ?? doc.wp_published_at;
     if (at !== null && (next === null || at < next)) next = at;
   }
-  return { chapters: docs.length, progress: progressOf(docs), posted, scheduled, next };
+  return { posted, scheduled, next };
 }
 
-/** "42 chapters · 68% translated · 30 posted · 5 scheduled (next: Nov 2, 18:00)"; the WordPress
- *  parts go when WordPress is not set up. `fmt` renders the next slot in local terms. */
+/** "30 posted · 5 scheduled (next: Nov 2, 18:00)"; empty without WordPress, so the caller can
+ *  render no line at all. `fmt` renders the next slot in local terms. */
 export function summaryText(s: VolumeSummary, wp: boolean, fmt: (iso: string) => string): string {
-  const parts = [
-    `${s.chapters} ${s.chapters === 1 ? "chapter" : "chapters"}`,
-    `${s.progress}% translated`,
-  ];
-  if (wp) {
-    parts.push(`${s.posted} posted`, `${s.scheduled} scheduled`);
-    if (s.next !== null) parts[parts.length - 1] += ` (next: ${fmt(s.next)})`;
-  }
+  if (!wp) return "";
+  const parts = [`${s.posted} posted`, `${s.scheduled} scheduled`];
+  if (s.next !== null) parts[parts.length - 1] += ` (next: ${fmt(s.next)})`;
   return parts.join(" · ");
 }

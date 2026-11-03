@@ -9,11 +9,12 @@ import unicodedata
 import uuid
 import zipfile
 import zlib
+from collections import Counter
 from datetime import UTC
 from decimal import Decimal
 
 from fastapi import Depends, File, Form, HTTPException, Request, Response, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import DataError
 from sqlalchemy.orm import Session
 
@@ -42,7 +43,7 @@ from api.library import (
     reject_nul,
     write_lines,
 )
-from api.models import Document, DocumentImage, Series, User, UserSetting, Volume
+from api.models import Document, DocumentImage, Line, Series, User, UserSetting, Volume
 from api.routers.series import TITLE_TAKEN
 from api.routers.transfer import attachment
 from api.routing import api_router
@@ -181,6 +182,26 @@ def _import_chapter(
     return doc
 
 
+def restore_images(db: Session, doc: Document, images: list[dict]) -> int:
+    """Add the EPUB images this chapter does not hold (matched by src_path, once per
+    reference), leaving its lines alone; an anchor past the last line is clamped. Returns
+    the count added."""
+    held = Counter(db.scalars(
+        select(DocumentImage.src_path).where(DocumentImage.document_id == doc.id)))
+    last = db.scalar(select(func.count()).select_from(Line).where(Line.document_id == doc.id)) or 0
+    added = 0
+    for img in images:
+        if held[img["src_path"]] > 0:  # one row per reference, so a repeat counts
+            held[img["src_path"]] -= 1
+            continue
+        db.add(DocumentImage(
+            document_id=doc.id, anchor_position=min(img["anchor_position"], last),
+            src_path=img["src_path"], data=img["data"]))
+        added += 1
+    db.flush()
+    return added
+
+
 def _spine_order(hrefs: list[str], known: dict[str, dict]) -> list[str]:
     """The posted hrefs in reading order whatever order the client sent; an href that is
     not a chapter keeps its place, so it still reports its own error."""
@@ -235,7 +256,11 @@ def import_epub(
         "epub_author": author, "epub_illustrator": illustrator,
         "epub_publisher": publisher, "epub_identifier": identifier,
     })
+    existing = {d.chapter_title: d for d in db.scalars(
+        select(Document).where(
+            Document.volume_id == volume.id, Document.is_illustrations.is_(False)))}
     already = set(db.scalars(select(Document.chapter_title).where(Document.volume_id == volume.id)))
+    images_added = 0
     known = {c["href"]: c for c in book["chapters"]}
 
     imported: list[str] = []
@@ -257,6 +282,15 @@ def import_epub(
         title = chapter["title"]
         if title in already:
             skipped.append(title)
+            if (doc := existing.get(title)) is not None:
+                try:
+                    with db.begin_nested():
+                        images = _extract(data, chapter["pieces"], budget, soups)[2]
+                        images_added += restore_images(db, doc, images)
+                except EpubBudgetExceeded:
+                    raise _over_budget() from None
+                except (EpubError, ValueError, KeyError, DataError) as exc:
+                    errors.append(ChapterError(title=title, message=str(exc)))
             continue
         try:
             with db.begin_nested():
@@ -302,7 +336,7 @@ def import_epub(
     db.flush()
     return EpubImportOut(
         series_id=series.id, volume_id=volume.id, imported=imported, skipped=skipped,
-        empty=empty, errors=errors,
+        empty=empty, errors=errors, images_added=images_added,
     )
 
 

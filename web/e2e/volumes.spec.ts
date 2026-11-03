@@ -73,3 +73,35 @@ test("a chapter can still be dropped on a volume", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Open Naming chapter 2" })).toBeVisible();
   expect(orderRequests).toEqual([]);
 });
+
+test("the volume menu lists series-wide items under an All volumes heading, and Delete is last", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  await page.getByRole("button", { name: "Volume actions" }).click();
+  const menu = page.locator(".menu");
+  const items = await menu.getByRole("menuitem").allTextContents();
+  expect(items.at(-1)).toBe("Delete volume");
+  const volumeScoped = ["Use as series cover", "Flush Ollama output…"]
+    .map((label) => items.indexOf(label)).filter((index) => index >= 0);
+  expect(volumeScoped.length).toBeGreaterThan(0);
+  for (const label of ["Renumber all volumes by title", "Sort volumes by number"]) {
+    expect(items.indexOf(label)).toBeGreaterThan(Math.min(...volumeScoped));
+  }
+  await expect(menu.getByText("All volumes", { exact: true })).toBeVisible();
+});
+
+test("an empty volume says why Publish volume is disabled", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  await page.getByRole("button", { name: "New volume" }).click();
+  const dialog = page.getByRole("dialog", { name: "New volume" });
+  await dialog.getByRole("button", { name: "Create" }).click();
+  await expect(dialog).toBeHidden();
+  const publish = page.getByRole("button", { name: "Publish volume…" });
+  await expect(publish).toBeDisabled();
+  await expect(publish).toHaveAttribute("title", "This volume has no chapters yet.");
+  await page.getByRole("button", { name: "Volume actions" }).click();
+  const queue = page.getByRole("menuitem", { name: "Queue volume for Ollama" });
+  await expect(queue).toBeDisabled();
+  await expect(queue).toHaveAttribute("title", "This volume has no chapters yet.");
+});

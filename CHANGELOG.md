@@ -12,6 +12,14 @@ package version is `0.1.0`. Each entry links to the design spec or phase plan th
   panels and a Ctrl+/ shortcut sheet. Stray focus no longer loses typing, failed saves retry by themselves and
   name their lines, and links outside the editor ask before leaving unsaved lines. The find bar no longer
   covers the save state.
+- **Editor critique fixes.** Alt+1..9 pick a fixed slot (memory 1–2, then each backend) and refuse a memory match
+  still on the previous line or a machine card mid-stream; each line keeps its undo history for the session. A
+  refused save (404, 422, another 4xx) is reported once instead of retried forever, in its own alert row with
+  Retry and Copy unsaved text; lines the server says are gone count as a failure, and notices expire. One leave
+  flow covers the arrows, the crumbs, the end card and header links: it waits, asks once, recovers by itself, and
+  a hung save times out after 20 s. The editor has a `main`, an `h1` and a line announcement; Use buttons name
+  the key that picks them; Alt+S retries, Ctrl+. opens the spell menu, Go to line is a dialog, Find marks every
+  match, and a key that cannot act says why. ([plan](docs/superpowers/plans/2026-10-31-editor-critique-fixes.md))
 - **Series glossaries.** Each series owns its glossary and a series dictionary; an account-wide
   dictionary and the parse characters live under Settings → Editor. Profiles are removed; the
   migration copies each series the glossary and words it used.

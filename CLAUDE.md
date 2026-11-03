@@ -96,13 +96,30 @@ the account's value wins once `/settings` arrives. Spec: `docs/superpowers/specs
 Settings page: the header has one Settings link (`Shell.tsx`, marked current for any `/settings/*` by `isSettingsPath`
 in `web/src/settings/settingsNav.ts`) instead of the old Editor/Machine translation/WordPress/Shortcuts/Admin links.
 It opens a layout route (`SettingsLayout.tsx`) whose sidebar (`nav aria-label="Settings"`) lists Editor, Machine
-translation, WordPress and Shortcuts, then for admins an "Admin" group of Server, Invites, Dictionary and Backup &
-restore; below 60rem the sidebar is a horizontally scrollable row. The sections are the same pages and panels as
+translation, WordPress and Shortcuts, then for admins an "Admin" group of Server, Invites, Dictionary, Branding and
+Backup & restore (five entries); below 60rem the sidebar is a horizontally scrollable row. The sections are the same pages and panels as
 before, each with a `div` root (the layout owns the page's only `<main>`); the admin panels sit in `AdminSections.tsx`
 wrappers that give them a `PageHeader` and the `panel sec` look, behind one `AdminOnly` layout route (a non-admin sees
 the `Admin only.` box and no panel mounts). `/settings` and `/settings/admin` redirect with `replace` to
 `/settings/editor` and `/settings/admin/server`, `/admin` redirects to the latter, and `/settings/profiles` still lands
 on Editor. Spec: `docs/superpowers/specs/2026-10-31-settings-sidebar-design.md`.
+
+Branding: an admin sets the site's brand name, logo (with an optional dark-mode logo and a show-name choice) and favicon
+in Settings → Admin → Branding. `branding` holds one row (the name, NULL for the default, and `show_name`);
+`brand_images` holds one row per kind (`logo` / `logo_dark` / `favicon`), replaced by delete + insert, so an image id is
+a cache key. `GET /branding` is public (the pre-login pages need it; a failed or slow fetch falls back to the defaults)
+and `GET /branding/image/{id}` serves bytes typed from their content with `Cache-Control: immutable`,
+`X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox`; SVG is only ever shown through `<img>` /
+`<link>`. The admin writes are `PUT /admin/branding` (name and flag; blank means the default, over 60 characters is 422),
+`PUT` / `DELETE /admin/branding/{kind}` and `DELETE /admin/branding` (reset). Uploads are PNG, WebP or SVG, plus ICO for
+the favicon, sniffed from the bytes and capped at 1 MiB (`api/branding.py`). Defaults: the name "Translation Assistant",
+the 訳 mark in the header and the static `web/public/favicon.svg`; a logo (max 28px high, 160px wide) replaces the mark,
+the dark logo swaps in under `:root[data-theme="dark"]`, and the name hides only when a logo is set and the admin
+unticked it. The SPA reads it through `useBranding` (React Query key `["branding"]`, seeded from `localStorage` `ta.brand`)
+and one `Brand` component (`web/src/brand/SiteBrand.tsx`, named so it does not collide with `brand.ts` on
+case-insensitive filesystems); `useBrandHead` keeps the tab title and icon in step at every route. Reset clears
+`ta.brand`; `/branding` is not in `MAINTENANCE_ALLOWED`.
+Spec: `docs/superpowers/specs/2026-11-02-admin-branding-design.md`.
 
 Onboarding: with no users, the SPA sends every page to `/setup` (`GET /setup/status`, `POST /setup/admin`,
 which takes a Postgres advisory lock; `api/accounts.py`). Admin-only `/admin/settings` rows in `server_settings`
@@ -224,7 +241,11 @@ Publish…. Check status in the selection bar loops the per-chapter route, 50 a 
 `DocumentListItem`: `char_count`, `word_count`, `ollama_waiting`. `DELETE /documents/{id}?images=move` moves a
 chapter's images to its volume's Illustrations chapter (`api/image_moves.py`: a clashing `src_path` is renamed, not
 dropped; 409 outside a volume, in a syosetu series, or for the Illustrations chapter), and the delete dialog asks;
-multi-select stays one request per chapter. Series-wide Ollama queue/flush live in Tools. Spec:
+multi-select stays one request per chapter. Series-wide Ollama queue/flush live in Tools (the Volumes tab carries
+neither), the selection bar appears only while rows are ticked, and each chapter row's ⋯ menu has Move up / Move
+down (never in a syosetu series). Every `Menu` (`web/src/ui/Menu.tsx`) is fixed-positioned by default (clamped to the viewport, flipped above when
+there is no room, closed on page scroll; `fixed={false}` opts out), its arrow keys skip disabled items, the row menu is
+grouped, and the selection bar's menu is "More ▾". Spec:
 `docs/superpowers/specs/2026-10-30-series-page-revision-design.md`.
 
 Series Gallery: the series page's Gallery tab (`?tab=gallery`, `web/src/library/gallery/`) shows every
@@ -250,7 +271,24 @@ as `<rt class="rt-glossary">` ruby (`web/src/editor/glossaryRuby.ts`); glossary 
 ruby wins over glossary marks. The lines endpoint sends `LineOut.glossary_marks` (UTF-16 `from`/`to` into `plain_text`, plus
 `shown_from`/`shown_to` and the translation; computed by `api/core/glossary_marks.py`, which mirrors `replace_and_parse`), and
 `LineOut.plain_text` (`raw_text` with `$`/`%` stripped anywhere). E2E: `web/e2e/editor-nav.spec.ts` with the `Nav series` seed.
-Focus and keys: `useEditorKeys` lets bound keys run from buttons and links (except Enter), Esc returns to the editor, and typing on the bare page lands in it. A failed save retries itself with backoff (`useEditor`), and `useLeaveGuard` (`useLeave.ts`) holds links outside the editor while a save is pending, asking only if it failed. `Use suggestion N` (Alt+1..9) clicks the Nth `[data-use]` button in the aid column, numbered on screen by a CSS counter. `KeyHelp.tsx` is the Ctrl+/ sheet. `StickyTop.tsx` holds the status and find bars and publishes `--top-h`.
+Focus and keys: `useEditorKeys` lets bound keys run from buttons and links (except Enter), Esc closes Find first and
+then returns to the editor, and typing on the bare page lands in it (Space still presses a focused button). A key that
+cannot act says why (`This line has no translation yet`, `No untranslated lines left`, `No misspelled words on this
+line`); Enter on the last line lands on the chapter end card, and Go to line is a `PromptDialog` that refuses a number
+the chapter does not have (`parseLineNumber`, `rows.ts`). `useLeave` (`useLeave.ts`) is the one way out — arrows, crumbs,
+the end card and links in the app header all queue a move that goes when the save lands and asks once when it fails
+(`Leave with unsaved lines?`, the lines and error frozen at that moment); Cancel or Esc keeps the page, a later success
+carries the move out, a 401 passes to sign-in, and a save gives up after 20 s.
+`saveFailure` (`saveErrors.ts`) names a refused save and marks it permanent, so a 404 or a 422 is never retried; the
+`.sb-alert` row under the status bar holds the message with Retry and Copy unsaved text and stays mounted across
+attempts, and notices (`useNotice`, 8 s) clear when the line changes.
+`Use suggestion N` (Alt+1..9) clicks the `[data-use="N"]` button in the aid column: slots are fixed by `assignSlots`
+(`useSlots.ts`) — translation memory 1 and 2, then each backend that has a Use button (MeCab and JParser have none) —
+and each button prints its real key in `.use-key`. A memory match still on the previous line and a machine card still
+streaming cannot be used. Each line keeps its CodeMirror history for the session (`CodeEditor`'s module map keyed
+`${documentId}:${lineNumber}`), so Ctrl+Z after a Use restores the replaced text after moving away and back; the map is
+unbounded until reload. `KeyHelp.tsx` is the Ctrl+/ sheet. `StickyTop.tsx` holds the status and find bars and publishes
+`--top-h`.
 Spec: `docs/superpowers/specs/2026-10-27-editor-status-bar-reading-aid-design.md`.
 
 Backup and restore: `api/backup/` writes one zip per server — `tables/<name>.csv` (Postgres `COPY ... FORMAT csv, HEADER`,
@@ -357,3 +395,17 @@ that database each run; conftest refuses any database name not ending in `_test`
   transaction too (`run` in `api/backup/restore.py`: the jobs table it would report to is replaced mid-run). WordPress calls take an injected `httpx.Client`
   the same way (`http_client` seams in `api/routers/wp.py` and `api/publish_job.py`).
 - Tests set `TA_RUN_JOBS_WORKER=false` and drive jobs with `jobs.run_next()`, swapping `api.jobs.SessionLocal` for the test session.
+
+## Commit attribution
+
+Commits and PR descriptions made with Claude keep the attribution lines they are given. When part of the work was
+delegated to another agent or model (an OpenCode model, say), that agent also adds itself, one `Co-Authored-By`
+line each, e.g.:
+
+```
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Co-Authored-By: DeepSeek V4.1 Flash <contact@opencode.ai>
+```
+
+A delegate uses its own model name and adds its line to every commit it makes for the delegated task; Claude's line stays
+on commits Claude makes or amends.

@@ -1,4 +1,5 @@
 import BackupPanel from "../admin/BackupPanel";
+import BrandingPanel from "../admin/BrandingPanel";
 import DictionaryPanel from "../admin/DictionaryPanel";
 import InvitesPanel from "../admin/InvitesPanel";
 import ServerSettingsForm from "../admin/ServerSettingsForm";
@@ -31,6 +32,15 @@ export function AdminDictionary() {
     <div className="settings">
       <PageHeader title="Dictionary" subtitle="Glossaries JParser and MeCab look words up in." />
       <DictionaryPanel />
+    </div>
+  );
+}
+
+export function AdminBranding() {
+  return (
+    <div className="settings">
+      <PageHeader title="Branding" subtitle="The name and images this site shows." />
+      <BrandingPanel />
     </div>
   );
 }

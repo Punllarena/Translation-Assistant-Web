@@ -49,6 +49,14 @@ export function lineAtOrAfter(lines: Line[], n: number): number | null {
   return hasContent(lines[i].raw_text) ? i : (nextContent(lines, i) ?? prevContent(lines, i));
 }
 
+/** A typed line number, or null when it is not one this chapter has. */
+export function parseLineNumber(answer: string, total: number): number | null {
+  const trimmed = answer.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const n = Number(trimmed);
+  return n >= 1 && n <= total ? n : null;
+}
+
 /** The desktop calculate_progress rules, except that an empty translation counts no
  *  words (the desktop's "".split(" ") counted one). */
 export function progress(lines: Line[], texts: Record<number, string>) {

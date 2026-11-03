@@ -46,6 +46,8 @@ export const ACTIONS: Action[] = [
   { key: "toggle_glossary_ruby", label: "Glossary ruby on or off", binding: "Alt+R" },
   { key: "cycle_reading", label: "Next reading aid", binding: "Alt+Y" },
   { key: "key_help", label: "Show keyboard shortcuts", binding: "Ctrl+/" },
+  { key: "retry_save", label: "Retry saving", binding: "Alt+S" },
+  { key: "spell_open", label: "Spelling suggestions for this line", binding: "Ctrl+." },
 ];
 
 /** Combinations browsers do not let a page handle. */

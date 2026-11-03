@@ -26,7 +26,9 @@ export function createSaveStore({
   let again = false;
   let waiters: Array<() => void> = [];
 
-  const set = (state: SaveState, error: string | null = null) => {
+  /** A new state keeps the last error until something says the server is back: a save that
+   *  gets through clears it, so the message never flickers between attempts. */
+  const set = (state: SaveState, error: string | null = state === "saved" ? null : snapshot.error) => {
     snapshot = { state, error };
     listeners.forEach((fn) => fn());
   };
@@ -67,7 +69,8 @@ export function createSaveStore({
       .then(
         () => {
           for (const [n, t] of sent) if (dirty.get(n) === t) dirty.delete(n);
-          set(dirty.size ? "unsaved" : "saved");
+          // The server answered, so an earlier failure is over even if newer edits remain.
+          set(dirty.size ? "unsaved" : "saved", null);
           if (dirty.size) schedule();
         },
         (e: unknown) => set("error", e instanceof Error ? e.message : String(e)),
@@ -82,6 +85,8 @@ export function createSaveStore({
         } else {
           done.forEach((resolve) => resolve());
         }
+        // pending() has changed even when the state text has not: a waiting move looks again.
+        listeners.forEach((fn) => fn());
       });
     return inFlight;
   }

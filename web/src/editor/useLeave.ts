@@ -1,48 +1,105 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useBlocker, useNavigate } from "react-router";
 import type { SaveState, SaveStore } from "./saveStore";
 
-/**
- * Leave the chapter: flush first, and stay (with `notice`) while the last edits failed to save.
- * The notice clears when the next leave starts and when the save state is back to saved.
- */
-export function useLeave(store: SaveStore, saveState: SaveState) {
-  const navigate = useNavigate();
-  const [notice, setNotice] = useState<string | null>(null);
-  useEffect(() => {
-    if (saveState === "saved") setNotice(null);
-  }, [saveState]);
-  const leave = useCallback(async (to: string) => {
-    setNotice(null);
-    await store.flush();
-    if (store.getState().state === "error") {
-      setNotice("Not moved: the last changes are not saved yet");
-      return;
-    }
-    navigate(to);
-  }, [store, navigate]);
-  return { leave, notice };
+/** What the user asked to do, held until the text is safe. */
+interface Queued {
+  go(): void;
+  cancel(): void;
+}
+
+/** The lines and the error as they were when the failure was first seen. */
+export interface Asking {
+  lines: number[]; // 1-based
+  error: string;
 }
 
 /**
- * Links outside the editor (the app header) don't pass through `leave`, so catch them here: wait for the
- * save, then go on, or return the blocker for the caller to ask when it failed. The sign-in redirect
- * after a 401 always passes; the stash is restored after it.
+ * One way out of the chapter, whatever asked for it: the arrows, the crumbs, the end card, a
+ * link in the app header. The move waits for the save; a failed save opens one dialog whose
+ * text cannot change under a retry; a later success carries the move out by itself, and
+ * Cancel (or Esc while waiting) keeps the page where it is.
+ *
+ * The blocker's condition stays `store.pending()` and a different path; `/login` always passes
+ * because the stash is restored after sign-in.
  */
-export function useLeaveGuard(store: SaveStore) {
+export function useLeave(store: SaveStore, saveState: SaveState, onStay: () => void) {
+  const navigate = useNavigate();
+  const [queued, setQueued] = useState<Queued | null>(null);
+  const [asking, setAsking] = useState<Asking | null>(null);
+  // Every store change, including the in-flight flag dropping after the last state message:
+  // the move must be reconsidered then, and neither of those changes the snapshot.
+  const [version, bump] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => store.subscribe(bump), [store]);
+  // Lets a go that the user confirmed pass the blocker's own condition.
+  const bypass = useRef(false);
   const blocker = useBlocker(({ currentLocation, nextLocation }) =>
-    store.pending() && nextLocation.pathname !== currentLocation.pathname && nextLocation.pathname !== "/login");
-  const [failed, setFailed] = useState(false);
-  const { state, proceed } = blocker;
+    !bypass.current && store.pending() && nextLocation.pathname !== currentLocation.pathname
+      && nextLocation.pathname !== "/login");
+
+  // An exit the router caught (a header link): take it over rather than let it go.
   useEffect(() => {
-    if (state !== "blocked") return setFailed(false);
-    let live = true;
-    void store.flush().then(() => {
-      if (!live) return;
-      if (store.getState().state === "error") setFailed(true);
-      else proceed?.();
-    });
-    return () => { live = false; };
-  }, [state, proceed, store]);
-  return failed ? blocker : null;
+    if (blocker.state !== "blocked") return;
+    setQueued({ go: () => blocker.proceed?.(), cancel: () => blocker.reset?.() });
+    void store.flush();
+  }, [blocker.state, blocker.proceed, blocker.reset, store]);
+
+  const leave = useCallback((to: string) => {
+    setAsking(null);
+    bypass.current = false;
+    setQueued({ go: () => navigate(to), cancel: () => setQueued(null) });
+    void store.flush();
+  }, [navigate, store]);
+
+  // One place decides: go once the text is safe, ask once it is not.
+  useEffect(() => {
+    if (!queued) return;
+    const snapshot = store.getState();
+    if (snapshot.state === "error") {
+      // Snapshot on the first failure only: a retry must not change what the dialog says.
+      setAsking((asked) => asked ?? { lines: store.unsaved().map((e) => e.line_number + 1),
+        error: snapshot.error ?? "the save failed" });
+      return;
+    }
+    if (snapshot.state === "saved" && !store.pending()) {
+      bypass.current = true;
+      queued.go();
+      setQueued(null);
+    }
+  }, [queued, saveState, store, version]);
+
+  const stay = useCallback(() => {
+    const held = queued;
+    setAsking(null);
+    setQueued(null);
+    held?.cancel();
+    onStay();
+  }, [queued, onStay]);
+
+  const goAnyway = useCallback(() => {
+    const held = queued;
+    setAsking(null);
+    setQueued(null);
+    if (!held) return;
+    bypass.current = true;
+    held.go();
+    // The move unmounts the editor; a stay behind is the only case this has to undo.
+    setTimeout(() => { bypass.current = false; }, 0);
+  }, [queued]);
+
+  const waiting = queued !== null && asking === null;
+  // Esc gives up on the move without touching the text.
+  useEffect(() => {
+    if (!waiting) return;
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      stay();
+    };
+    window.addEventListener("keydown", onEsc, true);
+    return () => window.removeEventListener("keydown", onEsc, true);
+  }, [waiting, stay]);
+
+  return { leave, waiting, asking, goAnyway, stay };
 }

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Navigate, useSearchParams } from "react-router";
 import { api, call } from "../api/client";
+import Brand from "../brand/SiteBrand";
 import { safeNext } from "./next";
 import { forgetUserData, useMe } from "./session";
 
@@ -38,7 +39,7 @@ export default function Login() {
   return (
     <main className="auth">
       <form className="auth-card" onSubmit={submit}>
-        <span className="brand"><span className="mark" aria-hidden="true">訳</span>Translation Assistant</span>
+        <span className="brand"><Brand /></span>
         <h1>Sign in</h1>
         <label className="field"><span>Email or username</span>
           <input autoComplete="username" required value={login} onChange={(e) => setLogin(e.target.value)} /></label>

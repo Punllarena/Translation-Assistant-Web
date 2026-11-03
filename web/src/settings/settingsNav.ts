@@ -14,6 +14,7 @@ export const ADMIN: SettingsNavItem[] = [
   { to: "/settings/admin/server", label: "Server" },
   { to: "/settings/admin/invites", label: "Invites" },
   { to: "/settings/admin/dictionary", label: "Dictionary" },
+  { to: "/settings/admin/branding", label: "Branding" },
   { to: "/settings/admin/backup", label: "Backup & restore" },
 ];
 

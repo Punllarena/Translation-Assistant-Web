@@ -127,7 +127,8 @@ function SourceBody({ id, mode, data }: { id: number; mode: "edit" | "split"; da
           onClose={() => { setFind((f) => ({ ...f, open: 0, at: -1 })); clearMarks(); view.current?.focus(); }} />
       )}
       <div className="source-editor">
-        <CodeEditor value={text} label="Source text" onChange={(t) => { setText(t); setProblem(null); }} onReady={onReady} />
+        <CodeEditor value={text} label="Source text" historyKey={`source:${mode}:${id}`}
+          onChange={(t) => { setText(t); setProblem(null); }} onReady={onReady} />
       </div>
       <div className="toolbar">
         {mode === "edit" ? (

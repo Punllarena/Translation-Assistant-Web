@@ -13,6 +13,7 @@ from api.routers import (
     admin,
     auth,
     backup,
+    branding,
     covers,
     credentials,
     dictionary,
@@ -93,6 +94,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(setup.router)
+    app.include_router(branding.router)
     app.include_router(admin.router)
     app.include_router(backup.router)
     app.include_router(dictionary.router)

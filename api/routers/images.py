@@ -1,15 +1,17 @@
 from fastapi import Depends, HTTPException, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, defer
 
 from api.deps import current_user, db_session, scoped
-from api.models import Document, DocumentImage, User
+from api.image_moves import drop_if_empty, free_name
+from api.models import Document, DocumentImage, Line, User
 from api.routing import api_router
 from api.schemas.images import ImageOut, ImageUpdate
 from api.uploads import sniff_image
 
 router = api_router(tags=["images"])
 
+ELSEWHERE = "an image can only move to another chapter of the same volume"
 MEDIA_TYPES = {"png": "image/png", "jpg": "image/jpeg", "gif": "image/gif", "webp": "image/webp"}
 
 
@@ -69,7 +71,26 @@ def update_image(
     db: Session = Depends(db_session),
 ) -> DocumentImage:
     image = scoped_image(db, image_id, user.id)
-    for field, value in body.model_dump(exclude_unset=True).items():
+    changes = body.model_dump(exclude_unset=True)
+    source = image.document
+    target = source
+    if (target_id := changes.pop("document_id", None)) is not None and target_id != source.id:
+        target = scoped(db, Document, target_id, user.id)
+        if target.series_id != source.series_id or target.volume_id != source.volume_id:
+            raise HTTPException(status.HTTP_409_CONFLICT, ELSEWHERE)
+        held = set(db.scalars(
+            select(DocumentImage.src_path).where(DocumentImage.document_id == target.id)))
+        image.src_path = free_name(held, image.src_path)
+        image.document_id = target.id
+    if "anchor_position" in changes or target is not source:
+        lines = db.scalar(select(func.count()).select_from(Line)
+                          .where(Line.document_id == target.id)) or 0
+        wanted = changes.pop("anchor_position", image.anchor_position)
+        image.anchor_position = min(wanted, lines)
+    for field, value in changes.items():
         setattr(image, field, value)
     db.flush()
+    if target is not source:
+        drop_if_empty(db, source)
+        db.flush()
     return image

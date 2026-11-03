@@ -49,6 +49,8 @@ export function replaceDoc(view: EditorView, text: string) {
 interface Props {
   value: string;
   label: string;
+  /** Which line's history to keep: the same line in another chapter has its own. */
+  historyKey: string;
   onChange(text: string): void;
   onBlur?(): void;
   onReady(view: EditorView | null): void;
@@ -56,29 +58,42 @@ interface Props {
   onContextMenu?(view: EditorView, e: MouseEvent): boolean;
 }
 
+type Handlers = {
+  onChange(text: string): void;
+  onBlur?(): void;
+  onContextMenu?(view: EditorView, e: MouseEvent): boolean;
+};
+/** Each line's editor state outlives its card, so Use, an edit and Ctrl+Z still work after
+ *  moving away and back. The saved state's listeners close over the entry's `latest`.
+ *  ponytail: unbounded until a reload; a chapter can be thousands of lines. */
+const histories = new Map<string, { state: EditorState | null; latest: { current: Handlers } }>();
+
 /** A CodeMirror view, created once per mount (key it to replace the document). */
-export default function CodeEditor({ value, label, onChange, onBlur, onReady, onContextMenu, autoFocus = true }: Props) {
+export default function CodeEditor({ value, label, historyKey, onChange, onBlur, onReady, onContextMenu, autoFocus = true }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const latest = useRef({ onChange, onBlur, onContextMenu });
+  const saved = useRef<{ state: EditorState | null; latest: { current: Handlers } } | null>(null);
+  if (saved.current === null) saved.current = histories.get(historyKey) ?? { state: null, latest: { current: { onChange } } };
+  const latest = saved.current.latest;
   latest.current = { onChange, onBlur, onContextMenu };
   useEffect(() => {
+    const entry = saved.current!;
     const view = new EditorView({
       parent: host.current!,
-      state: EditorState.create({
+      state: entry.state ?? EditorState.create({
         doc: value,
         extensions: [
           history(),
           keymap.of([{ key: "Shift-Enter", run: insertNewline }, ...historyKeymap, ...defaultKeymap]),
           EditorView.lineWrapping,
           marks,
-          EditorView.contentAttributes.of({ "aria-label": label, spellcheck: "false" }),
+          EditorView.contentAttributes.of({ "aria-label": label, "aria-describedby": "active-source", spellcheck: "false" }),
           EditorView.updateListener.of((u) => {
-            if (u.docChanged) latest.current.onChange(u.state.doc.toString());
+            if (u.docChanged) entry.latest.current.onChange(u.state.doc.toString());
           }),
           EditorView.domEventHandlers({
-            blur: () => latest.current.onBlur?.(),
-            contextmenu: (e, v) => latest.current.onContextMenu?.(v, e) ?? false,
+            blur: () => entry.latest.current.onBlur?.(),
+            contextmenu: (e, v) => entry.latest.current.onContextMenu?.(v, e) ?? false,
           }),
         ],
       }),
@@ -89,6 +104,8 @@ export default function CodeEditor({ value, label, onChange, onBlur, onReady, on
     return () => {
       viewRef.current = null;
       onReady(null);
+      entry.state = view.state; // the history and text, for the next mount of this line
+      histories.set(historyKey, entry);
       view.destroy();
     };
     // Created once per mount by design; the parent keys this component per line.

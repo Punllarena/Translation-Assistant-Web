@@ -14,22 +14,38 @@ const OWN_KEYS = "input, select, textarea, dialog, [role=menu]";
 const CONTROLS = "button, a, summary";
 
 /** One window-level capture listener (the desktop _handle_key): a bound key runs its
- *  action before CodeMirror or the browser sees it. */
-export function useEditorKeys(bindings: Record<string, string>, run: (action: string) => void, focusEditor: () => void) {
-  const latest = useRef({ bindings, run, focusEditor });
-  latest.current = { bindings, run, focusEditor };
+ *  action before CodeMirror or the browser sees it. Esc closes Find first, then brings
+ *  focus home; typing anywhere that is not a field lands in the editor. */
+export function useEditorKeys(
+  bindings: Record<string, string>,
+  run: (action: string) => void,
+  focusEditor: () => void,
+  closeFind: () => boolean,
+) {
+  const latest = useRef({ bindings, run, focusEditor, closeFind });
+  latest.current = { bindings, run, focusEditor, closeFind };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // An IME owns the keyboard until its conversion is confirmed: Esc cancels the
+      // conversion, and a key pressed mid-composition must never move focus.
+      if (e.isComposing) return;
       const target = e.target as Element | null;
       if (target?.closest?.(OWN_KEYS)) return;
       const onControl = Boolean(target?.closest?.(CONTROLS));
       const binding = bindingOf(e);
       const action = binding && !(onControl && binding === "Enter") && actionOf(latest.current.bindings, binding);
       if (!action) {
-        if (target?.closest?.(".cm-editor")) return;
-        // Focus strayed from the editor: Esc brings it back, and typing on the bare page lands in it.
+        const inEditor = Boolean(target?.closest?.(".cm-editor"));
+        if (e.key === "Escape") {
+          // Find first, then focus: from inside the editor too.
+          if (!latest.current.closeFind()) latest.current.focusEditor();
+          return;
+        }
+        if (inEditor) return;
+        // Focus strayed from the editor: typing on the bare page lands in it. Space is the
+        // exception, so a focused button still presses.
         const typed = e.key === "Process" || (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey);
-        if (e.key === "Escape" || (typed && !onControl)) latest.current.focusEditor();
+        if (typed && e.key !== " ") latest.current.focusEditor();
         return;
       }
       e.preventDefault();

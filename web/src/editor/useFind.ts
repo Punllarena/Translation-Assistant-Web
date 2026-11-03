@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { findHits, firstFrom, wrapStep } from "./find";
+import { findHits, firstFrom, NO_HITS, wrapStep } from "./find";
 import type { Row } from "./rows";
 
 export function useFind(rows: Row[], texts: Record<number, string>, active: number, activate: (i: number) => void, glossaryRuby = false) {
@@ -27,7 +27,9 @@ export function useFind(rows: Row[], texts: Record<number, string>, active: numb
     }
   };
   return {
-    open: find.open, needle: find.needle, at, total: hits.length, hit, stepped, step,
+    open: find.open, needle: find.needle, at, total: hits.length, hit,
+    hits: find.open ? hits : NO_HITS, // every match, so each card can mark its own
+    stepped, step,
     show: () => setFind((f) => ({ ...f, open: f.open + 1 })),
     close: () => { stepped.current = false; setFind((f) => ({ ...f, open: 0, at: -1 })); },
     setNeedle: (needle: string) => setFind((f) => ({ ...f, needle, at: -1 })),

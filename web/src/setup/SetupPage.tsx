@@ -5,6 +5,7 @@ import { api, ApiError, call } from "../api/client";
 import DictionaryPanel from "../admin/DictionaryPanel";
 import ServerSettingsForm from "../admin/ServerSettingsForm";
 import { useMe, useSetupStatus } from "../auth/session";
+import { useBranding } from "../brand/useBranding";
 import ImportTadb from "../library/ImportTadb";
 import RestoreForm from "../restore/RestoreForm";
 
@@ -13,6 +14,7 @@ const STEPS = ["Create admin", "Server settings", "Dictionary", "Desktop library
 export default function SetupPage() {
   const setup = useSetupStatus();
   const me = useMe();
+  const brand = useBranding();
   // Decided once, on arrival: after step 1 needs_setup turns false, and the wizard must keep going.
   const [arrivedNeedingSetup] = useState(() => setup.data?.needs_setup ?? false);
   const [step, setStep] = useState(0);
@@ -21,7 +23,7 @@ export default function SetupPage() {
   const next = () => setStep((s) => s + 1);
   return (
     <main className="settings">
-      <h1>Set up Translation Assistant</h1>
+      <h1>Set up {brand.name}</h1>
       <ol className="wizard-steps" aria-label="Setup steps">
         {STEPS.map((s, i) => (
           <li key={s} className={i < step ? "done" : undefined} aria-current={i === step ? "step" : undefined}>

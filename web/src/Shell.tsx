@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { api, call } from "./api/client";
 import { forgetUserData, useMe } from "./auth/session";
+import Brand from "./brand/SiteBrand";
 import RunningJobs from "./jobs/RunningJobs";
 import ThemeMenu from "./theme/ThemeMenu";
 import { useThemeSync } from "./theme/useThemeSync";
@@ -25,7 +26,7 @@ export default function Shell() {
   return (
     <>
       <header className="app-header">
-        <Link className="brand" to="/"><span className="mark" aria-hidden="true">訳</span>Translation Assistant</Link>
+        <Link className="brand" to="/"><Brand /></Link>
         <nav aria-label="Main">
           <Link to="/" aria-current={LIBRARY.test(pathname) ? "page" : undefined}>Library</Link>
           <NavLink to="/stats">Statistics</NavLink>

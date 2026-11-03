@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moveItem } from "./order";
+import { moveItem, shiftIndex } from "./order";
 
 describe("moveItem", () => {
   it("moves down", () => expect(moveItem(["a", "b", "c", "d"], 0, 2)).toEqual(["b", "c", "a", "d"]));
@@ -15,4 +15,11 @@ describe("moveItem", () => {
     moveItem(items, 0, 2);
     expect(items).toEqual(["a", "b", "c"]);
   });
+});
+
+describe("shiftIndex", () => {
+  it("refuses to move above the first", () => expect(shiftIndex(0, -1, 3)).toBeNull());
+  it("refuses to move below the last", () => expect(shiftIndex(2, 1, 3)).toBeNull());
+  it("moves down", () => expect(shiftIndex(1, 1, 3)).toBe(2));
+  it("moves up", () => expect(shiftIndex(1, -1, 3)).toBe(0));
 });

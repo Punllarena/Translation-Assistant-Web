@@ -341,3 +341,19 @@ def test_new_series_mode_nothing_imported_is_422_and_claims_nothing(app_client, 
     assert r.status_code == 422 and "nothing imported" in r.text
     db.rollback()  # what db_session's teardown does on a failed request
     assert db.query(Series).count() == before
+
+
+def test_reimport_restores_missing_images_without_touching_lines(app_client, me, db):
+    data = _refs_book(2)
+    hrefs = _book_hrefs(app_client, data)
+    first = _import(app_client, data, hrefs).json()
+    assert db.query(DocumentImage).count() == 2
+    db.query(DocumentImage).delete()  # the chapter lost its images (the old extraction bug)
+    db.flush()
+    again = _import(app_client, data, hrefs).json()
+    assert again["imported"] == [] and again["skipped"] == ["A"]
+    assert again["images_added"] == 2
+    rows = db.query(DocumentImage).order_by(DocumentImage.anchor_position).all()
+    assert [r.anchor_position for r in rows] == [1, 2]
+    third = _import(app_client, data, hrefs).json()
+    assert third["images_added"] == 0 and first["volume_id"] == third["volume_id"]

@@ -76,7 +76,9 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
         <div className="toolbar">
           {volume ? (
             <>
-              <button type="button" className="primary" disabled={count === 0} onClick={() => setOpen("publish")}>Publish volume…</button>
+              <button type="button" className="primary" disabled={count === 0}
+                title={count === 0 ? "This volume has no chapters yet." : undefined}
+                onClick={() => setOpen("publish")}>Publish volume…</button>
               <Menu label="Export volume ▾" align="start">
                 {(close) => (
                   <>
@@ -93,6 +95,7 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
                   <>
                     <button type="button" role="menuitem" onClick={() => { close(); setOpen("details"); }}>Edit volume details</button>
                     <button type="button" role="menuitem" disabled={count === 0}
+                      title={count === 0 ? "This volume has no chapters yet." : undefined}
                       onClick={() => { close(); ollama.queue({ kind: "volume", series_id: series.id, volume_id: volume.id }); }}>Queue volume for Ollama</button>
                     <button type="button" role="menuitem"
                       onClick={() => { close(); flush.reset(); setOpen("flush"); }}>Flush Ollama output…</button>
@@ -100,12 +103,17 @@ export default function VolumePane({ series, group, syosetu, hasVolumes, onNewVo
                       <button type="button" role="menuitem"
                         onClick={() => { close(); chooseCover.mutate(); }}>Use as series cover</button>
                     )}
-                    {!syosetu && (
+                    <div role="separator" className="menu-sep" />
+                    <div role="group" aria-label="All volumes">
+                      <div className="menu-label" aria-hidden="true">All volumes</div>
+                      {!syosetu && (
+                        <button type="button" role="menuitem"
+                          onClick={() => { close(); renumber.reset(); setOpen("renumber"); }}>Renumber all volumes by title</button>
+                      )}
                       <button type="button" role="menuitem"
-                        onClick={() => { close(); renumber.reset(); setOpen("renumber"); }}>Renumber all volumes by title</button>
-                    )}
-                    <button type="button" role="menuitem"
-                      onClick={() => { close(); sort.reset(); setOpen("sort"); }}>Sort volumes by number</button>
+                        onClick={() => { close(); sort.reset(); setOpen("sort"); }}>Sort volumes by number</button>
+                    </div>
+                    <div role="separator" className="menu-sep" />
                     <button type="button" role="menuitem" className="danger"
                       onClick={() => { close(); remove.reset(); setOpen("delete"); }}>Delete volume</button>
                   </>

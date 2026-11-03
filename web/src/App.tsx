@@ -1,7 +1,8 @@
-import { createBrowserRouter, createRoutesFromElements, Route, Navigate } from "react-router";
+import { createBrowserRouter, createRoutesFromElements, Route, Navigate, Outlet } from "react-router";
 import AcceptInvite from "./auth/AcceptInvite";
 import Login from "./auth/Login";
 import { RequireAuth, SetupGate } from "./auth/session";
+import { useBrandHead } from "./brand/useBranding";
 import EditorPage from "./editor/EditorPage";
 import SourcePage from "./editor/SourcePage";
 import ImportPage from "./library/ImportPage";
@@ -14,16 +15,22 @@ import WpSettingsPage from "./settings/WpSettingsPage";
 import ShortcutsPage from "./settings/ShortcutsPage";
 import SettingsLayout from "./settings/SettingsLayout";
 import AdminOnly from "./settings/AdminOnly";
-import { AdminBackup, AdminDictionary, AdminInvites, AdminServer } from "./settings/AdminSections";
+import { AdminBackup, AdminBranding, AdminDictionary, AdminInvites, AdminServer } from "./settings/AdminSections";
 import StatsPage from "./stats/StatsPage";
 import JobsPage from "./jobs/JobsPage";
 import SetupPage from "./setup/SetupPage";
 import RestorePage from "./restore/RestorePage";
 import Shell from "./Shell";
 
+/** Every route, the pre-login ones included, keeps the tab's title and icon in step. */
+function BrandHead() {
+  useBrandHead();
+  return <Outlet />;
+}
+
 export const router = createBrowserRouter(
   createRoutesFromElements(
-    <>
+    <Route element={<BrandHead />}>
       <Route path="/restore" element={<RestorePage />} />
       <Route element={<SetupGate />}>
         <Route path="/setup" element={<SetupPage />} />
@@ -49,6 +56,7 @@ export const router = createBrowserRouter(
               <Route path="admin/server" element={<AdminServer />} />
               <Route path="admin/invites" element={<AdminInvites />} />
               <Route path="admin/dictionary" element={<AdminDictionary />} />
+              <Route path="admin/branding" element={<AdminBranding />} />
               <Route path="admin/backup" element={<AdminBackup />} />
             </Route>
           </Route>
@@ -57,6 +65,6 @@ export const router = createBrowserRouter(
           <Route path="documents/:id/split" element={<SourcePage mode="split" />} />
         </Route>
       </Route>
-    </>,
+    </Route>,
   ),
 );
