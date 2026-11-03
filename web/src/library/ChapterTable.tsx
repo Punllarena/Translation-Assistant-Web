@@ -206,7 +206,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               <b>{n} selected</b>
               {wpConfigured && (
                 <button type="button" className="small primary" disabled={n === 0}
-                  onClick={() => setOpen("publish")}>Publish…</button>
+                  onClick={() => setOpen("publish")}>Publish selected…</button>
               )}
               {wpConfigured && (check.running ? (
                 <>
@@ -220,14 +220,22 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
               {check.capped && !check.running && check.done > 0 && (
                 <span className="muted">Checked the first {check.total} of {checkedCount}</span>
               )}
-              <Menu label={exportZip.isPending ? "Exporting…" : "Export ▾"} align="start">
-                {(close) => FORMATS.map(([f, label]) => (
-                  <button key={f} type="button" role="menuitem" disabled={exportZip.isPending || n === 0}
-                    onClick={() => { close(); exportZip.mutate(f); }}>{label}</button>
-                ))}
+              <Menu label={exportZip.isPending ? "Exporting…" : "Organise ▾"} align="start">
+                {(close) => (
+                  <>
+                    <div className="menu-label">Export as</div>
+                    {FORMATS.map(([f, label]) => (
+                      <button key={f} type="button" role="menuitem" disabled={exportZip.isPending || n === 0}
+                        onClick={() => { close(); exportZip.mutate(f); }}>{label}</button>
+                    ))}
+                    <div role="separator" className="menu-sep" />
+                    <button type="button" role="menuitem" disabled={n === 0}
+                      onClick={() => { close(); setOpen("move"); }}>Move to…</button>
+                    <button type="button" role="menuitem" disabled={n < 2}
+                      onClick={() => { close(); merge.reset(); setOpen("merge"); }}>Merge</button>
+                  </>
+                )}
               </Menu>
-              <button type="button" className="small" disabled={n === 0} onClick={() => setOpen("move")}>Move to…</button>
-              <button type="button" className="small" disabled={n < 2} onClick={() => { merge.reset(); setOpen("merge"); }}>Merge</button>
               <button type="button" className="small danger" disabled={n === 0} onClick={() => setOpen("delete")}>Delete</button>
               <span className="spacer" />
               <button type="button" className="small quiet" onClick={leave}>Clear</button>

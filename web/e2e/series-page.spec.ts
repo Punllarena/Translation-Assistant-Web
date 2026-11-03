@@ -88,6 +88,21 @@ test("the Volumes tab has no series-wide Ollama buttons, and the Tools tab has t
   await expect(page.getByRole("button", { name: "Flush Ollama output…" })).toBeVisible();
 });
 
+test("the selection bar offers Organise with Move to and Merge, and Merge needs two rows", async ({ page }) => {
+  await signIn(page);
+  await openSeries(page, SERIES);
+  await page.getByLabel("Select Spec one").check();
+  await expect(page.getByRole("button", { name: "Move to…" })).toHaveCount(0);
+  const organise = page.getByRole("button", { name: "Organise ▾" });
+  await organise.click();
+  await expect(page.getByRole("menuitem", { name: "Merge" })).toBeDisabled();
+  await page.getByLabel("Select Spec image").check();
+  await organise.click();
+  await expect(page.getByRole("menuitem", { name: "Merge" })).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect(organise).toBeFocused();
+});
+
 test("deleting a chapter with an image offers to move it, and the Illustrations chapter appears", async ({ page }) => {
   await signIn(page);
   await openSeries(page, SERIES);

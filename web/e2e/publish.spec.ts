@@ -69,7 +69,7 @@ test("batch publish: closing and reopening the dialog never errors, and the chap
   await openSeries(page, "E2E publish series");
   const row = page.getByRole("row").filter({ hasText: "Batch target" });
   await row.getByLabel("Select Batch target").check();
-  const open = () => page.getByRole("button", { name: "Publish…", exact: true }).click();
+  const open = () => page.getByRole("button", { name: "Publish selected…", exact: true }).click();
   let release = () => {};
   hold = new Promise<void>((resolve) => (release = resolve));
   try {
