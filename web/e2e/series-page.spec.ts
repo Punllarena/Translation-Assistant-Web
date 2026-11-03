@@ -16,6 +16,18 @@ const row = (page: Page, text: string) => page.getByRole("row").filter({ hasText
 const overflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 
+/** The selection bar's "Publish selected…" needs a WordPress credential. publish.spec normally
+ *  saves one first, but this spec must also pass on its own, so it creates one when missing. */
+async function ensureWordPress(page: Page) {
+  const list = (await (await page.request.get("/api/credentials")).json()) as
+    { kind: string; name: string; endpoint_url: string }[];
+  if (list.some((c) => c.kind === "wordpress" && c.name === "" && c.endpoint_url !== "")) return;
+  const created = await page.request.post("/api/credentials", {
+    data: { kind: "wordpress", name: "", secret: "e2e-plugin-key", endpoint_url: "http://127.0.0.1:9" },
+  });
+  expect(created.ok()).toBe(true);
+}
+
 test.describe.configure({ mode: "serial" });
 
 test("a row click in select mode ticks it and never opens the editor", async ({ page }) => {
@@ -122,7 +134,7 @@ test("Select mode with nothing ticked shows quick picks but no selection bar", a
   const tools = page.locator(".ch-tools");
   await tools.getByRole("button", { name: "Select", exact: true }).click();
   await expect(page.getByRole("toolbar", { name: "Selected chapters" })).toHaveCount(0);
-  await tools.getByRole("button", { name: "Select ▾" }).click();
+  await tools.getByRole("button", { name: "Pick ▾" }).click();
   await page.getByRole("menuitem", { name: "All", exact: true }).click();
   await expect(page.getByRole("toolbar", { name: "Selected chapters" })).toBeVisible();
   await expect(page.getByText(`${chapters} selected`)).toBeVisible();
@@ -137,6 +149,20 @@ test("ticking the first row in Select mode does not move the rows", async ({ pag
   await page.locator(".chapters tbody tr").first().locator(".ch-title").click();
   await expect(page.getByRole("toolbar", { name: "Selected chapters" })).toBeVisible();
   expect(Math.abs((await second.boundingBox())!.y - before)).toBeLessThan(2);
+  await page.getByRole("button", { name: "Clear" }).click();
+});
+
+test("with rows ticked, Publish volume is not a second solid primary", async ({ page }) => {
+  await signIn(page);
+  await ensureWordPress(page);
+  await openSeries(page, SERIES);
+  const publishVolume = page.getByRole("button", { name: "Publish volume…" });
+  await page.getByLabel("Select Spec one").check();
+  const publishSelected = page.getByRole("button", { name: "Publish selected…" });
+  await expect(publishSelected).toBeVisible();
+  const colour = (locator: typeof publishVolume) =>
+    locator.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(await colour(publishVolume)).not.toBe(await colour(publishSelected));
   await page.getByRole("button", { name: "Clear" }).click();
 });
 

@@ -131,6 +131,11 @@
   text-transform: none; font-weight: 400; min-height: 46px; box-sizing: border-box; }
 .selbar-spacer { height: 46px; margin: 0 0 8px; }
 .selbar .menu-root > button { min-height: 30px; padding: 0 10px; font-size: 13px; border-color: var(--line); color: var(--ink); background: var(--surface); }
+/* While the selection bar is up its "Publish selected…" is the page's one solid action; the
+   volume header's publish steps back to the default button look (base.css's token values). */
+.vol-pane:has(.selbar) .vol-head button.primary {
+  background: var(--surface); border-color: var(--line); color: var(--ink);
+}
 
 @media (max-width: 767px) {
   .vol-panes { grid-template-columns: minmax(0, 1fr); gap: 16px; }

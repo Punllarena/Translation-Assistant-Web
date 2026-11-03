@@ -193,7 +193,7 @@ export default function ChapterTable({ series, group, groups, syosetu }: {
             <button type="button" className="small" aria-pressed={selecting}
               onClick={() => (selecting ? leave() : setSelecting(true))}>{selecting ? "Done" : "Select"}</button>
             {selecting && (
-              <Menu label="Select ▾" align="start">
+              <Menu label="Pick ▾" align="start">
                 {(close) => QUICK_PICKS.map((p: QuickPick) => (
                   <button key={p} type="button" role="menuitem" onClick={() => { close(); setTicked(quickPick(shown, p)); }}>
                     {QUICK_LABEL[p]}
