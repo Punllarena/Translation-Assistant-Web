@@ -19,16 +19,29 @@ function useMtStream(backend: string, documentId: number, lineNumber: number) {
   return { state, retry: useCallback(() => setAttempt((a) => a + 1), []) };
 }
 
+const POS_WORDS: Record<string, string> = {
+  n: "noun", pn: "pronoun", conj: "conjunction", pref: "prefix", prt: "particle", suf: "suffix",
+  v1: "verb (ichidan)", v5: "verb (godan)", vt: "transitive", vi: "intransitive", vs: "suru verb",
+  "adj-i": "i-adjective", "adj-na": "na-adjective", adv: "adverb", int: "interjection", ctr: "counter", exp: "expression",
+};
+const KANA_ONLY = /^[぀-ヿー]+$/;
+
 function EntryRow({ e }: { e: Entry }) {
   const lemma = [e.lemma, e.base_form].filter((x, i, a) => x && a.indexOf(x) === i && x !== e.surface).join(" / ");
+  const reading = e.reading && !KANA_ONLY.test(e.surface) ? e.reading : "";
+  const pos = e.pos?.split(",").map((t) => POS_WORDS[t.trim()] ?? t.trim()).join(", ");
   return (
     <li className={e.matched === false ? "muted" : undefined}>
-      <b>{e.surface}</b>
-      {e.reading ? ` [${e.reading}]` : ""}
-      {lemma ? ` (${lemma})` : ""}
-      {e.pos ? ` ‹${e.pos}›` : ""}
-      {e.tense ? ` ${e.tense}` : ""}
-      {e.gloss ? ` — ${e.gloss}` : ""}
+      <span className="mt-surface" lang="ja">{e.surface}</span>
+      {reading && <span className="mt-reading" lang="ja"><span aria-hidden>【</span>{reading}<span aria-hidden>】</span></span>}
+      {lemma && <span className="mt-lemma" lang="ja"><span aria-hidden>← </span>{lemma}</span>}
+      {(pos || e.tense || e.gloss) && (
+        <span className="mt-gloss">
+          {pos && <span className="mt-pos" title={e.pos} lang={/[^\u0000-\u007f]/.test(pos) ? "ja" : undefined}>{pos}</span>}
+          {e.tense && <span className="mt-pos">{e.tense}</span>}
+          {e.gloss}
+        </span>
+      )}
     </li>
   );
 }
