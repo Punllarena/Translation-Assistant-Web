@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
+import { useAidReady } from "./AidCount";
 import { CardAction, CardReady, CardStatus } from "./CardParts";
 import { friendlyError } from "./cardCopy";
 import Entries from "./MtEntries";
@@ -31,18 +32,6 @@ function aidOf(state: MtState, has: boolean): Aid {
   if (state.status === "error" || state.status === "setup") return "error";
   if (state.status === "done") return has ? "ready" : "empty";
   return "busy";
-}
-
-function Status({ state, label }: { state: MtState; label?: string }) {
-  if (state.status === "running") return <CardStatus kind="busy">{label ? `${label} translating` : "Translating"}</CardStatus>;
-  if (state.status !== "done") return null;
-  return (
-    <span className="muted mt-glyph">
-      {label && <span>{label} </span>}
-      <span aria-hidden>{state.cached ? "cached" : "✓"}</span>
-      <span className="visually-hidden">{state.cached ? "Cached" : "Done"}</span>
-    </span>
-  );
 }
 
 type Problem = { state: MtState; label?: string; retry(): void };
@@ -85,6 +74,7 @@ function Card({ name, label, documentId, lineNumber, onUse, slot, bindings }: {
 }) {
   const { state, retry } = useMtStream(name, documentId, lineNumber);
   const aid = aidOf(state, Boolean(state.text));
+  useAidReady(`mt:${name}`, aid === "ready");
   return (
     <section className={`mt-card state-${aid}`} aria-label={label}>
       <header>
@@ -93,9 +83,8 @@ function Card({ name, label, documentId, lineNumber, onUse, slot, bindings }: {
           {aid === "ready" && <CardReady />}
           {aid === "ready" && state.cached && <span className="card-note muted">cached</span>}
           {aid === "ready" && slot !== undefined && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}
-          {aid !== "ready" && (aid === "empty"
-            ? <span className="card-note muted">No match</span>
-            : <Status state={state} />)}
+          {aid === "busy" && state.status === "running" && <CardStatus kind="busy">{label} translating</CardStatus>}
+          {aid === "empty" && <span className="card-note muted">No match</span>}
         </span>
       </header>
       {state.text && <p className="mt-text">{state.text}</p>}
@@ -123,19 +112,18 @@ function DictionaryCard({ documentId, lineNumber }: { documentId: number; lineNu
   );
   const broken = [jparser.state, mecab.state].some((s) => s.status === "error" || s.status === "setup");
   const working = jparser.state.status === "running" || mecab.state.status === "running";
+  const busy = [jparser.state.status === "running" && "JParser", mecab.state.status === "running" && "MeCab"]
+    .filter(Boolean).join(" and ");
   const aid: Aid = rows.length ? "ready" : broken ? "error" : working ? "busy" : "empty";
+  useAidReady("dictionary", aid === "ready");
   return (
     <section className={`mt-card state-${aid}`} aria-label="Dictionary">
       <header>
         <h3>Dictionary</h3>
-        <span className="mt-statuses">
+        <span className="card-meta">
           {aid === "ready" && <CardReady />}
-          {aid === "empty" ? <span className="card-note muted">No match</span> : (
-            <>
-              <Status state={jparser.state} label="JParser" />
-              <Status state={mecab.state} label="MeCab" />
-            </>
-          )}
+          {aid === "busy" && working && <CardStatus kind="busy">{busy || "Dictionary"} translating</CardStatus>}
+          {aid === "empty" && <span className="card-note muted">No match</span>}
         </span>
       </header>
       <Entries rows={rows} />

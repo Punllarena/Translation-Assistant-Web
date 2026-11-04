@@ -18,6 +18,11 @@ describe("friendlyError", () => {
     }
   });
 
+  it("leaves the Settings tail off when the card has no settings to point at", () => {
+    expect(friendlyError("401 Unauthorized", "translation memory", false)).toBe("Credentials rejected.");
+    expect(friendlyError("Failed to fetch", "translation memory", false)).toBe("Couldn't reach translation memory. Retry.");
+  });
+
   it("keeps any other message unchanged", () => {
     // Answers the backend gave, not a lost connection.
     for (const said of ["The server took too long to answer.", "Abort", "the abort was cancelled",

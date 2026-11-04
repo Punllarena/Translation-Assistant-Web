@@ -5,9 +5,15 @@ const NETWORK = /\b(failed to fetch|network ?error|econn(refused|reset)|enotfoun
 const CREDENTIALS = /\b(401|403)\b|unauthori[sz]ed|forbidden|invalid[\s-]*(api[\s-]*)?(key|token)|authentication/i;
 
 /** Turn a backend's failure message into what to do next, leaving any other message as it is.
- *  Pure, so the wording is tested without a card. */
-export function friendlyError(message: string, backend = "the service"): string {
-  if (CREDENTIALS.test(message)) return "Credentials rejected. Check them in Settings → Machine translation.";
-  if (NETWORK.test(message)) return `Couldn't reach ${backend}. Retry, or check Settings → Machine translation.`;
+ *  `settingsHint` is for the machine-translation card: translation memory has no URL or
+ *  credentials of its own, so pointing at Settings → Machine translation would be wrong. Pure,
+ *  so the wording is tested without a card. */
+export function friendlyError(message: string, backend = "the service", settingsHint = true): string {
+  if (CREDENTIALS.test(message)) {
+    return settingsHint ? "Credentials rejected. Check them in Settings → Machine translation." : "Credentials rejected.";
+  }
+  if (NETWORK.test(message)) {
+    return `Couldn't reach ${backend}. Retry${settingsHint ? ", or check Settings → Machine translation" : ""}.`;
+  }
   return message;
 }

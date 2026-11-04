@@ -42,17 +42,23 @@
 .sb-notice.muted { color: var(--muted); }
 .sb-note { font-size: 12px; }
 .sb-note a { color: var(--accent-text); }
-/* "Aa" says spellcheck is off in one glyph; its tooltip carries the reason. */
-.sb-spell-off { cursor: help; }
 .sb-undo { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .sb-undo .small { min-height: 22px; padding: 0 8px; font-size: 12px; }
-/* The あ/ア/a group says what it is once there is room for the word. */
-.reading-label { display: none; padding: 0 6px 0 8px; font-family: var(--sans); font-size: 11px; font-weight: 600;
+/* The あ/ア/Abc group says what it is, and every tool keeps its word, down to 40rem. */
+.reading-label { padding: 0 6px 0 8px; font-family: var(--sans); font-size: 11px; font-weight: 600;
   letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-/* A tool's word joins its icon at the same width; below it the icon and the aria-label carry it. */
-.sb-label { display: none; padding: 0 2px 0 6px; color: inherit; font-family: var(--sans); font-size: 11px;
+/* A tool's word joins its icon; below 40rem the icon and the aria-label carry it. */
+.sb-label { padding: 0 2px 0 6px; color: inherit; font-family: var(--sans); font-size: 11px;
   font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
-@media (min-width: 75rem) { .reading-label, .sb-label { display: inline; } }
+@media (max-width: 40rem) { .reading-label, .sb-label { display: none; } }
+/* The four reading modes are one button each while there is room; below 40rem they fold into
+   one labelled button and a menu, so the choices are never a row of bare glyphs. */
+.reading-modes { display: inline-flex; gap: 2px; }
+.reading-menu { display: none; }
+@media (max-width: 40rem) {
+  .reading-modes { display: none; }
+  .reading-menu { display: inline-block; }
+}
 /* The help button widens for its word; the icon alone keeps the 32px target. */
 .sb-tools .sb-keys { width: auto; min-width: 32px; padding: 0 8px; }
 .sb-divider { width: 1px; height: 20px; margin: 0 4px; background: var(--line); }
@@ -144,11 +150,22 @@
   max-height: calc(100vh - var(--top-h, 5rem)); overflow-y: auto; display: flex; flex-direction: column;
   gap: .5rem; padding: .5rem; }
 /* The cards keep their DOM order: visual order = tab order = the Alt+N slots, always. */
-/* Narrow screens only: the column's header row folds it to a 2.5rem peek. */
-.side-col-toggle { display: none; align-items: center; justify-content: space-between; width: 100%;
-  min-height: 2rem; padding: 0 .5rem; border: 1px solid var(--line); border-radius: 6px;
+/* The column's header row folds it to a 2.5rem peek at every width: a rail beside the cards on
+   a wide screen, a bar over them on a narrow one. It names itself, so neither is a mystery. */
+.side-col-toggle { display: flex; align-items: center; justify-content: space-between; gap: .35rem;
+  width: 100%; min-height: 2rem; padding: 0 .5rem; border: 1px solid var(--line); border-radius: 6px;
   background: var(--surface); color: var(--ink); font-size: 12px; font-weight: 600;
   letter-spacing: .06em; text-transform: uppercase; }
+.aids-meta { display: inline-flex; align-items: center; gap: .4rem; }
+/* How many cards can be used right now, said in words so the counts are not inferred from colour. */
+.aids-ready { color: var(--muted); font-weight: 400; letter-spacing: 0; text-transform: none; }
+/* Collapsed on a wide screen: the rail turns on its side and the cards go, leaving the name and
+   the count. Nothing is unmounted, so the streams keep running while the column is folded. */
+.side-col.collapsed { width: 2.5rem; padding: .5rem .25rem; }
+.side-col.collapsed > :not(.side-col-toggle) { display: none; }
+.side-col.collapsed .side-col-toggle { writing-mode: vertical-rl; width: 2rem; min-height: 8rem;
+  margin: 0 auto; justify-content: flex-start; gap: .6rem; padding: 0; }
+.side-col.collapsed .aids-meta { gap: .3rem; }
 /* The real key that picks this suggestion, printed in full (Alt included) as a keycap. */
 .use-key { display: inline-block; margin-right: .5em; padding: 0 .35em; border: 1px solid var(--line);
   border-radius: 3px; background: var(--raised); font-family: var(--mono); font-size: .75rem;
@@ -173,14 +190,19 @@
 .tm-text { flex: 1 1 6rem; min-width: 0; font-family: var(--serif); }
 .tm-source { flex-basis: 100%; padding-left: .45rem; font-size: .8125rem; }
 .mt-panels { display: contents; }
-/* Each card says what it is; ready cards carry a stronger edge, empty ones fold to a header. */
+/* Each card says what it is; ready cards carry a stronger edge, empty ones fold to one row. */
 .mt-card { min-height: 4rem; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .mt-card.state-ready { border-left: 3px solid var(--accent-text); }
 .mt-card.state-busy { border-left: 3px solid var(--line); }
 .mt-card.state-error { border-left: 3px solid var(--danger); }
-.mt-card.state-empty { min-height: 0; padding: .35rem .6rem; }
-/* An empty card keeps only its header and any action it still offers (Translate this passage). */
-.mt-card.state-empty > :not(header, .mt-actions) { display: none; }
+/* A card with nothing to show, or one that failed, is one 2rem row: its header, the note and
+   any action side by side, so an empty or broken column stays light. */
+.mt-card.state-empty, .mt-card.state-error { display: flex; flex-wrap: wrap; align-items: center;
+  gap: .2rem .6rem; min-height: 2rem; padding: .2rem .6rem; }
+.mt-card.state-empty > :not(header, .mt-actions),
+.mt-card.state-error > :not(header, .card-status, .mt-actions) { display: none; }
+.mt-card.state-empty header, .mt-card.state-error header { flex: 1 1 6rem; min-width: 0; align-items: center; }
+.mt-card.state-empty .card-status, .mt-card.state-error .card-status { margin: 0; }
 .mt-card header { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
 .card-meta { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .45em; }
 .mt-card.state-empty header { align-items: center; }
@@ -189,6 +211,8 @@
 .card-empty, .card-info { color: var(--muted); }
 .card-note { font-family: var(--sans); font-size: 12px; font-weight: 400; letter-spacing: 0;
   text-transform: none; color: var(--muted); }
+/* A destructive second step stays in the card: the question, then Confirm or Cancel. */
+.card-confirm { align-self: center; font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--ink); }
 /* A ready card says so in words, so its coloured edge is never the only cue. */
 .card-ready { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: .06em;
   text-transform: uppercase; color: var(--accent-ink); }
@@ -205,7 +229,6 @@
   color: var(--accent-ink); font-weight: 500; }
 button.card-use:hover:not(:disabled) { border-color: var(--accent-text); }
 .mt-card h3 { margin: 0; font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.mt-glyph { position: relative; min-width: 3.5em; text-align: right; }
 .mt-text { white-space: pre-wrap; margin: .3rem 0; font-family: var(--serif); font-size: 1rem; }
 .mt-entries { list-style: none; margin: .4rem 0 0; padding: 0; }
 .mt-entries li { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .5em; padding: .35rem 0; border-top: 1px solid var(--line); line-height: 1.5; }
@@ -215,7 +238,6 @@ button.card-use:hover:not(:disabled) { border-color: var(--accent-text); }
 .mt-reading, .mt-lemma { font-family: var(--jp); font-size: .8125rem; color: var(--muted); }
 .mt-pos { margin-right: .4em; font-family: var(--serif); font-style: italic; font-size: .875rem; color: var(--muted); }
 .mt-gloss { flex-basis: 100%; font-family: var(--serif); font-size: .9375rem; line-height: 1.4; text-wrap: pretty; }
-.mt-statuses { display: flex; gap: .75em; }
 .mt-gram { margin-left: auto; font-size: 12px; color: var(--muted); }
 .mt-flag { flex-basis: 100%; margin-top: 2px; padding: 1px .4em; border-radius: 4px; font-size: 12px; background: var(--warn-soft); color: var(--warn-ink); }
 .mt-nomatch { font-style: italic; color: var(--muted); }
@@ -232,8 +254,11 @@ button.card-use:hover:not(:disabled) { border-color: var(--accent-text); }
   .side-col { position: sticky; top: auto; bottom: 0; align-self: stretch; width: auto; flex: none;
     max-height: 40vh; overflow-y: auto; order: 1; z-index: 1; padding: .5rem .25rem;
     background: var(--surface); border-top: 1px solid var(--line); }
-  .side-col .side-col-toggle { display: flex; position: sticky; top: 0; z-index: 1; }
-  .side-col.collapsed { max-height: 2.5rem; overflow: hidden; padding-top: .25rem; padding-bottom: .25rem; }
+  .side-col .side-col-toggle { position: sticky; top: 0; z-index: 1; }
+  /* Folded here, the peek is a 2.5rem bar across the top of the column, not a rail. */
+  .side-col.collapsed { width: auto; max-height: 2.5rem; overflow: hidden; padding-top: .25rem; padding-bottom: .25rem; }
+  .side-col.collapsed .side-col-toggle { writing-mode: horizontal-tb; width: 100%; min-height: 2rem;
+    margin: 0; justify-content: space-between; padding: 0 .5rem; }
   .statusbar { padding: 6px 0 8px; }
   .sb-inner { padding: 0 16px; }
   .sb-row { grid-template-columns: minmax(0, 1fr); }
@@ -251,6 +276,14 @@ button.card-use:hover:not(:disabled) { border-color: var(--accent-text); }
   min-height: 0; padding: 2px 6px; border-radius: 4px; }
 .chapter-nav .menu .sb-crumbs a[role="menuitem"]:hover,
 .chapter-nav .menu .sb-crumbs a[role="menuitem"]:focus-visible { background: var(--raised); }
+/* A reason row at the top of a menu: plain visible text, so a missing aid is explained in the
+   menu itself rather than in a tooltip nobody opens. */
+.menu .menu-hint { display: flex; align-items: center; width: 100%; min-height: 0;
+  padding: 6px 10px; border: 0; background: none; color: var(--muted); font-family: var(--sans);
+  font-size: 12px; font-weight: 400; text-align: left; }
+.menu .menu-hint:hover, .menu .menu-hint:focus-visible { background: none; }
+.menu .menu-hint:not(:disabled):hover, .menu .menu-hint:not(:disabled):focus-visible { color: var(--ink); }
+.menu a.menu-hint:hover { text-decoration: underline; }
 .jump-back { position: sticky; bottom: 16px; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
   margin-top: 8px; pointer-events: none; }
 .jump-back button { pointer-events: auto; box-shadow: 0 8px 24px -10px var(--shadow); }

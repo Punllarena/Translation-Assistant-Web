@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api, call } from "../api/client";
+import { useAidReady } from "./AidCount";
 import { CardAction, CardReady, CardStatus } from "./CardParts";
 import { friendlyError } from "./cardCopy";
 
@@ -21,6 +22,7 @@ export default function TmPanel({ documentId, lineNumber, onUse, slots, bindings
   // they can be read, but not used.
   const stale = tm.isPlaceholderData;
   const aid = tm.error ? "error" : tm.isPending || stale ? "busy" : matches.length ? "ready" : "empty";
+  useAidReady("tm", aid === "ready");
   return (
     <aside className={`mt-card tm-panel state-${aid}`} aria-label="Translation memory">
       <header>
@@ -32,7 +34,7 @@ export default function TmPanel({ documentId, lineNumber, onUse, slots, bindings
       </header>
       {tm.error && (
         <>
-          <CardStatus kind="error">{friendlyError(tm.error.message, "translation memory")}</CardStatus>
+          <CardStatus kind="error">{friendlyError(tm.error.message, "translation memory", false)}</CardStatus>
           <div className="mt-actions"><CardAction onClick={() => void tm.refetch()}>Retry</CardAction></div>
         </>
       )}

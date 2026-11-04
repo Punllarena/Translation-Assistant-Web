@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
+import { useAidReady } from "./AidCount";
 import { CardAction, CardReady, CardStatus } from "./CardParts";
 import { friendlyError } from "./cardCopy";
 import { apply, badge, cardState, coversLine, initial, lineRange, type StreamState, type Suggestion } from "./ollamaCardState";
@@ -10,6 +11,8 @@ import { useSse } from "./useSse";
 
 const EVENTS = ["plan", "waiting", "thinking", "line", "saved", "needs_setup", "error", "done"];
 const RUNNING: StreamState = { ...initial, status: "running" };
+/** How long "Replace saved drafts?" waits for an answer before it goes away. */
+const CONFIRM_MS = 6000;
 
 /** A request for the chunk holding `line`; `n` makes a repeat (Retry, a second click) a new one. */
 type Want = { line: number; reroll: boolean; n: number };
@@ -18,7 +21,7 @@ const streamUrl = (documentId: number, want: Want | null) => want && `/api/docum
   new URLSearchParams({ line_number: String(want.line), reroll: String(want.reroll) })}`;
 
 /** The Ollama card: the line's saved suggestion (Use / Reasoning / Re-translate), or by-hand
- * translation of the chunk the line belongs to, streamed line by line. */
+ *  translation of the chunk the line belongs to, streamed line by line. */
 export default function OllamaCard({ documentId, lineNumber, translated, onUse, slot, bindings }: {
   documentId: number; lineNumber: number; translated: boolean; onUse(text: string): void;
   slot?: number; bindings: Record<string, string>;
@@ -34,6 +37,8 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse, 
   const [want, setWant] = useState<Want | null>(null);
   const [reroll, setReroll] = useState<Want | null>(null);
   const [reasoning, setReasoning] = useState<number | null>(null);
+  // Re-translate replaces the drafts saved for the chunk: it asks first, and the question lapses.
+  const [confirmReroll, setConfirmReroll] = useState(false);
   const translatedRef = useRef(translated);
   translatedRef.current = translated;
   const loaded = sugs.data !== undefined; // a failed background refetch keeps the data, and the stream
@@ -43,6 +48,17 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse, 
     const held = queryClient.getQueryData<Suggestion[]>(["ollama", documentId])?.some((s) => s.line_number === lineNumber);
     setWant(!translatedRef.current && !held ? { line: lineNumber, reroll: false, n: 0 } : null);
   }, [queryClient, documentId, lineNumber, loaded]);
+  useEffect(() => { setConfirmReroll(false); }, [lineNumber]);
+  useEffect(() => {
+    if (!confirmReroll) return;
+    const timer = window.setTimeout(() => setConfirmReroll(false), CONFIRM_MS);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setConfirmReroll(false); };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [confirmReroll]);
   // Closing the stream (a new want, the card unmounting) leaves the chunk running on the server;
   // asking again for a line of it follows it. The server sends saved, then done.
   const live = useSse<StreamState>({
@@ -70,6 +86,7 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse, 
   const busy = state === "running" || state === "waiting" || state === "manual";
   const aid = state === "error" || state === "setup" || sugs.error ? "error"
     : busy || !loaded ? "busy" : state === "idle" ? "empty" : "ready";
+  useAidReady("ollama", aid === "ready");
   return (
     <section className={`mt-card state-${aid}`} aria-label="Ollama">
       <header>
@@ -78,16 +95,16 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse, 
           {aid === "ready" && <CardReady />}
           {aid === "ready" && slot !== undefined && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}
           {aid === "empty" && <span className="card-note muted">No match</span>}
-          {/* One state word here; the body says what it means. */}
-          {aid === "busy" && (
-            <span className="badge" role="status">
+          {/* One state word here; a body line may say what it means, never the state again. */}
+          {aid === "busy" && busy && (
+            <CardStatus kind="busy">
               {state === "running" ? "Running" : state === "waiting" ? "Waiting" : "Queued"}
-            </span>
+            </CardStatus>
           )}
         </span>
       </header>
-      {state === "running" && <p className="muted">{range ? `Translating lines ${range}…` : "Translating…"}</p>}
-      {state === "waiting" && <p className="muted">The night run is translating this passage; yours starts when it finishes.</p>}
+      {state === "running" && range && <p className="card-note muted">Lines {range}</p>}
+      {state === "waiting" && <p className="muted">The night run has this passage; yours starts when it finishes.</p>}
       {state === "manual" && <p className="muted">Another Ollama request is running; yours follows.</p>}
       {suggestion && (state === "saved" || state === "stale") && (
         <p className="muted">{badge(suggestion, new Date())}
@@ -114,12 +131,20 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse, 
             label={slot !== undefined ? `Use Ollama, ${bindings[`use_${slot}`]}` : "Use Ollama"}>Use</CardAction>
         )}
         {state === "error" && <CardAction onClick={() => ask(stream === rerollLive)}>Retry</CardAction>}
-        {suggestion && (state === "saved" || state === "stale") && (<>
-          <CardAction onClick={() => setReasoning(suggestion.chunk_id)}>Reasoning</CardAction>
-          <CardAction onClick={() => ask(true)} title="Replaces the suggestions for these lines">
-            Re-translate lines {lineRange(suggestion.first_line, suggestion.last_line)}
-          </CardAction>
-        </>)}
+        {suggestion && (state === "saved" || state === "stale") && (confirmReroll ? (
+          <>
+            <span className="card-confirm">Replace saved drafts?</span>
+            <CardAction onClick={() => { setConfirmReroll(false); ask(true); }}>Confirm</CardAction>
+            <CardAction onClick={() => setConfirmReroll(false)}>Cancel</CardAction>
+          </>
+        ) : (
+          <>
+            <CardAction onClick={() => setReasoning(suggestion.chunk_id)}>Reasoning</CardAction>
+            <CardAction onClick={() => setConfirmReroll(true)} title="Replaces the suggestions for these lines">
+              Re-translate lines {lineRange(suggestion.first_line, suggestion.last_line)}
+            </CardAction>
+          </>
+        ))}
         {state === "idle" && loaded && <CardAction onClick={() => ask(false)}>Translate this passage</CardAction>}
       </div>
       {reasoning !== null && <ReasoningDialog chunkId={reasoning} onClose={() => setReasoning(null)} />}

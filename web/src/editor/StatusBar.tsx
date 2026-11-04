@@ -7,9 +7,6 @@ const SAVE_TEXT: Record<SaveState, string> = {
   saved: "Saved", saving: "Saving…", unsaved: "Unsaved changes", error: "Not saved",
 };
 
-/** What the small "Aa" says when the server has no dictionary to check against. */
-const SPELL_OFF = "Spellcheck needs a dictionary on the server. Words you add still work.";
-
 export interface Crumbs {
   series: { id: number; title: string };
   volume: { id: number | null; label: string };
@@ -29,7 +26,6 @@ interface Props {
   onCopy(): void; // copies the unsaved text out of the tab
   notice?: ReactNode | null; // the transient line, which may carry an action
   waiting?: ReactNode | null; // a queued move out of the chapter, shown beside the notice
-  spellAvailable?: boolean;
 }
 
 /** "Line 3", "Lines 3, 7", "Lines 3, 7, 9, 12, 20 and 4 more". */
@@ -54,7 +50,7 @@ function Ring({ percent }: { percent: number }) {
 
 export default function StatusBar({
   nav, tools, translated, lineCount, percent, phrase, save, unsavedLines, permanent = false,
-  onRetry, onCopy, notice, waiting, spellAvailable = true,
+  onRetry, onCopy, notice, waiting,
 }: Props) {
   return (
     <div className="statusbar">
@@ -79,10 +75,6 @@ export default function StatusBar({
               <span className={`sb-notice${typeof notice === "string" ? " muted" : ""}`} role="status">{notice}</span>
             )}
             {waiting && <span className="sb-notice muted" role="status">{waiting}</span>}
-            {/* The reasons sit in tooltips: the reading group and this indicator, not standing text. */}
-            {!spellAvailable && (
-              <span className="sb-note muted sb-spell-off" title={SPELL_OFF} role="img" aria-label="Spellcheck unavailable">Aa</span>
-            )}
           </div>
           {/* A mouse press on a toggle keeps the caret where it is, so typing carries on. */}
           <div className="sb-tools" onMouseDown={(e) => {
