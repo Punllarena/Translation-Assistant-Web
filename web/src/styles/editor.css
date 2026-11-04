@@ -73,6 +73,9 @@
 /* The check never moves the pill: it reserves its own width; text states keep theirs. */
 .save-saved { min-width: 1.5em; color: var(--ok); }
 .save-saved svg { width: 15px; height: 15px; }
+.save-pending { min-width: 1.5em; color: var(--muted); }
+.save-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.save-saving .save-dot { opacity: .6; }
 .editor { max-width: 60rem; margin: 0 auto; padding: 1rem 1rem 45vh; }
 /* A quiet placeholder while the chapter's images load, instead of an empty page. */
 .editor-skel { display: grid; gap: .75rem; padding: 1rem 0; }
@@ -111,8 +114,7 @@
 .card.active .source.with-readings { line-height: 2.2; }
 .translation-area { margin-top: .3em; padding-top: .3em; border-top: 1px solid var(--line); }
 .card.active .translation-area { margin-top: .35em; padding: .3em .55em .3em .65em;
-  border-top: 1px solid var(--line); border-left: 3px solid var(--accent-text);
-  border-radius: 0 6px 6px 0; background: var(--field); }
+  border: 1px solid var(--accent-text); border-radius: 6px; background: var(--field); }
 .translation { margin: 0; white-space: pre-wrap; font-family: var(--serif); }
 /* An inactive card's hint, not a box: quiet italic in the UI face, so it never reads as text. */
 .translation-empty { font-family: var(--sans); font-size: .85em; font-style: italic; color: var(--muted); }
@@ -195,9 +197,11 @@
 .mt-panels { display: contents; }
 /* Each card says what it is; ready cards carry a stronger edge, empty ones fold to one row. */
 .mt-card { min-height: 4rem; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.mt-card.state-ready { border-left: 3px solid var(--accent-text); }
-.mt-card.state-busy { border-left: 3px solid var(--line); }
-.mt-card.state-error { border-left: 3px solid var(--danger); }
+.mt-card { position: relative; }
+.mt-card::after { content: ""; position: absolute; top: .5rem; right: .5rem; width: 7px; height: 7px; border-radius: 50%; }
+.mt-card.state-ready::after { background: var(--accent-text); }
+.mt-card.state-busy::after { background: var(--muted); opacity: .6; }
+.mt-card.state-error::after { background: var(--danger); }
 /* A card with nothing to show, or one that failed, is one 2rem row: its header, the note and
    any action side by side, so an empty or broken column stays light. */
 .mt-card.state-empty, .mt-card.state-error { display: flex; flex-wrap: wrap; align-items: center;

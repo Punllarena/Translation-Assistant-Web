@@ -66,8 +66,12 @@ export default function StatusBar({
                 <span className="save-state save-saved" title={SAVE_TEXT.saved} role="img" aria-label={SAVE_TEXT.saved}>
                   <Check />
                 </span>
+              ) : save.state === "error" ? (
+                <span className="save-state">{SAVE_TEXT.error}</span>
               ) : (
-                <span className="save-state">{SAVE_TEXT[save.state]}</span>
+                // A dot of the check's width, so typing never resizes the pill.
+                <span className={`save-state save-pending save-${save.state}`} title={SAVE_TEXT[save.state]}
+                  role="img" aria-label={SAVE_TEXT[save.state]}><span className="save-dot" /></span>
               )}
             </div>
             {phrase && <span>{phrase}</span>}
