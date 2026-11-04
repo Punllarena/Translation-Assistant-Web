@@ -1,6 +1,6 @@
-/** The network-shaped failures an aid card can report: a refused connection, DNS,
- *  an abort, or the API's own timeout text. */
-const NETWORK = /network|fetch|timed? ?out|timeout|too long|aborted|abort|econn|enotfound|dns|offline|unreachable/i;
+/** A transport failure, as whole words: "abort", "dns" and "too long" are answers, not
+ *  connections, so they stay as the backend said them. */
+const NETWORK = /\b(failed to fetch|network ?error|econn(refused|reset)|enotfound|timed? out|timeout|unreachable|connection (refused|reset|closed))\b/i;
 /** A rejected credential, however the backend spells it. */
 const CREDENTIALS = /\b(401|403)\b|unauthori[sz]ed|forbidden|invalid[\s-]*(api[\s-]*)?(key|token)|authentication/i;
 

@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api, call } from "../api/client";
-import { CardAction, CardStatus } from "./CardParts";
+import { CardAction, CardReady, CardStatus } from "./CardParts";
 import { friendlyError } from "./cardCopy";
 
 /** Translation memory (desktop _update_tm_panel): earlier translations of this exact
@@ -25,7 +25,10 @@ export default function TmPanel({ documentId, lineNumber, onUse, slots, bindings
     <aside className={`mt-card tm-panel state-${aid}`} aria-label="Translation memory">
       <header>
         <h3>Translation memory</h3>
-        {aid === "empty" && <span className="card-note muted">No match</span>}
+        <span className="card-meta">
+          {aid === "ready" && <CardReady />}
+          {aid === "empty" && <span className="card-note muted">No match</span>}
+        </span>
       </header>
       {tm.error && (
         <>
@@ -38,16 +41,15 @@ export default function TmPanel({ documentId, lineNumber, onUse, slots, bindings
         <ul>
           {matches.map((m, i) => {
             const slot = !stale && i < slots.tm.length ? slots.tm[i] : null;
+            const key = slot !== null ? bindings[`use_${slot}`] : undefined;
             return (
-              <li key={i} className="tm-match">
-                <button data-use={slot ?? undefined} disabled={stale} className={stale ? "muted" : undefined}
-                  aria-label={slot !== null ? `Use "${m.translated_text}", ${bindings[`use_${slot}`]}` : `Use "${m.translated_text}"`}
-                  onClick={() => onUse(m.translated_text)}>
-                  <span className="tm-text">{m.translated_text}</span>
-                  <span className={`tm-use card-action${stale ? "" : " card-use"}`} aria-hidden="true">
-                    {slot !== null && <span className="use-key">{bindings[`use_${slot}`]}</span>}Use
-                  </span>
-                </button>
+              // The row is the click; only the Use button is a stop in the tab order.
+              <li key={i} className="tm-match"
+                onClick={(e) => { if (!stale && !(e.target as Element).closest("button")) onUse(m.translated_text); }}>
+                <span className={stale ? "tm-text muted" : "tm-text"}>{m.translated_text}</span>
+                <CardAction tone="use" slot={slot ?? undefined} keyLabel={key} disabled={stale}
+                  label={key ? `Use "${m.translated_text}", ${key}` : `Use "${m.translated_text}"`}
+                  onClick={() => onUse(m.translated_text)}>Use</CardAction>
                 <span className="muted tm-source">{m.document_title}, {m.updated_at.slice(0, 10)}</span>
               </li>
             );

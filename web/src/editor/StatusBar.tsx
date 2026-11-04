@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router";
 import type { SaveState } from "./saveStore";
 import { Check } from "../ui/icons";
 
-/** The saved state is a check alone (with a hidden label); the others keep their words. */
+/** The saved state is a check alone (with its own accessible name); the others keep their words. */
 const SAVE_TEXT: Record<SaveState, string> = {
   saved: "Saved", saving: "Saving…", unsaved: "Unsaved changes", error: "Not saved",
 };
+
+/** What the small "Aa" says when the server has no dictionary to check against. */
+const SPELL_OFF = "Spellcheck needs a dictionary on the server. Words you add still work.";
 
 export interface Crumbs {
   series: { id: number; title: string };
@@ -25,9 +27,9 @@ interface Props {
   permanent?: boolean; // retrying cannot help, so nothing says it is
   onRetry(): void;
   onCopy(): void; // copies the unsaved text out of the tab
-  notice?: ReactNode | null;
+  notice?: ReactNode | null; // the transient line, which may carry an action
+  waiting?: ReactNode | null; // a queued move out of the chapter, shown beside the notice
   spellAvailable?: boolean;
-  readings?: { available: boolean; message: string };
 }
 
 /** "Line 3", "Lines 3, 7", "Lines 3, 7, 9, 12, 20 and 4 more". */
@@ -52,7 +54,7 @@ function Ring({ percent }: { percent: number }) {
 
 export default function StatusBar({
   nav, tools, translated, lineCount, percent, phrase, save, unsavedLines, permanent = false,
-  onRetry, onCopy, notice, spellAvailable = true, readings,
+  onRetry, onCopy, notice, waiting, spellAvailable = true,
 }: Props) {
   return (
     <div className="statusbar">
@@ -64,9 +66,9 @@ export default function StatusBar({
               <Ring percent={percent} />
               <span>{translated} of {lineCount} lines</span>
               {save.state === "saved" ? (
-                <span className="save-state save-saved" title={SAVE_TEXT.saved} aria-label={SAVE_TEXT.saved}>
+                // One accessible name: the icon is the state, with no hidden duplicate beside it.
+                <span className="save-state save-saved" title={SAVE_TEXT.saved} role="img" aria-label={SAVE_TEXT.saved}>
                   <Check />
-                  <span className="visually-hidden">{SAVE_TEXT.saved}</span>
                 </span>
               ) : (
                 <span className="save-state">{SAVE_TEXT[save.state]}</span>
@@ -76,13 +78,10 @@ export default function StatusBar({
             {notice && (
               <span className={`sb-notice${typeof notice === "string" ? " muted" : ""}`} role="status">{notice}</span>
             )}
-            {readings && !readings.available && (
-              <span className="sb-note muted" title={readings.message || undefined}>
-                Readings need MeCab. <Link to="/settings/mt">Set up</Link>
-              </span>
-            )}
+            {waiting && <span className="sb-notice muted" role="status">{waiting}</span>}
+            {/* The reasons sit in tooltips: the reading group and this indicator, not standing text. */}
             {!spellAvailable && (
-              <span className="sb-note muted">Spellcheck unavailable. Words you add still work.</span>
+              <span className="sb-note muted sb-spell-off" title={SPELL_OFF} role="img" aria-label="Spellcheck unavailable">Aa</span>
             )}
           </div>
           {/* A mouse press on a toggle keeps the caret where it is, so typing carries on. */}

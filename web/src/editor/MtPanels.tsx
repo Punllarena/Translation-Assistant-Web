@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
-import { CardAction, CardStatus } from "./CardParts";
+import { CardAction, CardReady, CardStatus } from "./CardParts";
 import { friendlyError } from "./cardCopy";
 import Entries from "./MtEntries";
 import { apply, initial, type MtState } from "./mtEvents";
@@ -89,8 +89,14 @@ function Card({ name, label, documentId, lineNumber, onUse, slot, bindings }: {
     <section className={`mt-card state-${aid}`} aria-label={label}>
       <header>
         <h3>{label}</h3>
-        {aid === "ready" && slot !== undefined && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}
-        {aid === "empty" ? <span className="card-note muted">No match</span> : <Status state={state} />}
+        <span className="card-meta">
+          {aid === "ready" && <CardReady />}
+          {aid === "ready" && state.cached && <span className="card-note muted">cached</span>}
+          {aid === "ready" && slot !== undefined && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}
+          {aid !== "ready" && (aid === "empty"
+            ? <span className="card-note muted">No match</span>
+            : <Status state={state} />)}
+        </span>
       </header>
       {state.text && <p className="mt-text">{state.text}</p>}
       {state.thinking && <details><summary>Thinking</summary><p className="mt-text muted">{state.thinking}</p></details>}
@@ -123,6 +129,7 @@ function DictionaryCard({ documentId, lineNumber }: { documentId: number; lineNu
       <header>
         <h3>Dictionary</h3>
         <span className="mt-statuses">
+          {aid === "ready" && <CardReady />}
           {aid === "empty" ? <span className="card-note muted">No match</span> : (
             <>
               <Status state={jparser.state} label="JParser" />

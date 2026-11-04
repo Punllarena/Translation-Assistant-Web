@@ -42,12 +42,19 @@
 .sb-notice.muted { color: var(--muted); }
 .sb-note { font-size: 12px; }
 .sb-note a { color: var(--accent-text); }
+/* "Aa" says spellcheck is off in one glyph; its tooltip carries the reason. */
+.sb-spell-off { cursor: help; }
 .sb-undo { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .sb-undo .small { min-height: 22px; padding: 0 8px; font-size: 12px; }
 /* The あ/ア/a group says what it is once there is room for the word. */
 .reading-label { display: none; padding: 0 6px 0 8px; font-family: var(--sans); font-size: 11px; font-weight: 600;
   letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-@media (min-width: 75rem) { .reading-label { display: inline; } }
+/* A tool's word joins its icon at the same width; below it the icon and the aria-label carry it. */
+.sb-label { display: none; padding: 0 2px 0 6px; color: inherit; font-family: var(--sans); font-size: 11px;
+  font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+@media (min-width: 75rem) { .reading-label, .sb-label { display: inline; } }
+/* The help button widens for its word; the icon alone keeps the 32px target. */
+.sb-tools .sb-keys { width: auto; min-width: 32px; padding: 0 8px; }
 .sb-divider { width: 1px; height: 20px; margin: 0 4px; background: var(--line); }
 .chapter-nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .chapter-nav .menu-root { min-width: 0; }
@@ -101,6 +108,10 @@
   border-top: 1px solid var(--line); border-left: 3px solid var(--accent-text);
   border-radius: 0 6px 6px 0; background: var(--field); }
 .translation { margin: 0; white-space: pre-wrap; font-family: var(--serif); }
+/* An inactive card's hint, not a box: quiet italic in the UI face, so it never reads as text. */
+.translation-empty { font-family: var(--sans); font-size: .85em; font-style: italic; color: var(--muted); }
+/* A card with no translation yet loses the divider above it, so the hint is not a field either. */
+.card:not(.active) .translation-area:has(> .translation > .translation-empty) { margin-top: 0; padding-top: 0; border-top: 0; }
 .code-editor { font-family: var(--serif); }
 .code-editor .cm-editor.cm-focused { outline: none; }
 .code-editor .cm-placeholder { color: var(--muted); font-style: italic; }
@@ -129,14 +140,10 @@
   max-height: 70vh; overflow: auto; background: var(--field); }
 .editor-layout { display: flex; gap: 1rem; align-items: flex-start; justify-content: center; }
 .editor-layout .editor { flex: 1; min-width: 0; }
-.side-col { position: sticky; top: var(--top-h, 5rem); width: 18rem; flex: none; font-size: .875rem;
+.side-col { position: sticky; top: var(--top-h, 5rem); width: 20rem; flex: none; font-size: .875rem;
   max-height: calc(100vh - var(--top-h, 5rem)); overflow-y: auto; display: flex; flex-direction: column;
   gap: .5rem; padding: .5rem; }
-/* The cards rank by usefulness without moving in the DOM, so the Alt+N slots stay put. */
-.side-col .state-ready { order: 1; }
-.side-col .state-busy { order: 2; }
-.side-col .state-error { order: 3; }
-.side-col .state-empty { order: 4; }
+/* The cards keep their DOM order: visual order = tab order = the Alt+N slots, always. */
 /* Narrow screens only: the column's header row folds it to a 2.5rem peek. */
 .side-col-toggle { display: none; align-items: center; justify-content: space-between; width: 100%;
   min-height: 2rem; padding: 0 .5rem; border: 1px solid var(--line); border-radius: 6px;
@@ -154,23 +161,16 @@
 /* Translation memory wears the same shell and heading as the MT cards. */
 .tm-panel { font-size: .875rem; }
 .tm-panel ul { list-style: none; margin: .2rem 0 0; padding: 0; }
-.tm-panel li { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .5em; padding: .35rem 0;
-  border-top: 1px solid var(--line); }
+/* The row is the click; only the Use button is a stop in the tab order. */
+.tm-panel li { display: flex; flex-wrap: wrap; align-items: center; column-gap: .5em; padding: .3rem .2rem;
+  border-top: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
 .tm-panel li:first-child { border-top: 0; padding-top: 0; }
-.tm-panel button { display: flex; align-items: baseline; gap: .5em; width: 100%; min-height: 0;
-  padding: .35rem .45rem; border: 1px solid transparent; border-radius: 6px; background: none;
-  text-align: left; font: inherit; font-family: var(--serif); }
-.tm-panel button:hover:not(:disabled) { background: var(--raised); border-color: var(--line); }
-.tm-panel button:disabled { cursor: default; }
-.tm-text { min-width: 0; }
-/* The row is the click; the shared Use affordance sits at its right. */
-.tm-use { display: inline-flex; align-items: center; flex: none; margin-left: auto; padding: .1rem .4rem;
-  border: 1px solid var(--line); border-radius: 6px; font-family: var(--sans); font-size: 12px;
-  font-weight: 500; white-space: nowrap; color: var(--muted); }
-.tm-use.card-use { background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent-text) 30%, var(--line));
-  color: var(--accent-ink); }
-.tm-panel .tm-use { min-height: 0; padding: .1rem .4rem; font-size: 12px; }
-.tm-panel button:hover:not(:disabled) .tm-use { border-color: var(--accent-text); }
+.tm-panel li:hover { background: var(--raised); }
+/* A previous line's matches can be read but not used. */
+.tm-panel li:has(.card-action:disabled) { cursor: default; }
+.tm-panel li:has(.card-action:disabled):hover { background: none; }
+.tm-panel .card-action { flex: none; min-height: 0; padding: .1rem .4rem; font-size: 12px; font-family: var(--sans); }
+.tm-text { flex: 1 1 6rem; min-width: 0; font-family: var(--serif); }
 .tm-source { flex-basis: 100%; padding-left: .45rem; font-size: .8125rem; }
 .mt-panels { display: contents; }
 /* Each card says what it is; ready cards carry a stronger edge, empty ones fold to a header. */
@@ -179,15 +179,19 @@
 .mt-card.state-busy { border-left: 3px solid var(--line); }
 .mt-card.state-error { border-left: 3px solid var(--danger); }
 .mt-card.state-empty { min-height: 0; padding: .35rem .6rem; }
-/* An empty card keeps only its header and any action it still offers (Translate chunk). */
+/* An empty card keeps only its header and any action it still offers (Translate this passage). */
 .mt-card.state-empty > :not(header, .mt-actions) { display: none; }
 .mt-card header { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.card-meta { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .45em; }
 .mt-card.state-empty header { align-items: center; }
 .card-status { margin: .25rem 0; font-size: .8125rem; overflow-wrap: anywhere; }
 .card-error { color: var(--danger); }
 .card-empty, .card-info { color: var(--muted); }
 .card-note { font-family: var(--sans); font-size: 12px; font-weight: 400; letter-spacing: 0;
   text-transform: none; color: var(--muted); }
+/* A ready card says so in words, so its coloured edge is never the only cue. */
+.card-ready { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--accent-ink); }
 /* A busy card's three dots stand in for the bare ellipsis. */
 .card-spinner { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; }
 .card-spinner span { width: 4px; height: 4px; border-radius: 50%; background: var(--muted);

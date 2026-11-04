@@ -125,7 +125,7 @@ function LineCard({ index, line, active, parse, text, highlight, hits = NO_HITS,
           editor
         ) : (
           <p className="translation" lang="en">
-            {text ? <Painted text={text} spans={textSpans} /> : <span className="muted">Type your translation…</span>}
+            {text ? <Painted text={text} spans={textSpans} /> : <span className="translation-empty">Type your translation…</span>}
           </p>
         )}
       </div>

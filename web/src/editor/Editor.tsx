@@ -23,7 +23,7 @@ import StatusBar, { linesText, type Crumbs } from "./StatusBar";
 import StickyTop from "./StickyTop";
 import KeyHelp from "./KeyHelp";
 import Menu from "../ui/Menu";
-import { Memory, Translate } from "../ui/icons";
+import { Help, Memory, Translate } from "../ui/icons";
 import MtPanels from "./MtPanels";
 import TmPanel from "./TmPanel";
 import ChapterNav from "./ChapterBar";
@@ -39,6 +39,7 @@ import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
 import { useBindings, useEditorKeys } from "./useEditorKeys";
 import { assignSlots } from "./useSlots";
+import { useDebounced } from "./useDebounced";
 
 type Data = Schemas["DocumentLines"];
 
@@ -106,6 +107,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   const { leave, waiting, asking, goAnyway, stay } = useLeave(ed.store, ed.save.state, focusAfterDialog);
   const [showKeys, setShowKeys] = useState(false);
   const [aidsOpen, setAidsOpen] = useState(true);
+  // Held-key stepping passes many lines; the hidden announcement follows once it stops.
+  const announcedLine = useDebounced((current?.line_number ?? ed.active) + 1, 400);
   const chapters = useMemo(() => chapterNeighbours(docs.data ?? [], id), [docs.data, id]);
   const listed = docs.data?.find((d) => d.id === id);
   // The server answered, but it has no such line: the source was edited elsewhere, and the
@@ -264,7 +267,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
           const k = Number(action.slice(4));
           const use = document.querySelector<HTMLElement>(`.side-col [data-use="${k}"]`);
           if (use) use.click();
-          else setNotice(`No suggestion ${k} on this line`);
+          else setNotice(`No match for suggestion ${k} on this line`);
         }
     }
   };
@@ -373,8 +376,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       phrase={phraseText} save={barSave} unsavedLines={barSave === ed.save ? unsavedLines : []}
       permanent={ed.savePermanent || Boolean(missingText)}
       onRetry={() => void ed.store.flush()} onCopy={copyUnsaved}
-      notice={waiting ? "Leaving once saved. Esc to stay." : restoredNotice ?? notice} spellAvailable={spell.available}
-      readings={{ available: readings.available, message: readings.message }}
+      notice={restoredNotice ?? notice} waiting={waiting ? "Leaving once saved. Esc to stay." : null}
+      spellAvailable={spell.available}
       nav={listed && <ChapterNav doc={listed} chapters={chapters} crumbs={crumbs} onLeave={(to) => void leave(to)}
         prevKey={bindings.prev_chapter} nextKey={bindings.next_chapter}
         onGo={(d) => void leave(`/documents/${d.id}`)} />}
@@ -434,17 +437,26 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
       <h1 className="visually-hidden">{shownTitle(data.document)}</h1>
-      <div role="status" className="visually-hidden">Line {n + 1} of {lines.length}</div>
+      <div role="status" className="visually-hidden">Line {announcedLine} of {lines.length}</div>
       <StickyTop>
       {statusBar(ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>
           <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
           <span className="sb-divider" aria-hidden="true" />
           <div role="group" aria-label="Aids" className="sb-aids">
             <button type="button" className="icon" aria-label="Translation memory" title={keyed("Translation memory", "toggle_tm")}
-              aria-pressed={tmVisible} onClick={() => saveSetting("tm_visible", !tmVisible)}><Memory /></button>
+              aria-pressed={tmVisible} onClick={() => saveSetting("tm_visible", !tmVisible)}>
+              <Memory /><span className="sb-label" aria-hidden="true">Memory</span>
+            </button>
             <button type="button" className="icon" aria-label="Machine translation" title={keyed("Machine translation", "toggle_mt")}
-              aria-pressed={mtVisible} onClick={() => saveSetting("mt_visible", !mtVisible)}><Translate /></button>
+              aria-pressed={mtVisible} onClick={() => saveSetting("mt_visible", !mtVisible)}>
+              <Translate /><span className="sb-label" aria-hidden="true">MT</span>
+            </button>
           </div>
+          <span className="sb-divider" aria-hidden="true" />
+          <button type="button" className="icon sb-keys" aria-label="Keyboard shortcuts"
+            title={keyed("Keyboard shortcuts", "key_help")} onClick={() => setShowKeys(true)}>
+            <Help /><span className="sb-label" aria-hidden="true">Keys</span>
+          </button>
           <span className="sb-divider" aria-hidden="true" />
           {chapterMenu(true)}
         </>)}
@@ -465,6 +477,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       </div>
       {(tmVisible || mtVisible) && (
         <div className={`side-col${aidsOpen ? "" : " collapsed"}`}>
+          <h2 className="visually-hidden">Suggestions</h2>
           <button type="button" className="side-col-toggle" aria-expanded={aidsOpen}
             onClick={() => setAidsOpen((open) => !open)}>
             <span>Aids</span><span aria-hidden="true">{aidsOpen ? "▾" : "▸"}</span>

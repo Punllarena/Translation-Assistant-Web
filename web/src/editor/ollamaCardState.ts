@@ -49,7 +49,7 @@ export function cardState(input: { suggestion?: Suggestion; translated: boolean;
     case "running": return "running";
   }
   if (suggestion) return suggestion.stale ? "stale" : "saved";
-  return "idle"; // translated or not, nothing saved: the card offers Translate chunk
+  return "idle"; // translated or not, nothing saved: the card offers Translate this passage
 }
 
 /** Whether a by-hand request concerns `line`: its own line before the plan arrives, then

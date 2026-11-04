@@ -18,20 +18,26 @@ export function CardStatus({ kind, children }: { kind: CardKind; children?: Reac
   return <p className="card-status card-info muted">{children}</p>;
 }
 
+/** A ready card says so in words, not by its coloured edge alone. */
+export function CardReady() {
+  return <span className="card-ready">Ready</span>;
+}
+
 /** The small button every card uses for its actions; `use` is the shared Use look, with the
  *  key that picks it printed beside the word. */
-export function CardAction({ children, onClick, slot, keyLabel, label, tone = "plain", disabled }: {
+export function CardAction({ children, onClick, slot, keyLabel, label, title, tone = "plain", disabled }: {
   children: ReactNode;
   onClick?(): void;
   slot?: number;
   keyLabel?: string;
   label?: string;
+  title?: string;
   tone?: "plain" | "use";
   disabled?: boolean;
 }) {
   return (
     <button type="button" className={`small card-action${tone === "use" ? " card-use" : ""}`}
-      data-use={slot} aria-label={label} disabled={disabled} onClick={onClick}>
+      data-use={slot} aria-label={label} title={title} disabled={disabled} onClick={onClick}>
       {keyLabel && <span className="use-key" aria-hidden="true">{keyLabel}</span>}
       {children}
     </button>
