@@ -10,7 +10,7 @@
 .sb-crumbs a { color: var(--muted); text-decoration: none; }
 .sb-crumbs a:hover, .sb-crumbs a:focus-visible { color: var(--ink); text-decoration: underline; }
 /* The left zone shrinks first; the right keeps its tools; the pill sits in the middle when there is room. */
-.sb-row { display: grid; grid-template-columns: minmax(16rem, 1fr) auto auto; gap: 8px 16px; align-items: center; }
+.sb-row { display: grid; grid-template-columns: minmax(14rem, 1fr) auto auto; gap: 8px 16px; align-items: center; }
 .sb-place { min-width: 0; }
 .sb-centre { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: center; }
 .sb-pill { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 4px 12px;
@@ -56,7 +56,11 @@
 .reading-modes { display: none; }
 .reading-menu { display: inline-block; }
 /* The help button widens for its word; the icon alone keeps the 32px target. */
-.sb-tools .sb-keys { width: auto; min-width: 32px; padding: 0 8px; }
+/* Keys is an icon: the word cost the chapter title its room, and the menu names it too. */
+.sb-tools .sb-keys { width: 32px; padding: 0; }
+.sb-tools .sb-keys .sb-label { display: none; }
+/* Beside the title the tools stay on one line; they only wrap in the stacked narrow layout. */
+@media (min-width: 60.01rem) { .sb-tools { flex-wrap: nowrap; } }
 .sb-divider { width: 1px; height: 20px; margin: 0 4px; background: var(--line); }
 .chapter-nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .chapter-nav .menu-root { min-width: 0; }
@@ -146,6 +150,9 @@
   max-height: calc(100vh - var(--top-h, 5rem)); overflow-y: auto; display: flex; flex-direction: column;
   gap: .5rem; padding: .5rem; }
 /* The cards keep their DOM order: visual order = tab order = the Alt+N slots, always. */
+/* The column is a height-capped flex stack, so a tall card (the Dictionary) would squeeze the others below their
+   content and let it spill; every card keeps its own height and the column scrolls. */
+.side-col .mt-card, .side-col .tm-panel, .side-col .side-col-toggle { flex: none; }
 /* The column's header row folds it to a 2.5rem peek at every width: a rail beside the cards on
    a wide screen, a bar over them on a narrow one. It names itself, so neither is a mystery. */
 .side-col-toggle { display: flex; align-items: center; justify-content: space-between; gap: .35rem;
