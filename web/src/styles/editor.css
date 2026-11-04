@@ -1,18 +1,20 @@
 /* The phase 3b editor rules on tokens. The layout redesign is phase 7b. */
 .editor-page { font-size: var(--editor-font, 18px); }
 .editor-top { position: sticky; top: 0; z-index: 2; background: var(--bg); }
-.statusbar { display: grid; gap: 4px; padding: 6px 32px 8px; font-size: 13px;
-  color: var(--muted); border-bottom: 1px solid var(--line); }
-.sb-crumbs { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; font-size: 12px; }
+.statusbar { padding: 6px 0 8px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); }
+/* The bar's content keeps the editor's 60rem edge, so the tools line up with the cards. */
+.sb-inner { display: grid; gap: 4px; max-width: 60rem; margin: 0 auto; padding: 0 1rem; }
+/* The way back sits at the top of the chapter menu, so the sticky top stays one row. */
+.sb-crumbs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-width: 0;
+  padding: 4px 10px 6px; font-size: 12px; }
 .sb-crumbs a { color: var(--muted); text-decoration: none; }
-.sb-crumbs a:hover { color: var(--ink); text-decoration: underline; }
+.sb-crumbs a:hover, .sb-crumbs a:focus-visible { color: var(--ink); text-decoration: underline; }
 /* The left zone shrinks first; the right keeps its tools; the pill sits in the middle when there is room. */
-.sb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr); gap: 8px 16px; align-items: center; }
+.sb-row { display: grid; grid-template-columns: minmax(16rem, 1fr) auto auto; gap: 8px 16px; align-items: center; }
 .sb-place { min-width: 0; }
 .sb-centre { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: center; }
 .sb-pill { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 4px 12px;
   border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
-.sb-line { font-family: var(--mono); }
 .sb-ring { flex: none; }
 .sb-ring circle { fill: none; stroke-width: 2.5; }
 .sb-ring-track { stroke: var(--line); }
@@ -21,12 +23,40 @@
 /* The save failure's own row: a long message wraps here instead of squeezing the title. */
 .sb-alert { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
 .sb-alert [role="alert"] { min-width: 0; overflow-wrap: anywhere; }
-.sb-tools button.icon[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
+.sb-tools button.icon[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink);
+  box-shadow: inset 0 -2px 0 var(--accent-text); }
+.sb-tools button.icon[aria-pressed="false"] { background: none; color: var(--muted); }
 .sb-tools [role="group"] { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px;
   background: color-mix(in oklch, var(--line) 60%, var(--bg)); }
 .sb-tools [role="group"] button { min-height: 28px; padding: 0 10px; border: 0; background: none; color: var(--muted); font-weight: 400; }
 .sb-tools [role="group"] button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500;
   box-shadow: 0 1px 2px var(--shadow); }
+/* The aids cluster: a filled, ink-dark pressed state and a small check dot, not a faint wash. */
+.sb-tools .sb-aids button.icon { position: relative; width: auto; min-width: 32px; padding: 0 8px; }
+.sb-tools .sb-aids button.icon[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink);
+  box-shadow: inset 0 -2px 0 var(--accent-text); }
+.sb-tools .sb-aids button.icon[aria-pressed="true"]::after { content: ""; position: absolute; top: 2px; right: 2px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--accent-text); }
+/* A notice carrying an action speaks in ink; plain notices stay muted. */
+.sb-notice { min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+.sb-notice.muted { color: var(--muted); }
+.sb-note { font-size: 12px; }
+.sb-note a { color: var(--accent-text); }
+.sb-undo { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sb-undo .small { min-height: 22px; padding: 0 8px; font-size: 12px; }
+/* The あ/ア/Abc group says what it is, and every tool keeps its word, down to 40rem. */
+.reading-label { display: none; padding: 0 6px 0 8px; font-family: var(--sans); font-size: 11px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+/* A tool's word joins its icon; below 40rem the icon and the aria-label carry it. */
+.sb-label { padding: 0 2px 0 6px; color: inherit; font-family: var(--sans); font-size: 11px;
+  font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+@media (max-width: 40rem) { .reading-label, .sb-label { display: none; } }
+/* The reading mode is one labelled button and a menu at every width: four bare glyphs cost the chapter
+   title its room (it fell to 16px at 1100px). */
+.reading-modes { display: none; }
+.reading-menu { display: inline-block; }
+/* The help button widens for its word; the icon alone keeps the 32px target. */
+.sb-tools .sb-keys { width: auto; min-width: 32px; padding: 0 8px; }
 .sb-divider { width: 1px; height: 20px; margin: 0 4px; background: var(--line); }
 .chapter-nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .chapter-nav .menu-root { min-width: 0; }
@@ -35,12 +65,24 @@
 .chapter-nav > button { flex: none; font-size: 18px; padding: 0 8px; }
 .ch-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink);
   font-family: var(--serif); font-weight: 500; font-size: 17px; }
-.save-state { display: inline-block; min-width: 9em; }
+.save-state { display: inline-flex; align-items: center; justify-content: center; }
+/* The check never moves the pill: it reserves its own width; text states keep theirs. */
+.save-saved { min-width: 1.5em; color: var(--ok); }
+.save-saved svg { width: 15px; height: 15px; }
 .editor { max-width: 60rem; margin: 0 auto; padding: 1rem 1rem 45vh; }
+/* A quiet placeholder while the chapter's images load, instead of an empty page. */
+.editor-skel { display: grid; gap: .75rem; padding: 1rem 0; }
+.editor-skel span { height: 1.05em; border-radius: 6px; background: color-mix(in oklch, var(--line) 55%, var(--bg));
+  animation: skel-pulse 1.6s ease-in-out infinite; }
+.editor-skel span:nth-child(2) { width: 92%; }
+.editor-skel span:nth-child(3) { width: 84%; }
+.editor-skel span:nth-child(4) { width: 60%; }
+@keyframes skel-pulse { 0%, 100% { opacity: .55; } 50% { opacity: .9; } }
+@media (prefers-reduced-motion: reduce) { .editor-skel span { animation: none; } }
 .card { content-visibility: auto; contain-intrinsic-size: auto 6em; padding: .6em .8em; margin: .4em 0;
   border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
 .card:hover { background: var(--raised); }
-.card.active { background: var(--surface); border-color: color-mix(in oklch, var(--accent-text) 45%, transparent);
+.card.active { background: var(--surface); border-color: color-mix(in oklch, var(--accent-text) 62%, var(--line));
   box-shadow: 0 10px 28px -14px var(--shadow); cursor: auto; }
 .card-number { float: right; font-family: var(--mono); font-size: .7em; color: var(--muted); }
 /* A line whose text the server has not taken yet: a small vermilion mark beside its number. */
@@ -48,10 +90,13 @@
   background: var(--seal); }
 .copy-original { float: right; display: inline-flex; align-items: center; gap: .3em; margin-left: .6em;
   padding: .15em .45em; border: 0; border-radius: 6px; background: none; color: var(--muted);
-  font-size: .7em; cursor: pointer; visibility: hidden; }
+  font-size: .7em; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
 .copy-original svg { width: .9em; height: .9em; }
 .copy-feedback { font-family: var(--sans); }
-.card:hover .copy-original, .card:focus-within .copy-original, .card.active .copy-original { visibility: visible; }
+/* Keyboard focus reveals it too: Tab reaches it even while it is invisible to the pointer. */
+.card:hover .copy-original, .card:focus-within .copy-original, .card.active .copy-original,
+.copy-original:focus-visible { opacity: 1; pointer-events: auto; }
+.copy-original:focus-visible { outline: 2px solid color-mix(in oklch, var(--accent-text) 55%, transparent); outline-offset: 1px; }
 .copy-original:hover { background: var(--raised); color: var(--ink); }
 .source { margin: 0 0 .3em; font-family: var(--jp); line-height: 1.85; color: var(--src); }
 .card.active .source { color: var(--ink); }
@@ -60,15 +105,25 @@
 .source rt.rt-glossary { color: var(--accent-text); font-family: var(--sans); }
 .source rt.find-current { color: var(--ink); }
 .card.active .source.with-readings { line-height: 2.2; }
+.translation-area { margin-top: .3em; padding-top: .3em; border-top: 1px solid var(--line); }
+.card.active .translation-area { margin-top: .35em; padding: .3em .55em .3em .65em;
+  border-top: 1px solid var(--line); border-left: 3px solid var(--accent-text);
+  border-radius: 0 6px 6px 0; background: var(--field); }
 .translation { margin: 0; white-space: pre-wrap; font-family: var(--serif); }
+/* An inactive card's hint, not a box: quiet italic in the UI face, so it never reads as text. */
+.translation-empty { font-family: var(--sans); font-size: .85em; font-style: italic; color: var(--muted); }
+/* A card with no translation yet loses the divider above it, so the hint is not a field either. */
+.card:not(.active) .translation-area:has(> .translation > .translation-empty) { margin-top: 0; padding-top: 0; border-top: 0; }
 .code-editor { font-family: var(--serif); }
 .code-editor .cm-editor.cm-focused { outline: none; }
+.code-editor .cm-placeholder { color: var(--muted); font-style: italic; }
 .code-editor .cm-scroller { font-family: inherit; line-height: inherit; }
 .code-editor .cm-content { font: inherit; padding: 0; caret-color: var(--accent-text); }
 .code-editor .cm-cursor { border-left-color: var(--accent-text); }
 .jp-katakana { color: var(--kata); }
 .jp-kanji { color: color-mix(in oklch, var(--seal) 40%, currentColor); }
-.jp-punct { opacity: .6; }
+/* .6 fell to 4.37:1 on dark --surface; .65 keeps 4.9:1 and still reads quieter. */
+.jp-punct { opacity: .65; }
 .sentence-current { background: var(--sent); border-radius: 2px; }
 .find-hit { background: var(--hit); color: var(--ink); }
 .find-current { background: var(--hit-cur); color: var(--ink); }
@@ -87,24 +142,89 @@
   max-height: 70vh; overflow: auto; background: var(--field); }
 .editor-layout { display: flex; gap: 1rem; align-items: flex-start; justify-content: center; }
 .editor-layout .editor { flex: 1; min-width: 0; }
-.side-col { position: sticky; top: var(--top-h, 5rem); width: 18rem; flex: none; font-size: .875rem;
-  max-height: calc(100vh - var(--top-h, 5rem)); overflow-y: auto; }
-/* The real key that picks this suggestion, printed in full (Alt included). */
-.use-key { margin-right: .5em; font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+.side-col { position: sticky; top: var(--top-h, 5rem); width: 20rem; flex: none; font-size: .875rem;
+  max-height: calc(100vh - var(--top-h, 5rem)); overflow-y: auto; display: flex; flex-direction: column;
+  gap: .5rem; padding: .5rem; }
+/* The cards keep their DOM order: visual order = tab order = the Alt+N slots, always. */
+/* The column's header row folds it to a 2.5rem peek at every width: a rail beside the cards on
+   a wide screen, a bar over them on a narrow one. It names itself, so neither is a mystery. */
+.side-col-toggle { display: flex; align-items: center; justify-content: space-between; gap: .35rem;
+  width: 100%; min-height: 2rem; padding: 0 .5rem; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--ink); font-size: 12px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; }
+.aids-meta { display: inline-flex; align-items: center; gap: .4rem; }
+/* How many cards can be used right now, said in words so the counts are not inferred from colour. */
+.aids-ready { color: var(--muted); font-weight: 400; letter-spacing: 0; text-transform: none; }
+/* Collapsed on a wide screen: the rail turns on its side and the cards go, leaving the name and
+   the count. Nothing is unmounted, so the streams keep running while the column is folded. */
+.side-col.collapsed { width: 2.5rem; padding: .5rem .25rem; }
+.side-col.collapsed > :not(.side-col-toggle) { display: none; }
+.side-col.collapsed .side-col-toggle { writing-mode: vertical-rl; width: 2rem; min-height: 8rem;
+  margin: 0 auto; justify-content: flex-start; gap: .6rem; padding: 0; }
+.side-col.collapsed .aids-meta { gap: .3rem; }
+/* The real key that picks this suggestion, printed in full (Alt included) as a keycap. */
+.use-key { display: inline-block; margin-right: .5em; padding: 0 .35em; border: 1px solid var(--line);
+  border-radius: 3px; background: var(--raised); font-family: var(--mono); font-size: .75rem;
+  line-height: 1.6; color: var(--muted); }
 .key-help { max-height: 60vh; overflow-y: auto; font-size: 14px; }
 .key-help h3 { margin: 0 0 6px; }
 .key-help dl { display: grid; gap: 4px; margin: 0; }
 .key-help dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
 .key-help dd { margin: 0; flex: none; }
-.tm-panel { font-size: .875rem; padding: .5rem; }
-.tm-panel h2 { font-size: .875rem; margin: 0 0 .4rem; }
-.tm-panel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
-.tm-panel button { display: block; width: 100%; padding: .4rem .5rem; text-align: left; font: inherit; font-family: var(--serif); }
-.mt-panels { display: grid; gap: .5rem; padding: .5rem; }
+/* Translation memory wears the same shell and heading as the MT cards. */
+.tm-panel { font-size: .875rem; }
+.tm-panel ul { list-style: none; margin: .2rem 0 0; padding: 0; }
+/* The row is the click; only the Use button is a stop in the tab order. */
+.tm-panel li { display: flex; flex-wrap: wrap; align-items: center; column-gap: .5em; padding: .3rem .2rem;
+  border-top: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.tm-panel li:first-child { border-top: 0; padding-top: 0; }
+.tm-panel li:hover { background: var(--raised); }
+/* A previous line's matches can be read but not used. */
+.tm-panel li:has(.card-action:disabled) { cursor: default; }
+.tm-panel li:has(.card-action:disabled):hover { background: none; }
+.tm-panel .card-action { flex: none; min-height: 0; padding: .1rem .4rem; font-size: 12px; font-family: var(--sans); }
+.tm-text { flex: 1 1 6rem; min-width: 0; font-family: var(--serif); }
+.tm-source { flex-basis: 100%; padding-left: .45rem; font-size: .8125rem; }
+.mt-panels { display: contents; }
+/* Each card says what it is; ready cards carry a stronger edge, empty ones fold to one row. */
 .mt-card { min-height: 4rem; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.mt-card header { display: flex; justify-content: space-between; align-items: baseline; }
+.mt-card.state-ready { border-left: 3px solid var(--accent-text); }
+.mt-card.state-busy { border-left: 3px solid var(--line); }
+.mt-card.state-error { border-left: 3px solid var(--danger); }
+/* A card with nothing to show, or one that failed, is one 2rem row: its header, the note and
+   any action side by side, so an empty or broken column stays light. */
+.mt-card.state-empty, .mt-card.state-error { display: flex; flex-wrap: wrap; align-items: center;
+  gap: .2rem .6rem; min-height: 2rem; padding: .2rem .6rem; }
+.mt-card.state-empty > :not(header, .mt-actions),
+.mt-card.state-error > :not(header, .card-status, .mt-actions) { display: none; }
+.mt-card.state-empty header, .mt-card.state-error header { flex: 1 1 6rem; min-width: 0; align-items: center; }
+.mt-card.state-empty .card-status, .mt-card.state-error .card-status { margin: 0; }
+.mt-card header { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.card-meta { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .45em; }
+.mt-card.state-empty header { align-items: center; }
+.card-status { margin: .25rem 0; font-size: .8125rem; overflow-wrap: anywhere; }
+.card-error { color: var(--danger); }
+.card-empty, .card-info { color: var(--muted); }
+.card-note { font-family: var(--sans); font-size: 12px; font-weight: 400; letter-spacing: 0;
+  text-transform: none; color: var(--muted); }
+/* A destructive second step stays in the card: the question, then Confirm or Cancel. */
+.card-confirm { align-self: center; font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--ink); }
+/* A ready card says so in words, so its coloured edge is never the only cue. */
+.card-ready { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--accent-ink); }
+/* A busy card's three dots stand in for the bare ellipsis. */
+.card-spinner { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; }
+.card-spinner span { width: 4px; height: 4px; border-radius: 50%; background: var(--muted);
+  animation: card-dot 1.2s ease-in-out infinite; }
+.card-spinner span:nth-child(2) { animation-delay: .15s; }
+.card-spinner span:nth-child(3) { animation-delay: .3s; }
+@keyframes card-dot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .card-spinner span { animation: none; opacity: .6; } }
+.card-action { min-height: 28px; padding: 0 9px; font-size: 13px; }
+.card-use { background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent-text) 30%, var(--line));
+  color: var(--accent-ink); font-weight: 500; }
+button.card-use:hover:not(:disabled) { border-color: var(--accent-text); }
 .mt-card h3 { margin: 0; font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.mt-glyph { position: relative; min-width: 3.5em; text-align: right; }
 .mt-text { white-space: pre-wrap; margin: .3rem 0; font-family: var(--serif); font-size: 1rem; }
 .mt-entries { list-style: none; margin: .4rem 0 0; padding: 0; }
 .mt-entries li { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .5em; padding: .35rem 0; border-top: 1px solid var(--line); line-height: 1.5; }
@@ -114,7 +234,6 @@
 .mt-reading, .mt-lemma { font-family: var(--jp); font-size: .8125rem; color: var(--muted); }
 .mt-pos { margin-right: .4em; font-family: var(--serif); font-style: italic; font-size: .875rem; color: var(--muted); }
 .mt-gloss { flex-basis: 100%; font-family: var(--serif); font-size: .9375rem; line-height: 1.4; text-wrap: pretty; }
-.mt-statuses { display: flex; gap: .75em; }
 .mt-gram { margin-left: auto; font-size: 12px; color: var(--muted); }
 .mt-flag { flex-basis: 100%; margin-top: 2px; padding: 1px .4em; border-radius: 4px; font-size: 12px; background: var(--warn-soft); color: var(--warn-ink); }
 .mt-nomatch { font-style: italic; color: var(--muted); }
@@ -126,8 +245,18 @@
 .ollama-prompt { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8125rem; }
 @media (max-width: 60rem) {
   .editor-layout { flex-direction: column; }
-  .side-col { position: static; width: auto; max-height: none; }
-  .statusbar { padding: 6px 16px 8px; }
+  /* The aid column follows the cards in the flow but pins itself to the viewport's foot,
+     so a suggestion stays reachable without scrolling to the end of the chapter. */
+  .side-col { position: sticky; top: auto; bottom: 0; align-self: stretch; width: auto; flex: none;
+    max-height: 40vh; overflow-y: auto; order: 1; z-index: 1; padding: .5rem .25rem;
+    background: var(--surface); border-top: 1px solid var(--line); }
+  .side-col .side-col-toggle { position: sticky; top: 0; z-index: 1; }
+  /* Folded here, the peek is a 2.5rem bar across the top of the column, not a rail. */
+  .side-col.collapsed { width: auto; max-height: 2.5rem; overflow: hidden; padding-top: .25rem; padding-bottom: .25rem; }
+  .side-col.collapsed .side-col-toggle { writing-mode: horizontal-tb; width: 100%; min-height: 2rem;
+    margin: 0; justify-content: space-between; padding: 0 .5rem; }
+  .statusbar { padding: 6px 0 8px; }
+  .sb-inner { padding: 0 16px; }
   .sb-row { grid-template-columns: minmax(0, 1fr); }
   .sb-centre, .sb-tools { justify-content: flex-start; }
 }
@@ -138,6 +267,19 @@
 .chapter-nav .ch-row-title { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical;
   -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .chapter-nav .ch-progress { flex: none; margin-left: auto; padding-left: 12px; }
+/* The way back reads as a small crumb row at the top of the menu, not as chapter rows. */
+.chapter-nav .menu .sb-crumbs a[role="menuitem"] { display: inline-flex; align-items: center; width: auto;
+  min-height: 0; padding: 2px 6px; border-radius: 4px; }
+.chapter-nav .menu .sb-crumbs a[role="menuitem"]:hover,
+.chapter-nav .menu .sb-crumbs a[role="menuitem"]:focus-visible { background: var(--raised); }
+/* A reason row at the top of a menu: plain visible text, so a missing aid is explained in the
+   menu itself rather than in a tooltip nobody opens. */
+.menu .menu-hint { display: flex; align-items: center; width: 100%; min-height: 0;
+  padding: 6px 10px; border: 0; background: none; color: var(--muted); font-family: var(--sans);
+  font-size: 12px; font-weight: 400; text-align: left; }
+.menu .menu-hint:hover, .menu .menu-hint:focus-visible { background: none; }
+.menu .menu-hint:not(:disabled):hover, .menu .menu-hint:not(:disabled):focus-visible { color: var(--ink); }
+.menu a.menu-hint:hover { text-decoration: underline; }
 .jump-back { position: sticky; bottom: 16px; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
   margin-top: 8px; pointer-events: none; }
 .jump-back button { pointer-events: auto; box-shadow: 0 8px 24px -10px var(--shadow); }

@@ -140,7 +140,7 @@ test("end card", async ({ page }) => {
   await open(page, "Nav two");
   await page.getByRole("textbox", { name: "Translation" }).click();
   await page.keyboard.type("The second story.");
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("img", { name: "Saved", exact: true })).toBeVisible({ timeout: 5_000 });
   await expect(page.getByText(/All 1 line translated/)).toBeVisible();
   await expect(page.getByText("Last chapter of the series")).toHaveCount(0);
   await expect(page.getByRole("link", { name: /^Next chapter →.*Nav blank$/ })).toBeVisible();
@@ -151,6 +151,7 @@ test("a chapter with no lines keeps the way on", async ({ page }) => {
   await open(page, "Nav two");
   await page.getByRole("button", { name: "Next chapter", exact: true }).click();
   await expect(page.getByText("This chapter has no source text yet.")).toBeVisible();
+  await page.locator(".chapter-nav .menu-root > button").click();
   const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
   await expect(crumbs.getByRole("link", { name: "Nav series" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Next chapter", exact: true })).toBeDisabled();
@@ -205,7 +206,7 @@ test("a failing save retries itself, names its lines, and guards header links", 
   await dialog.getByRole("button", { name: "Cancel" }).click();
   expect(page.url()).toBe(url);
   status = 200;
-  await expect(page.locator(".save-state")).toHaveText("Saved", { timeout: 40_000 });
+  await expect(page.locator(".save-state")).toHaveAccessibleName("Saved", { timeout: 40_000 });
   await page.getByRole("link", { name: "Statistics" }).click();
   await expect(page).toHaveURL(/stat/);
 });
@@ -275,7 +276,7 @@ test("suggestion numbers don't move", async ({ page }) => {
     const panel = page.getByRole("complementary", { name: "Translation memory" });
     await expect(panel).toContainText("Old match");
     await expect(use).toHaveAttribute("data-use", "3");
-    await expect(panel.locator('[data-use="1"]')).toHaveText(/Old match/);
+    await expect(panel.locator('[data-use="1"]')).toHaveAccessibleName(/Old match/);
   } finally {
     await mtBackends(page, ["mecab", "jparser"]);
   }
@@ -325,7 +326,7 @@ test("replacing says so", async ({ page }) => {
   await expect(page.getByText(/^Replaced line 3\./)).toHaveCount(0);
   await page.keyboard.type("draft");
   await page.keyboard.press("Alt+1");
-  await expect(page.getByText("Replaced line 3. Ctrl+Z brings it back")).toBeVisible();
+  await expect(page.getByText(/^Replaced line 3\./)).toBeVisible();
 });
 
 test("a permanent error stops retrying and offers the text", async ({ context, page }) => {
@@ -399,7 +400,7 @@ test("notices expire", async ({ page }) => {
   await fakeSaves(page, () => 200);
   await box(page).click();
   await page.keyboard.press("Alt+9");
-  const notice = page.getByText("No suggestion 9 on this line");
+  const notice = page.getByText("No match for suggestion 9 on this line");
   await expect(notice).toBeVisible();
   await expect(notice).toHaveCount(0, { timeout: 10_000 });
   await page.keyboard.press("Alt+9");
@@ -428,10 +429,11 @@ test("every exit asks the same way", async ({ page }) => {
   const dialog = page.getByRole("dialog", { name: "Leave with unsaved lines?" });
   const exits = [
     page.getByRole("button", { name: "Next chapter", exact: true }),
-    page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Library" }),
+    page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Library" }), // inside the chapter menu
     page.getByRole("link", { name: "Statistics" }),
   ];
   for (const exit of exits) {
+    if (exit === exits[1]) await page.locator(".chapter-nav .menu-root > button").click();
     await exit.click();
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("Line 1");
@@ -484,7 +486,7 @@ test("Cancel stays", async ({ page }) => {
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(box(page)).toBeFocused();
   status = 200;
-  await expect(page.locator(".save-state")).toHaveText("Saved", { timeout: 20_000 });
+  await expect(page.locator(".save-state")).toHaveAccessibleName("Saved", { timeout: 20_000 });
   await page.waitForTimeout(3000);
   expect(page.url()).toBe(url);
 });
@@ -602,7 +604,7 @@ test("Alt+S retries", async ({ page }) => {
   const before = patches;
   await page.keyboard.press("Alt+s");
   await expect.poll(() => patches, { timeout: 1500 }).toBeGreaterThan(before); // at once, not on the retry timer
-  await expect(page.locator(".save-state")).toHaveText("Saved");
+  await expect(page.locator(".save-state")).toHaveAccessibleName("Saved");
 });
 
 test("the spell menu works by keyboard", async ({ page }) => {
@@ -744,7 +746,7 @@ test("the keyboard reaches the aids; the find bar leaves the save state visible"
   await page.keyboard.press("Alt+1");
   await expect(box(page)).toHaveText("From memory");
   await page.keyboard.press("Alt+9");
-  await expect(page.getByText("No suggestion 9 on this line")).toBeVisible();
+  await expect(page.getByText("No match for suggestion 9 on this line")).toBeVisible();
   await page.keyboard.press("Control+/");
   const help = page.getByRole("dialog", { name: "Keyboard shortcuts" });
   await expect(help.getByText("Use suggestion 1")).toBeVisible();

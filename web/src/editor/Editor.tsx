@@ -1,28 +1,23 @@
+import { undo } from "@codemirror/commands";
 import type { EditorView } from "@codemirror/view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Link } from "react-router";
 import { ConfirmDialog, PromptDialog } from "../ui/Dialog";
 import SpellMenu from "./SpellMenu";
 import { useSpell } from "./useSpell";
 import { api, call, type Schemas } from "../api/client";
 import type { Misspelling } from "./LineCard";
 import CardList from "./CardList";
-import CodeEditor, { insertAtCursor, replaceDoc, setMarks } from "./CodeEditor";
+import CodeEditor, { replaceDoc, setMarks } from "./CodeEditor";
 import FindBar from "./FindBar";
 import ImageCard from "./ImageCard";
-import { PUNCTUATIONS } from "./keymap";
-import { advanceParse, retreatParse } from "./parse";
-import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, nextContent, parseLineNumber, prevContent, progress } from "./rows";
+import { buildRows, firstContent, firstUntranslated, hasContent, lineAtOrAfter, parseLineNumber, progress } from "./rows";
 import PhraseDialog from "./PhraseDialog";
-import ReadingSwitch from "./ReadingSwitch";
 import { readingMode, type ReadingMode } from "./ruby";
 import { useReadings } from "./useReadings";
 import StatusBar, { linesText, type Crumbs } from "./StatusBar";
 import StickyTop from "./StickyTop";
 import KeyHelp from "./KeyHelp";
-import Menu from "../ui/Menu";
-import { Memory, Picture, Ruby, Translate } from "../ui/icons";
 import MtPanels from "./MtPanels";
 import TmPanel from "./TmPanel";
 import ChapterNav from "./ChapterBar";
@@ -38,10 +33,13 @@ import { useEditor } from "./useEditor";
 import { useFind } from "./useFind";
 import { useBindings, useEditorKeys } from "./useEditorKeys";
 import { assignSlots } from "./useSlots";
+import { useDebounced } from "./useDebounced";
+import { AidCount } from "./AidCount";
+import { readAidsOpen, writeAidsOpen } from "./aidsPref";
+import { AidsColumn, ChapterMenu, EmptyChapter, StatusTools } from "./EditorTools";
+import { runAction } from "./runAction";
 
 type Data = Schemas["DocumentLines"];
-
-const READING_ORDER: ReadingMode[] = ["off", "hiragana", "katakana", "romaji"];
 
 export default function Editor({ id, data }: { id: number; data: Data }) {
   const lines = data.lines;
@@ -104,6 +102,13 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   };
   const { leave, waiting, asking, goAnyway, stay } = useLeave(ed.store, ed.save.state, focusAfterDialog);
   const [showKeys, setShowKeys] = useState(false);
+  const [aidsOpen, setAidsOpen] = useState(readAidsOpen);
+  const toggleAids = () => setAidsOpen((open) => {
+    writeAidsOpen(!open);
+    return !open;
+  });
+  // Held-key stepping passes many lines; the hidden announcement follows once it stops.
+  const announcedLine = useDebounced((current?.line_number ?? ed.active) + 1, 400);
   const chapters = useMemo(() => chapterNeighbours(docs.data ?? [], id), [docs.data, id]);
   const listed = docs.data?.find((d) => d.id === id);
   // The server answered, but it has no such line: the source was edited elsewhere, and the
@@ -150,122 +155,12 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     if (hit && hit.index === ed.active && hit.field === "translation") marks.push({ from: hit.from, to: hit.to, cls: "find-current" });
     v.dispatch({ effects: setMarks.of(marks) });
   }, [spell.misspelled, spell.known, activeText, hit, ed.active]);
-  const run = (action: string) => {
-    const at = ed.active;
-    if (!lines[at] || phrase !== null) return;
-    switch (action) {
-      case "save_next": {
-        void ed.store.flush();
-        const next = nextContent(lines, at);
-        if (next !== null) {
-          activate(next);
-          break;
-        }
-        // The last line: the way on is the end card, whose button may still be loading.
-        setWantEnd(true);
-        break;
-      }
-      case "next":
-      case "next_alt":
-        activate(nextContent(lines, at));
-        break;
-      case "prev":
-      case "prev_alt":
-        activate(prevContent(lines, at));
-        break;
-      case "first":
-        activate(firstContent(lines));
-        break;
-      case "next_untranslated": {
-        // desktop: only from a line that already has a translation
-        if (!ed.texts[lines[at].line_number]) {
-          setNotice("This line has no translation yet");
-          break;
-        }
-        const next = firstUntranslated(lines, ed.texts);
-        if (next === null) setNotice("No untranslated lines left");
-        else activate(next);
-        break;
-      }
-      case "parse_next":
-        ed.setParse((p) => advanceParse(p, lines[at].sentences.length));
-        break;
-      case "parse_prev":
-        ed.setParse((p) => retreatParse(p, lines[at].replaced));
-        break;
-      case "go_to_line":
-        setGoToError(null);
-        setGoTo("");
-        break;
-      case "font_larger":
-        setFont(fontPx + 1);
-        break;
-      case "font_smaller":
-        setFont(fontPx - 1);
-        break;
-      case "add_word": {
-        const v = view.current;
-        if (v) {
-          const { from, to } = v.state.selection.main;
-          void addWord(v.state.sliceDoc(from, to).trim(), "series");
-        }
-        break;
-      }
-      case "add_phrase":
-        setPhrase(pendingSelection.current || window.getSelection()?.toString().trim() || "");
-        break;
-      case "find":
-        find.show();
-        break;
-      case "next_chapter":
-        if (chapters.next) void leave(`/documents/${chapters.next.id}`);
-        break;
-      case "prev_chapter":
-        if (chapters.prev) void leave(`/documents/${chapters.prev.id}`);
-        break;
-      case "toggle_tm":
-        saveSetting("tm_visible", !tmVisible);
-        break;
-      case "toggle_mt":
-        saveSetting("mt_visible", !mtVisible);
-        break;
-      case "toggle_glossary_ruby":
-        saveSetting("glossary_ruby", !glossaryRuby);
-        break;
-      case "cycle_reading":
-        if (readings.available) setMode(READING_ORDER[(READING_ORDER.indexOf(mode) + 1) % READING_ORDER.length]);
-        break;
-      case "key_help":
-        setShowKeys(true);
-        break;
-      case "retry_save":
-        void ed.store.flush();
-        break;
-      case "spell_open": {
-        const v = view.current;
-        if (!v) break;
-        const words = spell.misspelled(v.state.doc.toString());
-        if (!words.length) {
-          setNotice("No misspelled words on this line");
-          break;
-        }
-        // The word under or after the caret, else the first on the line.
-        const head = v.state.selection.main.head;
-        const word = words.find((m) => m.start >= head) ?? words[0];
-        const spot = v.coordsAtPos(word.start);
-        if (spot) setMenu({ x: spot.left, y: spot.bottom, word });
-        break;
-      }
-      default:
-        if (action.startsWith("punct_")) insertAtCursor(view.current, PUNCTUATIONS[Number(action.slice(6))], 1);
-        if (action.startsWith("use_")) {
-          const k = Number(action.slice(4));
-          const use = document.querySelector<HTMLElement>(`.side-col [data-use="${k}"]`);
-          if (use) use.click();
-          else setNotice(`No suggestion ${k} on this line`);
-        }
-    }
-  };
+  const run = (action: string) => runAction(action, {
+    ed, lines, phrase, view, pendingSelection, chapters, mode, readingsAvailable: readings.available,
+    tmVisible, mtVisible, glossaryRuby, fontPx, setWantEnd, setNotice, setGoTo, setGoToError, setFont,
+    setMode, setShowKeys, setMenu, saveSetting, addWord: (word, scope) => void addWord(word, scope),
+    activate, showFind: find.show, misspelled: spell.misspelled, leave, setPhrase,
+  });
   const bindings = useBindings();
   const closeFind = () => {
     if (!find.open) return false;
@@ -274,7 +169,6 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     return true;
   };
   useEditorKeys(bindings, run, () => view.current?.focus(), closeFind);
-  const keyed = (label: string, action: string) => `${label} (${bindings[action]})`;
   // Every hook stays above this early return; later tasks add theirs here too and read
   // `current?.` (it is undefined for a chapter with no lines).
 
@@ -297,26 +191,16 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     }
   });
   const goToLine = (i: number) => (i === ed.active ? returnToActive() : activate(i));
-  const imagesToggle = images.data?.length ? (
-    <button type="button" className="icon" aria-label="Images" title="Images"
-      aria-pressed={!imagesCollapsed} onClick={() => saveSetting("images_collapsed", !imagesCollapsed)}><Picture /></button>
-  ) : null;
   const chapterMenu = (withLines: boolean) => (
-    <Menu label="⋯" buttonLabel="Chapter actions"
-      onPointerDown={() => { pendingSelection.current = window.getSelection()?.toString().trim() ?? ""; }}>
-      {(close) => ([
-        ["Edit source", () => void leave(`/documents/${id}/source`)],
-        ["Split chapter", () => void leave(`/documents/${id}/split`)],
-        ...(withLines ? [[keyed("Go to line…", "go_to_line"), () => run("go_to_line")] as const] : []),
-        ["Series glossary", () => void leave(`/series/${seriesId}?tab=glossary`)],
-        ...(withLines ? [[keyed("Add glossary phrase…", "add_phrase"), () => run("add_phrase")] as const] : []),
-        ["Series tools", () => void leave(`/series/${seriesId}?tab=tools`)],
-        ...(withLines ? [[keyed("Keyboard shortcuts", "key_help"), () => setShowKeys(true)] as const] : []),
-      ] as const).map(([text, act]) => (
-        <button key={text} type="button" role="menuitem"
-          onClick={() => { close(); act(); pendingSelection.current = ""; }}>{text}</button>
-      ))}
-    </Menu>
+    <ChapterMenu id={id} seriesId={seriesId} withLines={withLines} bindings={bindings}
+      glossaryRuby={glossaryRuby} imagesCount={images.data?.length ?? 0} imagesCollapsed={imagesCollapsed}
+      readingsOff={!readings.available} spellOff={!spell.available}
+      onLeave={(to) => void leave(to)} onGoToLine={() => run("go_to_line")} onAddPhrase={() => run("add_phrase")}
+      onShowKeys={() => setShowKeys(true)}
+      onGlossaryRuby={() => { saveSetting("glossary_ruby", !glossaryRuby); view.current?.focus(); }}
+      onImages={() => { saveSetting("images_collapsed", !imagesCollapsed); view.current?.focus(); }}
+      onPointerDown={() => { pendingSelection.current = window.getSelection()?.toString().trim() ?? ""; }}
+      onClearSelection={() => { pendingSelection.current = ""; }} />
   );
   // The lines whose text the server has not taken: the dirty ones while a save is failing,
   // plus any the server says are gone. Those keep their text here, and Copy offers it.
@@ -339,15 +223,14 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       message={<p>{linesText(asking.lines)} could not be saved: {asking.error} The text is kept in this tab and sent again when you reopen this chapter here. Closing the tab loses it.</p>}
       onConfirm={goAnyway} onClose={stay} />
   );
-  const statusBar = (line: number | null, phraseText: string | null, tools: ReactNode) => (
-    <StatusBar crumbs={crumbs} line={line} total={lines.length}
-      translated={stats.done} lineCount={stats.total} percent={stats.percent} words={stats.words}
+  const statusBar = (phraseText: string | null, tools: ReactNode) => (
+    <StatusBar translated={stats.done} lineCount={stats.total} percent={stats.percent}
       phrase={phraseText} save={barSave} unsavedLines={barSave === ed.save ? unsavedLines : []}
       permanent={ed.savePermanent || Boolean(missingText)}
       onRetry={() => void ed.store.flush()} onCopy={copyUnsaved}
-      notice={waiting ? "Leaving once saved. Esc to stay." : restoredNotice ?? notice} spellAvailable={spell.available}
-      onLeave={(to) => void leave(to)}
-      nav={listed && <ChapterNav doc={listed} chapters={chapters} prevKey={bindings.prev_chapter} nextKey={bindings.next_chapter}
+      notice={restoredNotice ?? notice} waiting={waiting ? "Leaving once saved. Esc to stay." : null}
+      nav={listed && <ChapterNav doc={listed} chapters={chapters} crumbs={crumbs} onLeave={(to) => void leave(to)}
+        prevKey={bindings.prev_chapter} nextKey={bindings.next_chapter}
         onGo={(d) => void leave(`/documents/${d.id}`)} />}
       tools={tools} />
   );
@@ -358,18 +241,11 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
 
   if (!rows.some((r) => r.kind === "line")) {
     // an illustration-only or empty chapter still shows its images and the way on
-    if (images.isPending) return <main />;
-    const only = images.data?.length ? "has only images, no source text" : "has no source text yet";
     return (
-      <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
-        <StickyTop>{statusBar(null, null, <>{imagesToggle}{imagesToggle && <span className="sb-divider" aria-hidden="true" />}{chapterMenu(false)}</>)}</StickyTop>
-        {leaveDialog}
-        <main className="editor">
-          <p>This chapter {only}. <Link to={`/documents/${id}/source`}>Edit source</Link></p>
-          {(images.data ?? []).map((image) => <ImageCard key={`img-${image.id}`} image={image} collapsed={imagesCollapsed} chapters={chapters.volume} lineCount={lines.length} />)}
-          {chapterEnd}
-        </main>
-      </div>
+      <EmptyChapter id={id} fontPx={fontPx} images={images} imagesCollapsed={imagesCollapsed}
+        lineCount={lines.length} chapters={chapters.volume}
+        top={<StickyTop>{statusBar(null, <>{chapterMenu(false)}</>)}</StickyTop>}
+        leaveDialog={leaveDialog} chapterEnd={chapterEnd} />
     );
   }
   const n = current.line_number;
@@ -378,29 +254,33 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} autoFocus={!find.stepped.current} onContextMenu={onContextMenu} />
   );
   const useText = (t: string) => {
-    if ((ed.texts[n] ?? "") && ed.texts[n] !== t) setNotice(`Replaced line ${n + 1}. Ctrl+Z brings it back`);
+    const replacing = Boolean(ed.texts[n]) && ed.texts[n] !== t;
     // Through the view, so the replaced translation is one Ctrl+Z away.
     if (view.current) replaceDoc(view.current, t);
     else ed.setText(n, t);
+    if (replacing) {
+      setNotice(
+        <span className="sb-undo">Replaced line {n + 1}.
+          <button type="button" className="small" onClick={() => {
+            if (!view.current) return;
+            undo(view.current);
+            view.current.focus();
+          }}>Undo</button>
+        </span>,
+      );
+    }
   };
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
       <h1 className="visually-hidden">{shownTitle(data.document)}</h1>
-      <div role="status" className="visually-hidden">Line {n + 1} of {lines.length}</div>
+      <div role="status" className="visually-hidden">Line {announcedLine} of {lines.length}</div>
       <StickyTop>
-      {statusBar(n + 1, ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>
-          <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
-          <span className="sb-divider" aria-hidden="true" />
-          <button type="button" className="icon" aria-label="Glossary ruby" title={keyed("Glossary ruby", "toggle_glossary_ruby")}
-            aria-pressed={glossaryRuby} onClick={() => saveSetting("glossary_ruby", !glossaryRuby)}><Ruby /></button>
-          <button type="button" className="icon" aria-label="Translation memory" title={keyed("Translation memory", "toggle_tm")}
-            aria-pressed={tmVisible} onClick={() => saveSetting("tm_visible", !tmVisible)}><Memory /></button>
-          <button type="button" className="icon" aria-label="Machine translation" title={keyed("Machine translation", "toggle_mt")}
-            aria-pressed={mtVisible} onClick={() => saveSetting("mt_visible", !mtVisible)}><Translate /></button>
-          {imagesToggle}
-          <span className="sb-divider" aria-hidden="true" />
-          {chapterMenu(true)}
-        </>)}
+      {statusBar(ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, (
+        <StatusTools mode={mode} onMode={setMode} readings={readings} tmVisible={tmVisible} mtVisible={mtVisible}
+          bindings={bindings} onToggleTm={() => saveSetting("tm_visible", !tmVisible)}
+          onToggleMt={() => saveSetting("mt_visible", !mtVisible)} onShowKeys={() => setShowKeys(true)}
+          menu={chapterMenu(true)} />
+      ))}
       {find.open > 0 && (
         <FindBar key={find.open} needle={find.needle} position={find.at} total={find.total}
           onNeedle={find.setNeedle} onStep={find.step}
@@ -417,11 +297,13 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         <JumpBack active={ed.active} untranslated={firstLeft} onActivate={goToLine} onReturn={returnToActive} />
       </div>
       {(tmVisible || mtVisible) && (
-        <div className="side-col">
-          {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={useText} slots={slots} bindings={bindings} />}
-          {mtVisible && <MtPanels documentId={id} lineNumber={n} translated={Boolean(ed.texts[n])} onUse={useText}
-            slots={slots} bindings={bindings} />}
-        </div>
+        <AidCount>
+          <AidsColumn open={aidsOpen} onToggle={toggleAids}>
+            {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={useText} slots={slots} bindings={bindings} />}
+            {mtVisible && <MtPanels documentId={id} lineNumber={n} translated={Boolean(ed.texts[n])} onUse={useText}
+              slots={slots} bindings={bindings} />}
+          </AidsColumn>
+        </AidCount>
       )}
       </main>
       {phrase !== null && <PhraseDialog initial={phrase} onClose={() => { setPhrase(null); focusAfterDialog(); }} onSave={async (p, t) => {

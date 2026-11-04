@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 /** How long a status notice stays: long enough to read twice, short enough not to linger. */
 const NOTICE_MS = 8000;
 
-/** A status notice that clears itself, and at once when the line changes. */
-export function useNotice(active: number): { notice: string | null; setNotice(text: string): void } {
-  const [notice, setNotice] = useState<string | null>(null);
+/** A status notice that clears itself, and at once when the line changes. It may carry an
+ *  action (an Undo button), so it is a node, not only text. */
+export function useNotice(active: number): { notice: ReactNode | null; setNotice(text: ReactNode): void } {
+  const [notice, setNotice] = useState<ReactNode | null>(null);
   useEffect(() => {
     setNotice(null);
   }, [active]);
@@ -14,6 +15,6 @@ export function useNotice(active: number): { notice: string | null; setNotice(te
     const timer = setTimeout(() => setNotice(null), NOTICE_MS);
     return () => clearTimeout(timer);
   }, [notice]);
-  const set = useCallback((text: string) => setNotice(text), []);
+  const set = useCallback((text: ReactNode) => setNotice(text), []);
   return { notice, setNotice: set };
 }
