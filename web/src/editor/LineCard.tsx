@@ -120,13 +120,15 @@ function LineCard({ index, line, active, parse, text, highlight, hits = NO_HITS,
       <p className={readings?.length ? "source with-readings" : "source"} lang="ja" id={active ? "active-source" : undefined}>
         <Painted text={source} spans={sourceSpans} ruby={ruby} />
       </p>
-      {active ? (
-        editor
-      ) : (
-        <p className="translation" lang="en">
-          {text ? <Painted text={text} spans={textSpans} /> : <span className="muted">Type your translation…</span>}
-        </p>
-      )}
+      <div className="translation-area">
+        {active ? (
+          editor
+        ) : (
+          <p className="translation" lang="en">
+            {text ? <Painted text={text} spans={textSpans} /> : <span className="muted">Type your translation…</span>}
+          </p>
+        )}
+      </div>
     </article>
   );
 }

@@ -302,7 +302,8 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       aria-pressed={!imagesCollapsed} onClick={() => saveSetting("images_collapsed", !imagesCollapsed)}><Picture /></button>
   ) : null;
   const chapterMenu = (withLines: boolean) => (
-    <Menu label="⋯" buttonLabel="Chapter actions"
+    <Menu label={<span title={`Chapter actions \u00b7 ? for keyboard shortcuts (${bindings.key_help})`}>\u22ef</span>}
+      buttonLabel="Chapter actions"
       onPointerDown={() => { pendingSelection.current = window.getSelection()?.toString().trim() ?? ""; }}>
       {(close) => ([
         ["Edit source", () => void leave(`/documents/${id}/source`)],
@@ -311,7 +312,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         ["Series glossary", () => void leave(`/series/${seriesId}?tab=glossary`)],
         ...(withLines ? [[keyed("Add glossary phrase…", "add_phrase"), () => run("add_phrase")] as const] : []),
         ["Series tools", () => void leave(`/series/${seriesId}?tab=tools`)],
-        ...(withLines ? [[keyed("Keyboard shortcuts", "key_help"), () => setShowKeys(true)] as const] : []),
+        ...(withLines ? [[keyed("Keyboard shortcuts (?)", "key_help"), () => setShowKeys(true)] as const] : []),
       ] as const).map(([text, act]) => (
         <button key={text} type="button" role="menuitem"
           onClick={() => { close(); act(); pendingSelection.current = ""; }}>{text}</button>
@@ -339,15 +340,14 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       message={<p>{linesText(asking.lines)} could not be saved: {asking.error} The text is kept in this tab and sent again when you reopen this chapter here. Closing the tab loses it.</p>}
       onConfirm={goAnyway} onClose={stay} />
   );
-  const statusBar = (line: number | null, phraseText: string | null, tools: ReactNode) => (
-    <StatusBar crumbs={crumbs} line={line} total={lines.length}
-      translated={stats.done} lineCount={stats.total} percent={stats.percent} words={stats.words}
+  const statusBar = (phraseText: string | null, tools: ReactNode) => (
+    <StatusBar translated={stats.done} lineCount={stats.total} percent={stats.percent}
       phrase={phraseText} save={barSave} unsavedLines={barSave === ed.save ? unsavedLines : []}
       permanent={ed.savePermanent || Boolean(missingText)}
       onRetry={() => void ed.store.flush()} onCopy={copyUnsaved}
       notice={waiting ? "Leaving once saved. Esc to stay." : restoredNotice ?? notice} spellAvailable={spell.available}
-      onLeave={(to) => void leave(to)}
-      nav={listed && <ChapterNav doc={listed} chapters={chapters} prevKey={bindings.prev_chapter} nextKey={bindings.next_chapter}
+      nav={listed && <ChapterNav doc={listed} chapters={chapters} crumbs={crumbs} onLeave={(to) => void leave(to)}
+        prevKey={bindings.prev_chapter} nextKey={bindings.next_chapter}
         onGo={(d) => void leave(`/documents/${d.id}`)} />}
       tools={tools} />
   );
@@ -362,7 +362,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     const only = images.data?.length ? "has only images, no source text" : "has no source text yet";
     return (
       <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
-        <StickyTop>{statusBar(null, null, <>{imagesToggle}{imagesToggle && <span className="sb-divider" aria-hidden="true" />}{chapterMenu(false)}</>)}</StickyTop>
+        <StickyTop>{statusBar(null, <>{imagesToggle}{imagesToggle && <span className="sb-divider" aria-hidden="true" />}{chapterMenu(false)}</>)}</StickyTop>
         {leaveDialog}
         <main className="editor">
           <p>This chapter {only}. <Link to={`/documents/${id}/source`}>Edit source</Link></p>
@@ -388,7 +388,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       <h1 className="visually-hidden">{shownTitle(data.document)}</h1>
       <div role="status" className="visually-hidden">Line {n + 1} of {lines.length}</div>
       <StickyTop>
-      {statusBar(n + 1, ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>
+      {statusBar(ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>
           <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
           <span className="sb-divider" aria-hidden="true" />
           <button type="button" className="icon" aria-label="Glossary ruby" title={keyed("Glossary ruby", "toggle_glossary_ruby")}

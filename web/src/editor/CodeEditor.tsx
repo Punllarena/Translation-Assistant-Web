@@ -1,6 +1,6 @@
 import { defaultKeymap, history, historyKeymap, insertNewline } from "@codemirror/commands";
 import { EditorState, StateEffect, StateField, Transaction } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView, keymap } from "@codemirror/view";
+import { Decoration, type DecorationSet, EditorView, keymap, placeholder } from "@codemirror/view";
 import { useEffect, useRef } from "react";
 import type { Span } from "./paint";
 
@@ -86,6 +86,7 @@ export default function CodeEditor({ value, label, historyKey, onChange, onBlur,
           history(),
           keymap.of([{ key: "Shift-Enter", run: insertNewline }, ...historyKeymap, ...defaultKeymap]),
           EditorView.lineWrapping,
+          placeholder("Type your translation…"),
           marks,
           EditorView.contentAttributes.of({ "aria-label": label, "aria-describedby": "active-source", spellcheck: "false" }),
           EditorView.updateListener.of((u) => {

@@ -151,6 +151,7 @@ test("a chapter with no lines keeps the way on", async ({ page }) => {
   await open(page, "Nav two");
   await page.getByRole("button", { name: "Next chapter", exact: true }).click();
   await expect(page.getByText("This chapter has no source text yet.")).toBeVisible();
+  await page.locator(".chapter-nav .menu-root > button").click();
   const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
   await expect(crumbs.getByRole("link", { name: "Nav series" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Next chapter", exact: true })).toBeDisabled();
@@ -428,10 +429,11 @@ test("every exit asks the same way", async ({ page }) => {
   const dialog = page.getByRole("dialog", { name: "Leave with unsaved lines?" });
   const exits = [
     page.getByRole("button", { name: "Next chapter", exact: true }),
-    page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Library" }),
+    page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Library" }), // inside the chapter menu
     page.getByRole("link", { name: "Statistics" }),
   ];
   for (const exit of exits) {
+    if (exit === exits[1]) await page.locator(".chapter-nav .menu-root > button").click();
     await exit.click();
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("Line 1");

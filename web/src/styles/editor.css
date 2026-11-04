@@ -3,16 +3,17 @@
 .editor-top { position: sticky; top: 0; z-index: 2; background: var(--bg); }
 .statusbar { display: grid; gap: 4px; padding: 6px 32px 8px; font-size: 13px;
   color: var(--muted); border-bottom: 1px solid var(--line); }
-.sb-crumbs { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; font-size: 12px; }
+/* The way back sits at the top of the chapter menu, so the sticky top stays one row. */
+.sb-crumbs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-width: 0;
+  padding: 4px 10px 6px; font-size: 12px; }
 .sb-crumbs a { color: var(--muted); text-decoration: none; }
-.sb-crumbs a:hover { color: var(--ink); text-decoration: underline; }
+.sb-crumbs a:hover, .sb-crumbs a:focus-visible { color: var(--ink); text-decoration: underline; }
 /* The left zone shrinks first; the right keeps its tools; the pill sits in the middle when there is room. */
 .sb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr); gap: 8px 16px; align-items: center; }
 .sb-place { min-width: 0; }
 .sb-centre { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: center; }
 .sb-pill { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 4px 12px;
   border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
-.sb-line { font-family: var(--mono); }
 .sb-ring { flex: none; }
 .sb-ring circle { fill: none; stroke-width: 2.5; }
 .sb-ring-track { stroke: var(--line); }
@@ -21,12 +22,18 @@
 /* The save failure's own row: a long message wraps here instead of squeezing the title. */
 .sb-alert { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
 .sb-alert [role="alert"] { min-width: 0; overflow-wrap: anywhere; }
-.sb-tools button.icon[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink); }
+.sb-tools button.icon[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink);
+  box-shadow: inset 0 -2px 0 var(--accent-text); }
+.sb-tools button.icon[aria-pressed="false"] { background: none; color: var(--muted); }
 .sb-tools [role="group"] { display: inline-flex; gap: 2px; padding: 3px; border-radius: 8px;
   background: color-mix(in oklch, var(--line) 60%, var(--bg)); }
 .sb-tools [role="group"] button { min-height: 28px; padding: 0 10px; border: 0; background: none; color: var(--muted); font-weight: 400; }
 .sb-tools [role="group"] button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500;
   box-shadow: 0 1px 2px var(--shadow); }
+/* The あ/ア/a group says what it is once there is room for the word. */
+.reading-label { display: none; padding: 0 6px 0 8px; font-family: var(--sans); font-size: 11px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+@media (min-width: 75rem) { .reading-label { display: inline; } }
 .sb-divider { width: 1px; height: 20px; margin: 0 4px; background: var(--line); }
 .chapter-nav { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .chapter-nav .menu-root { min-width: 0; }
@@ -35,12 +42,15 @@
 .chapter-nav > button { flex: none; font-size: 18px; padding: 0 8px; }
 .ch-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink);
   font-family: var(--serif); font-weight: 500; font-size: 17px; }
-.save-state { display: inline-block; min-width: 9em; }
+.save-state { display: inline-flex; align-items: center; }
+.save-state:not(.save-saved) { min-width: 9em; }
+.save-saved { color: var(--ok); }
+.save-saved svg { width: 15px; height: 15px; }
 .editor { max-width: 60rem; margin: 0 auto; padding: 1rem 1rem 45vh; }
 .card { content-visibility: auto; contain-intrinsic-size: auto 6em; padding: .6em .8em; margin: .4em 0;
   border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
 .card:hover { background: var(--raised); }
-.card.active { background: var(--surface); border-color: color-mix(in oklch, var(--accent-text) 45%, transparent);
+.card.active { background: var(--surface); border-color: color-mix(in oklch, var(--accent-text) 62%, var(--line));
   box-shadow: 0 10px 28px -14px var(--shadow); cursor: auto; }
 .card-number { float: right; font-family: var(--mono); font-size: .7em; color: var(--muted); }
 /* A line whose text the server has not taken yet: a small vermilion mark beside its number. */
@@ -48,10 +58,13 @@
   background: var(--seal); }
 .copy-original { float: right; display: inline-flex; align-items: center; gap: .3em; margin-left: .6em;
   padding: .15em .45em; border: 0; border-radius: 6px; background: none; color: var(--muted);
-  font-size: .7em; cursor: pointer; visibility: hidden; }
+  font-size: .7em; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
 .copy-original svg { width: .9em; height: .9em; }
 .copy-feedback { font-family: var(--sans); }
-.card:hover .copy-original, .card:focus-within .copy-original, .card.active .copy-original { visibility: visible; }
+/* Keyboard focus reveals it too: Tab reaches it even while it is invisible to the pointer. */
+.card:hover .copy-original, .card:focus-within .copy-original, .card.active .copy-original,
+.copy-original:focus-visible { opacity: 1; pointer-events: auto; }
+.copy-original:focus-visible { outline: 2px solid color-mix(in oklch, var(--accent-text) 55%, transparent); outline-offset: 1px; }
 .copy-original:hover { background: var(--raised); color: var(--ink); }
 .source { margin: 0 0 .3em; font-family: var(--jp); line-height: 1.85; color: var(--src); }
 .card.active .source { color: var(--ink); }
@@ -60,15 +73,21 @@
 .source rt.rt-glossary { color: var(--accent-text); font-family: var(--sans); }
 .source rt.find-current { color: var(--ink); }
 .card.active .source.with-readings { line-height: 2.2; }
+.translation-area { margin-top: .3em; padding-top: .3em; border-top: 1px solid var(--line); }
+.card.active .translation-area { margin-top: .35em; padding: .3em .55em .3em .65em;
+  border-top: 1px solid var(--line); border-left: 3px solid var(--accent-text);
+  border-radius: 0 6px 6px 0; background: var(--field); }
 .translation { margin: 0; white-space: pre-wrap; font-family: var(--serif); }
 .code-editor { font-family: var(--serif); }
 .code-editor .cm-editor.cm-focused { outline: none; }
+.code-editor .cm-placeholder { color: var(--muted); font-style: italic; }
 .code-editor .cm-scroller { font-family: inherit; line-height: inherit; }
 .code-editor .cm-content { font: inherit; padding: 0; caret-color: var(--accent-text); }
 .code-editor .cm-cursor { border-left-color: var(--accent-text); }
 .jp-katakana { color: var(--kata); }
 .jp-kanji { color: color-mix(in oklch, var(--seal) 40%, currentColor); }
-.jp-punct { opacity: .6; }
+/* .6 fell to 4.37:1 on dark --surface; .65 keeps 4.9:1 and still reads quieter. */
+.jp-punct { opacity: .65; }
 .sentence-current { background: var(--sent); border-radius: 2px; }
 .find-hit { background: var(--hit); color: var(--ink); }
 .find-current { background: var(--hit-cur); color: var(--ink); }
@@ -89,17 +108,28 @@
 .editor-layout .editor { flex: 1; min-width: 0; }
 .side-col { position: sticky; top: var(--top-h, 5rem); width: 18rem; flex: none; font-size: .875rem;
   max-height: calc(100vh - var(--top-h, 5rem)); overflow-y: auto; }
-/* The real key that picks this suggestion, printed in full (Alt included). */
-.use-key { margin-right: .5em; font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+/* The real key that picks this suggestion, printed in full (Alt included) as a keycap. */
+.use-key { display: inline-block; margin-right: .5em; padding: 0 .35em; border: 1px solid var(--line);
+  border-radius: 3px; background: var(--raised); font-family: var(--mono); font-size: .75rem;
+  line-height: 1.6; color: var(--muted); }
 .key-help { max-height: 60vh; overflow-y: auto; font-size: 14px; }
 .key-help h3 { margin: 0 0 6px; }
 .key-help dl { display: grid; gap: 4px; margin: 0; }
 .key-help dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
 .key-help dd { margin: 0; flex: none; }
-.tm-panel { font-size: .875rem; padding: .5rem; }
-.tm-panel h2 { font-size: .875rem; margin: 0 0 .4rem; }
-.tm-panel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
-.tm-panel button { display: block; width: 100%; padding: .4rem .5rem; text-align: left; font: inherit; font-family: var(--serif); }
+/* Translation memory wears the same shell and heading as the MT cards. */
+.tm-panel { font-size: .875rem; }
+.tm-panel ul { list-style: none; margin: .2rem 0 0; padding: 0; }
+.tm-panel li { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .5em; padding: .35rem 0;
+  border-top: 1px solid var(--line); }
+.tm-panel li:first-child { border-top: 0; padding-top: 0; }
+.tm-panel button { display: flex; align-items: baseline; gap: .5em; width: 100%; min-height: 0;
+  padding: .35rem .45rem; border: 1px solid transparent; border-radius: 6px; background: none;
+  text-align: left; font: inherit; font-family: var(--serif); }
+.tm-panel button:hover:not(:disabled) { background: var(--raised); border-color: var(--line); }
+.tm-panel button:disabled { cursor: default; }
+.tm-text { min-width: 0; }
+.tm-source { flex-basis: 100%; padding-left: .45rem; font-size: .8125rem; }
 .mt-panels { display: grid; gap: .5rem; padding: .5rem; }
 .mt-card { min-height: 4rem; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .mt-card header { display: flex; justify-content: space-between; align-items: baseline; }
@@ -126,7 +156,11 @@
 .ollama-prompt { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8125rem; }
 @media (max-width: 60rem) {
   .editor-layout { flex-direction: column; }
-  .side-col { position: static; width: auto; max-height: none; }
+  /* The aid column follows the cards in the flow but pins itself to the viewport's foot,
+     so a suggestion stays reachable without scrolling to the end of the chapter. */
+  .side-col { position: sticky; top: auto; bottom: 0; align-self: stretch; width: auto; flex: none;
+    max-height: 40vh; overflow-y: auto; order: 1; z-index: 1; padding: .5rem .25rem;
+    background: var(--surface); border-top: 1px solid var(--line); }
   .statusbar { padding: 6px 16px 8px; }
   .sb-row { grid-template-columns: minmax(0, 1fr); }
   .sb-centre, .sb-tools { justify-content: flex-start; }
@@ -138,6 +172,11 @@
 .chapter-nav .ch-row-title { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical;
   -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .chapter-nav .ch-progress { flex: none; margin-left: auto; padding-left: 12px; }
+/* The way back reads as a small crumb row at the top of the menu, not as chapter rows. */
+.chapter-nav .menu .sb-crumbs a[role="menuitem"] { display: inline-flex; align-items: center; width: auto;
+  min-height: 0; padding: 2px 6px; border-radius: 4px; }
+.chapter-nav .menu .sb-crumbs a[role="menuitem"]:hover,
+.chapter-nav .menu .sb-crumbs a[role="menuitem"]:focus-visible { background: var(--raised); }
 .jump-back { position: sticky; bottom: 16px; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
   margin-top: 8px; pointer-events: none; }
 .jump-back button { pointer-events: auto; box-shadow: 0 8px 24px -10px var(--shadow); }

@@ -3,7 +3,7 @@ import { api, call } from "../api/client";
 
 /** Translation memory (desktop _update_tm_panel): earlier translations of this exact
  *  source line elsewhere; clicking one uses it. The first two weigh 1 and 2, whatever
- *  the machine translation cards do. */
+ *  the machine translation cards do. It wears the same shell as the MT cards. */
 export default function TmPanel({ documentId, lineNumber, onUse, slots, bindings }: {
   documentId: number; lineNumber: number; onUse(text: string): void;
   slots: { tm: readonly number[] }; bindings: Record<string, string>;
@@ -19,21 +19,21 @@ export default function TmPanel({ documentId, lineNumber, onUse, slots, bindings
   // they can be read, but not used.
   const stale = tm.isPlaceholderData;
   return (
-    <aside className="tm-panel" aria-label="Translation memory">
-      <h2>Translation memory</h2>
+    <aside className="mt-card tm-panel" aria-label="Translation memory">
+      <header><h3>Translation memory</h3></header>
       {matches.length === 0 && <p className="muted">{tm.isPending ? "Searching\u2026" : "No matches"}</p>}
       <ul>
         {matches.map((m, i) => {
           const slot = !stale && i < slots.tm.length ? slots.tm[i] : null;
           return (
-            <li key={i}>
+            <li key={i} className="tm-match">
               <button data-use={slot ?? undefined} disabled={stale} className={stale ? "muted" : undefined}
                 aria-label={slot !== null ? `Use "${m.translated_text}", ${bindings[`use_${slot}`]}` : `Use "${m.translated_text}"`}
                 onClick={() => onUse(m.translated_text)}>
                 {slot !== null && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}
-                {m.translated_text}
+                <span className="tm-text">{m.translated_text}</span>
               </button>
-              <span className="muted">{m.document_title}, {m.updated_at.slice(0, 10)}</span>
+              <span className="muted tm-source">{m.document_title}, {m.updated_at.slice(0, 10)}</span>
             </li>
           );
         })}

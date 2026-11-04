@@ -80,20 +80,21 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse, 
         <details><summary>Thinking</summary><p className="mt-text muted">{stream.thinking}</p></details>
       )}
       {state === "setup" && <p className="muted">{stream.message} <Link to="/settings/mt">Set up</Link></p>}
-      {state === "error" && <p role="alert">{stream.message} <button onClick={() => ask(stream === rerollLive)}>Retry</button></p>}
+      {state === "error" && <p role="alert">{stream.message}</p>}
       {sugs.error && <p className="error" role="alert">{sugs.error.message}</p>}
       <div className="mt-actions">
         {text && (
-          <button data-use={slot ?? undefined} onClick={() => onUse(text)}
+          <button className="small" data-use={slot ?? undefined} onClick={() => onUse(text)}
             aria-label={slot !== undefined ? `Use Ollama, ${bindings[`use_${slot}`]}` : "Use Ollama"}>
             {slot !== undefined && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}Use
           </button>
         )}
+        {state === "error" && <button className="small" onClick={() => ask(stream === rerollLive)}>Retry</button>}
         {suggestion && (state === "saved" || state === "stale") && (<>
-          <button onClick={() => setReasoning(suggestion.chunk_id)}>Reasoning</button>
-          <button onClick={() => ask(true)}>Reroll lines {lineRange(suggestion.first_line, suggestion.last_line)}</button>
+          <button className="small" onClick={() => setReasoning(suggestion.chunk_id)}>Reasoning</button>
+          <button className="small" onClick={() => ask(true)}>Reroll lines {lineRange(suggestion.first_line, suggestion.last_line)}</button>
         </>)}
-        {state === "idle" && loaded && <button onClick={() => ask(false)}>Translate chunk</button>}
+        {state === "idle" && loaded && <button className="small" onClick={() => ask(false)}>Translate chunk</button>}
       </div>
       {reasoning !== null && <ReasoningDialog chunkId={reasoning} onClose={() => setReasoning(null)} />}
     </section>

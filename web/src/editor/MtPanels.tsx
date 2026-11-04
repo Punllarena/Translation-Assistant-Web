@@ -59,7 +59,7 @@ function Card({ name, label, documentId, lineNumber, onUse, slot, bindings }: {
       <Problems state={state} retry={retry} />
       {/* A stream still sending text offers no Use: half a translation is not one. */}
       {state.status === "done" && state.text && (
-        <button data-use={slot ?? undefined} onClick={() => onUse(state.text)}
+        <button className="small" data-use={slot ?? undefined} onClick={() => onUse(state.text)}
           aria-label={slot !== undefined ? `Use ${label}, ${bindings[`use_${slot}`]}` : `Use ${label}`}>
           {slot !== undefined && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}Use
         </button>

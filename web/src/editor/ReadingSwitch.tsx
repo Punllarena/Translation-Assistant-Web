@@ -18,6 +18,7 @@ interface Props {
 export default function ReadingSwitch({ mode, onChange, disabled, title }: Props) {
   return (
     <span role="group" aria-label="Reading aid" title={disabled ? title : undefined}>
+      <span className="reading-label" aria-hidden="true">Readings</span>
       {CHOICES.map((c) => (
         <button key={c.mode} type="button" aria-pressed={mode === c.mode} aria-label={c.label}
           disabled={disabled && c.mode !== "off"} onClick={() => onChange(c.mode)}>{c.text}</button>
