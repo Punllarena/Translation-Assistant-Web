@@ -10,6 +10,12 @@ async function open(page: Page) {
   await openChapter(page, "E2E glossary ruby series", "Ruby target");
 }
 
+/** The toggle lives in the chapter actions menu; opening it hands back the checkbox item. */
+async function glossaryRubyItem(page: Page) {
+  await page.getByRole("button", { name: "Chapter actions" }).click();
+  return page.getByRole("menuitemcheckbox", { name: /Glossary ruby/ });
+}
+
 /** The glossary_ruby setting as the server holds it (saveSetting writes it fire-and-forget). */
 function serverGlossaryRuby(page: Page): Promise<unknown> {
   return page.evaluate(async () => (await (await fetch("/api/settings")).json()).glossary_ruby);
@@ -30,14 +36,18 @@ test("the toggle shows the original with the glossary on top", async ({ page }) 
     await expect(page.locator("p.source")).toContainText("Tokyoです。");
     await expect(page.locator("p.source rt.rt-glossary")).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Glossary ruby" }).click();
-    await expect(page.getByRole("button", { name: "Glossary ruby" })).toHaveAttribute("aria-pressed", "true");
+    const toggle = await glossaryRubyItem(page);
+    await toggle.click();
+    await expect(page.getByRole("button", { name: "Chapter actions" })).toBeVisible();
+    await expect((await glossaryRubyItem(page))).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
     await expect.poll(() => serverGlossaryRuby(page)).toBe(true);
 
     // the setting persists across a reload, and on it the original text carries the
     // translation as ruby over the phrase
     await page.reload();
-    await expect(page.getByRole("button", { name: "Glossary ruby" })).toHaveAttribute("aria-pressed", "true");
+    await expect((await glossaryRubyItem(page))).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
     const ruby = page.locator("p.source ruby", { hasText: "東京" });
     await expect(ruby.locator("rt")).toHaveText("Tokyo");
     await expect(ruby.locator("rt")).toHaveClass(/rt-glossary/);
@@ -63,7 +73,8 @@ test("glossary ruby wins over the reading on the active card", async ({ page }) 
       body: JSON.stringify({ glossary_ruby: true, reading_aid: "hiragana" }),
     }));
     await page.reload();
-    await expect(page.getByRole("button", { name: "Glossary ruby" })).toHaveAttribute("aria-pressed", "true");
+    await expect((await glossaryRubyItem(page))).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
     await expect(page.getByRole("button", { name: "Hiragana readings" })).toHaveAttribute("aria-pressed", "true");
     const ruby = page.locator("p.source ruby", { hasText: "東京" });
     await expect(ruby.locator("rt")).toHaveText("Tokyo"); // the glossary wins over the reading

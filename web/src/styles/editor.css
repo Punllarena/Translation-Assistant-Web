@@ -1,8 +1,9 @@
 /* The phase 3b editor rules on tokens. The layout redesign is phase 7b. */
 .editor-page { font-size: var(--editor-font, 18px); }
 .editor-top { position: sticky; top: 0; z-index: 2; background: var(--bg); }
-.statusbar { display: grid; gap: 4px; padding: 6px 32px 8px; font-size: 13px;
-  color: var(--muted); border-bottom: 1px solid var(--line); }
+.statusbar { padding: 6px 0 8px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); }
+/* The bar's content keeps the editor's 60rem edge, so the tools line up with the cards. */
+.sb-inner { display: grid; gap: 4px; max-width: 60rem; margin: 0 auto; padding: 0 1rem; }
 /* The way back sits at the top of the chapter menu, so the sticky top stays one row. */
 .sb-crumbs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-width: 0;
   padding: 4px 10px 6px; font-size: 12px; }
@@ -30,6 +31,19 @@
 .sb-tools [role="group"] button { min-height: 28px; padding: 0 10px; border: 0; background: none; color: var(--muted); font-weight: 400; }
 .sb-tools [role="group"] button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500;
   box-shadow: 0 1px 2px var(--shadow); }
+/* The aids cluster: a filled, ink-dark pressed state and a small check dot, not a faint wash. */
+.sb-tools .sb-aids button.icon { position: relative; width: auto; min-width: 32px; padding: 0 8px; }
+.sb-tools .sb-aids button.icon[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-ink);
+  box-shadow: inset 0 -2px 0 var(--accent-text); }
+.sb-tools .sb-aids button.icon[aria-pressed="true"]::after { content: ""; position: absolute; top: 2px; right: 2px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--accent-text); }
+/* A notice carrying an action speaks in ink; plain notices stay muted. */
+.sb-notice { min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+.sb-notice.muted { color: var(--muted); }
+.sb-note { font-size: 12px; }
+.sb-note a { color: var(--accent-text); }
+.sb-undo { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sb-undo .small { min-height: 22px; padding: 0 8px; font-size: 12px; }
 /* The あ/ア/a group says what it is once there is room for the word. */
 .reading-label { display: none; padding: 0 6px 0 8px; font-family: var(--sans); font-size: 11px; font-weight: 600;
   letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
@@ -42,11 +56,20 @@
 .chapter-nav > button { flex: none; font-size: 18px; padding: 0 8px; }
 .ch-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink);
   font-family: var(--serif); font-weight: 500; font-size: 17px; }
-.save-state { display: inline-flex; align-items: center; }
-.save-state:not(.save-saved) { min-width: 9em; }
-.save-saved { color: var(--ok); }
+.save-state { display: inline-flex; align-items: center; justify-content: center; }
+/* The check never moves the pill: it reserves its own width; text states keep theirs. */
+.save-saved { min-width: 1.5em; color: var(--ok); }
 .save-saved svg { width: 15px; height: 15px; }
 .editor { max-width: 60rem; margin: 0 auto; padding: 1rem 1rem 45vh; }
+/* A quiet placeholder while the chapter's images load, instead of an empty page. */
+.editor-skel { display: grid; gap: .75rem; padding: 1rem 0; }
+.editor-skel span { height: 1.05em; border-radius: 6px; background: color-mix(in oklch, var(--line) 55%, var(--bg));
+  animation: skel-pulse 1.6s ease-in-out infinite; }
+.editor-skel span:nth-child(2) { width: 92%; }
+.editor-skel span:nth-child(3) { width: 84%; }
+.editor-skel span:nth-child(4) { width: 60%; }
+@keyframes skel-pulse { 0%, 100% { opacity: .55; } 50% { opacity: .9; } }
+@media (prefers-reduced-motion: reduce) { .editor-skel span { animation: none; } }
 .card { content-visibility: auto; contain-intrinsic-size: auto 6em; padding: .6em .8em; margin: .4em 0;
   border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
 .card:hover { background: var(--raised); }
@@ -107,7 +130,18 @@
 .editor-layout { display: flex; gap: 1rem; align-items: flex-start; justify-content: center; }
 .editor-layout .editor { flex: 1; min-width: 0; }
 .side-col { position: sticky; top: var(--top-h, 5rem); width: 18rem; flex: none; font-size: .875rem;
-  max-height: calc(100vh - var(--top-h, 5rem)); overflow-y: auto; }
+  max-height: calc(100vh - var(--top-h, 5rem)); overflow-y: auto; display: flex; flex-direction: column;
+  gap: .5rem; padding: .5rem; }
+/* The cards rank by usefulness without moving in the DOM, so the Alt+N slots stay put. */
+.side-col .state-ready { order: 1; }
+.side-col .state-busy { order: 2; }
+.side-col .state-error { order: 3; }
+.side-col .state-empty { order: 4; }
+/* Narrow screens only: the column's header row folds it to a 2.5rem peek. */
+.side-col-toggle { display: none; align-items: center; justify-content: space-between; width: 100%;
+  min-height: 2rem; padding: 0 .5rem; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--ink); font-size: 12px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; }
 /* The real key that picks this suggestion, printed in full (Alt included) as a keycap. */
 .use-key { display: inline-block; margin-right: .5em; padding: 0 .35em; border: 1px solid var(--line);
   border-radius: 3px; background: var(--raised); font-family: var(--mono); font-size: .75rem;
@@ -129,10 +163,43 @@
 .tm-panel button:hover:not(:disabled) { background: var(--raised); border-color: var(--line); }
 .tm-panel button:disabled { cursor: default; }
 .tm-text { min-width: 0; }
+/* The row is the click; the shared Use affordance sits at its right. */
+.tm-use { display: inline-flex; align-items: center; flex: none; margin-left: auto; padding: .1rem .4rem;
+  border: 1px solid var(--line); border-radius: 6px; font-family: var(--sans); font-size: 12px;
+  font-weight: 500; white-space: nowrap; color: var(--muted); }
+.tm-use.card-use { background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent-text) 30%, var(--line));
+  color: var(--accent-ink); }
+.tm-panel .tm-use { min-height: 0; padding: .1rem .4rem; font-size: 12px; }
+.tm-panel button:hover:not(:disabled) .tm-use { border-color: var(--accent-text); }
 .tm-source { flex-basis: 100%; padding-left: .45rem; font-size: .8125rem; }
-.mt-panels { display: grid; gap: .5rem; padding: .5rem; }
+.mt-panels { display: contents; }
+/* Each card says what it is; ready cards carry a stronger edge, empty ones fold to a header. */
 .mt-card { min-height: 4rem; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.mt-card header { display: flex; justify-content: space-between; align-items: baseline; }
+.mt-card.state-ready { border-left: 3px solid var(--accent-text); }
+.mt-card.state-busy { border-left: 3px solid var(--line); }
+.mt-card.state-error { border-left: 3px solid var(--danger); }
+.mt-card.state-empty { min-height: 0; padding: .35rem .6rem; }
+/* An empty card keeps only its header and any action it still offers (Translate chunk). */
+.mt-card.state-empty > :not(header, .mt-actions) { display: none; }
+.mt-card header { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.mt-card.state-empty header { align-items: center; }
+.card-status { margin: .25rem 0; font-size: .8125rem; overflow-wrap: anywhere; }
+.card-error { color: var(--danger); }
+.card-empty, .card-info { color: var(--muted); }
+.card-note { font-family: var(--sans); font-size: 12px; font-weight: 400; letter-spacing: 0;
+  text-transform: none; color: var(--muted); }
+/* A busy card's three dots stand in for the bare ellipsis. */
+.card-spinner { display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; }
+.card-spinner span { width: 4px; height: 4px; border-radius: 50%; background: var(--muted);
+  animation: card-dot 1.2s ease-in-out infinite; }
+.card-spinner span:nth-child(2) { animation-delay: .15s; }
+.card-spinner span:nth-child(3) { animation-delay: .3s; }
+@keyframes card-dot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .card-spinner span { animation: none; opacity: .6; } }
+.card-action { min-height: 28px; padding: 0 9px; font-size: 13px; }
+.card-use { background: var(--accent-soft); border-color: color-mix(in oklch, var(--accent-text) 30%, var(--line));
+  color: var(--accent-ink); font-weight: 500; }
+button.card-use:hover:not(:disabled) { border-color: var(--accent-text); }
 .mt-card h3 { margin: 0; font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .mt-glyph { position: relative; min-width: 3.5em; text-align: right; }
 .mt-text { white-space: pre-wrap; margin: .3rem 0; font-family: var(--serif); font-size: 1rem; }
@@ -161,7 +228,10 @@
   .side-col { position: sticky; top: auto; bottom: 0; align-self: stretch; width: auto; flex: none;
     max-height: 40vh; overflow-y: auto; order: 1; z-index: 1; padding: .5rem .25rem;
     background: var(--surface); border-top: 1px solid var(--line); }
-  .statusbar { padding: 6px 16px 8px; }
+  .side-col .side-col-toggle { display: flex; position: sticky; top: 0; z-index: 1; }
+  .side-col.collapsed { max-height: 2.5rem; overflow: hidden; padding-top: .25rem; padding-bottom: .25rem; }
+  .statusbar { padding: 6px 0 8px; }
+  .sb-inner { padding: 0 16px; }
   .sb-row { grid-template-columns: minmax(0, 1fr); }
   .sb-centre, .sb-tools { justify-content: flex-start; }
 }

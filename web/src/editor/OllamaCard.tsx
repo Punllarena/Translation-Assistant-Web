@@ -2,6 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { api, call } from "../api/client";
+import { CardAction, CardStatus } from "./CardParts";
+import { friendlyError } from "./cardCopy";
 import { apply, badge, cardState, coversLine, initial, lineRange, type StreamState, type Suggestion } from "./ollamaCardState";
 import ReasoningDialog from "./ReasoningDialog";
 import { useSse } from "./useSse";
@@ -65,36 +67,60 @@ export default function OllamaCard({ documentId, lineNumber, translated, onUse, 
   const liveText = stream.lines[lineNumber];
   const text = state === "saved" || state === "stale" ? suggestion?.text : liveText ?? undefined;
   const range = stream.first !== null && stream.last !== null ? lineRange(stream.first, stream.last) : null;
+  const busy = state === "running" || state === "waiting" || state === "manual";
+  const aid = state === "error" || state === "setup" || sugs.error ? "error"
+    : busy || !loaded ? "busy" : state === "idle" ? "empty" : "ready";
   return (
-    <section className="mt-card" aria-label="Ollama">
-      <header><h3>Ollama</h3><span className="muted mt-glyph">{state === "running" || state === "waiting" || state === "manual" ? "…" : ""}</span></header>
+    <section className={`mt-card state-${aid}`} aria-label="Ollama">
+      <header>
+        <h3>Ollama</h3>
+        {aid === "ready" && slot !== undefined && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}
+        {aid === "empty" && <span className="card-note muted">No suggestion</span>}
+        {aid === "busy" && <CardStatus kind="busy">{state === "running" ? "Translating" : "Waiting"}</CardStatus>}
+      </header>
       {state === "running" && <p className="muted">{range ? `Translating lines ${range}…` : "Translating…"}</p>}
-      {state === "waiting" && <p className="muted">Waiting for the night run's current chunk…</p>}
-      {state === "manual" && <p className="muted">Waiting for another Ollama request…</p>}
+      {state === "waiting" && (
+        <>
+          <p className="muted">Waiting for the night run's current chunk…</p>
+          <p className="card-note muted">The night run is translating this chunk. Yours starts when it finishes.</p>
+        </>
+      )}
+      {state === "manual" && (
+        <>
+          <p className="muted">Waiting for another Ollama request…</p>
+          <p className="card-note muted">Another Ollama request is running. Yours follows.</p>
+        </>
+      )}
       {suggestion && (state === "saved" || state === "stale") && (
         <p className="muted">{badge(suggestion, new Date())}
           {suggestion.stale && <> · <span className="badge warn">source changed</span></>}</p>
+      )}
+      {suggestion?.stale && (state === "saved" || state === "stale") && (
+        <p className="card-note muted">The Japanese line changed after this draft.</p>
       )}
       {text && <p className="mt-text">{text}</p>}
       {stream.thinking && state === "running" && (
         <details><summary>Thinking</summary><p className="mt-text muted">{stream.thinking}</p></details>
       )}
-      {state === "setup" && <p className="muted">{stream.message} <Link to="/settings/mt">Set up</Link></p>}
-      {state === "error" && <p role="alert">{stream.message}</p>}
-      {sugs.error && <p className="error" role="alert">{sugs.error.message}</p>}
+      {state === "setup" && (
+        <CardStatus kind="info">{stream.message} <Link to="/settings/mt">Set up</Link></CardStatus>
+      )}
+      {(state === "error" || sugs.error) && (
+        <CardStatus kind="error">
+          {friendlyError(state === "error" ? stream.message : sugs.error?.message ?? "", "Ollama")}
+        </CardStatus>
+      )}
       <div className="mt-actions">
         {text && (
-          <button className="small" data-use={slot ?? undefined} onClick={() => onUse(text)}
-            aria-label={slot !== undefined ? `Use Ollama, ${bindings[`use_${slot}`]}` : "Use Ollama"}>
-            {slot !== undefined && <span className="use-key" aria-hidden="true">{bindings[`use_${slot}`]}</span>}Use
-          </button>
+          <CardAction tone="use" slot={slot} onClick={() => onUse(text)}
+            label={slot !== undefined ? `Use Ollama, ${bindings[`use_${slot}`]}` : "Use Ollama"}>Use</CardAction>
         )}
-        {state === "error" && <button className="small" onClick={() => ask(stream === rerollLive)}>Retry</button>}
+        {state === "error" && <CardAction onClick={() => ask(stream === rerollLive)}>Retry</CardAction>}
         {suggestion && (state === "saved" || state === "stale") && (<>
-          <button className="small" onClick={() => setReasoning(suggestion.chunk_id)}>Reasoning</button>
-          <button className="small" onClick={() => ask(true)}>Reroll lines {lineRange(suggestion.first_line, suggestion.last_line)}</button>
+          <CardAction onClick={() => setReasoning(suggestion.chunk_id)}>Reasoning</CardAction>
+          <CardAction onClick={() => ask(true)}>Reroll lines {lineRange(suggestion.first_line, suggestion.last_line)}</CardAction>
         </>)}
-        {state === "idle" && loaded && <button className="small" onClick={() => ask(false)}>Translate chunk</button>}
+        {state === "idle" && loaded && <CardAction onClick={() => ask(false)}>Translate chunk</CardAction>}
       </div>
       {reasoning !== null && <ReasoningDialog chunkId={reasoning} onClose={() => setReasoning(null)} />}
     </section>

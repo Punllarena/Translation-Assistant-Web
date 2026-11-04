@@ -1,3 +1,4 @@
+import { undo } from "@codemirror/commands";
 import type { EditorView } from "@codemirror/view";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -22,7 +23,7 @@ import StatusBar, { linesText, type Crumbs } from "./StatusBar";
 import StickyTop from "./StickyTop";
 import KeyHelp from "./KeyHelp";
 import Menu from "../ui/Menu";
-import { Memory, Picture, Ruby, Translate } from "../ui/icons";
+import { Memory, Translate } from "../ui/icons";
 import MtPanels from "./MtPanels";
 import TmPanel from "./TmPanel";
 import ChapterNav from "./ChapterBar";
@@ -104,6 +105,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
   };
   const { leave, waiting, asking, goAnyway, stay } = useLeave(ed.store, ed.save.state, focusAfterDialog);
   const [showKeys, setShowKeys] = useState(false);
+  const [aidsOpen, setAidsOpen] = useState(true);
   const chapters = useMemo(() => chapterNeighbours(docs.data ?? [], id), [docs.data, id]);
   const listed = docs.data?.find((d) => d.id === id);
   // The server answered, but it has no such line: the source was edited elsewhere, and the
@@ -297,26 +299,52 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
     }
   });
   const goToLine = (i: number) => (i === ed.active ? returnToActive() : activate(i));
-  const imagesToggle = images.data?.length ? (
-    <button type="button" className="icon" aria-label="Images" title="Images"
-      aria-pressed={!imagesCollapsed} onClick={() => saveSetting("images_collapsed", !imagesCollapsed)}><Picture /></button>
-  ) : null;
   const chapterMenu = (withLines: boolean) => (
-    <Menu label={<span title={`Chapter actions \u00b7 ? for keyboard shortcuts (${bindings.key_help})`}>\u22ef</span>}
+    <Menu label={<span title={`Chapter actions · ? for keyboard shortcuts (${bindings.key_help})`}>⋯</span>}
       buttonLabel="Chapter actions"
       onPointerDown={() => { pendingSelection.current = window.getSelection()?.toString().trim() ?? ""; }}>
-      {(close) => ([
-        ["Edit source", () => void leave(`/documents/${id}/source`)],
-        ["Split chapter", () => void leave(`/documents/${id}/split`)],
-        ...(withLines ? [[keyed("Go to line…", "go_to_line"), () => run("go_to_line")] as const] : []),
-        ["Series glossary", () => void leave(`/series/${seriesId}?tab=glossary`)],
-        ...(withLines ? [[keyed("Add glossary phrase…", "add_phrase"), () => run("add_phrase")] as const] : []),
-        ["Series tools", () => void leave(`/series/${seriesId}?tab=tools`)],
-        ...(withLines ? [[keyed("Keyboard shortcuts (?)", "key_help"), () => setShowKeys(true)] as const] : []),
-      ] as const).map(([text, act]) => (
-        <button key={text} type="button" role="menuitem"
-          onClick={() => { close(); act(); pendingSelection.current = ""; }}>{text}</button>
-      ))}
+      {(close) => {
+        const actions = ([
+          ["Edit source", () => void leave(`/documents/${id}/source`)],
+          ["Split chapter", () => void leave(`/documents/${id}/split`)],
+          ...(withLines ? [[keyed("Go to line…", "go_to_line"), () => run("go_to_line")] as const] : []),
+          ["Series glossary", () => void leave(`/series/${seriesId}?tab=glossary`)],
+          ...(withLines ? [[keyed("Add glossary phrase…", "add_phrase"), () => run("add_phrase")] as const] : []),
+          ["Series tools", () => void leave(`/series/${seriesId}?tab=tools`)],
+          ...(withLines ? [[keyed("Keyboard shortcuts (?)", "key_help"), () => setShowKeys(true)] as const] : []),
+        ] as const);
+        // The aids that need no permanent space live here, as checkboxes.
+        const toggles = [
+          ...(withLines ? [(
+            <button key="glossary-ruby" type="button" role="menuitemcheckbox" aria-checked={glossaryRuby}
+              title="Shows glossary matches above the source"
+              onClick={() => {
+                close();
+                saveSetting("glossary_ruby", !glossaryRuby);
+                view.current?.focus();
+              }}>{keyed("Glossary ruby", "toggle_glossary_ruby")}</button>
+          )] : []),
+          ...(images.data?.length ? [(
+            <button key="images" type="button" role="menuitemcheckbox" aria-checked={!imagesCollapsed}
+              title="Show chapter images"
+              onClick={() => {
+                close();
+                saveSetting("images_collapsed", !imagesCollapsed);
+                view.current?.focus();
+              }}>Images</button>
+          )] : []),
+        ];
+        return (
+          <>
+            {actions.map(([text, act]) => (
+              <button key={text} type="button" role="menuitem"
+                onClick={() => { close(); act(); pendingSelection.current = ""; }}>{text}</button>
+            ))}
+            {toggles.length > 0 && <div className="menu-sep" role="presentation" />}
+            {toggles}
+          </>
+        );
+      }}
     </Menu>
   );
   // The lines whose text the server has not taken: the dirty ones while a save is failing,
@@ -346,6 +374,7 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       permanent={ed.savePermanent || Boolean(missingText)}
       onRetry={() => void ed.store.flush()} onCopy={copyUnsaved}
       notice={waiting ? "Leaving once saved. Esc to stay." : restoredNotice ?? notice} spellAvailable={spell.available}
+      readings={{ available: readings.available, message: readings.message }}
       nav={listed && <ChapterNav doc={listed} chapters={chapters} crumbs={crumbs} onLeave={(to) => void leave(to)}
         prevKey={bindings.prev_chapter} nextKey={bindings.next_chapter}
         onGo={(d) => void leave(`/documents/${d.id}`)} />}
@@ -358,11 +387,19 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
 
   if (!rows.some((r) => r.kind === "line")) {
     // an illustration-only or empty chapter still shows its images and the way on
-    if (images.isPending) return <main />;
+    if (images.isPending) {
+      return (
+        <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
+          <main className="editor">
+            <div className="editor-skel" aria-hidden="true"><span /><span /><span /><span /></div>
+          </main>
+        </div>
+      );
+    }
     const only = images.data?.length ? "has only images, no source text" : "has no source text yet";
     return (
       <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
-        <StickyTop>{statusBar(null, <>{imagesToggle}{imagesToggle && <span className="sb-divider" aria-hidden="true" />}{chapterMenu(false)}</>)}</StickyTop>
+        <StickyTop>{statusBar(null, <>{chapterMenu(false)}</>)}</StickyTop>
         {leaveDialog}
         <main className="editor">
           <p>This chapter {only}. <Link to={`/documents/${id}/source`}>Edit source</Link></p>
@@ -378,10 +415,21 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       onChange={(t) => ed.setText(n, t)} onBlur={() => void ed.store.flush()} onReady={onReady} autoFocus={!find.stepped.current} onContextMenu={onContextMenu} />
   );
   const useText = (t: string) => {
-    if ((ed.texts[n] ?? "") && ed.texts[n] !== t) setNotice(`Replaced line ${n + 1}. Ctrl+Z brings it back`);
+    const replacing = Boolean(ed.texts[n]) && ed.texts[n] !== t;
     // Through the view, so the replaced translation is one Ctrl+Z away.
     if (view.current) replaceDoc(view.current, t);
     else ed.setText(n, t);
+    if (replacing) {
+      setNotice(
+        <span className="sb-undo">Replaced line {n + 1}.
+          <button type="button" className="small" onClick={() => {
+            if (!view.current) return;
+            undo(view.current);
+            view.current.focus();
+          }}>Undo</button>
+        </span>,
+      );
+    }
   };
   return (
     <div className="editor-page" style={{ "--editor-font": `${fontPx}px` } as CSSProperties}>
@@ -391,13 +439,12 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
       {statusBar(ed.parse >= 0 ? `Phrase ${ed.parse + 1}/${current.sentences.length}` : null, <>
           <ReadingSwitch mode={mode} onChange={setMode} disabled={!readings.available} title={readings.message} />
           <span className="sb-divider" aria-hidden="true" />
-          <button type="button" className="icon" aria-label="Glossary ruby" title={keyed("Glossary ruby", "toggle_glossary_ruby")}
-            aria-pressed={glossaryRuby} onClick={() => saveSetting("glossary_ruby", !glossaryRuby)}><Ruby /></button>
-          <button type="button" className="icon" aria-label="Translation memory" title={keyed("Translation memory", "toggle_tm")}
-            aria-pressed={tmVisible} onClick={() => saveSetting("tm_visible", !tmVisible)}><Memory /></button>
-          <button type="button" className="icon" aria-label="Machine translation" title={keyed("Machine translation", "toggle_mt")}
-            aria-pressed={mtVisible} onClick={() => saveSetting("mt_visible", !mtVisible)}><Translate /></button>
-          {imagesToggle}
+          <div role="group" aria-label="Aids" className="sb-aids">
+            <button type="button" className="icon" aria-label="Translation memory" title={keyed("Translation memory", "toggle_tm")}
+              aria-pressed={tmVisible} onClick={() => saveSetting("tm_visible", !tmVisible)}><Memory /></button>
+            <button type="button" className="icon" aria-label="Machine translation" title={keyed("Machine translation", "toggle_mt")}
+              aria-pressed={mtVisible} onClick={() => saveSetting("mt_visible", !mtVisible)}><Translate /></button>
+          </div>
           <span className="sb-divider" aria-hidden="true" />
           {chapterMenu(true)}
         </>)}
@@ -417,7 +464,11 @@ export default function Editor({ id, data }: { id: number; data: Data }) {
         <JumpBack active={ed.active} untranslated={firstLeft} onActivate={goToLine} onReturn={returnToActive} />
       </div>
       {(tmVisible || mtVisible) && (
-        <div className="side-col">
+        <div className={`side-col${aidsOpen ? "" : " collapsed"}`}>
+          <button type="button" className="side-col-toggle" aria-expanded={aidsOpen}
+            onClick={() => setAidsOpen((open) => !open)}>
+            <span>Aids</span><span aria-hidden="true">{aidsOpen ? "▾" : "▸"}</span>
+          </button>
           {tmVisible && <TmPanel documentId={id} lineNumber={n} onUse={useText} slots={slots} bindings={bindings} />}
           {mtVisible && <MtPanels documentId={id} lineNumber={n} translated={Boolean(ed.texts[n])} onUse={useText}
             slots={slots} bindings={bindings} />}

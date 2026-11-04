@@ -326,7 +326,7 @@ test("replacing says so", async ({ page }) => {
   await expect(page.getByText(/^Replaced line 3\./)).toHaveCount(0);
   await page.keyboard.type("draft");
   await page.keyboard.press("Alt+1");
-  await expect(page.getByText("Replaced line 3. Ctrl+Z brings it back")).toBeVisible();
+  await expect(page.getByText(/^Replaced line 3\./)).toBeVisible();
 });
 
 test("a permanent error stops retrying and offers the text", async ({ context, page }) => {
