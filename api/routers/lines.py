@@ -157,7 +157,8 @@ def replace_source(
     $ marks a continuation; lines are not re-split. Translations and translated_at stay
     attached by position, so a change in line count is refused unless forced."""
     doc = scoped(db, Document, document_id, user.id)
-    if not body.text.strip():
+    if not body.text.strip() and not body.force:
+        # Removing all text deletes every line's translation, so the client must say it means it.
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "source text is empty")
     # The client joins its lines with "\n", so split on that alone: str.splitlines would
     # also break on \v, \x1c-\x1e, \x85, U+2028 and U+2029, and drop a trailing blank line.

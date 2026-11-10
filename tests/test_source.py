@@ -55,9 +55,15 @@ def test_force_applies_a_shorter_and_a_longer_source(app_client, db, me, make_do
 
 
 @pytest.mark.parametrize("text", ["", "   \n  "])
-def test_empty_source_is_422(app_client, me, make_doc, text):
+def test_empty_source_needs_force(app_client, me, make_doc, text):
     doc = make_doc(me, ["一。"])
-    assert put(app_client, doc, text, force=True).status_code == 422
+    assert put(app_client, doc, text).status_code == 422
+
+
+def test_forced_empty_source_leaves_one_blank_line(app_client, db, me, make_doc):
+    doc = make_doc(me, ["一。", "二。"])
+    assert put(app_client, doc, "", force=True).status_code == 200
+    assert rows(db, doc) == [("%", "", "tr:一。")]
 
 
 def test_line_cap(app_client, me, make_doc, monkeypatch):

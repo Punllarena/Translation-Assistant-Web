@@ -11,6 +11,7 @@ import FindBar from "./FindBar";
 import { findIn, wrapStep } from "./find";
 import { bindingOf } from "./keymap";
 import { sourceText } from "./rows";
+import { ConfirmDialog } from "../ui/Dialog";
 import { useBindings } from "./useEditorKeys";
 
 /** Edit Source and Split (desktop _EditSourceDialog / _SplitChapterDialog): one line per
@@ -37,6 +38,7 @@ function SourceBody({ id, mode, data }: { id: number; mode: "edit" | "split"; da
   const original = useMemo(() => sourceText(data.lines), [data.lines]);
   const [text, setText] = useState(original);
   const [problem, setProblem] = useState<string | null>(null);
+  const [askEmpty, setAskEmpty] = useState(false);
   const [find, setFind] = useState({ open: 0, needle: "", at: -1 });
   const bindings = useBindings();
   const dirty = text !== original;
@@ -132,7 +134,7 @@ function SourceBody({ id, mode, data }: { id: number; mode: "edit" | "split"; da
       </div>
       <div className="toolbar">
         {mode === "edit" ? (
-          <button onClick={() => save.mutate(false)} disabled={save.isPending}>Save</button>
+          <button onClick={() => (text.trim() ? save.mutate(false) : setAskEmpty(true))} disabled={save.isPending}>Save</button>
         ) : (
           <>
             <button onClick={() => {
@@ -158,6 +160,11 @@ function SourceBody({ id, mode, data }: { id: number; mode: "edit" | "split"; da
         <Link to={`/documents/${id}`}>Cancel</Link>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
+      {askEmpty && (
+        <ConfirmDialog title="Remove all text?" danger confirmLabel="Remove" busy={save.isPending}
+          message={<p>This empties the chapter and deletes its {data.lines.length} lines with their translations.</p>}
+          onConfirm={() => { setAskEmpty(false); save.mutate(true); }} onClose={() => { setAskEmpty(false); setText(original); }} />
+      )}
     </main>
   );
 }
