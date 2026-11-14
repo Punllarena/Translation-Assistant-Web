@@ -5,7 +5,12 @@ from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from api import jobs, tadb_uploads, yomitan_job
+from api import (
+    jobs,
+    syosetu_nightly,  # noqa: F401  registers syosetu_nightly
+    tadb_uploads,
+    yomitan_job,
+)
 from api.backup import restore, state, uploads
 from api.config import get_settings
 from api.ollama import runner, schedule, store  # noqa: F401  store registers ollama_cleanup
