@@ -6,16 +6,20 @@ and checked-at), seeds an unset mark, and queues an ordinary ``syosetu_fetch`` f
 chapters above ``max(mark, highest series_order)``. Chapters at or below that are never
 fetched here, so deleted chapters stay deleted."""
 
+import logging
 from datetime import UTC, datetime
 
 from sqlalchemy import Select, func, select
+from sqlalchemy.orm import Session
 
 from api import jobs, server_settings
 from api.core import scrape
 from api.core.syosetu_volumes import heading_sequence
 from api.fetch_job import fetch_active, mark_read
 from api.jobs import JobContext, handler
-from api.models import Document, Series
+from api.models import Document, Job, Series
+
+log = logging.getLogger(__name__)
 
 http_client = scrape.client  # the seam tests replace
 
@@ -78,3 +82,31 @@ def nightly(ctx: JobContext) -> dict:
     ctx.progress(n, n, f"{checked} series checked, {len(queued)} with new chapters, "
                        f"{len(failed)} failed")
     return {"checked": checked, "busy": busy, "queued": queued, "failed": failed}
+
+
+def tick(db: Session, now: datetime) -> None:
+    """Queue today's ``syosetu_nightly`` job for every user with an eligible series, once the
+    admin's local time has passed (a job of any state for that local day counts). Commits its
+    own session, a sanctioned commit outside the route boundary like the Ollama tick."""
+    prefs = server_settings.effective(db)
+    if not prefs.syosetu_nightly_enabled:
+        return
+    try:  # env values skip the validators
+        at = server_settings.parse_hhmm(prefs.syosetu_nightly_time)
+        local = now.astimezone(server_settings.zone(prefs.syosetu_nightly_tz))
+    except ValueError:
+        log.warning("nightly syosetu check skipped: bad time %r or zone %r",
+                    prefs.syosetu_nightly_time, prefs.syosetu_nightly_tz)
+        return
+    if local.time() < at:
+        return
+    day = local.date().isoformat()
+    done = select(Job.user_id).where(
+        Job.kind == "syosetu_nightly", Job.params_json["day"].astext == day)
+    users = db.scalars(
+        eligible_series().with_only_columns(Series.user_id).distinct()
+        .where(Series.user_id.not_in(done))
+    ).all()
+    for user_id in users:
+        jobs.enqueue(db, user_id, "syosetu_nightly", {"day": day})
+    db.commit()

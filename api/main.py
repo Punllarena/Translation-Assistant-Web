@@ -9,11 +9,12 @@ from api import (
     jobs,
     syosetu_nightly,  # noqa: F401  registers syosetu_nightly
     tadb_uploads,
+    ticker,
     yomitan_job,
 )
 from api.backup import restore, state, uploads
 from api.config import get_settings
-from api.ollama import runner, schedule, store  # noqa: F401  store registers ollama_cleanup
+from api.ollama import runner, store  # noqa: F401  store registers ollama_cleanup
 from api.routers import (
     admin,
     auth,
@@ -72,7 +73,7 @@ async def lifespan(app: FastAPI):
     stop = asyncio.Event()
     task = asyncio.create_task(jobs.worker(stop))
     ollama_task = asyncio.create_task(runner.runner(stop))
-    tick_task = asyncio.create_task(schedule.ticker(stop))
+    tick_task = asyncio.create_task(ticker.ticker(stop))
     yield
     jobs.stopping.set()  # a running job stops at its next progress point
     stop.set()

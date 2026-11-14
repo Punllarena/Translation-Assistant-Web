@@ -179,3 +179,88 @@ def test_cancel_stops_before_any_series(db, me, site, series):
 def test_the_app_registers_the_handler():
     import api.main  # noqa: F401
     assert "syosetu_nightly" in jobs.HANDLERS
+
+
+# --- the tick ---------------------------------------------------------------
+
+def nightly_jobs(db):
+    return db.scalars(select(Job).where(Job.kind == "syosetu_nightly")).all()
+
+
+@pytest.fixture
+def settings(monkeypatch):
+    """settings(**env) sets TA_SYOSETU_NIGHTLY_* for this test (no .env, cache cleared)."""
+    from api.config import Settings, get_settings
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+
+    def apply(**env):
+        for k, v in env.items():
+            monkeypatch.setenv(f"TA_SYOSETU_NIGHTLY_{k.upper()}", v)
+        get_settings.cache_clear()
+    apply()
+    yield apply
+    get_settings.cache_clear()
+
+
+def at(text):
+    return datetime.fromisoformat(text).replace(tzinfo=UTC)
+
+
+def test_tick_disabled_or_early_queues_nothing(db, me, series, settings):
+    series(mark=0)
+    syosetu_nightly.tick(db, at("2026-11-15T03:59"))
+    assert nightly_jobs(db) == []
+    settings(enabled="false")
+    syosetu_nightly.tick(db, at("2026-11-15T04:00"))
+    assert nightly_jobs(db) == []
+
+
+def test_tick_queues_once_per_user_per_day(db, me, series, settings):
+    series(mark=0)
+    syosetu_nightly.tick(db, at("2026-11-15T04:00"))
+    [job] = nightly_jobs(db)
+    assert job.user_id == me.id and job.params_json == {"day": "2026-11-15"}
+    syosetu_nightly.tick(db, at("2026-11-15T05:00"))
+    job.state = "failed"
+    db.flush()
+    syosetu_nightly.tick(db, at("2026-11-15T23:59"))
+    assert len(nightly_jobs(db)) == 1
+    syosetu_nightly.tick(db, at("2026-11-16T04:00"))
+    assert len(nightly_jobs(db)) == 2
+
+
+def test_tick_skips_users_without_eligible_series(db, me, series, settings):
+    series(mark=0, status="dropped")
+    syosetu_nightly.tick(db, at("2026-11-15T04:00"))
+    assert nightly_jobs(db) == []
+
+
+def test_tick_uses_the_local_date(db, me, series, settings):
+    settings(tz="Asia/Tokyo", time="05:00")
+    series(mark=0)
+    syosetu_nightly.tick(db, at("2026-11-14T19:59"))  # 04:59 in Tokyo
+    assert nightly_jobs(db) == []
+    syosetu_nightly.tick(db, at("2026-11-14T20:00"))  # 05:00 on the 15th in Tokyo
+    assert [j.params_json for j in nightly_jobs(db)] == [{"day": "2026-11-15"}]
+
+
+@pytest.mark.parametrize("env", [{"time": "25:00"}, {"tz": "Nowhere/Land"}])
+def test_tick_with_a_bad_env_value_does_nothing(db, me, series, settings, env):
+    settings(**env)
+    series(mark=0)
+    syosetu_nightly.tick(db, at("2026-11-15T12:00"))
+    assert nightly_jobs(db) == []
+
+
+def test_ticker_runs_ollama_even_if_syosetu_fails(monkeypatch, db):
+    from api import ticker
+    from api.ollama import schedule
+    calls = []
+    monkeypatch.setattr(ticker, "SessionLocal", lambda: contextmanager(lambda: (yield db))())
+
+    def boom(db, now):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(syosetu_nightly, "tick", boom)
+    monkeypatch.setattr(schedule, "tick", lambda db, now: calls.append(now))
+    ticker._tick_once()
+    assert len(calls) == 1
