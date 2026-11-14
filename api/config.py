@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     allow_public_signup: bool = False
     run_jobs_worker: bool = True  # tests and one-off tools turn the in-process worker off
     syosetu_delay_seconds: float = 5.0  # seconds between syosetu requests (desktop: 5)
+    # The nightly syosetu check (api/syosetu_nightly.py): on/off, local "HH:MM", IANA zone.
+    syosetu_nightly_enabled: bool = True
+    syosetu_nightly_time: str = "04:00"
+    syosetu_nightly_tz: str = "UTC"
     session_ttl_days: int = 30
     cookie_secure: bool = True
     login_max_attempts: int = 10

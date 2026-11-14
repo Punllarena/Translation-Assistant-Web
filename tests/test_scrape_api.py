@@ -479,3 +479,42 @@ def test_a_read_with_no_dates_keeps_the_stored_date(app_client, me, make_series,
     assert app_client.get(f"/series/{s.id}/syosetu/chapters").status_code == 200
     db.refresh(s)
     assert s.syosetu_updated_at == NEWEST
+
+
+def _syosetu_series(make_series, me, db, mark=0):
+    s = make_series(me)
+    s.syosetu_url, s.syosetu_fetched_through, s.syosetu_check_error = (
+        "https://ncode.syosetu.com/n1/", mark, "old")
+    db.flush()
+    return s
+
+
+def test_chapter_list_stamps_checked_and_clears_error(app_client, me, make_series, site, db):
+    s = _syosetu_series(make_series, me, db)
+    assert app_client.get(f"/series/{s.id}/syosetu/chapters").status_code == 200
+    db.refresh(s)
+    assert s.syosetu_checked_at is not None and s.syosetu_check_error == ""
+
+
+def test_fetch_job_stamps_checked_and_clears_error(app_client, me, make_series, site, db):
+    s = _syosetu_series(make_series, me, db)
+    _fetch(app_client, s, [1])
+    db.refresh(s)
+    assert s.syosetu_checked_at is not None and s.syosetu_check_error == ""
+
+
+def test_fetch_raises_a_set_mark(app_client, me, make_series, site, db):
+    s = _syosetu_series(make_series, me, db)
+    _fetch(app_client, s, [1, 2])
+    db.refresh(s)
+    assert s.syosetu_fetched_through == 2
+    _fetch(app_client, s, [1])  # skipped: nothing added, the mark stays
+    db.refresh(s)
+    assert s.syosetu_fetched_through == 2
+
+
+def test_fetch_leaves_a_null_mark_alone(app_client, me, make_series, site, db):
+    s = _syosetu_series(make_series, me, db, mark=None)
+    _fetch(app_client, s, [3])
+    db.refresh(s)
+    assert s.syosetu_fetched_through is None

@@ -18,6 +18,7 @@ from sqlalchemy import (
     func,
     literal,
     select,
+    true,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
@@ -85,6 +86,18 @@ class Series(Base):
     )
     # newest chapter post date syosetu showed at the last chapter-list read
     syosetu_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The nightly pass (api/syosetu_nightly.py): whether the series is in it; the mark, the
+    # highest syosetu chapter it has taken (NULL = not seeded yet: rows from before the
+    # feature, so no server default; new rows start at 0); the last successful index read
+    # and the last nightly failure ('' = none).
+    syosetu_nightly: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
+    syosetu_fetched_through: Mapped[int | None] = mapped_column(Integer, default=0)
+    syosetu_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    syosetu_check_error: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

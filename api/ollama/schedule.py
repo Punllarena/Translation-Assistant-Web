@@ -1,27 +1,21 @@
-"""Per-user night windows for Ollama runs, and the once-a-minute tick that starts them (spec §6)."""
+"""Per-user night windows for Ollama runs, and the tick that starts them (spec §6); api/ticker.py
+runs it once a minute."""
 
 from __future__ import annotations
 
-import asyncio
-import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import exists, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from api import jobs
-from api.backup import state
-from api.db import SessionLocal
 from api.models import Job, UserSetting
 from api.models.ollama import OllamaChunk, OllamaQueueItem, OllamaSuggestion
 from api.ollama import store
-
-log = logging.getLogger(__name__)
 
 KEY = "ollama_schedule"
 
@@ -131,25 +125,3 @@ def tick(db: Session, now: datetime) -> None:
         job = jobs.enqueue(db, user_id, "ollama_cleanup", {})
         job.created_at = now  # the once-a-day check reads this
     db.commit()
-
-
-def _tick_once() -> None:
-    with SessionLocal() as db:
-        try:
-            with state.work():
-                tick(db, datetime.now(UTC))
-        except state.Maintenance:
-            pass  # a restore is running: this tick is skipped, the next one is a minute away
-
-
-async def ticker(stop: asyncio.Event, every: float = 60.0) -> None:
-    """Run ``tick`` every ``every`` seconds until ``stop`` is set; a failed tick is logged."""
-    while not stop.is_set():
-        try:
-            await run_in_threadpool(_tick_once)
-        except Exception:
-            log.exception("ollama schedule tick failed")
-        try:
-            await asyncio.wait_for(stop.wait(), every)
-        except TimeoutError:
-            pass

@@ -35,6 +35,7 @@ class SeriesUpdate(Patch):
     wp_unlock_after: int | None = Field(default=None, ge=0, le=2**31 - 1)
     volume_title_template: str | None = Field(default=None, max_length=300)  # "" resets
     wp_summary: str | None = Field(default=None, max_length=MAX_SUMMARY_CHARS)
+    syosetu_nightly: bool | None = None
 
     @field_validator("volume_title_template")
     @classmethod
@@ -68,4 +69,8 @@ class SeriesOut(BaseModel):
     status: SeriesStatus
     source: SeriesSource
     syosetu_updated_at: datetime | None
+    syosetu_nightly: bool
+    syosetu_fetched_through: int | None
+    syosetu_checked_at: datetime | None
+    syosetu_check_error: str
     created_at: datetime

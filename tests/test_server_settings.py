@@ -83,3 +83,39 @@ def test_mt_server_default_url_reads_the_effective_value(app_client, admin, db):
     app_client.put("/admin/settings/libretranslate_url", json={"value": "http://lt.lan"})
     job = mt._configure(db, admin.id, "libretranslate", mt._prefs(db, admin.id))
     assert job.url == "http://lt.lan"
+
+
+@pytest.mark.parametrize("key,value", [
+    ("syosetu_nightly_time", "24:00"), ("syosetu_nightly_time", "4:00"),
+    ("syosetu_nightly_time", 400), ("syosetu_nightly_time", "04:00:00"),
+    ("syosetu_nightly_tz", "Nowhere/Land"), ("syosetu_nightly_tz", ""),
+    ("syosetu_nightly_tz", 9), ("syosetu_nightly_enabled", "yes")])
+def test_nightly_settings_reject_bad_values(app_client, admin, key, value):
+    assert app_client.put(f"/admin/settings/{key}", json={"value": value}).status_code == 422
+
+
+def test_nightly_settings_defaults_and_put(app_client, admin, db, monkeypatch):
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    get_settings.cache_clear()
+    try:
+        assert entry(app_client, "syosetu_nightly_time")["value"] == "04:00"
+        assert entry(app_client, "syosetu_nightly_tz")["value"] == "UTC"
+        assert entry(app_client, "syosetu_nightly_enabled")["value"] is True
+        changes = [("syosetu_nightly_tz", "Asia/Tokyo"), ("syosetu_nightly_time", "23:30"),
+                   ("syosetu_nightly_enabled", False)]
+        for key, value in changes:
+            r = app_client.put(f"/admin/settings/{key}", json={"value": value})
+            assert r.status_code == 200
+        prefs = server_settings.effective(db)
+        assert (prefs.syosetu_nightly_tz, prefs.syosetu_nightly_time,
+                prefs.syosetu_nightly_enabled) == ("Asia/Tokyo", "23:30", False)
+    finally:
+        get_settings.cache_clear()
+
+
+def test_parse_hhmm():
+    from datetime import time
+    assert server_settings.parse_hhmm("04:05") == time(4, 5)
+    for bad in ("24:00", "4:00", "", "ab:cd"):
+        with pytest.raises(ValueError):
+            server_settings.parse_hhmm(bad)

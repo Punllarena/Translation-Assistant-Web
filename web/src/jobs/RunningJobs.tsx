@@ -10,6 +10,7 @@ const LABELS: Record<string, string> = {
   tadb_import: "Desktop library import",
   dict_download: "Dictionary download",
   syosetu_fetch: "Syosetu fetch",
+  syosetu_nightly: "Nightly syosetu check",
   wp_publish: "WordPress publish",
   wp_illustrations: "Illustrations upload",
   ollama_run: "Ollama translation",
@@ -25,6 +26,7 @@ export function jobLink(job: Job): { label: string; to: string | null } {
     case "dict_download": return { label, to: "/settings/admin/dictionary" };
     case "wp_publish": return { label, to: "/" };
     case "ollama_run": return { label, to: "/jobs?tab=ollama" };
+    case "syosetu_nightly": return { label, to: "/jobs" };
     case "syosetu_fetch":
     case "wp_illustrations": return { label, to: typeof series === "number" ? `/series/${series}` : null };
     default: return { label, to: null };

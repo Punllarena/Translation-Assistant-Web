@@ -6,6 +6,8 @@ resumes an interrupted fetch (ruling 10). A chapter under a syosetu chapter-titl
 heading goes into the volume made from that heading (VolumeSyosetuGroup), created on
 first sight; chapters already in the series are never moved."""
 
+from datetime import UTC, datetime
+
 from sqlalchemy import select
 
 from api import server_settings
@@ -22,6 +24,22 @@ http_client = scrape.client  # the seam tests replace
 
 def existing_orders(db, series_id: int) -> set[int]:
     return set(db.scalars(select(Document.series_order).where(Document.series_id == series_id)))
+
+
+def mark_read(series: Series, index: list[dict], now: datetime) -> None:
+    """A successful index read: the latest post date, when the time it was checked, and no
+    failure note (only the nightly check writes one)."""
+    latest = scrape.latest_post(index)
+    if latest is not None:
+        series.syosetu_updated_at = latest
+    series.syosetu_checked_at, series.syosetu_check_error = now, ""
+
+
+def raise_mark(series: Series, nums: list[int]) -> None:
+    """The fetch took ``nums``: a seeded mark rises to the highest; NULL waits for the
+    nightly check to seed it (spec, The mark)."""
+    if nums and series.syosetu_fetched_through is not None:
+        series.syosetu_fetched_through = max(series.syosetu_fetched_through, max(nums))
 
 
 FETCH_BUSY = "a fetch for this series is already queued or running"
@@ -68,7 +86,7 @@ def fetch_series(ctx: JobContext) -> dict:
     wanted = set(ctx.params["nums"])
     delay = server_settings.effective(ctx.db).syosetu_delay_seconds
     ctx.progress(0, len(wanted), "Reading the chapter list")
-    added, skipped, errors, document_ids = 0, 0, [], []
+    added, skipped, errors, document_ids, added_nums = 0, 0, [], [], []
     with http_client() as c:
         try:
             full = scrape.fetch_series_index(c, series.syosetu_url)
@@ -76,9 +94,7 @@ def fetch_series(ctx: JobContext) -> dict:
             raise JobError(f"could not read the chapter list: {exc}") from exc
         index = [ch for ch in full if ch["num"] in wanted]
         series.syosetu_headings = heading_sequence(full)
-        latest = scrape.latest_post(full)
-        if latest is not None:
-            series.syosetu_updated_at = latest
+        mark_read(series, full, datetime.now(UTC))
         place = targets(series.syosetu_headings, wanted,
                         series.syosetu_volume_mode, series.syosetu_volume_marker)
         have = existing_orders(ctx.db, series.id)
@@ -106,8 +122,10 @@ def fetch_series(ctx: JobContext) -> dict:
                     ctx.db.flush()
                     write_lines(ctx.db, doc.id, lines_to_db_rows(raw, translated))
                     document_ids.append(doc.id)
+                    added_nums.append(ch["num"])
                     added += 1
             ctx.progress(i, len(index), f"Chapter {ch['num']}")
+    raise_mark(series, added_nums)
     missing = sorted(wanted - {ch["num"] for ch in index})
     return {"added": added, "skipped": skipped, "errors": errors, "missing": missing,
             "document_ids": document_ids}

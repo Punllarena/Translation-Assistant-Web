@@ -291,6 +291,18 @@ unbounded until reload. `KeyHelp.tsx` is the Ctrl+/ sheet. `StickyTop.tsx` holds
 `--top-h`.
 Spec: `docs/superpowers/specs/2026-10-27-editor-status-bar-reading-aid-design.md`.
 
+Syosetu nightly: once a day, after the admin's time (Settings → Admin → Server: `syosetu_nightly_enabled`, `syosetu_nightly_time`
+`HH:MM`, `syosetu_nightly_tz` IANA; defaults on, 04:00, UTC), the tick in `api/syosetu_nightly.py` queues one `syosetu_nightly` job
+per user with an eligible series (params `{"day"}` in that zone, one per local day, any state). Eligible: a syosetu URL, Ongoing, not
+archived, `series.syosetu_nightly` on (the Settings tab's switch). The job reads each index (pages throttled through
+`fetch_series_index(..., delay=)`, which no other caller passes), refreshes `syosetu_updated_at` and the headings, and queues an
+ordinary `syosetu_fetch` for chapters above `max(syosetu_fetched_through, highest series_order)`. The mark only rises: a fetch raises
+a set mark to its highest added chapter, so deleted chapters (even the newest) never come back by themselves; NULL (series from
+before the feature, or whose URL moved to another novel) is seeded from syosetu's latest chapter by the first nightly read, which
+queues nothing. Every successful index read sets `syosetu_checked_at` and clears `syosetu_check_error`; only the nightly job writes the
+error. `api/ticker.py` runs the Ollama and syosetu ticks once a minute, each in its own session and try.
+Spec: `docs/superpowers/specs/2026-11-14-syosetu-nightly-design.md`.
+
 Backup and restore: `api/backup/` writes one zip per server — `tables/<name>.csv` (Postgres `COPY ... FORMAT csv, HEADER`,
 so it is version-portable), the `dict/` files that live under `TA_DATA_DIR`, and a `manifest.json` (format 1, the alembic
 revision, row counts, the scrypt KDF and a passphrase check value). Only `api_credentials.secret_enc` is passphrase-locked
@@ -391,7 +403,8 @@ that database each run; conftest refuses any database name not ending in `_test`
   (`_put_sync` in `api/routers/mt.py`), one of the sanctioned commits outside the route boundary; the others are the
   job worker (`JobContext.progress`, `JobContext.report` (job row only, its own session, throttled)
   and `run_next` in `api/jobs.py`) and the Ollama commits: the runner (`api/ollama/runner.py`), the by-hand chunk
-  save (`api/routers/ollama_editor.py`) and the scheduler tick (`api/ollama/schedule.py`), each in its own session. The restore owns its own
+  save (`api/routers/ollama_editor.py`) and the scheduler tick (`api/ollama/schedule.py`), each in its own session, plus the
+  nightly syosetu tick (`api/syosetu_nightly.py`). The restore owns its own
   transaction too (`run` in `api/backup/restore.py`: the jobs table it would report to is replaced mid-run). WordPress calls take an injected `httpx.Client`
   the same way (`http_client` seams in `api/routers/wp.py` and `api/publish_job.py`).
 - Tests set `TA_RUN_JOBS_WORKER=false` and drive jobs with `jobs.run_next()`, swapping `api.jobs.SessionLocal` for the test session.

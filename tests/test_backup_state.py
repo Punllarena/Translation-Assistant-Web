@@ -11,7 +11,7 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from api import jobs
+from api import jobs, ticker
 from api.backup import state
 from api.config import get_settings
 from api.models import ApiCredential, Job, UserSetting
@@ -102,7 +102,7 @@ async def test_runner_claims_nothing_while_restoring(db, make_user, monkeypatch)
 
 
 def test_tick_enqueues_nothing_while_restoring(db, make_user, make_doc, monkeypatch):
-    monkeypatch.setattr(schedule, "SessionLocal", lambda: _same_session(db))
+    monkeypatch.setattr(ticker, "SessionLocal", lambda: _same_session(db))
     user = make_user(email="sched@example.com")
     now = datetime.now(UTC)
     night = {
@@ -119,7 +119,7 @@ def test_tick_enqueues_nothing_while_restoring(db, make_user, make_doc, monkeypa
     db.flush()
 
     state.try_begin(db)
-    schedule._tick_once()
+    ticker._tick_once()
 
     assert db.scalars(select(Job)).all() == []
 

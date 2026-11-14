@@ -7,6 +7,7 @@ import { DEFAULT_TEMPLATE, render, templateError } from "./volumeNames";
 import { ConfirmDialog } from "../ui/Dialog";
 import { SOURCE_LABEL, STATUS_LABEL } from "./libraryQuery";
 import { invalidateLibrary, useAllVolumes, useArchive } from "./queries";
+import { nightlyNote } from "./nightlyStatus";
 import type { SeriesRow } from "./shelf";
 
 export default function SeriesSettings({ series, chapterCount }: { series: SeriesRow; chapterCount: number }) {
@@ -31,6 +32,12 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
       call(api.PATCH("/series/{series_id}", { params: { path: { series_id: seriesId } }, body })),
     onSuccess: () => invalidateLibrary(queryClient),
   });
+  const nightly = useMutation({
+    mutationFn: (on: boolean) =>
+      call(api.PATCH("/series/{series_id}", { params: { path: { series_id: seriesId } }, body: { syosetu_nightly: on } })),
+    onSuccess: () => invalidateLibrary(queryClient),
+  });
+  const skipped = nightlyNote(series);
   const remove = useMutation({
     mutationFn: () => call(api.DELETE("/series/{series_id}", { params: { path: { series_id: seriesId } } })),
     onSuccess: async () => {
@@ -98,6 +105,21 @@ export default function SeriesSettings({ series, chapterCount }: { series: Serie
         </div>
         {save.error && <p className="error" role="alert">{save.error.message}</p>}
       </form>
+      {series.syosetu_url && (
+        <section className="panel pad">
+          <h2>Nightly fetch</h2>
+          <label className="check">
+            <input type="checkbox" checked={series.syosetu_nightly} disabled={nightly.isPending}
+              onChange={(e) => nightly.mutate(e.target.checked)} />
+            <span>Fetch new chapters nightly</span>
+          </label>
+          {skipped && <p className="hint">{skipped}</p>}
+          {series.syosetu_fetched_through ? <p className="hint">Takes chapters after {series.syosetu_fetched_through}.</p> : null}
+          {series.syosetu_checked_at && <p className="muted">Last checked {new Date(series.syosetu_checked_at).toLocaleString()}</p>}
+          {series.syosetu_check_error && <p className="error">Nightly check failed: {series.syosetu_check_error}</p>}
+          {nightly.error && <p className="error" role="alert">{nightly.error.message}</p>}
+        </section>
+      )}
       <section className="panel pad">
         <h2>Export</h2>
         <ul className="export-list">
