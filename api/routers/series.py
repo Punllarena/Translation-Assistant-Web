@@ -61,6 +61,9 @@ def update_series(
         # Another novel: the stored headings and the setting chosen from them don't apply.
         series.syosetu_headings = None
         series.syosetu_volume_mode, series.syosetu_volume_marker = "all", ""
+        if series.syosetu_url:  # the old novel's mark means nothing for the new one
+            series.syosetu_fetched_through = None
+        series.syosetu_checked_at, series.syosetu_check_error = None, ""
     if "wp_summary" in changes:
         reject_nul(changes["wp_summary"])
         if changes["wp_summary"] != series.wp_summary:
