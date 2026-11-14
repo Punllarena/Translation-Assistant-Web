@@ -20,6 +20,7 @@ from api.jobs import JobContext, handler
 from api.models import Document, Job, Series
 
 log = logging.getLogger(__name__)
+_warned: tuple[str, str] | None = None  # the bad (time, zone) pair already logged
 
 http_client = scrape.client  # the seam tests replace
 
@@ -38,13 +39,23 @@ def _highest_order(db, series_id: int) -> int:
                      .where(Document.series_id == series_id))
 
 
-def _check(ctx: JobContext, c, series: Series, delay: float) -> list[int] | None:
-    """Read one series' index; the chapter numbers to fetch, or None when its mark was
-    only seeded. Raises ScrapeError / ValueError when the index cannot be read."""
-    index = scrape.fetch_series_index(c, series.syosetu_url, delay=delay)
+def _read(c, series: Series, delay: float) -> tuple[list[dict] | None, str]:
+    """The series' index, or None and the message to store. Any error is that series' alone:
+    one changed page must not cost every later series its pass for the day."""
+    try:
+        return scrape.fetch_series_index(c, series.syosetu_url, delay=delay), ""
+    except (scrape.ScrapeError, ValueError) as exc:
+        return None, str(exc) or type(exc).__name__
+    except Exception:
+        log.exception("nightly syosetu check: reading series %s failed", series.id)
+        return None, "could not read the chapter list"
+
+
+def _new_chapters(db, series: Series, index: list[dict]) -> list[int] | None:
+    """Record the read; the chapter numbers to fetch, or None when the mark was only seeded."""
     mark_read(series, index, datetime.now(UTC))
     series.syosetu_headings = heading_sequence(index)
-    highest = _highest_order(ctx.db, series.id)
+    highest = _highest_order(db, series.id)
     nums = [ch["num"] for ch in index]
     if series.syosetu_fetched_through is None:
         series.syosetu_fetched_through = max([highest, *nums])
@@ -56,24 +67,31 @@ def _check(ctx: JobContext, c, series: Series, delay: float) -> list[int] | None
 @handler("syosetu_nightly")
 def nightly(ctx: JobContext) -> dict:
     user_id = ctx.job.user_id
-    series_list = ctx.db.scalars(eligible_series(user_id).order_by(Series.id)).all()
+    ids = ctx.db.scalars(
+        eligible_series(user_id).with_only_columns(Series.id).order_by(Series.id)).all()
     delay = server_settings.effective(ctx.db).syosetu_delay_seconds
-    n = len(series_list)
+    n = len(ids)
     checked, busy, queued, failed = 0, 0, [], []
     with http_client() as c:
-        for i, series in enumerate(series_list):
-            ctx.progress(i, n, series.title)
+        for i, series_id in enumerate(ids):
+            ctx.progress(i, n, f"Series {i + 1} of {n}")
+            # Re-read each series as it comes up: the run is minutes long, and a series
+            # deleted, archived, switched off or moved to another novel meanwhile is skipped.
+            series = ctx.db.scalar(
+                eligible_series(user_id).where(Series.id == series_id)
+                .execution_options(populate_existing=True))
+            if series is None:
+                continue
             if fetch_active(ctx.db, user_id, series.id):
                 busy += 1
                 continue
-            try:
-                nums = _check(ctx, c, series, delay)
-            except (scrape.ScrapeError, ValueError) as exc:
-                message = str(exc) or type(exc).__name__
+            index, message = _read(c, series, delay)
+            if index is None:
                 series.syosetu_check_error = message
                 failed.append({"series_id": series.id, "title": series.title, "message": message})
                 continue
             checked += 1
+            nums = _new_chapters(ctx.db, series, index)
             if nums:
                 job = jobs.enqueue(ctx.db, user_id, "syosetu_fetch",
                                    {"series_id": series.id, "nums": nums}, total=len(nums))
@@ -88,6 +106,7 @@ def tick(db: Session, now: datetime) -> None:
     """Queue today's ``syosetu_nightly`` job for every user with an eligible series, once the
     admin's local time has passed (a job of any state for that local day counts). Commits its
     own session, a sanctioned commit outside the route boundary like the Ollama tick."""
+    global _warned
     prefs = server_settings.effective(db)
     if not prefs.syosetu_nightly_enabled:
         return
@@ -95,9 +114,12 @@ def tick(db: Session, now: datetime) -> None:
         at = server_settings.parse_hhmm(prefs.syosetu_nightly_time)
         local = now.astimezone(server_settings.zone(prefs.syosetu_nightly_tz))
     except ValueError:
-        log.warning("nightly syosetu check skipped: bad time %r or zone %r",
-                    prefs.syosetu_nightly_time, prefs.syosetu_nightly_tz)
+        bad = (prefs.syosetu_nightly_time, prefs.syosetu_nightly_tz)
+        if _warned != bad:  # once per bad pair, not every minute
+            log.warning("nightly syosetu check skipped: bad time %r or zone %r", *bad)
+            _warned = bad
         return
+    _warned = None
     if local.time() < at:
         return
     day = local.date().isoformat()

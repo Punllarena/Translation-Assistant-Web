@@ -264,3 +264,65 @@ def test_ticker_runs_ollama_even_if_syosetu_fails(monkeypatch, db):
     monkeypatch.setattr(schedule, "tick", lambda db, now: calls.append(now))
     ticker._tick_once()
     assert len(calls) == 1
+
+
+# --- review fixes -----------------------------------------------------------
+
+def _during_first_read(monkeypatch, action):
+    """Run ``action`` once, while the job reads the first series' index."""
+    real = scrape.fetch_series_index
+    fired = []
+
+    def read(c, url, *, delay=0.0):
+        if not fired:
+            fired.append(1)
+            action()
+        return real(c, url, delay=delay)
+    monkeypatch.setattr(scrape, "fetch_series_index", read)
+
+
+def test_a_series_deleted_mid_run_does_not_fail_the_job(db, me, site, series, monkeypatch):
+    from sqlalchemy import text
+    first, second = series(mark=0, title="A"), series(mark=0, title="B")
+    third = series(mark=0, title="C")
+    _during_first_read(monkeypatch, lambda: db.execute(
+        text("DELETE FROM series WHERE id = :id"), {"id": second.id}))
+    job = run_nightly(db, me)
+    assert job.state == "done"
+    assert [f.params_json["series_id"] for f in fetches(db, me)] == [first.id, third.id]
+
+
+def test_a_series_archived_mid_run_is_skipped(db, me, site, series, monkeypatch):
+    from sqlalchemy import text
+    first, second = series(mark=0, title="A"), series(mark=0, title="B")
+    _during_first_read(monkeypatch, lambda: db.execute(
+        text("UPDATE series SET status = 'on_hold' WHERE id = :id"), {"id": second.id}))
+    job = run_nightly(db, me)
+    assert job.result_json["checked"] == 1
+    assert [f.params_json["series_id"] for f in fetches(db, me)] == [first.id]
+
+
+def test_an_unexpected_read_error_fails_only_that_series(db, me, site, series, monkeypatch):
+    bad, good = series(mark=0, title="Bad"), series(mark=0, title="Good")
+    real = scrape.fetch_series_index
+
+    def read(c, url, *, delay=0.0):
+        if not fetches(db, me) and not getattr(read, "raised", False):
+            read.raised = True
+            raise AttributeError("'NoneType' object has no attribute 'select'")
+        return real(c, url, delay=delay)
+    monkeypatch.setattr(scrape, "fetch_series_index", read)
+    job = run_nightly(db, me)
+    db.refresh(bad)
+    assert job.state == "done"
+    assert bad.syosetu_check_error == "could not read the chapter list"
+    assert [f.params_json["series_id"] for f in fetches(db, me)] == [good.id]
+
+
+def test_a_bad_env_value_logs_once(db, me, series, settings, caplog):
+    settings(time="25:00")
+    series(mark=0)
+    for minute in ("12:00", "12:01", "12:02"):
+        syosetu_nightly.tick(db, at(f"2026-11-15T{minute}"))
+    skipped = [r for r in caplog.records if "nightly syosetu check skipped" in r.getMessage()]
+    assert len(skipped) == 1
