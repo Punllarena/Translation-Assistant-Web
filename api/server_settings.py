@@ -1,8 +1,11 @@
 """Server-wide settings an admin edits in the browser (spec §4). Value = DB row, else the
 env var of the same name (api/config.py), else its code default. No cache: one small query."""
 
+import re
 from dataclasses import dataclass
+from datetime import time
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -34,11 +37,50 @@ def _delay(key, v):
     return float(v)
 
 
+_HHMM = re.compile(r"([01]\d|2[0-3]):[0-5]\d")
+
+
+def parse_hhmm(value) -> time:
+    """A 24-hour "HH:MM" as a time; ValueError otherwise."""
+    if not isinstance(value, str) or not _HHMM.fullmatch(value):
+        raise ValueError("not a 24-hour HH:MM time")
+    return time.fromisoformat(value)
+
+
+def _hhmm(key, v):
+    try:
+        parse_hhmm(v)
+    except ValueError:
+        raise ValueError(f"{key} must be a 24-hour time such as 04:00") from None
+    return v
+
+
+def zone(value) -> ZoneInfo:
+    """An IANA zone; ValueError for anything ZoneInfo refuses."""
+    if not isinstance(value, str) or not value:
+        raise ValueError("not an IANA time zone")
+    try:
+        return ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise ValueError("not an IANA time zone") from None
+
+
+def _zone(key, v):
+    try:
+        zone(v)
+    except ValueError:
+        raise ValueError(f"{key} must be an IANA time zone such as Asia/Tokyo") from None
+    return v
+
+
 VALIDATORS = {
     "libretranslate_url": _url,
     "mt_allow_private_urls": _bool,
     "wp_allow_private_urls": _bool,
     "syosetu_delay_seconds": _delay,
+    "syosetu_nightly_enabled": _bool,
+    "syosetu_nightly_time": _hhmm,
+    "syosetu_nightly_tz": _zone,
 }
 KEYS = tuple(VALIDATORS)
 
@@ -49,6 +91,9 @@ class ServerPrefs:
     mt_allow_private_urls: bool
     wp_allow_private_urls: bool
     syosetu_delay_seconds: float
+    syosetu_nightly_enabled: bool
+    syosetu_nightly_time: str
+    syosetu_nightly_tz: str
 
 
 def validate(key: str, value):
