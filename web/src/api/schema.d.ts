@@ -3489,6 +3489,14 @@ export interface components {
              * @enum {string}
              */
             status: "ongoing" | "on_hold" | "dropped" | "completed";
+            /** Syosetu Check Error */
+            syosetu_check_error: string;
+            /** Syosetu Checked At */
+            syosetu_checked_at: string | null;
+            /** Syosetu Fetched Through */
+            syosetu_fetched_through: number | null;
+            /** Syosetu Nightly */
+            syosetu_nightly: boolean;
             /** Syosetu Updated At */
             syosetu_updated_at: string | null;
             /** Syosetu Url */
@@ -3545,6 +3553,8 @@ export interface components {
             source?: ("syosetu" | "epub" | "other") | null;
             /** Status */
             status?: ("ongoing" | "on_hold" | "dropped" | "completed") | null;
+            /** Syosetu Nightly */
+            syosetu_nightly?: boolean | null;
             /** Syosetu Url */
             syosetu_url?: string | null;
             /** Title */

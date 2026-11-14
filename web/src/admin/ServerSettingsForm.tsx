@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { api, call, type Schemas } from "../api/client";
 
 type Entry = Schemas["ServerSettingOut"];
+const BROWSER_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const FIELDS = [
   { key: "libretranslate_url", label: "LibreTranslate URL", kind: "url", hint: "Leave empty if you do not run one." },
   { key: "mt_allow_private_urls", label: "Allow private addresses for machine translation", kind: "bool",
@@ -10,6 +11,11 @@ const FIELDS = [
   { key: "wp_allow_private_urls", label: "Allow private addresses for WordPress", kind: "bool",
     hint: "Only if your WordPress runs on your own network." },
   { key: "syosetu_delay_seconds", label: "Seconds between syosetu requests", kind: "number", hint: "1 to 60." },
+  { key: "syosetu_nightly_enabled", label: "Check syosetu series nightly", kind: "bool",
+    hint: "Refreshes every Ongoing syosetu series and fetches its new chapters, once a day." },
+  { key: "syosetu_nightly_time", label: "Nightly check time", kind: "time", hint: "24-hour, in the zone below." },
+  { key: "syosetu_nightly_tz", label: "Nightly check time zone", kind: "text",
+    hint: `IANA name, such as Asia/Tokyo. Your browser: ${BROWSER_ZONE}.` },
 ] as const;
 const BADGE: Record<Entry["source"], string> = { db: "", env: "from env", default: "default" };
 
@@ -59,7 +65,7 @@ export default function ServerSettingsForm({ onSaved }: { onSaved?: () => void }
             ) : (
               <label><span>{d.label}</span>
                 <input name={d.key} className={d.kind === "url" ? "mono" : undefined}
-                  {...(d.kind === "number" ? { type: "number", min: 1, max: 60, step: "any" } : { type: "text" })}
+                  {...(d.kind === "number" ? { type: "number", min: 1, max: 60, step: "any" } : { type: d.kind === "time" ? "time" : "text" })}
                   defaultValue={String(e.value)} /></label>
             )}
             <p className="hint">{d.hint}{badge && <> · <span className="muted">{badge}</span></>}

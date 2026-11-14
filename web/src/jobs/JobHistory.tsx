@@ -40,6 +40,32 @@ function RunDetails({ job, head }: { job: Job; head: ReactNode }) {
   );
 }
 
+type NightlyQueued = { series_id: number; title: string; chapters: number };
+type NightlyFailed = { series_id: number; title: string; message: string };
+
+/** A nightly syosetu check: its summary line, the series it queued fetches for, and the ones it could not read. */
+function NightlyDetails({ job, head }: { job: Job; head: ReactNode }) {
+  const r = job.result ?? {};
+  const queued = (Array.isArray(r.queued) ? r.queued : []) as NightlyQueued[];
+  const failed = (Array.isArray(r.failed) ? r.failed : []) as NightlyFailed[];
+  return (
+    <details className="job-main">
+      <summary>{head}</summary>
+      <div className="job-result">
+        {job.message && <p className={job.state === "failed" ? "error" : undefined}>{job.message}</p>}
+        {queued.length > 0 && (
+          <ul>{queued.map((q) => (
+            <li key={q.series_id}><Link to={`/series/${q.series_id}`}>{q.title}</Link>: {q.chapters} new {q.chapters === 1 ? "chapter" : "chapters"}</li>
+          ))}</ul>
+        )}
+        {failed.map((f) => (
+          <p key={f.series_id} className="error"><Link to={`/series/${f.series_id}`}>{f.title}</Link>: {f.message}</p>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 /** Queued and running jobs, each with Cancel. */
 export function RunningList() {
   const queryClient = useQueryClient();
@@ -104,6 +130,8 @@ export function JobHistory() {
           <li key={job.id}>
             {job.kind === "ollama_run" ? (
               <RunDetails job={job} head={head} />
+            ) : job.kind === "syosetu_nightly" ? (
+              <NightlyDetails job={job} head={head} />
             ) : (
               <div className="job-main">
                 <div className="job-head">{head}</div>
