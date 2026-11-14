@@ -388,3 +388,19 @@ def test_rows_without_dates_have_none():
         chs = fetch_series_index(c, "https://ncode.syosetu.com/n7696mg/")
     assert {ch["posted_at"] for ch in chs} == {None}
     assert scrape.latest_post(chs) is None
+
+
+def test_index_pages_throttle_only_with_delay(monkeypatch):
+    waits = []
+    monkeypatch.setattr(scrape, "throttle", waits.append)
+    page1 = ('<div class="p-eplist__sublist"><a href="/n0280z/1/">一</a></div>'
+             '<a class="c-pager__item c-pager__item--next" href="/n0280z/?p=2">次へ</a>')
+    page2 = '<div class="p-eplist__sublist"><a href="/n0280z/2/">二</a></div>'
+    base = "https://ncode.syosetu.com/n0280z/"
+    pages = {base: (200, page1, {}), base + "?p=2": (200, page2, {})}
+    with mock(pages) as c:
+        fetch_series_index(c, base)
+    assert waits == []
+    with mock(pages) as c:
+        assert len(fetch_series_index(c, base, delay=5.0)) == 2
+    assert waits == [5.0, 5.0]

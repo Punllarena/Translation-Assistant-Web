@@ -3,6 +3,7 @@ chapters, fetch a series as a job, and re-fetch a chapter's source."""
 
 import threading
 from contextlib import contextmanager
+from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -13,7 +14,7 @@ from api.core import scrape
 from api.core.syosetu_volumes import heading_sequence, marker_of, offered_markers
 from api.core.text import build_new_file, parse_file_content
 from api.deps import current_user, db_session, scoped
-from api.fetch_job import FETCH_BUSY, existing_orders, fetch_active
+from api.fetch_job import FETCH_BUSY, existing_orders, fetch_active, mark_read
 from api.illustrations import IllustrationsRule, check_no_text, rule_conflict
 from api.library import replace_raw_lines
 from api.models import Document, Job, Series, User
@@ -110,9 +111,7 @@ def _read_index(series: Series) -> list[dict]:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
-    latest = scrape.latest_post(index)
-    if latest is not None:
-        series.syosetu_updated_at = latest
+    mark_read(series, index, datetime.now(UTC))
     return index
 
 

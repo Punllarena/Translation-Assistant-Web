@@ -229,8 +229,11 @@ def _novel_header(soup: BeautifulSoup) -> tuple[str, str]:
     return title, author
 
 
-def _walk_index(c: httpx.Client, url: str) -> tuple[BeautifulSoup, list[dict]]:
-    """Every index page's chapters, sorted; also the root page's soup (fetched once)."""
+def _walk_index(
+    c: httpx.Client, url: str, delay: float = 0.0
+) -> tuple[BeautifulSoup, list[dict]]:
+    """Every index page's chapters, sorted; also the root page's soup (fetched once).
+    A positive ``delay`` throttles every page (the nightly check); 0 reads them back to back."""
     base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
     current_url: str | None = url
     chapters: list[dict] = []
@@ -241,6 +244,8 @@ def _walk_index(c: httpx.Client, url: str) -> tuple[BeautifulSoup, list[dict]]:
         if pages >= MAX_INDEX_PAGES:
             raise ScrapeError(f"the chapter list has more than {MAX_INDEX_PAGES} pages")
         pages += 1
+        if delay > 0:
+            throttle(delay)
         soup = BeautifulSoup(_get(c, current_url), "html.parser")
         root = root or soup
         found, group = _extract_chapters(soup, base, group)
@@ -255,9 +260,9 @@ def _short_story(soup: BeautifulSoup, url: str) -> list[dict]:
     return [{"num": 1, "title": title, "url": url, "group": None, "posted_at": None}]
 
 
-def fetch_series_index(c: httpx.Client, url: str) -> list[dict]:
+def fetch_series_index(c: httpx.Client, url: str, *, delay: float = 0.0) -> list[dict]:
     _validate_series_url(url)
-    root, chapters = _walk_index(c, url)
+    root, chapters = _walk_index(c, url, delay)
     if not chapters and _has_novel_text(root):
         return _short_story(root, url)
     return chapters

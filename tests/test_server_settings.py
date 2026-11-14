@@ -104,7 +104,8 @@ def test_nightly_settings_defaults_and_put(app_client, admin, db, monkeypatch):
         changes = [("syosetu_nightly_tz", "Asia/Tokyo"), ("syosetu_nightly_time", "23:30"),
                    ("syosetu_nightly_enabled", False)]
         for key, value in changes:
-            assert app_client.put(f"/admin/settings/{key}", json={"value": value}).status_code == 200
+            r = app_client.put(f"/admin/settings/{key}", json={"value": value})
+            assert r.status_code == 200
         prefs = server_settings.effective(db)
         assert (prefs.syosetu_nightly_tz, prefs.syosetu_nightly_time,
                 prefs.syosetu_nightly_enabled) == ("Asia/Tokyo", "23:30", False)
