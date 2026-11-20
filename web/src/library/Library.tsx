@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import PageHeader from "../ui/PageHeader";
 import { useAccountPref } from "../settings/useAccountPref";
-import { useAllVolumes, useDocuments, useSeriesList } from "./queries";
+import { useAllVolumes, useDocuments, useLatestNightlyRun, useSeriesList } from "./queries";
+import { newChapterBadges } from "./nightlyStatus";
 import { CompactList, Shelf } from "./SeriesCards";
 import { FilterChips, FiltersButton, SortControl } from "./LibraryFilters";
 import { DEFAULT_FILTERS, DEFAULT_SORT, emptyReason, filterCards, sortCards } from "./libraryQuery";
@@ -14,6 +15,7 @@ export default function Library() {
   const docs = useDocuments();
   const series = useSeriesList();
   const volumes = useAllVolumes();
+  const nightly = useLatestNightlyRun();
   const [filter, setFilter] = useState("");
   const [view, setView] = useAccountPref({
     key: "library_view", local: "ta.libraryView", localFormat: "text",
@@ -29,6 +31,7 @@ export default function Library() {
     () => (docs.data && series.data && volumes.data ? seriesCards(series.data, docs.data, volumes.data) : []),
     [docs.data, series.data, volumes.data],
   );
+  const badges = useMemo(() => newChapterBadges(nightly.data, docs.data ?? []), [nightly.data, docs.data]);
   const cards = useMemo(() => sortCards(filterCards(all, filters, filter), sort), [all, filters, filter, sort]);
 
   const newSeries = <Link className="btn primary" to="/new">New series</Link>;
@@ -82,7 +85,7 @@ export default function Library() {
         )
         );
       })()}
-      {cards.length > 0 && (view === "shelf" ? <Shelf cards={cards} /> : <CompactList cards={cards} />)}
+      {cards.length > 0 && (view === "shelf" ? <Shelf cards={cards} badges={badges} /> : <CompactList cards={cards} badges={badges} />)}
     </main>
   );
 }

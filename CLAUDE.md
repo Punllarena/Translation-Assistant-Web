@@ -301,6 +301,10 @@ a set mark to its highest added chapter, so deleted chapters (even the newest) n
 before the feature, or whose URL moved to another novel) is seeded from syosetu's latest chapter by the first nightly read, which
 queues nothing. Every successful index read sets `syosetu_checked_at` and clears `syosetu_check_error`; only the nightly job writes the
 error. `api/ticker.py` runs the Ollama and syosetu ticks once a minute, each in its own session and try.
+`GET /syosetu/nightly/runs?limit=` (`api/routers/nightly.py`) reads the last finished nightly jobs as per-series
+`{series_id, new_chapters, error}` (from the job result's `queued` / `failed`; the `jobs` rows are the store, no table of
+their own). The Library shows a "+N new" badge from the latest run, linking to the series' first untranslated chapter
+(`newChapterBadges`, `web/src/library/nightlyStatus.ts`), and a ⚠ while `series.syosetu_check_error` is set.
 Spec: `docs/superpowers/specs/2026-11-14-syosetu-nightly-design.md`.
 
 Backup and restore: `api/backup/` writes one zip per server — `tables/<name>.csv` (Postgres `COPY ... FORMAT csv, HEADER`,

@@ -302,7 +302,8 @@ def test_a_series_archived_mid_run_is_skipped(db, me, site, series, monkeypatch)
     assert [f.params_json["series_id"] for f in fetches(db, me)] == [first.id]
 
 
-def test_an_unexpected_read_error_fails_only_that_series(db, me, site, series, monkeypatch):
+def test_an_unexpected_read_error_fails_only_that_series(db, me, site, series, monkeypatch,
+                                                         caplog):
     bad, good = series(mark=0, title="Bad"), series(mark=0, title="Good")
     real = scrape.fetch_series_index
 
@@ -317,6 +318,30 @@ def test_an_unexpected_read_error_fails_only_that_series(db, me, site, series, m
     assert job.state == "done"
     assert bad.syosetu_check_error == "could not read the chapter list"
     assert [f.params_json["series_id"] for f in fetches(db, me)] == [good.id]
+    logged = [r for r in caplog.records if "reading series" in r.getMessage()]
+    assert [r.getMessage() for r in logged] == [
+        f"nightly syosetu check: reading series {bad.id} failed"]
+
+
+def test_runs_route_reports_each_series(db, me, app_client, site, series, monkeypatch):
+    bad, good = series(mark=0, title="Bad"), series(mark=0, title="Good")
+    real = scrape.fetch_series_index
+
+    def read(c, url, *, delay=0.0):
+        if not fetches(db, me) and not getattr(read, "raised", False):
+            read.raised = True
+            raise RuntimeError("boom")
+        return real(c, url, delay=delay)
+    monkeypatch.setattr(scrape, "fetch_series_index", read)
+    job = run_nightly(db, me)
+    jobs.enqueue(db, me.id, "syosetu_nightly", {"day": "2026-11-16"})  # queued: not listed
+    db.flush()
+    got = app_client.get("/syosetu/nightly/runs").json()
+    assert [r["job_id"] for r in got] == [job.id]
+    assert got[0]["series"] == [
+        {"series_id": good.id, "new_chapters": 3, "error": None},
+        {"series_id": bad.id, "new_chapters": 0, "error": "could not read the chapter list"},
+    ]
 
 
 def test_a_bad_env_value_logs_once(db, me, series, settings, caplog):

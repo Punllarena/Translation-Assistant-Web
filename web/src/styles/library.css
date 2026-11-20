@@ -16,6 +16,14 @@
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .shelf-size { font-size: 12px; }
 .shelf .prog { margin-top: 2px; }
+.shelf-item { position: relative; }
+.shelf-item .nightly-marks { position: absolute; top: 6px; left: 6px; }
+.nightly-marks { display: inline-flex; gap: 4px; align-items: center; }
+.nightly-new { padding: 1px 6px; border-radius: 999px; font-size: 12px; font-weight: 600; text-decoration: none;
+  background: var(--accent); color: var(--surface); }
+.nightly-new:hover { filter: brightness(1.1); }
+.nightly-warn { padding: 0 5px; border-radius: 999px; font-size: 12px; background: var(--warn-soft); color: var(--warn-ink); }
+.row-title { display: flex; gap: 8px; align-items: center; min-width: 0; }
 
 .rows { list-style: none; margin: 0; padding: 0; }
 .row { display: grid; grid-template-columns: 36px minmax(0, 1fr) 110px 90px 90px; gap: 12px; align-items: center;

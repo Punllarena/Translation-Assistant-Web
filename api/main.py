@@ -33,6 +33,7 @@ from api.routers import (
     lines,
     memory,
     mt,
+    nightly,
     ollama_editor,
     readings,
     scrape,
@@ -130,6 +131,7 @@ def create_app() -> FastAPI:
     app.include_router(epub.router)
     app.include_router(wp.router)
     app.include_router(stats.router)
+    app.include_router(nightly.router)
 
     return app
 

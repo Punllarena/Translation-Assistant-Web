@@ -1903,6 +1903,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/syosetu/nightly/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Runs
+         * @description The caller's last finished nightly runs, newest first.
+         */
+        get: operations["runs_syosetu_nightly_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tm/matches": {
         parameters: {
             query?: never;
@@ -3107,6 +3127,24 @@ export interface components {
             suggestions: string[];
             /** Word */
             word: string;
+        };
+        /** NightlyRun */
+        NightlyRun: {
+            /** Finished At */
+            finished_at: string | null;
+            /** Job Id */
+            job_id: number;
+            /** Series */
+            series: components["schemas"]["NightlySeries"][];
+        };
+        /** NightlySeries */
+        NightlySeries: {
+            /** Error */
+            error: string | null;
+            /** New Chapters */
+            new_chapters: number;
+            /** Series Id */
+            series_id: number;
         };
         /** NovelChapter */
         NovelChapter: {
@@ -7767,6 +7805,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OllamaStatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    runs_syosetu_nightly_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NightlyRun"][];
                 };
             };
             /** @description Validation Error */

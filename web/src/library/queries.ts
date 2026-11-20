@@ -34,3 +34,11 @@ export function useArchive(seriesId: number) {
     }),
   };
 }
+
+/** The latest finished nightly syosetu run, for the Library's "+N new" badges. */
+export const useLatestNightlyRun = () =>
+  useQuery({
+    queryKey: ["nightly-runs"],
+    queryFn: () => call(api.GET("/syosetu/nightly/runs", { params: { query: { limit: 1 } } })),
+    select: (runs) => runs[0],
+  });
