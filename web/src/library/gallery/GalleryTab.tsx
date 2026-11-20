@@ -22,21 +22,27 @@ function Group({ group, onOpen }: { group: GalleryVolume; onOpen: (image: Galler
   return (
     <section className="gallery-group" aria-label={group.label}>
       <h2>{group.label}</h2>
-      {cover && (
-        <div className="gallery-grid">
-          <Tile image={cover} onOpen={() => onOpen(cover)} />
-        </div>
-      )}
-      {group.chapters.map((chapter) => (
-        <div key={chapter.doc.id} className="gallery-chapter">
-          <h3>{chapter.heading}</h3>
-          <div className="gallery-grid">
-            {chapter.images.map((image) => (
-              <Tile key={imageKey(image)} image={image} onOpen={() => onOpen(image)} />
-            ))}
+      {/* ponytail: chapters flow side by side, so a one-image chapter no longer costs a whole row */}
+      <div className="gallery-flow">
+        {cover && (
+          <div className="gallery-chapter">
+            <h3>Cover</h3>
+            <div className="gallery-grid">
+              <Tile image={cover} onOpen={() => onOpen(cover)} />
+            </div>
           </div>
-        </div>
-      ))}
+        )}
+        {group.chapters.map((chapter) => (
+          <div key={chapter.doc.id} className="gallery-chapter">
+            <h3 title={chapter.heading}>{chapter.heading}</h3>
+            <div className="gallery-grid">
+              {chapter.images.map((image) => (
+                <Tile key={imageKey(image)} image={image} onOpen={() => onOpen(image)} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
