@@ -75,7 +75,7 @@ test("glossary ruby wins over the reading on the active card", async ({ page }) 
     await page.reload();
     await expect((await glossaryRubyItem(page))).toHaveAttribute("aria-checked", "true");
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("button", { name: "Hiragana readings" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "Readings: Hiragana readings" })).toBeVisible();
     const ruby = page.locator("p.source ruby", { hasText: "東京" });
     await expect(ruby.locator("rt")).toHaveText("Tokyo"); // the glossary wins over the reading
     await expect(ruby.locator("rt")).toHaveClass(/rt-glossary/);

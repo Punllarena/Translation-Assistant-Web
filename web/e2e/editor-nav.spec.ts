@@ -13,12 +13,25 @@ async function open(page: Page, chapter: string) {
 
 const card = (page: Page, index: number) => page.locator(`article[data-index="${index}"]`);
 
-/** Reset the account's reading aid, whatever the page shows. */
+/** Readings is one menu button at every width (`editor.css`); this opens it. */
+const readingsMenu = (page: Page) => page.getByRole("button", { name: /^Readings: / }).click();
+const readingItem = (page: Page, label: string) => page.getByRole("menuitemradio", { name: label });
+async function chooseReading(page: Page, label: string) {
+  await readingsMenu(page);
+  await readingItem(page, label).click();
+}
+
+/** Reset the account's reading aid and Nav one's opening line, whatever the page shows: the
+ *  reading tests leave line 3 active, and the flows below expect Nav one to open on line 1. */
 async function readingsOff(page: Page) {
   await page.unroute("**/readings");
-  await page.evaluate(() => fetch("/api/settings", {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reading_aid: "off" }),
-  }));
+  const id = new URL(page.url()).pathname.match(/^\/documents\/(\d+)/)?.[1];
+  await page.evaluate(async (id) => {
+    const put = (url: string, method: string, body: object) =>
+      fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    await put("/api/settings", "PUT", { reading_aid: "off" });
+    if (id) await put(`/api/documents/${id}`, "PATCH", { last_position: 0 });
+  }, id);
 }
 
 test("chapter arrows and list", async ({ page }) => {
@@ -73,13 +86,13 @@ test("reading aid on the active card", async ({ page }) => {
   test.skip(!status || status.available === false, "MeCab is not installed");
   try {
     await card(page, 2).click();
-    await page.getByRole("button", { name: "Hiragana readings" }).click();
+    await chooseReading(page, "Hiragana readings");
     const today = card(page, 2).locator("ruby", { hasText: "今日" });
     await expect(today.locator("rt")).toHaveText("きょう");
     // a non-active card carries only its author ruby
     await expect(card(page, 3).locator("rt")).toHaveCount(0);
     await expect(card(page, 0).locator("rt")).toHaveCount(2);
-    await page.getByRole("button", { name: "Romaji readings" }).click();
+    await chooseReading(page, "Romaji readings");
     await expect(card(page, 2).locator("ruby", { hasText: "今日" }).locator("rt")).toHaveText("kyō");
   } finally {
     await readingsOff(page);
@@ -98,15 +111,17 @@ test("without MeCab the switch can still turn readings off", async ({ page }) =>
     await r.fulfill({ json: { available: false, message: "Readings need MeCab", tokens: [] } }).catch(() => {});
   });
   try {
-    await page.getByRole("button", { name: "Hiragana readings" }).click();
-    await expect(page.getByRole("button", { name: "Katakana readings" })).toBeDisabled();
-    const off = page.getByRole("button", { name: "Readings off" });
-    await expect(off).toBeEnabled();
+    await chooseReading(page, "Hiragana readings");
+    await readingsMenu(page);
+    await expect(readingItem(page, "Katakana readings")).toBeDisabled();
+    await expect(readingItem(page, "Readings off")).toBeEnabled();
+    await page.keyboard.press("Escape");
     // moving to a line not asked about yet keeps the switch as it was
     await card(page, 2).click();
-    await expect(page.getByRole("button", { name: "Katakana readings" })).toBeDisabled();
-    await off.click();
-    await expect(off).toHaveAttribute("aria-pressed", "true");
+    await readingsMenu(page);
+    await expect(readingItem(page, "Katakana readings")).toBeDisabled();
+    await readingItem(page, "Readings off").click();
+    await expect(page.getByRole("button", { name: "Readings: Readings off" })).toBeVisible();
   } finally {
     release();
     await readingsOff(page);
@@ -153,7 +168,7 @@ test("a chapter with no lines keeps the way on", async ({ page }) => {
   await expect(page.getByText("This chapter has no source text yet.")).toBeVisible();
   await page.locator(".chapter-nav .menu-root > button").click();
   const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
-  await expect(crumbs.getByRole("link", { name: "Nav series" })).toBeVisible();
+  await expect(crumbs.getByRole("menuitem", { name: "Nav series" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Next chapter", exact: true })).toBeDisabled();
   await expect(page.getByText("Last chapter of the series")).toBeVisible();
   await page.getByRole("button", { name: "Previous chapter", exact: true }).click();
@@ -173,23 +188,28 @@ const box = (page: Page) => page.getByRole("textbox", { name: "Translation" });
 test("focus comes home: toggles, the card's own source, Esc and stray typing", async ({ page }) => {
   await open(page, "Nav one");
   await fakeSaves(page, () => 200);
-  await box(page).click();
-  await page.getByRole("button", { name: "Translation memory", exact: true }).click();
-  await page.keyboard.type("a");
-  await expect(box(page)).toHaveText("One.a");
-  await page.getByRole("button", { name: "Translation memory", exact: true }).click();
-  await card(page, 0).locator("p.source").click();
-  await page.keyboard.type("b");
-  await expect(box(page)).toHaveText("One.ab");
-  await page.getByRole("button", { name: "Next chapter", exact: true }).focus();
-  await page.keyboard.press("Escape");
-  await expect(box(page)).toBeFocused();
-  await page.evaluate(() => (document.activeElement as HTMLElement).blur());
-  await page.keyboard.type("c");
-  await expect(box(page)).toHaveText("One.abc");
-  await page.getByRole("button", { name: "Machine translation", exact: true }).focus();
-  await page.keyboard.press("Control+ArrowDown");
-  await expect(card(page, 1)).toHaveAttribute("aria-current", "true");
+  try {
+    await box(page).click();
+    await page.getByRole("button", { name: "Translation memory", exact: true }).click();
+    await page.keyboard.type("a");
+    await expect(box(page)).toHaveText("One.a");
+    await page.getByRole("button", { name: "Translation memory", exact: true }).click();
+    await card(page, 0).locator("p.source").click();
+    await page.keyboard.type("b");
+    await expect(box(page)).toHaveText("One.ab");
+    await page.getByRole("button", { name: "Next chapter", exact: true }).focus();
+    await page.keyboard.press("Escape");
+    await expect(box(page)).toBeFocused();
+    await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+    await page.keyboard.type("c");
+    await expect(box(page)).toHaveText("One.abc");
+    await page.getByRole("button", { name: "Machine translation", exact: true }).focus();
+    await page.keyboard.press("Control+ArrowDown");
+    await expect(card(page, 1)).toHaveAttribute("aria-current", "true");
+  } finally {
+    // the toggle is an account setting: left off, every translation-memory flow after this fails
+    await page.request.put("/api/settings", { data: { tm_visible: true } });
+  }
 });
 
 test("a failing save retries itself, names its lines, and guards header links", async ({ page }) => {
@@ -429,7 +449,7 @@ test("every exit asks the same way", async ({ page }) => {
   const dialog = page.getByRole("dialog", { name: "Leave with unsaved lines?" });
   const exits = [
     page.getByRole("button", { name: "Next chapter", exact: true }),
-    page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Library" }), // inside the chapter menu
+    page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("menuitem", { name: "Library" }), // inside the chapter menu
     page.getByRole("link", { name: "Statistics" }),
   ];
   for (const exit of exits) {
@@ -638,7 +658,7 @@ test("keys that can't act say why", async ({ page }) => {
   await fakeSaves(page, () => 200);
   // line 3 has no translation in the seed and no other flow types into it
   await card(page, 2).click();
-  await expect(box(page)).toHaveText("");
+  await expect(box(page).locator(".cm-placeholder")).toBeVisible(); // shown only while the line is empty
   await page.keyboard.press("Control+End");
   await expect(page.getByText("This line has no translation yet")).toBeVisible();
   // with every line translated there is none left
